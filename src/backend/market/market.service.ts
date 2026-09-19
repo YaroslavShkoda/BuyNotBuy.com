@@ -5,10 +5,12 @@ import {
 
 import type { MarketData } from "../types/market";
 
+const CANDLE_LIMIT = 500;
+
 export async function getMarketData(): Promise<MarketData> {
     const [price, candles] = await Promise.all([
         getBitcoinPrice(),
-        getBitcoinCandles(),
+        getBitcoinCandles(CANDLE_LIMIT),
     ]);
 
     return {
