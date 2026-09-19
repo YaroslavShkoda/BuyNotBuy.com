@@ -1,5 +1,6 @@
 import Fastify from "fastify";
 import { priceRoutes } from "./api/routes/price";
+import { marketRoutes } from "./api/routes/market";
 
 const app = Fastify({
     logger: true,
@@ -15,15 +16,18 @@ app.get('/', async () => {
 
 async function startServer() {
     await app.register(priceRoutes);
+    await app.register(marketRoutes);
 
-    app.listen({ port: PORT }, (error, adress) => {
-        if (error) {
-            app.log.error(error);
-            process.exit(1);
-        }
+    try {
+        const adress = await app.listen({
+            port: PORT,
+        });
 
         console.log(`Server running at ${adress}`);
-    });
+    } catch (error) {
+        app.log.error(error);
+        process.exit(1);
+    }
 }
 
 startServer();
