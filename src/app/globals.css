@@ -1,0 +1,143 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: #000;
+  color: #fff;
+  font-family: Arial, sans-serif;
+  font-weight: 300;
+}
+
+main {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 40px;
+}
+
+.header {
+  margin-bottom: 60px;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 42px;
+  font-weight: 300;
+}
+
+.header p {
+  margin-top: 8px;
+  color: #888;
+  font-weight: 300;
+}
+
+section {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 24px;
+  margin-bottom: 20px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.025);
+  box-shadow:
+    0 20px 50px rgba(0, 0, 0, 0.7),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+section h2 {
+  margin-top: 0;
+  font-size: 16px;
+  color: #888;
+  font-weight: 300;
+}
+
+section p {
+  font-weight: 300;
+}
+
+.price-card strong {
+  display: block;
+  margin: 12px 0;
+  font-size: 42px;
+  font-weight: 300;
+}
+
+.price-card small {
+  color: #666;
+  font-weight: 300;
+}
+
+.dashboard {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.indicator {
+  display: flex;
+  justify-content: space-between;
+  padding: 16px 0;
+  border-bottom: 1px solid #222;
+  font-weight: 300;
+}
+
+.indicator strong {
+  font-weight: 300;
+}
+
+.long {
+  color: #fff;
+}
+
+.signal-card {
+  text-align: center;
+}
+
+.signal {
+  display: block;
+  font-size: 48px;
+  font-weight: 300;
+}
+
+.signal-card p {
+  color: #666;
+}
+
+.news-card article {
+  display: flex;
+  gap: 16px;
+  padding: 14px 0;
+  border-bottom: 1px solid #222;
+}
+
+.news-card article span {
+  color: #888;
+}
+
+.news-card article p {
+  margin: 0;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.logo {
+  width: 115px;
+  height: 115px;
+  object-fit: contain;
+}
+
+.brand h1 {
+  margin: 0;
+}
+
+.brand p {
+  margin: 6px 0 0;
+}
