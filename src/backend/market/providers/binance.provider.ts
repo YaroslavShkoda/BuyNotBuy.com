@@ -9,13 +9,30 @@ import { MarketDataError } from '../../errors/market-data.error';
 
 import type { MarketDataProvider } from './market-data.provider';
 
+const BinanceNumberSchema = z
+    .union([
+        z.string(),
+        z.number(),
+    ])
+    .transform((value) => Number(value))
+    .refine(Number.isFinite, {
+        message: 'Value must be a finite number',
+    });
+
 const BinancePriceSchema = z.object({
     symbol: z.string(),
-    price: z.string(),
+    price: BinanceNumberSchema,
 });
 
 const BinanceCandleSchema = z.array(
-    z.array(z.string().or(z.number())),
+    z.tuple([
+        BinanceNumberSchema,
+        BinanceNumberSchema,
+        BinanceNumberSchema,
+        BinanceNumberSchema,
+        BinanceNumberSchema,
+        BinanceNumberSchema,
+    ]),
 );
 
 const BINANCE_BASE_URL = 'https://data-api.binance.vision';
@@ -44,7 +61,7 @@ export class BinanceProvider implements MarketDataProvider {
 
         return {
             symbol: validatedData.symbol,
-            price: Number(validatedData.price),
+            price: validatedData.price,
         };
     }
 
@@ -70,12 +87,12 @@ export class BinanceProvider implements MarketDataProvider {
         const validatedData = BinanceCandleSchema.parse(data);
 
         return validatedData.map((candle) => ({
-            timestamp: Number(candle[0]),
-            open: Number(candle[1]),
-            high: Number(candle[2]),
-            low: Number(candle[3]),
-            close: Number(candle[4]),
-            volume: Number(candle[5]),
+            timestamp: candle[0],
+            open: candle[1],
+            high: candle[2],
+            low: candle[3],
+            close: candle[4],
+            volume: candle[5],
         }));
     }
 }
