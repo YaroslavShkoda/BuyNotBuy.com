@@ -47,22 +47,32 @@ export class BinanceProvider implements MarketDataProvider {
             '/api/v3/ticker/price' +
             `?symbol=${BTC_SYMBOL}`;
 
-        const response = await fetch(url);
+        try {
+            const response = await fetch(url);
 
-        if (!response.ok) {
+            if (!response.ok) {
+                throw new MarketDataError(
+                    `Binance API error: ${response.status}`,
+                );
+            }
+
+            const data = await response.json();
+
+            const validatedData = BinancePriceSchema.parse(data);
+
+            return {
+                symbol: validatedData.symbol,
+                price: validatedData.price,
+            };
+        } catch (error) {
+            if (error instanceof MarketDataError) {
+                throw error;
+            }
+
             throw new MarketDataError(
-                `Binance API error: ${response.status}`,
+                'Failed to fetch Bitcoin price from Binance',
             );
         }
-
-        const data = await response.json();
-
-        const validatedData = BinancePriceSchema.parse(data);
-
-        return {
-            symbol: validatedData.symbol,
-            price: validatedData.price,
-        };
     }
 
     async getBitcoinCandles(
@@ -74,25 +84,35 @@ export class BinanceProvider implements MarketDataProvider {
             `&interval=${CANDLE_INTERVAL}` +
             `&limit=${limit}`;
 
-        const response = await fetch(url);
+        try {
+            const response = await fetch(url);
 
-        if (!response.ok) {
+            if (!response.ok) {
+                throw new MarketDataError(
+                    `Binance API error: ${response.status}`,
+                );
+            }
+
+            const data = await response.json();
+
+            const validatedData = BinanceCandleSchema.parse(data);
+
+            return validatedData.map((candle) => ({
+                timestamp: candle[0],
+                open: candle[1],
+                high: candle[2],
+                low: candle[3],
+                close: candle[4],
+                volume: candle[5],
+            }));
+        } catch (error) {
+            if (error instanceof MarketDataError) {
+                throw error;
+            }
+
             throw new MarketDataError(
-                `Binance API error: ${response.status}`,
+                'Failed to fetch Bitcoin candles from Binance',
             );
         }
-
-        const data = await response.json();
-
-        const validatedData = BinanceCandleSchema.parse(data);
-
-        return validatedData.map((candle) => ({
-            timestamp: candle[0],
-            open: candle[1],
-            high: candle[2],
-            low: candle[3],
-            close: candle[4],
-            volume: candle[5],
-        }));
     }
 }

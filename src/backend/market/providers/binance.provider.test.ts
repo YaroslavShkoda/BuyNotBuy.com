@@ -75,6 +75,45 @@ describe('BinanceProvider', () => {
                 provider.getBitcoinPrice(),
             ).rejects.toThrow();
         });
+
+        it('throws MarketDataError when fetch fails', async () => {
+            const fetchMock = vi.fn().mockRejectedValue(
+                new Error('Network error'),
+            );
+
+            vi.stubGlobal('fetch', fetchMock);
+
+            const provider = new BinanceProvider();
+
+            await expect(
+                provider.getBitcoinPrice(),
+            ).rejects.toThrow(
+                new MarketDataError(
+                    'Failed to fetch Bitcoin price from Binance',
+                ),
+            );
+        });
+
+        it('throws MarketDataError when response JSON parsing fails', async () => {
+            const fetchMock = vi.fn().mockResolvedValue({
+                ok: true,
+                json: vi.fn().mockRejectedValue(
+                    new Error('Invalid JSON'),
+                ),
+            });
+
+            vi.stubGlobal('fetch', fetchMock);
+
+            const provider = new BinanceProvider();
+
+            await expect(
+                provider.getBitcoinPrice(),
+            ).rejects.toThrow(
+                new MarketDataError(
+                    'Failed to fetch Bitcoin price from Binance',
+                ),
+            );
+        });
     });
 
     describe('getBitcoinCandles', () => {
@@ -191,6 +230,45 @@ describe('BinanceProvider', () => {
             await expect(
                 provider.getBitcoinCandles(),
             ).rejects.toThrow();
+        });
+
+        it('throws MarketDataError when fetch fails', async () => {
+            const fetchMock = vi.fn().mockRejectedValue(
+                new Error('Network error'),
+            );
+
+            vi.stubGlobal('fetch', fetchMock);
+
+            const provider = new BinanceProvider();
+
+            await expect(
+                provider.getBitcoinCandles(),
+            ).rejects.toThrow(
+                new MarketDataError(
+                    'Failed to fetch Bitcoin candles from Binance',
+                ),
+            );
+        });
+
+        it('throws MarketDataError when response JSON parsing fails', async () => {
+            const fetchMock = vi.fn().mockResolvedValue({
+                ok: true,
+                json: vi.fn().mockRejectedValue(
+                    new Error('Invalid JSON'),
+                ),
+            });
+
+            vi.stubGlobal('fetch', fetchMock);
+
+            const provider = new BinanceProvider();
+
+            await expect(
+                provider.getBitcoinCandles(),
+            ).rejects.toThrow(
+                new MarketDataError(
+                    'Failed to fetch Bitcoin candles from Binance',
+                ),
+            );
         });
     });
 });
