@@ -1,6 +1,6 @@
-import { marketDataProvider } from './market.provider';
+﻿import { marketDataProvider } from './market.provider';
 
-import { 
+import {
     calculateMarketIndicators,
     type MarketIndicators,
 } from '../indicators/indicator.service';
@@ -14,16 +14,20 @@ export interface MarketSnapshot {
     indicators: MarketIndicators;
 }
 
-export async function getMarketSnapshot(): Promise<MarketSnapshot> {
+export async function getMarketData(): Promise<MarketData> {
     const [price, candles] = await Promise.all([
         marketDataProvider.getBitcoinPrice(),
         marketDataProvider.getBitcoinCandles(CANDLE_LIMIT),
     ]);
 
-    const market: MarketData = {
+    return {
         price,
         candles,
     };
+}
+
+export async function getMarketSnapshot(): Promise<MarketSnapshot> {
+    const market = await getMarketData();
 
     const indicators = calculateMarketIndicators(market);
 

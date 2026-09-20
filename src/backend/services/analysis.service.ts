@@ -1,12 +1,12 @@
-import type { MarketData } from '../types/market';
-import type { MarketAnalysis } from '../types/analysis';
+﻿import type { MarketAnalysis } from '../types/analysis';
 
+import { getMarketData } from '../market/market.service';
 import { calculateMarketIndicators } from '../indicators/indicator.service';
 import { calculateSignal } from '../signals/signal.service';
 
-export function analyzeMarket(
-    marketData: MarketData,
-): MarketAnalysis {
+export async function analyzeMarket(): Promise<MarketAnalysis> {
+    const marketData = await getMarketData();
+
     const indicators = calculateMarketIndicators(
         marketData,
     );
