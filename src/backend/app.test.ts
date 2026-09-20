@@ -1,5 +1,7 @@
 ﻿import { describe, expect, it, vi } from 'vitest';
 
+import { MarketDataError } from './errors/market-data.error';
+
 const { mockMarketDataProvider } = vi.hoisted(() => ({
     mockMarketDataProvider: {
         getBitcoinPrice: vi.fn(async () => ({
@@ -106,6 +108,46 @@ describe('Backend app', () => {
         expect(body.signal).toHaveProperty('confidence');
         expect(body.signal).toHaveProperty('reason');
         expect(body.timestamp).toBeTypeOf('number');
+
+        await app.close();
+    });
+
+    it('returns 502 when market data provider fails', async () => {
+        mockMarketDataProvider.getBitcoinPrice.mockRejectedValueOnce(
+            new MarketDataError('Binance API error: 503'),
+        );
+
+        const app = createApp();
+
+        const response = await app.inject({
+            method: 'GET',
+            url: '/api/price',
+        });
+
+        expect(response.statusCode).toBe(502);
+        expect(response.json()).toEqual({
+            error: 'Market data provider unavailable',
+        });
+
+        await app.close();
+    });
+
+    it('returns 500 for unexpected errors', async () => {
+        mockMarketDataProvider.getBitcoinPrice.mockRejectedValueOnce(
+            new Error('Unexpected error'),
+        );
+
+        const app = createApp();
+
+        const response = await app.inject({
+            method: 'GET',
+            url: '/api/price',
+        });
+
+        expect(response.statusCode).toBe(500);
+        expect(response.json()).toEqual({
+            error: 'Internal server error',
+        });
 
         await app.close();
     });

@@ -1,9 +1,11 @@
-﻿import { symbol, z } from 'zod';
+﻿import { z } from 'zod';
 
 import type {
     BitcoinPrice,
     Candle,
 } from '../../types/market';
+
+import { MarketDataError } from '../../errors/market-data.error';
 
 import type { MarketDataProvider } from './market-data.provider';
 
@@ -23,7 +25,7 @@ const CANDLE_INTERVAL = '1h';
 
 export class BinanceProvider implements MarketDataProvider {
     async getBitcoinPrice(): Promise<BitcoinPrice> {
-        const url = 
+        const url =
             `${BINANCE_BASE_URL}` +
             '/api/v3/ticker/price' +
             `?symbol=${BTC_SYMBOL}`;
@@ -31,23 +33,25 @@ export class BinanceProvider implements MarketDataProvider {
         const response = await fetch(url);
 
         if (!response.ok) {
-            throw new Error(`Binance API error: ${response.status}`);
+            throw new MarketDataError(
+                `Binance API error: ${response.status}`,
+            );
         }
-        
+
         const data = await response.json();
 
-        const validateData = BinancePriceSchema.parse(data);
+        const validatedData = BinancePriceSchema.parse(data);
 
         return {
-            symbol: validateData.symbol,
-            price: Number(validateData.price),
+            symbol: validatedData.symbol,
+            price: Number(validatedData.price),
         };
     }
 
     async getBitcoinCandles(
         limit = 300,
     ): Promise<Candle[]> {
-        const url = 
+        const url =
             `${BINANCE_BASE_URL}/api/v3/klines` +
             `?symbol=${BTC_SYMBOL}` +
             `&interval=${CANDLE_INTERVAL}` +
@@ -56,14 +60,16 @@ export class BinanceProvider implements MarketDataProvider {
         const response = await fetch(url);
 
         if (!response.ok) {
-            throw new Error(`Binance API error: ${response.status}`);
+            throw new MarketDataError(
+                `Binance API error: ${response.status}`,
+            );
         }
 
         const data = await response.json();
 
-        const validateData = BinanceCandleSchema.parse(data);
+        const validatedData = BinanceCandleSchema.parse(data);
 
-        return validateData.map((candle) => ({
+        return validatedData.map((candle) => ({
             timestamp: Number(candle[0]),
             open: Number(candle[1]),
             high: Number(candle[2]),
