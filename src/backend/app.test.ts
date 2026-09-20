@@ -1,6 +1,7 @@
 ﻿import { describe, expect, it, vi } from 'vitest';
 
 import { MarketDataError } from './errors/market-data.error';
+import { marketConfig } from './config/market.config';
 
 const { mockMarketDataProvider } = vi.hoisted(() => ({
     mockMarketDataProvider: {
@@ -9,18 +10,19 @@ const { mockMarketDataProvider } = vi.hoisted(() => ({
             price: 80000,
         })),
 
-        getBitcoinCandles: vi.fn(async (limit = 500) =>
-            Array.from(
-                { length: limit },
-                (_, index) => ({
-                    timestamp: index,
-                    open: 100,
-                    high: 101,
-                    low: 99,
-                    close: 100,
-                    volume: 1000,
-                }),
-            ),
+        getBitcoinCandles: vi.fn(
+            async (limit = marketConfig.defaultCandleLimit) =>
+                Array.from(
+                    { length: limit },
+                    (_, index) => ({
+                        timestamp: index,
+                        open: 100,
+                        high: 101,
+                        low: 99,
+                        close: 100,
+                        volume: 1000,
+                    }),
+                ),
         ),
     },
 }));
@@ -82,7 +84,9 @@ describe('Backend app', () => {
             price: 80000,
         });
 
-        expect(body.market.candles).toHaveLength(500);
+        expect(body.market.candles).toHaveLength(
+            marketConfig.defaultCandleLimit,
+        );
         expect(body.indicators).toHaveProperty('ema300');
         expect(body.indicators).toHaveProperty('stochastic');
 

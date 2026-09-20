@@ -7,7 +7,7 @@ import {
 
 import type { MarketData } from '../types/market';
 
-const CANDLE_LIMIT = 500;
+import { marketConfig } from '../config/market.config';
 
 export interface MarketSnapshot {
     market: MarketData;
@@ -17,7 +17,9 @@ export interface MarketSnapshot {
 export async function getMarketData(): Promise<MarketData> {
     const [price, candles] = await Promise.all([
         marketDataProvider.getBitcoinPrice(),
-        marketDataProvider.getBitcoinCandles(CANDLE_LIMIT),
+        marketDataProvider.getBitcoinCandles(
+            marketConfig.defaultCandleLimit,
+        ),
     ]);
 
     return {
