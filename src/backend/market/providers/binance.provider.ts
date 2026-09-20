@@ -7,6 +7,8 @@ import type {
 
 import { MarketDataError } from '../../errors/market-data.error';
 
+import { marketConfig } from '../../config/market.config';
+
 import type { MarketDataProvider } from './market-data.provider';
 
 const BinanceNumberSchema = z
@@ -35,17 +37,12 @@ const BinanceCandleSchema = z.array(
     ]),
 );
 
-const BINANCE_BASE_URL = 'https://data-api.binance.vision';
-
-const BTC_SYMBOL = 'BTCUSDT';
-const CANDLE_INTERVAL = '1h';
-
 export class BinanceProvider implements MarketDataProvider {
     async getBitcoinPrice(): Promise<BitcoinPrice> {
         const url =
-            `${BINANCE_BASE_URL}` +
+            `${marketConfig.baseUrl}` +
             '/api/v3/ticker/price' +
-            `?symbol=${BTC_SYMBOL}`;
+            `?symbol=${marketConfig.symbol}`;
 
         try {
             const response = await fetch(url);
@@ -76,12 +73,12 @@ export class BinanceProvider implements MarketDataProvider {
     }
 
     async getBitcoinCandles(
-        limit = 300,
+        limit: number = marketConfig.defaultCandleLimit,
     ): Promise<Candle[]> {
         const url =
-            `${BINANCE_BASE_URL}/api/v3/klines` +
-            `?symbol=${BTC_SYMBOL}` +
-            `&interval=${CANDLE_INTERVAL}` +
+            `${marketConfig.baseUrl}/api/v3/klines` +
+            `?symbol=${marketConfig.symbol}` +
+            `&interval=${marketConfig.candleInterval}` +
             `&limit=${limit}`;
 
         try {
