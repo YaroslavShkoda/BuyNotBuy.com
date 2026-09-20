@@ -1,8 +1,11 @@
-import type { FastifyInstance } from 'fastify';
-import { getMarketSnapshot } from '../../market/market.service';
+﻿import type { FastifyInstance } from 'fastify';
 
-export async function marketRoutes(app: FastifyInstance) {
+import { getMarket } from '../controllers/market.controller';
+
+export async function marketRoutes(
+    app: FastifyInstance,
+) {
     app.get('/api/market', async () => {
-        return getMarketSnapshot();
+        return getMarket();
     });
 }

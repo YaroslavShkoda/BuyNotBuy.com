@@ -1,10 +1,11 @@
-import type { FastifyInstance } from 'fastify';
-import { marketDataProvider } from '../../market/market.provider'
+﻿import type { FastifyInstance } from 'fastify';
 
-export async function priceRoutes(app: FastifyInstance) {
+import { getPrice } from '../controllers/price.controller';
+
+export async function priceRoutes(
+    app: FastifyInstance,
+) {
     app.get('/api/price', async () => {
-        const bitcoin = await marketDataProvider.getBitcoinPrice();
-
-        return bitcoin;
+        return getPrice();
     });
 }
