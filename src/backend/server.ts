@@ -1,6 +1,6 @@
-import Fastify from "fastify";
-import { priceRoutes } from "./api/routes/price";
-import { marketRoutes } from "./api/routes/market";
+import Fastify from 'fastify';
+import { priceRoutes } from './api/routes/price';
+import { marketRoutes } from './api/routes/market';
 
 const app = Fastify({
     logger: true,
@@ -10,7 +10,7 @@ const PORT = 3001;
 
 app.get('/', async () => {
     return {
-        message: "BuyNotBuy backend is running",
+        message: 'BuyNotBuy backend is running',
     };
 });
 

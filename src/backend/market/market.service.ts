@@ -1,14 +1,14 @@
 import { 
     getBitcoinPrice, 
     getBitcoinCandles, 
-} from "./binance.client";
+} from './binance.client';
 
 import { 
     calculateMarketIndicators,
     type MarketIndicators,
-} from "../indicators/indicator.service";
+} from '../indicators/indicator.service';
 
-import type { MarketData } from "../types/market";
+import type { MarketData } from '../types/market';
 
 const CANDLE_LIMIT = 500;
 

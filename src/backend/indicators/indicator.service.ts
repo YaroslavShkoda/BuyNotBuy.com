@@ -1,5 +1,5 @@
-import type { MarketData } from "../types/market";
-import { calculateEMA } from "./ema";
+import type { MarketData } from '../types/market';
+import { calculateEMA } from './ema';
 
 const EMA_PERIOD = 300;
 

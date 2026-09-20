@@ -1,5 +1,5 @@
-﻿import { describe, expect, it } from "vitest";
-import { calculateSignal } from "./signal.service";
+﻿import { describe, expect, it } from 'vitest';
+import { calculateSignal } from './signal.service';
 
 describe("calculateSignal", () => {
     it('returns LONG when price is above EMA zone', () => {

@@ -1,5 +1,5 @@
-import type { FastifyInstance } from "fastify";
-import { getBitcoinPrice } from "../../market/binance.client";
+import type { FastifyInstance } from 'fastify';
+import { getBitcoinPrice } from '../../market/binance.client';
 
 export async function priceRoutes(app: FastifyInstance) {
     app.get('/api/price', async () => {

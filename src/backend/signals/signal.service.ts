@@ -1,4 +1,4 @@
-﻿import type { MarketIndicators } from "../indicators/indicator.service";
+﻿import type { MarketIndicators } from '../indicators/indicator.service';
 
 export type MarketSignal =
     | 'LONG'

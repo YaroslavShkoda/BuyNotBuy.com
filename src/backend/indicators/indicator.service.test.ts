@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
-import { calculateMarketIndicators } from "./indicator.service";
-import type { MarketData } from "../types/market";
+import { describe, expect, it } from 'vitest';
+import { calculateMarketIndicators } from './indicator.service';
+import type { MarketData } from '../types/market';
 
 describe('calculateMarketIndicators', () => {
     it('calculates EMA 300 from candle close prices', () => {
