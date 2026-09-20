@@ -1,7 +1,4 @@
-import { 
-    getBitcoinPrice, 
-    getBitcoinCandles, 
-} from './binance.client';
+import { marketDataProvider } from './market.provider';
 
 import { 
     calculateMarketIndicators,
@@ -19,8 +16,8 @@ export interface MarketSnapshot {
 
 export async function getMarketSnapshot(): Promise<MarketSnapshot> {
     const [price, candles] = await Promise.all([
-        getBitcoinPrice(),
-        getBitcoinCandles(CANDLE_LIMIT),
+        marketDataProvider.getBitcoinPrice(),
+        marketDataProvider.getBitcoinCandles(CANDLE_LIMIT),
     ]);
 
     const market: MarketData = {
