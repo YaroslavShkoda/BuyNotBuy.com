@@ -1,13 +1,28 @@
-﻿export interface MarketConfig {
-    baseUrl: string;
-    symbol: string;
-    candleInterval: string;
-    defaultCandleLimit: number;
-}
+﻿import { z } from 'zod';
 
-export const marketConfig: MarketConfig = {
-    baseUrl: 'https://data-api.binance.vision',
-    symbol: 'BTCUSDT',
-    candleInterval: '1h',
-    defaultCandleLimit: 300,
-};
+const MarketConfigSchema = z.object({
+    baseUrl: z.url(),
+    symbol: z.string().min(1),
+    candleInterval: z.string().min(1),
+    defaultCandleLimit: z.coerce.number().int().positive(),
+});
+
+export type MarketConfig = z.infer<typeof MarketConfigSchema>;
+
+export const marketConfig: MarketConfig = MarketConfigSchema.parse({
+    baseUrl:
+        process.env.MARKET_BASE_URL ??
+        'https://data-api.binance.vision',
+
+    symbol:
+        process.env.MARKET_SYMBOL ??
+        'BTCUSDT',
+
+    candleInterval:
+        process.env.MARKET_CANDLE_INTERVAL ??
+        '1h',
+
+    defaultCandleLimit:
+        process.env.MARKET_DEFAULT_CANDLE_LIMIT ??
+        '300',
+});
