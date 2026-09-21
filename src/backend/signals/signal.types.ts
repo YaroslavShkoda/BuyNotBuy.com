@@ -1,4 +1,4 @@
-﻿export type IndicatorSignal =
+export type IndicatorSignal =
     | 'LONG'
     | 'SHORT'
     | 'NEUTRAL';
@@ -13,4 +13,5 @@ export interface SignalResult {
     signal: IndicatorSignal;
     confidence: number;
     reason: string;
+    indicators: IndicatorAnalysis[];
 }

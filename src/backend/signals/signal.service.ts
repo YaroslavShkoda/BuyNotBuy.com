@@ -68,67 +68,65 @@ function combineSignals(
     SignalResult,
     'signal' | 'confidence' | 'reason'
 > {
-    const longCount = analyses.filter(
+    const longAnalyses = analyses.filter(
         (analysis) => analysis.signal === 'LONG',
-    ).length;
+    );
 
-    const shortCount = analyses.filter(
+    const shortAnalyses = analyses.filter(
         (analysis) => analysis.signal === 'SHORT',
-    ).length;
+    );
 
     const neutralCount = analyses.filter(
         (analysis) => analysis.signal === 'NEUTRAL',
     ).length;
 
     if (
-        longCount > 0 &&
-        shortCount === 0
+        longAnalyses.length > 0 &&
+        shortAnalyses.length === 0
     ) {
         if (neutralCount === 0) {
             return {
                 signal: 'LONG',
                 confidence: 100,
-                reason: 'EMA 300 и Стохастик подтверждают LONG',
+                reason: longAnalyses
+                    .map((analysis) => analysis.name)
+                    .join(' и ') +
+                    ' подтверждают LONG',
             };
         }
-
-        const activeIndicator = analyses.find(
-            (analysis) => analysis.signal === 'LONG',
-        );
 
         return {
             signal: 'LONG',
             confidence: 50,
-            reason: `Только ${activeIndicator?.name} подтверждает LONG`,
+            reason: `Только ${longAnalyses[0].name} подтверждает LONG`,
         };
     }
 
     if (
-        shortCount > 0 &&
-        longCount === 0
+        shortAnalyses.length > 0 &&
+        longAnalyses.length === 0
     ) {
         if (neutralCount === 0) {
             return {
                 signal: 'SHORT',
                 confidence: 100,
-                reason: 'EMA 300 и Стохастик подтверждают SHORT',
+                reason: shortAnalyses
+                    .map((analysis) => analysis.name)
+                    .join(' и ') +
+                    ' подтверждают SHORT',
             };
         }
-
-        const activeIndicator = analyses.find(
-            (analysis) => analysis.signal === 'SHORT',
-        );
 
         return {
             signal: 'SHORT',
             confidence: 50,
-            reason: `Только ${activeIndicator?.name} подтверждает SHORT`,
+            reason: `Только ${shortAnalyses[0].name} подтверждает SHORT`,
         };
     }
 
     if (
-        longCount > 0 &&
-        shortCount > 0
+        longAnalyses.length > 0 &&
+        shortAnalyses.length > 0
     ) {
         return {
             signal: 'NEUTRAL',
@@ -157,8 +155,19 @@ export function calculateSignal(
         indicators.stochastic,
     );
 
-    return combineSignals([
+    const result = combineSignals([
         emaAnalysis,
         stochasticAnalysis,
     ]);
+
+    return {
+        ...result,
+        indicators: [
+            emaAnalysis,
+            stochasticAnalysis,
+        ],
+    };
 }
+
+
+
