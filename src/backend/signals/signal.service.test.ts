@@ -13,6 +13,18 @@ describe('calculateSignal', () => {
         expect(result.reason).toBe(
             'EMA 300 и Стохастик подтверждают LONG',
         );
+        expect(result.indicators).toEqual([
+            {
+                name: 'EMA 300',
+                signal: 'LONG',
+                reason: 'Цена выше EMA 300',
+            },
+            {
+                name: 'Стохастик',
+                signal: 'LONG',
+                reason: 'Стохастик ниже 15',
+            },
+        ]);
     });
 
     it('returns SHORT with 100% confidence when both indicators are SHORT', () => {
@@ -26,6 +38,18 @@ describe('calculateSignal', () => {
         expect(result.reason).toBe(
             'EMA 300 и Стохастик подтверждают SHORT',
         );
+        expect(result.indicators).toEqual([
+            {
+                name: 'EMA 300',
+                signal: 'SHORT',
+                reason: 'Цена ниже EMA 300',
+            },
+            {
+                name: 'Стохастик',
+                signal: 'SHORT',
+                reason: 'Стохастик выше 80',
+            },
+        ]);
     });
 
     it('returns LONG with 50% confidence when only EMA is LONG', () => {
@@ -39,6 +63,18 @@ describe('calculateSignal', () => {
         expect(result.reason).toBe(
             'Только EMA 300 подтверждает LONG',
         );
+        expect(result.indicators).toEqual([
+            {
+                name: 'EMA 300',
+                signal: 'LONG',
+                reason: 'Цена выше EMA 300',
+            },
+            {
+                name: 'Стохастик',
+                signal: 'NEUTRAL',
+                reason: 'Стохастик находится в нейтральной зоне',
+            },
+        ]);
     });
 
     it('returns SHORT with 50% confidence when only EMA is SHORT', () => {
@@ -52,6 +88,18 @@ describe('calculateSignal', () => {
         expect(result.reason).toBe(
             'Только EMA 300 подтверждает SHORT',
         );
+        expect(result.indicators).toEqual([
+            {
+                name: 'EMA 300',
+                signal: 'SHORT',
+                reason: 'Цена ниже EMA 300',
+            },
+            {
+                name: 'Стохастик',
+                signal: 'NEUTRAL',
+                reason: 'Стохастик находится в нейтральной зоне',
+            },
+        ]);
     });
 
     it('returns LONG with 50% confidence when only Stochastic is LONG', () => {
@@ -65,6 +113,18 @@ describe('calculateSignal', () => {
         expect(result.reason).toBe(
             'Только Стохастик подтверждает LONG',
         );
+        expect(result.indicators).toEqual([
+            {
+                name: 'EMA 300',
+                signal: 'NEUTRAL',
+                reason: 'Цена находится на уровне EMA 300',
+            },
+            {
+                name: 'Стохастик',
+                signal: 'LONG',
+                reason: 'Стохастик ниже 15',
+            },
+        ]);
     });
 
     it('returns SHORT with 50% confidence when only Stochastic is SHORT', () => {
@@ -78,6 +138,18 @@ describe('calculateSignal', () => {
         expect(result.reason).toBe(
             'Только Стохастик подтверждает SHORT',
         );
+        expect(result.indicators).toEqual([
+            {
+                name: 'EMA 300',
+                signal: 'NEUTRAL',
+                reason: 'Цена находится на уровне EMA 300',
+            },
+            {
+                name: 'Стохастик',
+                signal: 'SHORT',
+                reason: 'Стохастик выше 80',
+            },
+        ]);
     });
 
     it('returns NEUTRAL with 50% confidence when indicators conflict', () => {
@@ -91,6 +163,18 @@ describe('calculateSignal', () => {
         expect(result.reason).toBe(
             'Индикаторы дают противоположные сигналы',
         );
+        expect(result.indicators).toEqual([
+            {
+                name: 'EMA 300',
+                signal: 'LONG',
+                reason: 'Цена выше EMA 300',
+            },
+            {
+                name: 'Стохастик',
+                signal: 'SHORT',
+                reason: 'Стохастик выше 80',
+            },
+        ]);
     });
 
     it('returns NEUTRAL with 50% confidence when indicators conflict in the opposite direction', () => {
@@ -104,6 +188,18 @@ describe('calculateSignal', () => {
         expect(result.reason).toBe(
             'Индикаторы дают противоположные сигналы',
         );
+        expect(result.indicators).toEqual([
+            {
+                name: 'EMA 300',
+                signal: 'SHORT',
+                reason: 'Цена ниже EMA 300',
+            },
+            {
+                name: 'Стохастик',
+                signal: 'LONG',
+                reason: 'Стохастик ниже 15',
+            },
+        ]);
     });
 
     it('returns NEUTRAL with 0% confidence when both indicators are neutral', () => {
@@ -117,5 +213,17 @@ describe('calculateSignal', () => {
         expect(result.reason).toBe(
             'Ни один индикатор не даёт сигнала',
         );
+        expect(result.indicators).toEqual([
+            {
+                name: 'EMA 300',
+                signal: 'NEUTRAL',
+                reason: 'Цена находится на уровне EMA 300',
+            },
+            {
+                name: 'Стохастик',
+                signal: 'NEUTRAL',
+                reason: 'Стохастик находится в нейтральной зоне',
+            },
+        ]);
     });
 });
