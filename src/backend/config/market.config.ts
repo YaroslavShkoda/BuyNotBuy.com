@@ -1,6 +1,7 @@
 ﻿import { z } from 'zod';
 
 const MarketConfigSchema = z.object({
+    provider: z.enum(['binance']),
     baseUrl: z.url(),
     symbol: z.string().min(1),
     candleInterval: z.string().min(1),
@@ -10,6 +11,10 @@ const MarketConfigSchema = z.object({
 export type MarketConfig = z.infer<typeof MarketConfigSchema>;
 
 export const marketConfig: MarketConfig = MarketConfigSchema.parse({
+    provider:
+        process.env.MARKET_PROVIDER ??
+        'binance',
+
     baseUrl:
         process.env.MARKET_BASE_URL ??
         'https://data-api.binance.vision',
