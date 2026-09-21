@@ -1,4 +1,4 @@
-﻿import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { MarketDataError } from './errors/market-data.error';
 import { marketConfig } from './config/market.config';
@@ -67,7 +67,7 @@ describe('Backend app', () => {
         await app.close();
     });
 
-    it('returns market snapshot from /api/market', async () => {
+    it('returns market data from /api/market', async () => {
         const app = createApp();
 
         const response = await app.inject({
@@ -79,16 +79,14 @@ describe('Backend app', () => {
 
         const body = response.json();
 
-        expect(body.market.price).toEqual({
+        expect(body.price).toEqual({
             symbol: 'BTCUSDT',
             price: 80000,
         });
 
-        expect(body.market.candles).toHaveLength(
+        expect(body.candles).toHaveLength(
             marketConfig.defaultCandleLimit,
         );
-        expect(body.indicators).toHaveProperty('ema300');
-        expect(body.indicators).toHaveProperty('stochastic');
 
         await app.close();
     });
@@ -195,4 +193,3 @@ describe('Backend app', () => {
         await app.close();
     });
 });
-

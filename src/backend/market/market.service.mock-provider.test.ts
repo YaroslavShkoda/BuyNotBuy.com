@@ -1,4 +1,4 @@
-﻿import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 describe('market.service with MockProvider', () => {
     it('returns market data from MockProvider', async () => {
@@ -29,36 +29,15 @@ describe('market.service with MockProvider', () => {
         });
 
         expect(result.candles[299]).toEqual({
-            timestamp: 1_700_000_000_000 + 299 * 60 * 60 * 1000,
+            timestamp:
+                1_700_000_000_000 +
+                299 * 60 * 60 * 1000,
             open: 100289,
             high: 100309,
             low: 100279,
             close: 100299,
             volume: 1000,
         });
-
-        vi.unstubAllEnvs();
-    });
-
-    it('calculates market snapshot without Binance', async () => {
-        vi.resetModules();
-
-        vi.stubEnv('MARKET_PROVIDER', 'mock');
-
-        const {
-            getMarketSnapshot,
-        } = await import('./market.service');
-
-        const result = await getMarketSnapshot();
-
-        expect(result.market.price).toEqual({
-            symbol: 'BTCUSDT',
-            price: 100000,
-        });
-
-        expect(result.market.candles).toHaveLength(300);
-
-        expect(result.indicators).toBeDefined();
 
         vi.unstubAllEnvs();
     });

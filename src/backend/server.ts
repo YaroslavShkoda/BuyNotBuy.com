@@ -1,13 +1,12 @@
-﻿import { createApp } from './app';
-
-const PORT = 3001;
+import { createApp } from './app';
+import { appConfig } from './config/app.config';
 
 const app = createApp();
 
 async function startServer() {
     try {
         const address = await app.listen({
-            port: PORT,
+            port: appConfig.port,
         });
 
         console.log(`Server running at ${address}`);

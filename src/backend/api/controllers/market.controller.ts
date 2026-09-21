@@ -1,5 +1,5 @@
-﻿import { getMarketSnapshot } from '../../market/market.service';
+import { getMarketData } from '../../market/market.service';
 
 export async function getMarket() {
-    return getMarketSnapshot();
+    return getMarketData();
 }
