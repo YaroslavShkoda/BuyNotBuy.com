@@ -1,9 +1,10 @@
-export type IndicatorSignal =
+﻿export type IndicatorSignal =
     | 'LONG'
     | 'SHORT'
     | 'NEUTRAL';
 
 export interface IndicatorAnalysis {
+    name: string;
     signal: IndicatorSignal;
     reason: string;
 }
