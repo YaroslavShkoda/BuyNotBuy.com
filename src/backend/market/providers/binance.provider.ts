@@ -45,7 +45,11 @@ export class BinanceProvider implements MarketDataProvider {
             `?symbol=${marketConfig.symbol}`;
 
         try {
-            const response = await fetch(url);
+            const response = await fetch(url, {
+                signal: AbortSignal.timeout(
+                    marketConfig.requestTimeoutMs,
+                ),
+            });
 
             if (!response.ok) {
                 throw new MarketDataError(
@@ -82,7 +86,11 @@ export class BinanceProvider implements MarketDataProvider {
             `&limit=${limit}`;
 
         try {
-            const response = await fetch(url);
+            const response = await fetch(url, {
+                signal: AbortSignal.timeout(
+                    marketConfig.requestTimeoutMs,
+                ),
+            });
 
             if (!response.ok) {
                 throw new MarketDataError(
@@ -113,5 +121,3 @@ export class BinanceProvider implements MarketDataProvider {
         }
     }
 }
-
-

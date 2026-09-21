@@ -36,9 +36,14 @@ describe('BinanceProvider', () => {
             });
 
             expect(fetchMock).toHaveBeenCalledOnce();
-            expect(fetchMock).toHaveBeenCalledWith(
+
+            const [url, options] = fetchMock.mock.calls[0];
+
+            expect(url).toBe(
                 'https://data-api.binance.vision/api/v3/ticker/price?symbol=BTCUSDT',
             );
+
+            expect(options?.signal).toBeInstanceOf(AbortSignal);
         });
 
         it('throws MarketDataError when Binance returns an HTTP error', async () => {
@@ -166,9 +171,14 @@ describe('BinanceProvider', () => {
             ]);
 
             expect(fetchMock).toHaveBeenCalledOnce();
-            expect(fetchMock).toHaveBeenCalledWith(
+
+            const [url, options] = fetchMock.mock.calls[0];
+
+            expect(url).toBe(
                 'https://data-api.binance.vision/api/v3/klines?symbol=BTCUSDT&interval=1h&limit=2',
             );
+
+            expect(options?.signal).toBeInstanceOf(AbortSignal);
         });
 
         it('throws MarketDataError when Binance returns an HTTP error', async () => {
@@ -272,5 +282,3 @@ describe('BinanceProvider', () => {
         });
     });
 });
-
-
