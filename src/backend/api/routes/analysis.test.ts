@@ -1,4 +1,4 @@
-﻿import Fastify from 'fastify';
+import Fastify from 'fastify';
 import { describe, expect, it, vi } from 'vitest';
 
 const mockAnalysis = {
@@ -48,31 +48,6 @@ describe('GET /api/analysis', () => {
         expect(response.statusCode).toBe(200);
 
         const body = response.json();
-
-        expect(body.timestamp).toBe(123456789);
-        expect(body.price).toBe(80000);
-
-        expect(body.indicators.ema300).toBe(78000);
-        expect(body.indicators.stochastic).toBe(20);
-
-        expect(body.signal.signal).toBe('LONG');
-        expect(body.signal.confidence).toBe(50);
-        expect(body.signal.reason).toBe(
-            'Только EMA 300 подтверждает LONG',
-        );
-
-        expect(body.signal.indicators).toEqual([
-            {
-                name: 'EMA 300',
-                signal: 'LONG',
-                reason: 'Цена выше EMA 300',
-            },
-            {
-                name: 'Стохастик',
-                signal: 'NEUTRAL',
-                reason: 'Стохастик в нейтральной зоне',
-            },
-        ]);
 
         expect(body).toEqual(mockAnalysis);
         expect(analyzeMarket).toHaveBeenCalledTimes(1);
