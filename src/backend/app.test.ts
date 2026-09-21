@@ -136,6 +136,45 @@ describe('Backend app', () => {
         await app.close();
     });
 
+    it('returns 502 when market data provider fails during analysis', async () => {
+        mockMarketDataProvider.getPrice.mockRejectedValueOnce(
+            new MarketDataError('Binance API error: 503'),
+        );
+
+        const app = createApp();
+
+        const response = await app.inject({
+            method: 'GET',
+            url: '/api/analysis',
+        });
+
+        expect(response.statusCode).toBe(502);
+        expect(response.json()).toEqual({
+            error: 'Market data provider unavailable',
+        });
+
+        await app.close();
+    });
+
+    it('returns 500 for unexpected errors during analysis', async () => {
+        mockMarketDataProvider.getPrice.mockRejectedValueOnce(
+            new Error('Unexpected error'),
+        );
+
+        const app = createApp();
+
+        const response = await app.inject({
+            method: 'GET',
+            url: '/api/analysis',
+        });
+
+        expect(response.statusCode).toBe(500);
+        expect(response.json()).toEqual({
+            error: 'Internal server error',
+        });
+
+        await app.close();
+    });
     it('returns 500 for unexpected errors', async () => {
         mockMarketDataProvider.getPrice.mockRejectedValueOnce(
             new Error('Unexpected error'),
