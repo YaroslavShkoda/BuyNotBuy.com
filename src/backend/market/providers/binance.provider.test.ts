@@ -1,4 +1,4 @@
-import {
+﻿import {
     afterEach,
     describe,
     expect,
@@ -14,8 +14,8 @@ afterEach(() => {
 });
 
 describe('BinanceProvider', () => {
-    describe('getBitcoinPrice', () => {
-        it('returns Bitcoin price from Binance API', async () => {
+    describe('getPrice', () => {
+        it('returns market price from Binance API', async () => {
             const fetchMock = vi.fn().mockResolvedValue({
                 ok: true,
                 json: async () => ({
@@ -28,7 +28,7 @@ describe('BinanceProvider', () => {
 
             const provider = new BinanceProvider();
 
-            const result = await provider.getBitcoinPrice();
+            const result = await provider.getPrice();
 
             expect(result).toEqual({
                 symbol: 'BTCUSDT',
@@ -52,7 +52,7 @@ describe('BinanceProvider', () => {
             const provider = new BinanceProvider();
 
             await expect(
-                provider.getBitcoinPrice(),
+                provider.getPrice(),
             ).rejects.toThrow(
                 new MarketDataError('Binance API error: 503'),
             );
@@ -72,7 +72,7 @@ describe('BinanceProvider', () => {
             const provider = new BinanceProvider();
 
             await expect(
-                provider.getBitcoinPrice(),
+                provider.getPrice(),
             ).rejects.toThrow();
         });
 
@@ -86,10 +86,10 @@ describe('BinanceProvider', () => {
             const provider = new BinanceProvider();
 
             await expect(
-                provider.getBitcoinPrice(),
+                provider.getPrice(),
             ).rejects.toThrow(
                 new MarketDataError(
-                    'Failed to fetch Bitcoin price from Binance',
+                    'Failed to fetch market price from Binance',
                 ),
             );
         });
@@ -107,17 +107,17 @@ describe('BinanceProvider', () => {
             const provider = new BinanceProvider();
 
             await expect(
-                provider.getBitcoinPrice(),
+                provider.getPrice(),
             ).rejects.toThrow(
                 new MarketDataError(
-                    'Failed to fetch Bitcoin price from Binance',
+                    'Failed to fetch market price from Binance',
                 ),
             );
         });
     });
 
-    describe('getBitcoinCandles', () => {
-        it('returns Bitcoin candles from Binance API', async () => {
+    describe('getCandles', () => {
+        it('returns market candles from Binance API', async () => {
             const fetchMock = vi.fn().mockResolvedValue({
                 ok: true,
                 json: async () => [
@@ -144,7 +144,7 @@ describe('BinanceProvider', () => {
 
             const provider = new BinanceProvider();
 
-            const result = await provider.getBitcoinCandles(2);
+            const result = await provider.getCandles(2);
 
             expect(result).toEqual([
                 {
@@ -182,7 +182,7 @@ describe('BinanceProvider', () => {
             const provider = new BinanceProvider();
 
             await expect(
-                provider.getBitcoinCandles(),
+                provider.getCandles(),
             ).rejects.toThrow(
                 new MarketDataError('Binance API error: 503'),
             );
@@ -204,7 +204,7 @@ describe('BinanceProvider', () => {
             const provider = new BinanceProvider();
 
             await expect(
-                provider.getBitcoinCandles(),
+                provider.getCandles(),
             ).rejects.toThrow();
         });
 
@@ -228,7 +228,7 @@ describe('BinanceProvider', () => {
             const provider = new BinanceProvider();
 
             await expect(
-                provider.getBitcoinCandles(),
+                provider.getCandles(),
             ).rejects.toThrow();
         });
 
@@ -242,10 +242,10 @@ describe('BinanceProvider', () => {
             const provider = new BinanceProvider();
 
             await expect(
-                provider.getBitcoinCandles(),
+                provider.getCandles(),
             ).rejects.toThrow(
                 new MarketDataError(
-                    'Failed to fetch Bitcoin candles from Binance',
+                    'Failed to fetch market candles from Binance',
                 ),
             );
         });
@@ -263,12 +263,14 @@ describe('BinanceProvider', () => {
             const provider = new BinanceProvider();
 
             await expect(
-                provider.getBitcoinCandles(),
+                provider.getCandles(),
             ).rejects.toThrow(
                 new MarketDataError(
-                    'Failed to fetch Bitcoin candles from Binance',
+                    'Failed to fetch market candles from Binance',
                 ),
             );
         });
     });
 });
+
+

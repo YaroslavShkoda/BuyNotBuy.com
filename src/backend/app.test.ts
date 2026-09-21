@@ -5,12 +5,12 @@ import { marketConfig } from './config/market.config';
 
 const { mockMarketDataProvider } = vi.hoisted(() => ({
     mockMarketDataProvider: {
-        getBitcoinPrice: vi.fn(async () => ({
+        getPrice: vi.fn(async () => ({
             symbol: 'BTCUSDT',
             price: 80000,
         })),
 
-        getBitcoinCandles: vi.fn(
+        getCandles: vi.fn(
             async (limit = marketConfig.defaultCandleLimit) =>
                 Array.from(
                     { length: limit },
@@ -117,7 +117,7 @@ describe('Backend app', () => {
     });
 
     it('returns 502 when market data provider fails', async () => {
-        mockMarketDataProvider.getBitcoinPrice.mockRejectedValueOnce(
+        mockMarketDataProvider.getPrice.mockRejectedValueOnce(
             new MarketDataError('Binance API error: 503'),
         );
 
@@ -137,7 +137,7 @@ describe('Backend app', () => {
     });
 
     it('returns 500 for unexpected errors', async () => {
-        mockMarketDataProvider.getBitcoinPrice.mockRejectedValueOnce(
+        mockMarketDataProvider.getPrice.mockRejectedValueOnce(
             new Error('Unexpected error'),
         );
 
@@ -156,3 +156,4 @@ describe('Backend app', () => {
         await app.close();
     });
 });
+

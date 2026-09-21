@@ -14,8 +14,8 @@ export interface MarketSnapshot {
 
 export async function getMarketData(): Promise<MarketData> {
     const [price, candles] = await Promise.all([
-        marketDataProvider.getBitcoinPrice(),
-        marketDataProvider.getBitcoinCandles(),
+        marketDataProvider.getPrice(),
+        marketDataProvider.getCandles(),
     ]);
 
     return {
@@ -34,3 +34,4 @@ export async function getMarketSnapshot(): Promise<MarketSnapshot> {
         indicators,
     };
 }
+

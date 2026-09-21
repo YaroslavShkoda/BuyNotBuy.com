@@ -1,4 +1,4 @@
-export interface BitcoinPrice {
+﻿export interface AssetPrice {
     symbol: string;
     price: number;
 }
@@ -13,6 +13,6 @@ export interface Candle {
 }
 
 export interface MarketData {
-    price: BitcoinPrice;
+    price: AssetPrice;
     candles: Candle[];
 }

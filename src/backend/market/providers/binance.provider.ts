@@ -1,7 +1,7 @@
 ﻿import { z } from 'zod';
 
 import type {
-    BitcoinPrice,
+    AssetPrice,
     Candle,
 } from '../../types/market';
 
@@ -38,7 +38,7 @@ const BinanceCandleSchema = z.array(
 );
 
 export class BinanceProvider implements MarketDataProvider {
-    async getBitcoinPrice(): Promise<BitcoinPrice> {
+    async getPrice(): Promise<AssetPrice> {
         const url =
             `${marketConfig.baseUrl}` +
             '/api/v3/ticker/price' +
@@ -67,12 +67,12 @@ export class BinanceProvider implements MarketDataProvider {
             }
 
             throw new MarketDataError(
-                'Failed to fetch Bitcoin price from Binance',
+                'Failed to fetch market price from Binance',
             );
         }
     }
 
-    async getBitcoinCandles(
+    async getCandles(
         limit: number = marketConfig.defaultCandleLimit,
     ): Promise<Candle[]> {
         const url =
@@ -108,8 +108,10 @@ export class BinanceProvider implements MarketDataProvider {
             }
 
             throw new MarketDataError(
-                'Failed to fetch Bitcoin candles from Binance',
+                'Failed to fetch market candles from Binance',
             );
         }
     }
 }
+
+

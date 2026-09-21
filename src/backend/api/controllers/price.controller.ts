@@ -1,5 +1,7 @@
-﻿import { marketDataProvider } from '../../market/market.provider';
+﻿import { getMarketData } from '../../market/market.service';
 
 export async function getPrice() {
-    return marketDataProvider.getBitcoinPrice();
+    const market = await getMarketData();
+
+    return market.price;
 }

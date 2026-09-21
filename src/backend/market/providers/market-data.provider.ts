@@ -1,12 +1,12 @@
 ﻿import type {
-    BitcoinPrice,
+    AssetPrice,
     Candle,
 } from '../../types/market';
 
 export interface MarketDataProvider {
-    getBitcoinPrice(): Promise<BitcoinPrice>;
+    getPrice(): Promise<AssetPrice>;
 
-    getBitcoinCandles(
+    getCandles(
         limit?: number,
     ): Promise<Candle[]>;
 }
