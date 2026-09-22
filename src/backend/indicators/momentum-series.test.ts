@@ -1,0 +1,101 @@
+import { describe, expect, it } from 'vitest';
+
+import type { Candle } from '../types/market';
+import { calculateMomentumSeries } from './momentum-series';
+
+function createCandle(close: number): Candle {
+    return {
+        timestamp: Date.now(),
+        open: close,
+        high: close,
+        low: close,
+        close,
+        volume: 100,
+    };
+}
+
+describe('calculateMomentumSeries', () => {
+    it('calculates momentum for every candle after the period', () => {
+        const candles = [
+            createCandle(100),
+            createCandle(105),
+            createCandle(110),
+            createCandle(115),
+            createCandle(120),
+        ];
+
+        const result = calculateMomentumSeries(candles, 2);
+
+        expect(result).toEqual([
+            null,
+            null,
+            10,
+            10,
+            10,
+        ]);
+    });
+
+    it('calculates negative momentum correctly', () => {
+        const candles = [
+            createCandle(120),
+            createCandle(115),
+            createCandle(110),
+            createCandle(105),
+        ];
+
+        const result = calculateMomentumSeries(candles, 2);
+
+        expect(result).toEqual([
+            null,
+            null,
+            -10,
+            -10,
+        ]);
+    });
+
+    it('returns zero when prices are equal', () => {
+        const candles = [
+            createCandle(100),
+            createCandle(100),
+            createCandle(100),
+        ];
+
+        const result = calculateMomentumSeries(candles, 2);
+
+        expect(result).toEqual([
+            null,
+            null,
+            0,
+        ]);
+    });
+
+    it('throws when candles are empty', () => {
+        expect(() => calculateMomentumSeries([], 100)).toThrow(
+            'Momentum series requires at least one candle',
+        );
+    });
+
+    it('throws when period is zero or negative', () => {
+        const candles = [createCandle(100)];
+
+        expect(() => calculateMomentumSeries(candles, 0)).toThrow(
+            'Momentum period must be greater than 0',
+        );
+    });
+
+    it('returns null when there is not enough history', () => {
+        const candles = [
+            createCandle(100),
+            createCandle(110),
+            createCandle(120),
+        ];
+
+        const result = calculateMomentumSeries(candles, 100);
+
+        expect(result).toEqual([
+            null,
+            null,
+            null,
+        ]);
+    });
+});
