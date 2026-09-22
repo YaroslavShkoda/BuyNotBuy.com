@@ -1,67 +1,64 @@
-export default function Home() {
-  return (
-    <main>
-      <header className="header">
-        <div className="brand">
-          <img
-            src="/BuyNotBuy.png"
-            alt="BuyNotBuy"
-            className="logo"
-          />
+﻿import { getAnalysis } from './lib/analysis';
 
-          <div>
-            <h1>BuyNotBuy</h1>
-            <p>Bitcoin Analytics</p>
-          </div>
-        </div>
-      </header>
+export default async function Home() {
+    const analysis = await getAnalysis();
 
-      <section className="price-card">
-        <span>BITCOIN</span>
-        <strong>$104,281</strong>
-        <small>BTC / USDT</small>
-      </section>
+    return (
+        <main>
+            <header className="header">
+                <div className="brand">
+                    <img
+                        src="/BuyNotBuy.png"
+                        alt="BuyNotBuy"
+                        className="logo"
+                    />
 
-      <div className="dashboard">
-        <section className="card">
-          <h2>Technical Analysis</h2>
+                    <div>
+                        <h1>BuyNotBuy</h1>
+                        <p>Bitcoin Analytics</p>
+                    </div>
+                </div>
+            </header>
 
-          <div className="indicator">
-            <span>EMA 300</span>
-            <strong className="long">LONG</strong>
-          </div>
+            <section className="price-card">
+                <span>BITCOIN</span>
+                <strong>{analysis.price.toLocaleString()}</strong>
+                <small>BTC / USDT</small>
+            </section>
 
-          <div className="indicator">
-            <span>Stochastic</span>
-            <strong className="long">LONG</strong>
-          </div>
-        </section>
+            <div className="dashboard">
+                <section className="card">
+                    <h2>Technical Analysis</h2>
 
-        <section className="card signal-card">
-          <h2>Market Signal</h2>
-          <strong className="signal">LONG</strong>
-          <p>2 of 2 indicators are bullish</p>
-        </section>
-      </div>
+                    {analysis.signal.indicators.map((indicator) => (
+                        <div className="indicator" key={indicator.name}>
+                            <span>{indicator.name}</span>
+                            <strong className={indicator.signal.toLowerCase()}>
+                                {indicator.signal}
+                            </strong>
+                        </div>
+                    ))}
+                </section>
 
-      <section className="card news-card">
-        <h2>Latest News</h2>
+                <section className="card signal-card">
+                    <h2>Market Signal</h2>
+                    <strong className="signal">
+                        {analysis.signal.signal}
+                    </strong>
+                    <p>{analysis.signal.reason}</p>
+                    <p>Confidence: {analysis.signal.confidence}%</p>
+                </section>
+            </div>
 
-        <article>
-          <span>+</span>
-          <p>Bitcoin market remains active</p>
-        </article>
+            <section className="card news-card">
+                <h2>Latest News</h2>
 
-        <article>
-          <span>+</span>
-          <p>Institutional interest continues</p>
-        </article>
-
-        <article>
-          <span>−</span>
-          <p>Market volatility remains elevated</p>
-        </article>
-      </section>
-    </main>
-  );
+                <article>
+                    <span>+</span>
+                    <p>News integration coming soon</p>
+                </article>
+            </section>
+        </main>
+    );
 }
+

@@ -1,8 +1,11 @@
 ﻿import type { MarketIndicators } from '../indicators/indicator.service';
 
+import {
+    calculateConsensus,
+} from './consensus';
+
 import type {
     IndicatorAnalysis,
-    IndicatorSignal,
     SignalResult,
 } from './signal.types';
 
@@ -62,86 +65,6 @@ function analyzeStochastic(
     };
 }
 
-function combineSignals(
-    analyses: IndicatorAnalysis[],
-): Pick<
-    SignalResult,
-    'signal' | 'confidence' | 'reason'
-> {
-    const longAnalyses = analyses.filter(
-        (analysis) => analysis.signal === 'LONG',
-    );
-
-    const shortAnalyses = analyses.filter(
-        (analysis) => analysis.signal === 'SHORT',
-    );
-
-    const neutralCount = analyses.filter(
-        (analysis) => analysis.signal === 'NEUTRAL',
-    ).length;
-
-    if (
-        longAnalyses.length > 0 &&
-        shortAnalyses.length === 0
-    ) {
-        if (neutralCount === 0) {
-            return {
-                signal: 'LONG',
-                confidence: 100,
-                reason: longAnalyses
-                    .map((analysis) => analysis.name)
-                    .join(' и ') +
-                    ' подтверждают LONG',
-            };
-        }
-
-        return {
-            signal: 'LONG',
-            confidence: 50,
-            reason: `Только ${longAnalyses[0].name} подтверждает LONG`,
-        };
-    }
-
-    if (
-        shortAnalyses.length > 0 &&
-        longAnalyses.length === 0
-    ) {
-        if (neutralCount === 0) {
-            return {
-                signal: 'SHORT',
-                confidence: 100,
-                reason: shortAnalyses
-                    .map((analysis) => analysis.name)
-                    .join(' и ') +
-                    ' подтверждают SHORT',
-            };
-        }
-
-        return {
-            signal: 'SHORT',
-            confidence: 50,
-            reason: `Только ${shortAnalyses[0].name} подтверждает SHORT`,
-        };
-    }
-
-    if (
-        longAnalyses.length > 0 &&
-        shortAnalyses.length > 0
-    ) {
-        return {
-            signal: 'NEUTRAL',
-            confidence: 50,
-            reason: 'Индикаторы дают противоположные сигналы',
-        };
-    }
-
-    return {
-        signal: 'NEUTRAL',
-        confidence: 0,
-        reason: 'Ни один индикатор не даёт сигнала',
-    };
-}
-
 export function calculateSignal(
     price: number,
     indicators: MarketIndicators,
@@ -155,19 +78,17 @@ export function calculateSignal(
         indicators.stochastic,
     );
 
-    const result = combineSignals([
+    const indicatorAnalyses = [
         emaAnalysis,
         stochasticAnalysis,
-    ]);
+    ];
+
+    const consensus = calculateConsensus(
+        indicatorAnalyses,
+    );
 
     return {
-        ...result,
-        indicators: [
-            emaAnalysis,
-            stochasticAnalysis,
-        ],
+        ...consensus,
+        indicators: indicatorAnalyses,
     };
 }
-
-
-
