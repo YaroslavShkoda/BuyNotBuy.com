@@ -30,13 +30,6 @@ export default async function Home() {
         maximumFractionDigits: 2,
     });
 
-    const formattedEma = analysis.indicators.ema300.toLocaleString('en-US', {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-    });
-
-    const stochastic = analysis.indicators.stochastic;
-
     const updatedAt = new Date(analysis.timestamp).toLocaleString('ru-RU', {
         day: '2-digit',
         month: '2-digit',
@@ -64,10 +57,10 @@ export default async function Home() {
                 </div>
 
                 <nav className="main-nav" aria-label="Main navigation">
-                    <button className="nav-item active" type="button">MARKET</button>
-                    <button className="nav-item" type="button">ANALYSIS</button>
-                    <button className="nav-item" type="button">NEWS</button>
-                    <button className="nav-item" type="button">ABOUT</button>
+                    <a className="nav-item active" href="#market">MARKET</a>
+                    <a className="nav-item" href="#market-analysis">ANALYSIS</a>
+                    <a className="nav-item" href="#market-news">NEWS</a>
+                    <a className="nav-item" href="#about">ABOUT</a>
                 </nav>
 
                 <div className="topbar-market">
@@ -88,7 +81,7 @@ export default async function Home() {
                 </div>
             </header>
 
-            <section className="hero">
+            <section className="hero" id="market">
                 <div className="price-panel">
                     <div className="hero-top">
                         <div className="pair-label">
@@ -130,7 +123,6 @@ export default async function Home() {
                 <div className={`signal-panel ${signalClass}`}>
                     <div className="panel-heading">
                         <span>MARKET SIGNAL</span>
-                        <small>01</small>
                     </div>
 
                     <div className="signal-content">
@@ -212,137 +204,10 @@ export default async function Home() {
                 signal={signal}
                 confidence={confidence}
             />
-            <section className="indicator-section">
-                <div className="section-title">
-                    <div>
-                        <small>02</small>
-                        <strong>TECHNICAL ANALYSIS</strong>
-                    </div>
-
-                    <span>INDICATOR CONSENSUS</span>
-                </div>
-
-                <div className="indicator-grid">
-                    <article className="indicator-card">
-                        <div className="indicator-heading">
-                            <div>
-                                <small>01</small>
-                                <strong>EMA 300</strong>
-                            </div>
-
-                            <span className={emaIndicator?.signal.toLowerCase()}>
-                                {emaIndicator?.signal}
-                            </span>
-                        </div>
-
-                        <div className="indicator-main">
-                            <div>
-                                <strong>{formattedEma}</strong>
-                                <span>
-                                    EXPONENTIAL MOVING AVERAGE (300)
-                                </span>
-                            </div>
-
-                            <div className="indicator-side-box">
-                                <span>PRICE VS EMA</span>
-
-                                <strong>
-                                    {(
-                                        ((analysis.price -
-                                            analysis.indicators.ema300) /
-                                            analysis.indicators.ema300) *
-                                        100
-                                    ).toFixed(2)}
-                                    %
-                                </strong>
-
-                                <p>{emaIndicator?.reason}</p>
-                            </div>
-                        </div>
-
-                        <div className="scale">
-                            <span>80K</span>
-
-                            <div className="scale-track">
-                                <div className="scale-fill" />
-                                <i style={{ left: '61%' }} />
-                            </div>
-
-                            <span>120K</span>
-                        </div>
-                    </article>
-
-                    <article className="indicator-card">
-                        <div className="indicator-heading">
-                            <div>
-                                <small>02</small>
-                                <strong>STOCHASTIC</strong>
-                            </div>
-
-                            <span
-                                className={stochasticIndicator?.signal.toLowerCase()}
-                            >
-                                {stochasticIndicator?.signal}
-                            </span>
-                        </div>
-
-                        <div className="indicator-main">
-                            <div>
-                                <strong>{stochastic.toFixed(2)}</strong>
-                                <span>
-                                    STOCHASTIC OSCILLATOR / 0 — 100
-                                </span>
-                            </div>
-
-                            <div className="indicator-side-box">
-                                <span>ZONE</span>
-
-                                <strong>
-                                    {stochastic > 80
-                                        ? 'OVERBOUGHT'
-                                        : stochastic < 20
-                                          ? 'OVERSOLD'
-                                          : 'NEUTRAL'}
-                                </strong>
-
-                                <p>{stochasticIndicator?.reason}</p>
-                            </div>
-                        </div>
-
-                        <div className="scale">
-                            <span>0</span>
-
-                            <div className="scale-track">
-                                <div
-                                    className="scale-fill"
-                                    style={{
-                                        width: `${Math.max(
-                                            0,
-                                            Math.min(100, stochastic)
-                                        )}%`,
-                                    }}
-                                />
-                                <i
-                                    style={{
-                                        left: `${Math.max(
-                                            0,
-                                            Math.min(100, stochastic)
-                                        )}%`,
-                                    }}
-                                />
-                            </div>
-
-                            <span>100</span>
-                        </div>
-                    </article>
-                </div>
-            </section>
-
             <section className="lower-grid">
                 <article className="breakdown-card">
                     <div className="section-title">
                         <div>
-                            <small>03</small>
                             <strong>SIGNAL BREAKDOWN</strong>
                         </div>
                     </div>
@@ -389,7 +254,6 @@ export default async function Home() {
                 <article className="system-card">
                     <div className="section-title">
                         <div>
-                            <small>04</small>
                             <strong>SYSTEM STATUS</strong>
                         </div>
                     </div>
@@ -432,7 +296,6 @@ export default async function Home() {
                 <article className="news-card">
                     <div className="section-title">
                         <div>
-                            <small>05</small>
                             <strong>MARKET NEWS</strong>
                         </div>
 
@@ -454,7 +317,7 @@ export default async function Home() {
                 </article>
             </section>
 
-            <footer>
+            <footer id="about">
                 <strong>BuyNotBuy</strong>
                 <span>MARKET INTELLIGENCE / 2026</span>
                 <span>Bitcoin Intelligence Terminal</span>

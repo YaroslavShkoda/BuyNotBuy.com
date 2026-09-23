@@ -60,7 +60,6 @@ export default function TechnicalAnalysis({
         <section className="technical-analysis">
             <div className="technical-header">
                 <div>
-                    <small>05</small>
                     <strong>TECHNICAL ANALYSIS</strong>
                 </div>
 

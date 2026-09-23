@@ -10,10 +10,9 @@ export default function MarketIntelligence({
     const signalClass = signal.toLowerCase();
 
     return (
-        <section className="market-intelligence">
+        <section className="market-intelligence" id="market-news">
             <div className="intelligence-header">
                 <div>
-                    <small>06</small>
                     <strong>MARKET INTELLIGENCE</strong>
                 </div>
 

@@ -80,7 +80,6 @@ export default function MarketActivity({
         <section className="market-activity">
             <div className="market-activity-header">
                 <div>
-                    <small>04</small>
                     <strong>MARKET ACTIVITY</strong>
                 </div>
 

@@ -42,10 +42,9 @@ export default function MarketPulse({
         });
 
     return (
-        <section className="market-pulse">
+        <section className="market-pulse" id="market-analysis">
             <div className="market-pulse-header">
                 <div>
-                    <small>03</small>
                     <strong>MARKET PULSE</strong>
                 </div>
 
