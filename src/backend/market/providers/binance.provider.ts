@@ -53,7 +53,20 @@ export class BinanceProvider implements MarketDataProvider {
 
             if (!response.ok) {
                 throw new MarketDataError(
-                    `Binance API error: ${response.status}`,
+                    `Binance price request failed with HTTP ${response.status}`,
+                    {
+                        code: response.status === 429 || response.status >= 500
+                            ? 'MARKET_DATA_UNAVAILABLE'
+                            : 'MARKET_PROVIDER_ERROR',
+                        statusCode: response.status === 429 || response.status >= 500
+                            ? 503
+                            : 502,
+                        cause: {
+                            provider: 'binance',
+                            endpoint: '/api/v3/ticker/price',
+                            httpStatus: response.status,
+                        },
+                    },
                 );
             }
 
@@ -66,11 +79,9 @@ export class BinanceProvider implements MarketDataProvider {
                 price: validatedData.price,
             };
         } catch (error) {
-            if (error instanceof MarketDataError) {
-                throw error;
-            }
-
-            throw new MarketDataError(
+            throw normalizeBinanceError(
+                error,
+                '/api/v3/ticker/price',
                 'Failed to fetch market price from Binance',
             );
         }
@@ -94,7 +105,20 @@ export class BinanceProvider implements MarketDataProvider {
 
             if (!response.ok) {
                 throw new MarketDataError(
-                    `Binance API error: ${response.status}`,
+                    `Binance klines request failed with HTTP ${response.status}`,
+                    {
+                        code: response.status === 429 || response.status >= 500
+                            ? 'MARKET_DATA_UNAVAILABLE'
+                            : 'MARKET_PROVIDER_ERROR',
+                        statusCode: response.status === 429 || response.status >= 500
+                            ? 503
+                            : 502,
+                        cause: {
+                            provider: 'binance',
+                            endpoint: '/api/v3/klines',
+                            httpStatus: response.status,
+                        },
+                    },
                 );
             }
 
@@ -111,13 +135,74 @@ export class BinanceProvider implements MarketDataProvider {
                 volume: candle[5],
             }));
         } catch (error) {
-            if (error instanceof MarketDataError) {
-                throw error;
-            }
-
-            throw new MarketDataError(
+            throw normalizeBinanceError(
+                error,
+                '/api/v3/klines',
                 'Failed to fetch market candles from Binance',
             );
         }
     }
+}
+
+function normalizeBinanceError(
+    error: unknown,
+    endpoint: string,
+    fallbackMessage: string,
+): MarketDataError {
+    if (error instanceof MarketDataError) {
+        return error;
+    }
+
+    if (isTimeoutError(error)) {
+        return new MarketDataError(
+            'Market data provider timed out',
+            {
+                code: 'MARKET_PROVIDER_TIMEOUT',
+                cause: {
+                    provider: 'binance',
+                    endpoint,
+                    timeoutMs: marketConfig.requestTimeoutMs,
+                    originalError: toLogSafeCause(error),
+                },
+            },
+        );
+    }
+
+    if (error instanceof z.ZodError) {
+        return new MarketDataError(
+            'Market data provider returned an unexpected response',
+            {
+                code: 'MARKET_PROVIDER_ERROR',
+                cause: {
+                    provider: 'binance',
+                    endpoint,
+                    originalError: toLogSafeCause(error),
+                },
+            },
+        );
+    }
+
+    return new MarketDataError(
+        fallbackMessage,
+        {
+            code: 'MARKET_DATA_UNAVAILABLE',
+            cause: {
+                provider: 'binance',
+                endpoint,
+                originalError: toLogSafeCause(error),
+            },
+        },
+    );
+}
+
+function isTimeoutError(error: unknown): boolean {
+    return error instanceof DOMException && error.name === 'TimeoutError';
+}
+
+function toLogSafeCause(error: unknown): string {
+    if (error instanceof Error) {
+        return `${error.name}: ${error.message}`;
+    }
+
+    return typeof error;
 }

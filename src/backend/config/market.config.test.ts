@@ -52,4 +52,30 @@ describe('marketConfig', () => {
 
         await expect(import('./market.config')).rejects.toThrow();
     });
+
+    it('rejects invalid market configuration values', async () => {
+        const cases: Record<string, string>[] = [
+            { MARKET_DEFAULT_CANDLE_LIMIT: '0' },
+            { MARKET_DEFAULT_CANDLE_LIMIT: '-5' },
+            { MARKET_DEFAULT_CANDLE_LIMIT: 'abc' },
+            { MARKET_REQUEST_TIMEOUT_MS: '0' },
+            { MARKET_REQUEST_TIMEOUT_MS: '-1' },
+            { MARKET_REQUEST_TIMEOUT_MS: 'abc' },
+            { MARKET_BASE_URL: 'not-a-url' },
+            { MARKET_SYMBOL: '' },
+            { MARKET_CANDLE_INTERVAL: '' },
+        ];
+
+        for (const env of cases) {
+            vi.resetModules();
+
+            Object.assign(process.env, env);
+
+            await expect(import('./market.config')).rejects.toThrow();
+
+            for (const key of Object.keys(env)) {
+                delete process.env[key];
+            }
+        }
+    });
 });

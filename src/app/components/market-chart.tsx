@@ -1,4 +1,4 @@
-import type { Candle } from '../../backend/types/market';
+import type { Candle } from '../types/analysis';
 
 interface MarketChartProps {
     candles: Candle[];

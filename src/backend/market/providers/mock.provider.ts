@@ -1,4 +1,6 @@
-﻿import type {
+﻿import { marketConfig } from '../../config/market.config';
+
+import type {
     AssetPrice,
     Candle,
 } from '../../types/market';
@@ -8,13 +10,13 @@ import type { MarketDataProvider } from './market-data.provider';
 export class MockProvider implements MarketDataProvider {
     async getPrice(): Promise<AssetPrice> {
         return {
-            symbol: 'BTCUSDT',
+            symbol: marketConfig.symbol,
             price: 100000,
         };
     }
 
     async getCandles(
-        limit: number = 300,
+        limit: number = marketConfig.defaultCandleLimit,
     ): Promise<Candle[]> {
         const candles: Candle[] = [];
 

@@ -1,7 +1,8 @@
-﻿import { getMarketData } from '../../market/market.service';
+﻿import { getPrice as getMarketPrice } from '../../market/market.service';
+import { PriceResponseSchema } from '../schemas';
 
 export async function getPrice() {
-    const market = await getMarketData();
+    const price = await getMarketPrice();
 
-    return market.price;
+    return PriceResponseSchema.parse(price);
 }

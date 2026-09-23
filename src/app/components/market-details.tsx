@@ -1,5 +1,4 @@
-import type { Candle } from '../../backend/types/market';
-import type { MarketAnalysis } from '../types/analysis';
+import type { Candle, MarketAnalysis } from '../types/analysis';
 
 interface MarketDetailsProps {
     candles: Candle[];
@@ -17,9 +16,10 @@ function price(value: number) {
 export function MarketDetails({ candles, analysis }: MarketDetailsProps) {
     const recent = candles.slice(-5).reverse();
     const aboveEma = analysis.price >= analysis.indicators.ema300;
-    const stochasticMood = analysis.indicators.stochastic >= 80
+    const stochasticValue = analysis.indicators.stochastic;
+    const stochasticMood = stochasticValue >= 80
         ? 'Зона перекупленности'
-        : analysis.indicators.stochastic <= 20
+        : stochasticValue <= 15
             ? 'Зона перепроданности'
             : 'Нейтральный диапазон';
 
