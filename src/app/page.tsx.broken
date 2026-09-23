@@ -22,7 +22,8 @@ export default async function Home() {
 
     const stochasticIndicator = analysis.signal.indicators.find(
         (indicator) =>
-            /stoch|стох/i.test(indicator.name)
+            indicator.name.toLowerCase()
+            indicator.name.toLowerCase().includes('stochastic')
     );
 
     const formattedPrice = analysis.price.toLocaleString('en-US', {
@@ -63,11 +64,11 @@ export default async function Home() {
                     </div>
                 </div>
 
-                <nav className="main-nav" aria-label="Main navigation">
-                    <button className="nav-item active" type="button">MARKET</button>
-                    <button className="nav-item" type="button">ANALYSIS</button>
-                    <button className="nav-item" type="button">NEWS</button>
-                    <button className="nav-item" type="button">ABOUT</button>
+                <nav className="main-nav">
+                    <span className="active">MARKET</span>
+                    <span>ANALYSIS</span>
+                    <span>NEWS</span>
+                    <span>ABOUT</span>
                 </nav>
 
                 <div className="topbar-market">
@@ -84,7 +85,7 @@ export default async function Home() {
                         <small>SPOT</small>
                     </div>
 
-                    <button className="settings-button" type="button">SETTINGS</button>
+                    <div className="settings-button">SETTINGS</div>
                 </div>
             </header>
 
@@ -120,6 +121,14 @@ export default async function Home() {
                         candles={market.candles}
                         ema={analysis.indicators.ema300}
                     />
+
+                    <div className="timeframes">
+                        <button className="selected">1H</button>
+                        <button>4H</button>
+                        <button>1D</button>
+                        <button>1W</button>
+                        <button>1M</button>
+                    </div>
 
                     <div className="last-update">
                         <span>LAST UPDATE</span>
@@ -364,11 +373,7 @@ export default async function Home() {
                                     </div>
 
                                     <div className="row-progress">
-                                        <div
-                                            style={{
-                                                width: `${analysis.signal.confidence}%`,
-                                            }}
-                                        />
+                                        <div />
                                     </div>
 
                                     <div className="row-result">
@@ -436,7 +441,7 @@ export default async function Home() {
                             <strong>MARKET NEWS</strong>
                         </div>
 
-                        <button className="section-action" type="button">ALL NEWS</button>
+                        <span>ALL NEWS <span>
                     </div>
 
                     <div className="news-content">
