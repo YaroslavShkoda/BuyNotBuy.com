@@ -1,0 +1,27 @@
+.app-shell {
+    position: relative;
+    zoom: 1.35;
+    width: min(1480px, calc((100% - 64px) / 1.35));
+    margin: 0 auto;
+    padding: 28px 0 96px;
+}
+
+.content-stack {
+    display: grid;
+    gap: var(--section-gap);
+}
+
+@media (max-width: 900px) {
+    .app-shell {
+        width: min(calc((100% - 32px) / 1.35), 760px);
+        padding-top: 16px;
+        padding-bottom: 64px;
+    }
+}
+
+@media (max-width: 560px) {
+    .app-shell {
+        width: calc((100% - 20px) / 1.35);
+        padding-top: 10px;
+    }
+}

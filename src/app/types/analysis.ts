@@ -1,4 +1,20 @@
-﻿export type IndicatorSignal = 'LONG' | 'SHORT' | 'NEUTRAL';
+﻿// Frontend view of backend contract (src/backend/types/*).
+// Keep field-compatible with backend MarketAnalysis.
+export interface Candle {
+    timestamp: number;
+    open: number;
+    high: number;
+    low: number;
+    close: number;
+    volume: number;
+}
+
+export interface AssetPrice {
+    symbol: string;
+    price: number;
+}
+
+export type IndicatorSignal = 'LONG' | 'SHORT' | 'NEUTRAL';
 
 export interface IndicatorAnalysis {
     name: string;
@@ -16,6 +32,7 @@ export interface SignalResult {
 export interface MarketIndicators {
     ema300: number;
     stochastic: number;
+    momentum: number | null;
 }
 
 export interface MarketAnalysis {

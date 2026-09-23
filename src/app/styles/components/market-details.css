@@ -1,0 +1,58 @@
+.detail-grid {
+    display: grid;
+    grid-template-columns: minmax(0, .92fr) minmax(0, 1.08fr);
+    gap: var(--space-5);
+}
+
+.detail-card {
+    min-width: 0;
+    padding: clamp(22px, 2.8vw, 34px);
+    overflow: hidden;
+}
+
+.detail-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.detail-heading h2 { margin: 9px 0 0; font-size: 19px; font-weight: 560; letter-spacing: -.035em; }
+.detail-index { color: var(--color-text-dim); font-size: 9px; font-weight: 650; letter-spacing: .12em; }
+
+.indicator-list { margin-top: 25px; border-top: 1px solid var(--color-border); }
+.indicator-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 2px; border-bottom: 1px solid var(--color-border); }
+.indicator-row > div:first-child, .indicator-reading { display: flex; flex-direction: column; gap: 5px; }
+.indicator-row > div:first-child > span { font-size: 12px; font-weight: 600; }
+.indicator-row small { color: var(--color-text-muted); font-size: 9px; line-height: 1.5; }
+.indicator-reading { align-items: flex-end; text-align: right; }
+.indicator-reading strong { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.indicator-reading span { color: var(--color-text-secondary); font-size: 9px; }
+.reading-positive, .reading-long { color: var(--color-long) !important; }
+.reading-negative, .reading-short { color: var(--color-short) !important; }
+.reading-neutral { color: var(--color-neutral) !important; }
+
+.signal-list-heading { display: flex; justify-content: space-between; gap: 12px; margin: 21px 2px 10px; color: var(--color-text-muted); font-size: 8px; font-weight: 700; letter-spacing: .12em; }
+.detail-signals { display: grid; gap: 1px; overflow: hidden; border: 1px solid var(--color-border); border-radius: 13px; background: var(--color-border); }
+.detail-signal { display: grid; grid-template-columns: 8px minmax(0, 1fr) auto; align-items: center; gap: 11px; min-width: 0; padding: 12px 13px; background: rgba(8, 10, 12, .72); }
+.signal-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--color-neutral); box-shadow: 0 0 10px currentColor; }
+.signal-dot[data-tone="long"] { background: var(--color-long); }
+.signal-dot[data-tone="short"] { background: var(--color-short); }
+.detail-signal > div { display: flex; min-width: 0; flex-direction: column; gap: 4px; }
+.detail-signal strong { overflow: hidden; font-size: 10px; font-weight: 550; text-overflow: ellipsis; white-space: nowrap; }
+.detail-signal small { overflow: hidden; color: var(--color-text-muted); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.detail-signal b { font-size: 8px; letter-spacing: .07em; }
+
+.candle-table-wrap { margin-top: 27px; overflow-x: auto; }
+.candle-table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; text-align: left; }
+.candle-table th { padding: 0 9px 12px; color: var(--color-text-muted); font-size: 8px; font-weight: 700; letter-spacing: .1em; white-space: nowrap; }
+.candle-table th:first-child, .candle-table td:first-child { padding-left: 2px; }
+.candle-table td { padding: 13px 9px; border-top: 1px solid var(--color-border); color: var(--color-text-secondary); font-size: 10px; white-space: nowrap; }
+.candle-table td:nth-child(2) { font-weight: 600; }
+.table-empty { padding: 20px 2px; color: var(--color-text-muted); font-size: 11px; }
+.activity-note { display: flex; align-items: center; gap: 8px; margin-top: 19px; color: var(--color-text-muted); font-size: 9px; line-height: 1.5; }
+.activity-note-dot { width: 6px; height: 6px; flex: 0 0 auto; border-radius: 50%; background: var(--color-long); box-shadow: 12px 0 var(--color-short); margin-right: 12px; }
+
+.dashboard-footer { display: flex; justify-content: space-between; gap: 18px; padding: 4px 6px 0; color: var(--color-text-dim); font-size: 8px; font-weight: 650; letter-spacing: .12em; }
+.dashboard-footer i { padding: 0 5px; color: var(--color-long); font-style: normal; }
+
+@media (max-width: 900px) { .detail-grid { grid-template-columns: 1fr; } }
+@media (max-width: 560px) {
+    .candle-table { min-width: 440px; }
+    .detail-signal { padding: 12px 10px; }
+    .dashboard-footer { flex-direction: column; line-height: 1.6; }
+}

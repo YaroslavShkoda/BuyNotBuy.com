@@ -1,4 +1,5 @@
-import type { Candle } from '../../backend/types/market';
+import type { Candle } from '../types/analysis';
+import { fetchJson } from './api-error';
 
 interface MarketResponse {
     price: {
@@ -9,16 +10,7 @@ interface MarketResponse {
 }
 
 export async function getMarket(): Promise<MarketResponse> {
-    const response = await fetch(
+    return fetchJson<MarketResponse>(
         `${process.env.BACKEND_URL}/api/market`,
-        { cache: 'no-store' },
     );
-
-    if (!response.ok) {
-        throw new Error(
-            `Backend returned ${response.status}`,
-        );
-    }
-
-    return response.json() as Promise<MarketResponse>;
 }
