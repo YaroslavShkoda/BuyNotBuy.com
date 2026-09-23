@@ -1,0 +1,155 @@
+﻿.signal-panel {
+    display: flex;
+    flex-direction: column;
+
+    min-width: 0;
+    padding: 30px;
+
+    overflow: hidden;
+}
+
+.signal-panel::before {
+    content: "";
+
+    position: absolute;
+    inset: 0;
+
+    pointer-events: none;
+
+    background:
+        radial-gradient(
+            420px 240px at 100% 0%,
+            rgba(255,255,255,0.045),
+            transparent 70%
+        );
+}
+
+.signal-panel-header {
+    position: relative;
+    margin-top: 10px;
+
+    display: flex;
+    align-items: center;
+    flex-direction: column;
+    justify-content: center;
+    gap: 9px;
+    padding: 0 8px;
+    text-align: center;
+}
+
+.signal-confidence {
+    color: var(--color-text-muted);
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+}
+
+.signal-value {
+    position: relative;
+
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+
+    margin: 36px 0 32px;
+    padding: 0 12px;
+    text-align: center;
+}
+
+.signal-status {
+    font-size: clamp(42px, 5vw, 58px);
+    line-height: 0.9;
+    font-weight: 700;
+    letter-spacing: -0.055em;
+}
+
+.signal-long .signal-status {
+    color: var(--color-long);
+    text-shadow: 0 0 35px rgba(113, 223, 173, 0.16);
+}
+
+.signal-short .signal-status {
+    color: var(--color-short);
+    text-shadow: 0 0 35px rgba(237, 139, 150, 0.16);
+}
+
+.signal-neutral .signal-status {
+    color: var(--color-neutral);
+}
+
+.signal-reason {
+    max-width: 240px;
+    color: var(--color-text-secondary);
+    font-size: 12px;
+    line-height: 1.55;
+}
+
+.signal-indicators {
+    position: relative;
+
+    display: grid;
+    gap: 1px;
+
+    overflow: hidden;
+
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+
+    background: var(--color-border);
+    align-self: center;
+    width: calc(100% - 16px);
+}
+
+.signal-indicator {
+    padding: 13px 14px;
+    background: rgba(8, 10, 12, 0.72);
+}
+
+.signal-indicator-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.signal-indicator-top span {
+    color: var(--color-text-secondary);
+    font-size: 11px;
+}
+
+.signal-indicator-top strong {
+    font-size: 9px;
+    letter-spacing: 0.08em;
+}
+
+.signal-indicator-reason {
+    display: block;
+    margin-top: 5px;
+
+    color: var(--color-text-muted);
+    font-size: 9px;
+    line-height: 1.45;
+}
+
+.signal-long .signal-indicator-top strong {
+    color: var(--color-long);
+}
+
+.signal-short .signal-indicator-top strong {
+    color: var(--color-short);
+}
+
+.signal-neutral .signal-indicator-top strong {
+    color: var(--color-neutral);
+}
+
+@media (max-width: 640px) {
+    .signal-panel {
+        padding: 24px;
+    }
+
+    .signal-value {
+        margin: 28px 0 26px;
+    }
+}
