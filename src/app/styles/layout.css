@@ -9,6 +9,7 @@
 .content-stack {
     display: grid;
     gap: var(--section-gap);
+    margin-top: calc(var(--section-gap) / 2);
 }
 
 @media (max-width: 900px) {

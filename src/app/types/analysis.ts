@@ -35,9 +35,36 @@ export interface MarketIndicators {
     momentum: number | null;
 }
 
+export interface MomentumAnalysis {
+    period: number;
+    current: number | null;
+    series: Array<number | null>;
+}
+
+export type DivergenceType = 'BULLISH' | 'BEARISH' | 'NONE';
+
+export interface DivergencePoint {
+    index: number;
+    price: number;
+    momentum: number;
+}
+
+export interface DivergenceResult {
+    type: DivergenceType;
+    previous: DivergencePoint;
+    current: DivergencePoint;
+}
+
+export interface DivergenceAnalysis {
+    bullish: DivergenceResult | null;
+    bearish: DivergenceResult | null;
+}
+
 export interface MarketAnalysis {
     timestamp: number;
     price: number;
     indicators: MarketIndicators;
     signal: SignalResult;
+    momentum: MomentumAnalysis;
+    divergence: DivergenceAnalysis;
 }

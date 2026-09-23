@@ -23,13 +23,28 @@ export function MarketDetails({ candles, analysis }: MarketDetailsProps) {
             ? 'Зона перепроданности'
             : 'Нейтральный диапазон';
 
+    const momentum = analysis.momentum.current;
+    const momentumSignal = analysis.signal.indicators.find(
+        (indicator) => indicator.name === 'Momentum 100',
+    )!;
+    const divergence = analysis.divergence.bullish
+        ? 'BULLISH DIVERGENCE'
+        : analysis.divergence.bearish
+            ? 'BEARISH DIVERGENCE'
+            : 'NO DIVERGENCE';
+    const divergenceClass = analysis.divergence.bullish
+        ? 'reading-positive'
+        : analysis.divergence.bearish
+            ? 'reading-negative'
+            : 'reading-neutral';
+
     return (
         <>
             <section className="detail-grid" aria-label="Аналитика рынка">
                 <article className="detail-card depth-surface">
                     <header className="detail-heading">
                         <div><span className="eyebrow">ТЕХНИЧЕСКИЙ СРЕЗ</span><h2>Индикаторы</h2></div>
-                        <span className="detail-index">01 / 02</span>
+                        <span className="detail-index">01 / 03</span>
                     </header>
                     <div className="indicator-list">
                         <div className="indicator-row">
@@ -39,6 +54,14 @@ export function MarketDetails({ candles, analysis }: MarketDetailsProps) {
                         <div className="indicator-row">
                             <div><span>Stochastic</span><small>Импульс цены</small></div>
                             <div className="indicator-reading"><strong>{analysis.indicators.stochastic.toFixed(2)}</strong><span>{stochasticMood}</span></div>
+                        </div>
+                        <div className="indicator-row">
+                            <div><span>Momentum 100</span><small>{momentumSignal.reason}</small></div>
+                            <div className="indicator-reading">
+                                <strong>{momentum === null ? '—' : `${momentum > 0 ? '+' : ''}${momentum.toFixed(2)}`}</strong>
+                                <span className={`reading-${momentumSignal.signal.toLowerCase()}`}>{momentumSignal.signal}</span>
+                                <span className={divergenceClass}>{divergence}</span>
+                            </div>
                         </div>
                     </div>
                     <div className="signal-list-heading"><span>СОГЛАСИЕ СИГНАЛОВ</span><span>{analysis.signal.indicators.length} ИНДИКАТОРА</span></div>

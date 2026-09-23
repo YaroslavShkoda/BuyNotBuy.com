@@ -1,4 +1,4 @@
-﻿.hero {
+.hero {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 340px;
     gap: var(--section-gap);
@@ -41,6 +41,7 @@
     align-items: flex-start;
     justify-content: space-between;
     gap: 32px;
+    column-gap: calc(var(--space-7) + var(--section-gap) / 2);
 }
 
 .eyebrow {
@@ -138,11 +139,7 @@
 @media (max-width: 1000px) {
     .hero {
         grid-template-columns: 1fr;
-        row-gap: 0;
-    }
-
-    .hero > .signal-panel {
-        margin-top: 48px;
+        row-gap: var(--section-gap);
     }
 }
 

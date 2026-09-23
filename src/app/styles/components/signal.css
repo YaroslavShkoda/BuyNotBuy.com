@@ -98,6 +98,7 @@
 
     background: var(--color-border);
     align-self: center;
+    margin-inline: auto;
     width: calc(100% - 16px);
 }
 
