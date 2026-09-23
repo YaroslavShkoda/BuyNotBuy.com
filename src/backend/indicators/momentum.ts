@@ -22,11 +22,18 @@ export function calculateMomentum(
         );
     }
 
-    const currentClose =
-        candles[candles.length - 1].close;
+    const currentCandle = candles[candles.length - 1];
+    const previousCandle = candles[candles.length - 1 - period];
 
-    const previousClose =
-        candles[candles.length - 1 - period].close;
+    if (currentCandle === undefined || previousCandle === undefined) {
+        throw new Error(
+            `Momentum requires at least ${period + 1} candles`,
+        );
+    }
+
+    const currentClose = currentCandle.close;
+
+    const previousClose = previousCandle.close;
 
     return currentClose - previousClose;
 }

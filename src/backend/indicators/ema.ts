@@ -21,7 +21,13 @@ export function calculateEMA(
         .reduce((sum, value) => sum + value, 0) / period;
 
     for (let i = period; i < values.length; i++) {
-        ema = (values[i] - ema) * multiplier + ema;
+        const value = values[i];
+
+        if (value === undefined) {
+            throw new Error(`EMA requires at least ${period} values`);
+        }
+
+        ema = (value - ema) * multiplier + ema;
     }
 
     return ema;

@@ -78,9 +78,28 @@ export function calculateSignal(
         indicators.stochastic,
     );
 
+    const momentumAnalysis: IndicatorAnalysis = indicators.momentum > 0
+        ? {
+            name: 'Momentum 100',
+            signal: 'LONG',
+            reason: 'Momentum выше 0',
+        }
+        : indicators.momentum < 0
+            ? {
+                name: 'Momentum 100',
+                signal: 'SHORT',
+                reason: 'Momentum ниже 0',
+            }
+            : {
+                name: 'Momentum 100',
+                signal: 'NEUTRAL',
+                reason: 'Momentum равен 0',
+            };
+
     const indicatorAnalyses = [
         emaAnalysis,
         stochasticAnalysis,
+        momentumAnalysis,
     ];
 
     const consensus = calculateConsensus(

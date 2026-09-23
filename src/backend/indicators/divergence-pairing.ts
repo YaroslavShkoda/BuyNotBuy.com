@@ -45,6 +45,13 @@ export function findDivergencePairs(
             const currentPriceIndex =
                 priceExtrema[currentPrice];
 
+            if (
+                previousPriceIndex === undefined ||
+                currentPriceIndex === undefined
+            ) {
+                continue;
+            }
+
             for (
                 let previousMomentum = 0;
                 previousMomentum < momentumExtrema.length - 1;
@@ -61,6 +68,13 @@ export function findDivergencePairs(
 
                     const currentMomentumIndex =
                         momentumExtrema[currentMomentum];
+
+                    if (
+                        previousMomentumIndex === undefined ||
+                        currentMomentumIndex === undefined
+                    ) {
+                        continue;
+                    }
 
                     const previousDistance =
                         Math.abs(

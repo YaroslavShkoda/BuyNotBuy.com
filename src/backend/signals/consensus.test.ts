@@ -1,166 +1,75 @@
-﻿import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import { calculateConsensus } from './consensus';
+import type { IndicatorAnalysis, IndicatorSignal } from './signal.types';
+
+const names = ['EMA 300', 'Stochastic', 'Momentum 100'];
+
+function makeAnalyses(...signals: IndicatorSignal[]): IndicatorAnalysis[] {
+    return signals.map((signal, index) => ({
+        name: names[index] ?? `Indicator ${index}`,
+        signal,
+        reason: `${names[index] ?? `Indicator ${index}`} ${signal}`,
+    }));
+}
 
 describe('calculateConsensus', () => {
-    it('returns LONG with 100% confidence when all indicators are LONG', () => {
-        const result = calculateConsensus([
-            {
-                name: 'EMA 300',
-                signal: 'LONG',
-                reason: 'Цена выше EMA 300',
-            },
-            {
-                name: 'Stochastic',
-                signal: 'LONG',
-                reason: 'Стохастик ниже 15',
-            },
-            {
-                name: 'Momentum',
-                signal: 'LONG',
-                reason: 'Momentum положительный',
-            },
-            {
-                name: 'Divergence',
-                signal: 'LONG',
-                reason: 'Обнаружена bullish divergence',
-            },
-        ]);
+    it('returns LONG with 100% confidence when all three indicators are LONG', () => {
+        const result = calculateConsensus(makeAnalyses('LONG', 'LONG', 'LONG'));
 
         expect(result).toEqual({
             signal: 'LONG',
             confidence: 100,
-            reason: 'EMA 300 и Stochastic и Momentum и Divergence подтверждают LONG',
+            reason: 'EMA 300 и Stochastic и Momentum 100 подтверждают LONG',
         });
     });
 
-    it('returns SHORT with 100% confidence when all indicators are SHORT', () => {
-        const result = calculateConsensus([
-            {
-                name: 'EMA 300',
-                signal: 'SHORT',
-                reason: 'Цена ниже EMA 300',
-            },
-            {
-                name: 'Stochastic',
-                signal: 'SHORT',
-                reason: 'Стохастик выше 80',
-            },
-            {
-                name: 'Momentum',
-                signal: 'SHORT',
-                reason: 'Momentum отрицательный',
-            },
-            {
-                name: 'Divergence',
-                signal: 'SHORT',
-                reason: 'Обнаружена bearish divergence',
-            },
-        ]);
+    it('returns SHORT with 100% confidence when all three indicators are SHORT', () => {
+        const result = calculateConsensus(makeAnalyses('SHORT', 'SHORT', 'SHORT'));
 
         expect(result).toEqual({
             signal: 'SHORT',
             confidence: 100,
-            reason: 'EMA 300 и Stochastic и Momentum и Divergence подтверждают SHORT',
+            reason: 'EMA 300 и Stochastic и Momentum 100 подтверждают SHORT',
         });
     });
 
-    it('returns LONG with 50% confidence when LONG indicators and neutral indicators have no conflict', () => {
-        const result = calculateConsensus([
-            {
-                name: 'EMA 300',
-                signal: 'LONG',
-                reason: 'Цена выше EMA 300',
-            },
-            {
-                name: 'Stochastic',
-                signal: 'LONG',
-                reason: 'Стохастик ниже 15',
-            },
-            {
-                name: 'Momentum',
-                signal: 'NEUTRAL',
-                reason: 'Momentum нейтрален',
-            },
-        ]);
+    it('returns the majority LONG with 67% confidence for a two to one split', () => {
+        const result = calculateConsensus(makeAnalyses('LONG', 'LONG', 'SHORT'));
 
-        expect(result).toEqual({
-            signal: 'LONG',
-            confidence: 50,
-            reason: 'Только EMA 300 и Stochastic подтверждают LONG',
-        });
+        expect(result.signal).toBe('LONG');
+        expect(result.confidence).toBe(67);
+        expect(result.reason).toBe('EMA 300 и Stochastic подтверждают LONG');
     });
 
-    it('returns SHORT with 50% confidence when SHORT indicators and neutral indicators have no conflict', () => {
-        const result = calculateConsensus([
-            {
-                name: 'EMA 300',
-                signal: 'SHORT',
-                reason: 'Цена ниже EMA 300',
-            },
-            {
-                name: 'Stochastic',
-                signal: 'SHORT',
-                reason: 'Стохастик выше 80',
-            },
-            {
-                name: 'Momentum',
-                signal: 'NEUTRAL',
-                reason: 'Momentum нейтрален',
-            },
-        ]);
+    it('returns the majority SHORT with 67% confidence for a two to one split', () => {
+        const result = calculateConsensus(makeAnalyses('SHORT', 'SHORT', 'LONG'));
 
-        expect(result).toEqual({
-            signal: 'SHORT',
-            confidence: 50,
-            reason: 'Только EMA 300 и Stochastic подтверждают SHORT',
-        });
+        expect(result.signal).toBe('SHORT');
+        expect(result.confidence).toBe(67);
+        expect(result.reason).toBe('EMA 300 и Stochastic подтверждают SHORT');
     });
 
-    it('returns NEUTRAL when LONG and SHORT indicators conflict', () => {
-        const result = calculateConsensus([
-            {
-                name: 'EMA 300',
-                signal: 'LONG',
-                reason: 'Цена выше EMA 300',
-            },
-            {
-                name: 'Stochastic',
-                signal: 'LONG',
-                reason: 'Стохастик ниже 15',
-            },
-            {
-                name: 'Momentum',
-                signal: 'SHORT',
-                reason: 'Momentum отрицательный',
-            },
-            {
-                name: 'Divergence',
-                signal: 'SHORT',
-                reason: 'Обнаружена bearish divergence',
-            },
-        ]);
+    it('preserves neutral on a one to one conflict and assigns no support confidence', () => {
+        const result = calculateConsensus(makeAnalyses('SHORT', 'LONG', 'NEUTRAL'));
 
         expect(result).toEqual({
             signal: 'NEUTRAL',
-            confidence: 50,
+            confidence: 0,
             reason: 'Индикаторы дают противоположные сигналы',
         });
     });
 
+    it('returns 33% confidence when one indicator supports a direction and two are neutral', () => {
+        const result = calculateConsensus(makeAnalyses('NEUTRAL', 'NEUTRAL', 'SHORT'));
+
+        expect(result.signal).toBe('SHORT');
+        expect(result.confidence).toBe(33);
+        expect(result.reason).toBe('Только Momentum 100 подтверждает SHORT');
+    });
+
     it('returns NEUTRAL with 0% confidence when all indicators are neutral', () => {
-        const result = calculateConsensus([
-            {
-                name: 'EMA 300',
-                signal: 'NEUTRAL',
-                reason: 'Цена находится на уровне EMA 300',
-            },
-            {
-                name: 'Stochastic',
-                signal: 'NEUTRAL',
-                reason: 'Стохастик находится в нейтральной зоне',
-            },
-        ]);
+        const result = calculateConsensus(makeAnalyses('NEUTRAL', 'NEUTRAL', 'NEUTRAL'));
 
         expect(result).toEqual({
             signal: 'NEUTRAL',

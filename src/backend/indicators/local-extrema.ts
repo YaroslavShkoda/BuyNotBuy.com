@@ -28,6 +28,10 @@ export function findLocalBottoms(
     ) {
         const current = values[index];
 
+        if (current === undefined) {
+            continue;
+        }
+
         let isBottom = true;
 
         for (
@@ -35,7 +39,9 @@ export function findLocalBottoms(
             offset <= left;
             offset += 1
         ) {
-            if (current >= values[index - offset]) {
+            const leftValue = values[index - offset];
+
+            if (leftValue === undefined || current >= leftValue) {
                 isBottom = false;
                 break;
             }
@@ -50,7 +56,9 @@ export function findLocalBottoms(
             offset <= right;
             offset += 1
         ) {
-            if (current >= values[index + offset]) {
+            const rightValue = values[index + offset];
+
+            if (rightValue === undefined || current >= rightValue) {
                 isBottom = false;
                 break;
             }
@@ -86,6 +94,10 @@ export function findLocalTops(
     ) {
         const current = values[index];
 
+        if (current === undefined) {
+            continue;
+        }
+
         let isTop = true;
 
         for (
@@ -93,7 +105,9 @@ export function findLocalTops(
             offset <= left;
             offset += 1
         ) {
-            if (current <= values[index - offset]) {
+            const leftValue = values[index - offset];
+
+            if (leftValue === undefined || current <= leftValue) {
                 isTop = false;
                 break;
             }
@@ -108,7 +122,9 @@ export function findLocalTops(
             offset <= right;
             offset += 1
         ) {
-            if (current <= values[index + offset]) {
+            const rightValue = values[index + offset];
+
+            if (rightValue === undefined || current <= rightValue) {
                 isTop = false;
                 break;
             }

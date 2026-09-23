@@ -53,6 +53,7 @@ export function analyzeDivergence(
     leftWindow = 2,
     rightWindow = 2,
     maxDistance = 5,
+    momentumSeries?: Array<number | null>,
 ): DivergenceAnalysis {
     if (candles.length === 0) {
         throw new Error(
@@ -66,7 +67,7 @@ export function analyzeDivergence(
         );
     }
 
-    const momentum = calculateMomentumSeries(
+    const momentum = momentumSeries ?? calculateMomentumSeries(
         candles,
         momentumPeriod,
     );
@@ -85,7 +86,10 @@ export function analyzeDivergence(
         );
 
     const momentumValues = validMomentumIndices.map(
-        (index) => momentum[index] as number,
+        (index) => momentum[index] ?? null,
+    ).filter(
+        (value): value is number =>
+            value !== null,
     );
 
     const momentumBottomPositions = findLocalBottoms(
@@ -103,11 +107,17 @@ export function analyzeDivergence(
     const momentumBottoms = momentumBottomPositions.map(
         (position) =>
             validMomentumIndices[position],
+    ).filter(
+        (index): index is number =>
+            index !== undefined,
     );
 
     const momentumTops = momentumTopPositions.map(
         (position) =>
             validMomentumIndices[position],
+    ).filter(
+        (index): index is number =>
+            index !== undefined,
     );
 
     const priceBottoms = findLocalBottoms(

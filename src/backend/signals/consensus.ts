@@ -1,4 +1,4 @@
-﻿import type { IndicatorAnalysis, SignalResult } from './signal.types';
+import type { IndicatorAnalysis, SignalResult } from './signal.types';
 
 export function calculateConsensus(
     analyses: IndicatorAnalysis[],
@@ -6,93 +6,46 @@ export function calculateConsensus(
     const longAnalyses = analyses.filter(
         (analysis) => analysis.signal === 'LONG',
     );
-
     const shortAnalyses = analyses.filter(
         (analysis) => analysis.signal === 'SHORT',
     );
-
     const neutralCount = analyses.filter(
         (analysis) => analysis.signal === 'NEUTRAL',
     ).length;
 
-    if (
-        longAnalyses.length > 0 &&
-        shortAnalyses.length === 0
-    ) {
-        if (neutralCount === 0) {
-            return {
-                signal: 'LONG',
-                confidence: 100,
-                reason:
-                    longAnalyses
-                        .map((analysis) => analysis.name)
-                        .join(' и ') +
-                    ' подтверждают LONG',
-            };
-        }
-
-        const names = longAnalyses
-            .map((analysis) => analysis.name)
-            .join(' и ');
-
-        return {
-            signal: 'LONG',
-            confidence: 50,
-            reason:
-                'Только ' +
-                names +
-                (longAnalyses.length === 1
-                    ? ' подтверждает LONG'
-                    : ' подтверждают LONG'),
-        };
-    }
-
-    if (
-        shortAnalyses.length > 0 &&
-        longAnalyses.length === 0
-    ) {
-        if (neutralCount === 0) {
-            return {
-                signal: 'SHORT',
-                confidence: 100,
-                reason:
-                    shortAnalyses
-                        .map((analysis) => analysis.name)
-                        .join(' и ') +
-                    ' подтверждают SHORT',
-            };
-        }
-
-        const names = shortAnalyses
-            .map((analysis) => analysis.name)
-            .join(' и ');
-
-        return {
-            signal: 'SHORT',
-            confidence: 50,
-            reason:
-                'Только ' +
-                names +
-                (shortAnalyses.length === 1
-                    ? ' подтверждает SHORT'
-                    : ' подтверждают SHORT'),
-        };
-    }
-
-    if (
-        longAnalyses.length > 0 &&
-        shortAnalyses.length > 0
-    ) {
+    if (longAnalyses.length === shortAnalyses.length) {
         return {
             signal: 'NEUTRAL',
-            confidence: 50,
-            reason: 'Индикаторы дают противоположные сигналы',
+            confidence: 0,
+            reason: longAnalyses.length > 0
+                ? 'Индикаторы дают противоположные сигналы'
+                : 'Ни один индикатор не даёт сигнала',
         };
     }
 
+    const winningAnalyses = longAnalyses.length > shortAnalyses.length
+        ? longAnalyses
+        : shortAnalyses;
+    const winningSignal = longAnalyses.length > shortAnalyses.length
+        ? 'LONG'
+        : 'SHORT';
+    const confidence = analyses.length === 0
+        ? 0
+        : Math.round((winningAnalyses.length / analyses.length) * 100);
+    const names = winningAnalyses
+        .map((analysis) => analysis.name)
+        .join(' и ');
+    const verb = winningAnalyses.length === 1
+        ? 'подтверждает'
+        : 'подтверждают';
+    const only = neutralCount > 0 &&
+        (winningSignal === 'LONG' ? shortAnalyses.length : longAnalyses.length) === 0
+        ? 'Только '
+        : '';
+
     return {
-        signal: 'NEUTRAL',
-        confidence: 0,
-        reason: 'Ни один индикатор не даёт сигнала',
+        signal: winningSignal,
+        confidence,
+        reason: `${only}${names} ${verb} ${winningSignal}`,
     };
 }

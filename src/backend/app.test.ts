@@ -128,7 +128,10 @@ describe('Backend app', () => {
 
         expect(response.statusCode).toBe(502);
         expect(response.json()).toEqual({
-            error: 'Market data provider unavailable',
+            error: {
+                code: 'MARKET_DATA_UNAVAILABLE',
+                message: 'Market data is temporarily unavailable',
+            },
         });
 
         await app.close();
@@ -148,7 +151,10 @@ describe('Backend app', () => {
 
         expect(response.statusCode).toBe(502);
         expect(response.json()).toEqual({
-            error: 'Market data provider unavailable',
+            error: {
+                code: 'MARKET_DATA_UNAVAILABLE',
+                message: 'Market data is temporarily unavailable',
+            },
         });
 
         await app.close();
@@ -168,7 +174,10 @@ describe('Backend app', () => {
 
         expect(response.statusCode).toBe(500);
         expect(response.json()).toEqual({
-            error: 'Internal server error',
+            error: {
+                code: 'INTERNAL_ERROR',
+                message: 'Internal server error',
+            },
         });
 
         await app.close();
@@ -187,7 +196,10 @@ describe('Backend app', () => {
 
         expect(response.statusCode).toBe(500);
         expect(response.json()).toEqual({
-            error: 'Internal server error',
+            error: {
+                code: 'INTERNAL_ERROR',
+                message: 'Internal server error',
+            },
         });
 
         await app.close();

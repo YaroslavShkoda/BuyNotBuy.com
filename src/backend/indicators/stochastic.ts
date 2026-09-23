@@ -1,4 +1,4 @@
-﻿import { Candle } from '../types/market';
+﻿import type { Candle } from '../types/market';
 
 export function calculateStochastic(
     candles: Candle[],
@@ -26,7 +26,13 @@ export function calculateStochastic(
         ...recentCandles.map((candle) => candle.low),
     );
 
-    const currentClose = recentCandles[recentCandles.length - 1].close;
+    const currentCandle = recentCandles[recentCandles.length - 1];
+
+    if (currentCandle === undefined) {
+        throw new Error(`Stochastic requires at least ${period} candles`);
+    }
+
+    const currentClose = currentCandle.close;
 
     if (higestHigh === lowestLow) {
         throw new Error('Stochastic cannot be calculated when highest high equals lowest low');

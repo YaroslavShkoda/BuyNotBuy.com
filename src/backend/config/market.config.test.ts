@@ -52,4 +52,43 @@ describe('marketConfig', () => {
 
         await expect(import('./market.config')).rejects.toThrow();
     });
+
+    it('rejects invalid market configuration values', async () => {
+        const validEnv: Record<string, string> = {
+            MARKET_PROVIDER: 'binance',
+            MARKET_BASE_URL: 'https://example.com',
+            MARKET_SYMBOL: 'BTCUSDT',
+            MARKET_CANDLE_INTERVAL: '1h',
+            MARKET_DEFAULT_CANDLE_LIMIT: '300',
+            MARKET_REQUEST_TIMEOUT_MS: '5000',
+        };
+
+        const cases: Record<string, string>[] = [
+            { MARKET_PROVIDER: 'unknown' },
+            { MARKET_DEFAULT_CANDLE_LIMIT: '0' },
+            { MARKET_DEFAULT_CANDLE_LIMIT: '-1' },
+            { MARKET_DEFAULT_CANDLE_LIMIT: 'abc' },
+            { MARKET_REQUEST_TIMEOUT_MS: '0' },
+            { MARKET_REQUEST_TIMEOUT_MS: '-1' },
+            { MARKET_REQUEST_TIMEOUT_MS: 'abc' },
+            { MARKET_BASE_URL: 'not-a-url' },
+            { MARKET_SYMBOL: '' },
+            { MARKET_CANDLE_INTERVAL: '' },
+        ];
+
+        for (const env of cases) {
+            vi.resetModules();
+
+            Object.assign(process.env, validEnv, env);
+
+            await expect(import('./market.config')).rejects.toThrow();
+
+            delete process.env.MARKET_PROVIDER;
+            delete process.env.MARKET_BASE_URL;
+            delete process.env.MARKET_SYMBOL;
+            delete process.env.MARKET_CANDLE_INTERVAL;
+            delete process.env.MARKET_DEFAULT_CANDLE_LIMIT;
+            delete process.env.MARKET_REQUEST_TIMEOUT_MS;
+        }
+    });
 });

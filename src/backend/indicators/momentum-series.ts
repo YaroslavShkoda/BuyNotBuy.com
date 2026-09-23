@@ -17,6 +17,12 @@ export function calculateMomentumSeries(
             return null;
         }
 
-        return candle.close - candles[index - period].close;
+        const previousCandle = candles[index - period];
+
+        if (previousCandle === undefined) {
+            throw new Error('Momentum series requires at least one candle');
+        }
+
+        return candle.close - previousCandle.close;
     });
 }

@@ -1,7 +1,6 @@
 ﻿import { describe, expect, it } from 'vitest';
 import { calculateStochastic } from './stochastic';
 import type { Candle } from '../types/market';
-import { createReactServerErrorHandler } from 'next/dist/server/app-render/create-error-handler';
 
 function createCandle(
     high: number,

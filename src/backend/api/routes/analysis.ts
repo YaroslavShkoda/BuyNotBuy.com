@@ -5,7 +5,10 @@ import { getAnalysis } from '../controllers/analysis.controller';
 export async function analysisRoutes(
     app: FastifyInstance,
 ) {
-    app.get('/api/analysis', async () => {
-        return getAnalysis();
+    app.get('/api/analysis', async (request) => {
+        return getAnalysis(
+            request.log,
+            request.id,
+        );
     });
 }

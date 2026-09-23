@@ -37,7 +37,7 @@ describe('BinanceProvider', () => {
 
             expect(fetchMock).toHaveBeenCalledOnce();
 
-            const [url, options] = fetchMock.mock.calls[0];
+            const [url, options] = fetchMock.mock.calls[0] ?? [];
 
             expect(url).toBe(
                 'https://data-api.binance.vision/api/v3/ticker/price?symbol=BTCUSDT',
@@ -58,9 +58,11 @@ describe('BinanceProvider', () => {
 
             await expect(
                 provider.getPrice(),
-            ).rejects.toThrow(
-                new MarketDataError('Binance API error: 503'),
-            );
+            ).rejects.toMatchObject({
+                name: 'MarketDataError',
+                code: 'MARKET_DATA_UNAVAILABLE',
+                statusCode: 503,
+            });
         });
 
         it('throws when Binance returns invalid data', async () => {
@@ -122,6 +124,27 @@ describe('BinanceProvider', () => {
     });
 
     describe('getCandles', () => {
+        it('uses configured symbol, interval, and default limit', async () => {
+            const fetchMock = vi.fn().mockResolvedValue({
+                ok: true,
+                json: async () => [],
+            });
+
+            vi.stubGlobal('fetch', fetchMock);
+
+            const provider = new BinanceProvider();
+
+            await provider.getCandles();
+
+            expect(fetchMock).toHaveBeenCalledOnce();
+
+            const [url] = fetchMock.mock.calls[0] ?? [];
+
+            expect(url).toBe(
+                'https://data-api.binance.vision/api/v3/klines?symbol=BTCUSDT&interval=1h&limit=300',
+            );
+        });
+
         it('returns market candles from Binance API', async () => {
             const fetchMock = vi.fn().mockResolvedValue({
                 ok: true,
@@ -172,7 +195,7 @@ describe('BinanceProvider', () => {
 
             expect(fetchMock).toHaveBeenCalledOnce();
 
-            const [url, options] = fetchMock.mock.calls[0];
+            const [url, options] = fetchMock.mock.calls[0] ?? [];
 
             expect(url).toBe(
                 'https://data-api.binance.vision/api/v3/klines?symbol=BTCUSDT&interval=1h&limit=2',
@@ -193,9 +216,11 @@ describe('BinanceProvider', () => {
 
             await expect(
                 provider.getCandles(),
-            ).rejects.toThrow(
-                new MarketDataError('Binance API error: 503'),
-            );
+            ).rejects.toMatchObject({
+                name: 'MarketDataError',
+                code: 'MARKET_DATA_UNAVAILABLE',
+                statusCode: 503,
+            });
         });
 
         it('throws when Binance returns invalid candle data', async () => {

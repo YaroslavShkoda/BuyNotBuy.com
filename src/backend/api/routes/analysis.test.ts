@@ -7,6 +7,7 @@ const mockAnalysis = {
     indicators: {
         ema300: 78000,
         stochastic: 20,
+        momentum: 150,
     },
     signal: {
         signal: 'LONG' as const,
@@ -24,6 +25,15 @@ const mockAnalysis = {
                 reason: 'Стохастик в нейтральной зоне',
             },
         ],
+    },
+    momentum: {
+        period: 100,
+        current: 150,
+        series: [null, 10, 150] as Array<number | null>,
+    },
+    divergence: {
+        bullish: null,
+        bearish: null,
     },
 };
 
