@@ -42,3 +42,31 @@ a {
     color: inherit;
     text-decoration: none;
 }
+
+::selection {
+    background: rgba(113, 223, 173, 0.28);
+    color: var(--color-text);
+}
+
+:focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+    border-radius: 6px;
+}
+
+.app-shell {
+    font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    html {
+        scroll-behavior: auto;
+    }
+
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+    }
+}

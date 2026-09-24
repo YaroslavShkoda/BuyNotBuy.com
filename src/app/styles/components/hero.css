@@ -11,6 +11,32 @@
     min-width: 0;
     padding: clamp(28px, 4vw, 52px);
     overflow: hidden;
+    background:
+        radial-gradient(
+            520px 300px at 82% 8%,
+            rgba(113, 223, 173, 0.055),
+            transparent 70%
+        ),
+        linear-gradient(
+            145deg,
+            rgba(255,255,255,0.04),
+            rgba(255,255,255,0.012) 48%,
+            rgba(255,255,255,0.006)
+        ),
+        rgba(10, 12, 14, 0.78);
+}
+
+.hero-main::before {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 2px;
+    background: linear-gradient(
+        to bottom,
+        rgba(113, 223, 173, 0.45),
+        rgba(113, 223, 173, 0.06)
+    );
+    pointer-events: none;
 }
 
 .hero-main::after {
@@ -60,7 +86,7 @@
     font-size: clamp(42px, 5vw, 72px);
     line-height: 0.95;
     letter-spacing: -0.055em;
-    font-weight: 650;
+    font-weight: 550;
 }
 
 .hero-description {
@@ -83,10 +109,11 @@
 .hero-price {
     white-space: nowrap;
 
-    font-size: clamp(25px, 3vw, 38px);
+    font-size: clamp(30px, 3.4vw, 46px);
     line-height: 1;
-    font-weight: 600;
+    font-weight: 275;
     letter-spacing: -0.045em;
+    font-variant-numeric: tabular-nums;
 }
 
 .hero-price-label {
@@ -131,9 +158,10 @@
 }
 
 .hero-metric strong {
-    font-size: 17px;
-    font-weight: 550;
+    font-size: 20px;
+    font-weight: 300;
     letter-spacing: -0.025em;
+    font-variant-numeric: tabular-nums;
 }
 
 @media (max-width: 1000px) {

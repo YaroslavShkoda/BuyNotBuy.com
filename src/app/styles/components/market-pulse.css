@@ -1,1 +1,3 @@
-/* Component styles */
+/* Dead placeholder selectors reserved for unused blocks were removed
+   to keep the modular CSS honest: only topbar/hero/chart/details/signal/state
+   plus global shells are imported by globals.css. */

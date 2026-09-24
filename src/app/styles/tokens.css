@@ -6,8 +6,8 @@
 
     --color-text: #f5f7f8;
     --color-text-secondary: #a6adb4;
-    --color-text-muted: #687078;
-    --color-text-dim: #3f464d;
+    --color-text-muted: #7d858d;
+    --color-text-dim: #5b636b;
 
     --color-border: rgba(255, 255, 255, 0.08);
     --color-border-strong: rgba(255, 255, 255, 0.14);
@@ -16,6 +16,8 @@
     --color-short: #ed8b96;
     --color-neutral: #aab1b8;
     --color-warning: #dfbc74;
+
+    --color-focus: #8ec9ff;
 
     --space-1: 4px;
     --space-2: 8px;

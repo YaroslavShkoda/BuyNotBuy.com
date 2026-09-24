@@ -4,6 +4,12 @@ interface SignalPanelProps {
     signal: SignalResult;
 }
 
+export function getConfidenceWidth(confidence: number): string {
+    if (!Number.isFinite(confidence)) return '0%';
+    const clamped = Math.min(100, Math.max(0, Math.round(confidence)));
+    return `${clamped}%`;
+}
+
 export function SignalPanel({ signal }: SignalPanelProps) {
     const signalClass = signal.signal.toLowerCase();
 
@@ -21,6 +27,17 @@ export function SignalPanel({ signal }: SignalPanelProps) {
                 <span className="signal-status">
                     {signal.signal}
                 </span>
+
+                <div
+                    className="signal-meter"
+                    role="img"
+                    aria-label={`Confidence ${signal.confidence} percent`}
+                >
+                    <span
+                        className="signal-meter-fill"
+                        style={{ width: getConfidenceWidth(signal.confidence) }}
+                    />
+                </div>
 
                 <span className="signal-reason">
                     {signal.reason}

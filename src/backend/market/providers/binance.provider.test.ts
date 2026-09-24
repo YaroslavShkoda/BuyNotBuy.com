@@ -204,6 +204,126 @@ describe('BinanceProvider', () => {
             expect(options?.signal).toBeInstanceOf(AbortSignal);
         });
 
+        it('accepts live Binance klines with trailing fields', async () => {
+            const fetchMock = vi.fn().mockResolvedValue({
+                ok: true,
+                json: async () => [
+                    [
+                        1700000000000,
+                        '80000.00',
+                        '81000.00',
+                        '79000.00',
+                        '80500.00',
+                        '123.45',
+                        1700003599999,
+                        '999999.00',
+                        100,
+                        '1.00',
+                        '80000.00',
+                        '0',
+                    ],
+                    [
+                        1700003600000,
+                        '80500.00',
+                        '82000.00',
+                        '80000.00',
+                        '81500.00',
+                        '150.25',
+                        1700007199999,
+                        '888888.00',
+                        120,
+                        '1.20',
+                        '80500.00',
+                        '0',
+                    ],
+                ],
+            });
+
+            vi.stubGlobal('fetch', fetchMock);
+
+            const provider = new BinanceProvider();
+
+            const result = await provider.getCandles(2);
+
+            expect(result).toEqual([
+                {
+                    timestamp: 1700000000000,
+                    open: 80000,
+                    high: 81000,
+                    low: 79000,
+                    close: 80500,
+                    volume: 123.45,
+                },
+                {
+                    timestamp: 1700003600000,
+                    open: 80500,
+                    high: 82000,
+                    low: 80000,
+                    close: 81500,
+                    volume: 150.25,
+                },
+            ]);
+        });
+
+        it('preserves Binance chronological ordering', async () => {
+            const fetchMock = vi.fn().mockResolvedValue({
+                ok: true,
+                json: async () => [
+                    [
+                        1700000000000,
+                        '80000.00',
+                        '81000.00',
+                        '79000.00',
+                        '80500.00',
+                        '123.45',
+                    ],
+                    [
+                        1700003600000,
+                        '80500.00',
+                        '82000.00',
+                        '80000.00',
+                        '81500.00',
+                        '150.25',
+                    ],
+                ],
+            });
+
+            vi.stubGlobal('fetch', fetchMock);
+
+            const provider = new BinanceProvider();
+
+            const result = await provider.getCandles(2);
+
+            expect(result[0]?.timestamp).toBe(1700000000000);
+            expect(result[1]?.timestamp).toBe(1700003600000);
+            expect(result[1]?.timestamp).toBeGreaterThan(result[0]?.timestamp ?? 0);
+        });
+
+        it('rejects NaN and Infinity candle values', async () => {
+            const fetchMock = vi.fn().mockResolvedValue({
+                ok: true,
+                json: async () => [
+                    [
+                        1700000000000,
+                        '80000.00',
+                        'Infinity',
+                        '79000.00',
+                        '80500.00',
+                        '123.45',
+                    ],
+                ],
+            });
+
+            vi.stubGlobal('fetch', fetchMock);
+
+            const provider = new BinanceProvider();
+
+            const error = await provider.getCandles().catch((e) => e);
+
+            expect(error).toBeInstanceOf(MarketDataError);
+            expect(error.code).toBe('MARKET_PROVIDER_ERROR');
+        });
+
         it('throws MarketDataError when Binance returns an HTTP error', async () => {
             const fetchMock = vi.fn().mockResolvedValue({
                 ok: false,

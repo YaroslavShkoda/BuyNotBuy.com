@@ -26,7 +26,7 @@ export function MarketDetails({ candles, analysis }: MarketDetailsProps) {
     const momentum = analysis.momentum.current;
     const momentumSignal = analysis.signal.indicators.find(
         (indicator) => indicator.name === 'Momentum 100',
-    )!;
+    );
     const divergence = analysis.divergence.bullish
         ? 'BULLISH DIVERGENCE'
         : analysis.divergence.bearish
@@ -56,10 +56,12 @@ export function MarketDetails({ candles, analysis }: MarketDetailsProps) {
                             <div className="indicator-reading"><strong>{analysis.indicators.stochastic.toFixed(2)}</strong><span>{stochasticMood}</span></div>
                         </div>
                         <div className="indicator-row">
-                            <div><span>Momentum 100</span><small>{momentumSignal.reason}</small></div>
+                            <div><span>Momentum 100</span><small>{momentumSignal?.reason ?? 'Нет данных по Momentum'}</small></div>
                             <div className="indicator-reading">
                                 <strong>{`${momentum > 0 ? '+' : ''}${momentum.toFixed(2)}`}</strong>
-                                <span className={`reading-${momentumSignal.signal.toLowerCase()}`}>{momentumSignal.signal}</span>
+                                {momentumSignal !== undefined && (
+                                    <span className={`reading-${momentumSignal.signal.toLowerCase()}`}>{momentumSignal.signal}</span>
+                                )}
                                 <span className={divergenceClass}>{divergence}</span>
                             </div>
                         </div>

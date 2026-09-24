@@ -9,7 +9,16 @@ const chartWidth = 900;
 const chartHeight = 250;
 
 export function MarketChart({ candles, symbol }: MarketChartProps) {
-    const visibleCandles = candles.slice(-48);
+    const validCandles = candles.filter(
+        (candle) =>
+            Number.isFinite(candle.timestamp) &&
+            Number.isFinite(candle.open) &&
+            Number.isFinite(candle.high) &&
+            Number.isFinite(candle.low) &&
+            Number.isFinite(candle.close) &&
+            Number.isFinite(candle.volume),
+    );
+    const visibleCandles = validCandles.slice(-48);
     const closes = visibleCandles.map((candle) => candle.close);
     const low = closes.length ? Math.min(...closes) : 0;
     const high = closes.length ? Math.max(...closes) : 0;
@@ -24,9 +33,24 @@ export function MarketChart({ candles, symbol }: MarketChartProps) {
     const barStep = chartWidth / Math.max(visibleCandles.length, 1);
     const last = visibleCandles.at(-1);
     const first = visibleCandles[0];
-    const change = visibleCandles.length > 1 && first !== undefined && last !== undefined
+    const change = visibleCandles.length > 1 && first !== undefined && last !== undefined && first.close !== 0
         ? ((last.close - first.close) / first.close) * 100
         : 0;
+
+    if (visibleCandles.length === 0) {
+        return (
+            <section className="chart-card depth-surface" aria-label="График рынка">
+                <div className="chart-heading">
+                    <div>
+                        <span className="eyebrow">PRICE ACTION · 48 ПЕРИОДОВ</span>
+                        <h2>Движение рынка</h2>
+                    </div>
+                </div>
+
+                <p className="table-empty">Нет данных по свечам</p>
+            </section>
+        );
+    }
 
     return (
         <section className="chart-card depth-surface" aria-label="График рынка">

@@ -1,7 +1,6 @@
 ﻿.topbar {
     position: relative;
     z-index: 10;
-
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -97,6 +96,11 @@
     font-size: 15px;
     font-weight: 600;
     letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+}
+
+.topbar-market {
+    font-variant-numeric: tabular-nums;
 }
 
 .topbar-live {
@@ -139,6 +143,12 @@
     50% {
         opacity: 1;
         transform: scale(1);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .topbar-live-dot {
+        animation: none;
     }
 }
 

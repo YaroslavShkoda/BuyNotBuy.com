@@ -27,14 +27,17 @@ const BinancePriceSchema = z.object({
 });
 
 const BinanceCandleSchema = z.array(
-    z.tuple([
-        BinanceNumberSchema,
-        BinanceNumberSchema,
-        BinanceNumberSchema,
-        BinanceNumberSchema,
-        BinanceNumberSchema,
-        BinanceNumberSchema,
-    ]),
+    z.tuple(
+        [
+            BinanceNumberSchema,
+            BinanceNumberSchema,
+            BinanceNumberSchema,
+            BinanceNumberSchema,
+            BinanceNumberSchema,
+            BinanceNumberSchema,
+        ],
+        z.unknown(),
+    ),
 );
 
 export class BinanceProvider implements MarketDataProvider {
