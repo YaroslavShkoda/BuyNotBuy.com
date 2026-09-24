@@ -2,7 +2,12 @@
 
 const MarketConfigSchema = z.object({
     provider: z.enum(['binance', 'mock']),
-    baseUrl: z.url(),
+    baseUrl: z.url().refine((value) => {
+        const protocol = new URL(value).protocol;
+        return protocol === 'http:' || protocol === 'https:';
+    }, {
+        message: 'Market base URL must use HTTP or HTTPS',
+    }),
     symbol: z.string().min(1),
     candleInterval: z.string().min(1),
     defaultCandleLimit: z.coerce.number().int().positive(),

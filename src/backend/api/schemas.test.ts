@@ -7,7 +7,42 @@ import {
     PriceResponseSchema,
 } from './schemas';
 
-function validAnalysis(): any {
+interface DivergenceFixture {
+    type: string;
+    previous: { index: number; price: number; momentum: number };
+    current: { index: number; price: number; momentum: number };
+}
+
+interface AnalysisFixture {
+    timestamp: number;
+    price: number;
+    indicators: {
+        ema300: number;
+        stochastic: number;
+        momentum?: number;
+    };
+    signal: {
+        signal: string;
+        confidence: number;
+        reason: string;
+        indicators: Array<{
+            name: string;
+            signal: string;
+            reason: string;
+        }>;
+    };
+    momentum: {
+        period: number;
+        current: number;
+        series: Array<number | null>;
+    };
+    divergence: {
+        bullish: DivergenceFixture | null;
+        bearish: DivergenceFixture | null;
+    };
+}
+
+function validAnalysis(): AnalysisFixture {
     return {
         timestamp: 123456789,
         price: 80000,

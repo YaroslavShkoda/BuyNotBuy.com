@@ -72,6 +72,8 @@ describe('marketConfig', () => {
             { MARKET_REQUEST_TIMEOUT_MS: '-1' },
             { MARKET_REQUEST_TIMEOUT_MS: 'abc' },
             { MARKET_BASE_URL: 'not-a-url' },
+            { MARKET_BASE_URL: 'ftp://example.com' },
+            { MARKET_BASE_URL: 'file:///tmp/market-data' },
             { MARKET_SYMBOL: '' },
             { MARKET_CANDLE_INTERVAL: '' },
         ];

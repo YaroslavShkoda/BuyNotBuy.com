@@ -58,7 +58,7 @@ export function MarketDetails({ candles, analysis }: MarketDetailsProps) {
                         <div className="indicator-row">
                             <div><span>Momentum 100</span><small>{momentumSignal.reason}</small></div>
                             <div className="indicator-reading">
-                                <strong>{momentum === null ? '—' : `${momentum > 0 ? '+' : ''}${momentum.toFixed(2)}`}</strong>
+                                <strong>{`${momentum > 0 ? '+' : ''}${momentum.toFixed(2)}`}</strong>
                                 <span className={`reading-${momentumSignal.signal.toLowerCase()}`}>{momentumSignal.signal}</span>
                                 <span className={divergenceClass}>{divergence}</span>
                             </div>

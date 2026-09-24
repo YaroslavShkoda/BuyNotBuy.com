@@ -32,12 +32,12 @@ export interface SignalResult {
 export interface MarketIndicators {
     ema300: number;
     stochastic: number;
-    momentum: number | null;
+    momentum: number;
 }
 
 export interface MomentumAnalysis {
     period: number;
-    current: number | null;
+    current: number;
     series: Array<number | null>;
 }
 
