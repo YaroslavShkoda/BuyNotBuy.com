@@ -51,6 +51,24 @@ describe('BinanceProvider error cases', () => {
         expect(error.statusCode).toBe(503);
     });
 
+    it('includes provider and endpoint context in HTTP 429 cause', async () => {
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+            ok: false,
+            status: 429,
+        }));
+
+        const provider = new BinanceProvider();
+
+        const error = await provider.getPrice().catch((e) => e);
+
+        expect(error).toBeInstanceOf(MarketDataError);
+        expect(error.cause).toMatchObject({
+            provider: 'binance',
+            endpoint: '/api/v3/ticker/price',
+            httpStatus: 429,
+        });
+    });
+
     it('maps HTTP 400 to MARKET_PROVIDER_ERROR with 502', async () => {
         vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
             ok: false,
@@ -109,6 +127,22 @@ describe('BinanceProvider error cases', () => {
             provider: 'binance',
             endpoint: '/api/v3/ticker/price',
             timeoutMs: marketConfig.requestTimeoutMs,
+        });
+    });
+
+    it('keeps originalError string in timeout cause for internal diagnostics', async () => {
+        const timeoutError = new DOMException('The operation timed out', 'TimeoutError');
+        vi.stubGlobal('fetch', vi.fn().mockRejectedValue(timeoutError));
+
+        const provider = new BinanceProvider();
+
+        const error = await provider.getPrice().catch((e) => e);
+
+        expect(error.cause).toMatchObject({
+            provider: 'binance',
+            endpoint: '/api/v3/ticker/price',
+            timeoutMs: marketConfig.requestTimeoutMs,
+            originalError: 'TimeoutError: The operation timed out',
         });
     });
 

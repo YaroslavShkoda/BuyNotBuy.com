@@ -6,7 +6,8 @@ interface HeroProps {
 }
 
 export function Hero({ analysis }: HeroProps) {
-    const { signal, indicators, price } = analysis;
+    const { signal, indicators, price, momentum } = analysis;
+    const momentumLabel = `MOMENTUM ${momentum.period}`;
 
     return (
         <section className="hero">
@@ -54,8 +55,11 @@ export function Hero({ analysis }: HeroProps) {
                     </div>
 
                     <div className="hero-metric">
-                        <span>CONFIDENCE</span>
-                        <strong>{signal.confidence}%</strong>
+                        <span>{momentumLabel}</span>
+                        <strong>
+                            {`${momentum.current > 0 ? '+' : ''}${momentum.current.toFixed(2)}`}
+                        </strong>
+                        <small>{`Изменение цены за ${momentum.period} периодов`}</small>
                     </div>
                 </div>
             </div>

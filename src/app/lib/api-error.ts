@@ -35,6 +35,11 @@ function isApiErrorBody(value: unknown): value is ApiErrorBody {
 }
 
 export async function fetchJson<T>(url: string): Promise<T> {
+    // NOTE: fetch() is intentionally NOT wrapped in try/catch.
+    // Next.js signals dynamic server usage by throwing a special
+    // internal error (digest DYNAMIC_SERVER_USAGE) from fetch() during
+    // static prerender. Wrapping it would break `next build` by hiding
+    // that signal, so network failures propagate raw to the error boundary.
     const response = await fetch(url, { cache: 'no-store' });
 
     if (!response.ok) {
@@ -53,5 +58,9 @@ export async function fetchJson<T>(url: string): Promise<T> {
         throw new Error(`Backend returned ${response.status}`);
     }
 
-    return response.json() as Promise<T>;
+    try {
+        return (await response.json()) as T;
+    } catch (error) {
+        throw new Error('Backend returned invalid JSON', { cause: error });
+    }
 }

@@ -164,10 +164,20 @@
     font-variant-numeric: tabular-nums;
 }
 
+.hero-metric small {
+    color: var(--color-text-muted);
+    font-size: 9px;
+    line-height: 1.4;
+}
+
 @media (max-width: 1000px) {
     .hero {
         grid-template-columns: 1fr;
         row-gap: var(--section-gap);
+    }
+
+    .signal-panel {
+        order: -1;
     }
 }
 

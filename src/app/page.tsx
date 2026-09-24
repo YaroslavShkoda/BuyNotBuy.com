@@ -16,11 +16,12 @@ export default async function Home() {
             <Topbar
                 symbol={market.price.symbol}
                 price={market.price.price}
+                updatedAt={analysis.timestamp}
             />
 
             <div className="content-stack">
                 <Hero analysis={analysis} />
-                <MarketChart candles={market.candles} symbol={market.price.symbol} />
+                <MarketChart candles={market.candles} symbol={market.price.symbol} ema300={analysis.indicators.ema300} />
                 <MarketDetails candles={market.candles} analysis={analysis} />
             </div>
         </main>

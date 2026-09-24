@@ -103,25 +103,25 @@
     font-variant-numeric: tabular-nums;
 }
 
-.topbar-live {
+.topbar-updated {
     display: inline-flex;
     align-items: center;
     gap: 7px;
 
     padding: 7px 10px;
 
-    border: 1px solid rgba(113, 223, 173, 0.16);
+    border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 999px;
 
-    color: var(--color-long);
-    background: rgba(113, 223, 173, 0.055);
+    color: var(--color-text-muted);
+    background: rgba(255, 255, 255, 0.04);
 
     font-size: 9px;
     font-weight: 700;
     letter-spacing: 0.12em;
 }
 
-.topbar-live-dot {
+.topbar-updated-dot {
     width: 6px;
     height: 6px;
 
@@ -147,7 +147,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .topbar-live-dot {
+    .topbar-updated-dot {
         animation: none;
     }
 }

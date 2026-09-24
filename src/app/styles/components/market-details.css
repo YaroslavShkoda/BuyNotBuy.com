@@ -26,16 +26,12 @@
 .reading-negative, .reading-short { color: var(--color-short) !important; }
 .reading-neutral { color: var(--color-neutral) !important; }
 
-.signal-list-heading { display: flex; justify-content: space-between; gap: 12px; margin: 21px 2px 10px; color: var(--color-text-muted); font-size: 8px; font-weight: 700; letter-spacing: .12em; }
-.detail-signals { display: grid; gap: 1px; overflow: hidden; border: 1px solid var(--color-border); border-radius: 13px; background: var(--color-border); }
-.detail-signal { display: grid; grid-template-columns: 8px minmax(0, 1fr) auto; align-items: center; gap: 11px; min-width: 0; padding: 12px 13px; background: rgba(8, 10, 12, .72); }
-.signal-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--color-neutral); box-shadow: 0 0 10px currentColor; }
-.signal-dot[data-tone="long"] { background: var(--color-long); }
-.signal-dot[data-tone="short"] { background: var(--color-short); }
-.detail-signal > div { display: flex; min-width: 0; flex-direction: column; gap: 4px; }
-.detail-signal strong { overflow: hidden; font-size: 10px; font-weight: 550; text-overflow: ellipsis; white-space: nowrap; }
-.detail-signal small { overflow: hidden; color: var(--color-text-muted); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
-.detail-signal b { font-size: 8px; letter-spacing: .07em; }
+.signal-list-heading { display: flex; justify-content: space-between; gap: 12px; margin: 0 2px 10px; color: var(--color-text-muted); font-size: 8px; font-weight: 700; letter-spacing: .12em; }
+.detail-section { margin-top: 24px; }
+.detail-section .indicator-list { margin-top: 0; }
+.divergence-block { display: flex; flex-direction: column; gap: 6px; padding: 4px 2px 0; }
+.divergence-block b { font-size: 11px; letter-spacing: .06em; }
+.divergence-block p { margin: 0; color: var(--color-text-secondary); font-size: 10px; line-height: 1.55; }
 
 .candle-table-wrap { margin-top: 27px; overflow-x: auto; }
 .candle-table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; text-align: left; }
@@ -53,6 +49,5 @@
 @media (max-width: 900px) { .detail-grid { grid-template-columns: 1fr; } }
 @media (max-width: 560px) {
     .candle-table { min-width: 440px; }
-    .detail-signal { padding: 12px 10px; }
     .dashboard-footer { flex-direction: column; line-height: 1.6; }
 }

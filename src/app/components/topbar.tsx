@@ -1,11 +1,35 @@
 ﻿import Image from 'next/image';
 
+export function formatUpdatedAt(timestamp: number, now: Date = new Date()): string {
+    // Guard against zero/negative timestamps: they would render a misleading
+    // "ОБНОВЛЕНО 03:00" from 1970 epoch leftovers instead of an explicit absence marker.
+    if (!Number.isFinite(timestamp) || timestamp <= 0) return '—';
+
+    const date = new Date(timestamp);
+
+    // A stale snapshot must not look fresh: only same-day data shows bare HH:MM.
+    const sameDay = date.toDateString() === now.toDateString();
+
+    return sameDay
+        ? date.toLocaleTimeString('ru-RU', {
+            hour: '2-digit',
+            minute: '2-digit',
+        })
+        : date.toLocaleString('ru-RU', {
+            day: '2-digit',
+            month: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+        });
+}
+
 interface TopbarProps {
     symbol: string;
     price: number;
+    updatedAt: number;
 }
 
-export function Topbar({ symbol, price }: TopbarProps) {
+export function Topbar({ symbol, price, updatedAt }: TopbarProps) {
     return (
         <header className="topbar">
             <div className="topbar-brand">
@@ -37,9 +61,9 @@ export function Topbar({ symbol, price }: TopbarProps) {
                     })}
                 </span>
 
-                <span className="topbar-live">
-                    <span className="topbar-live-dot" />
-                    LIVE
+                <span className="topbar-updated">
+                    <span className="topbar-updated-dot" />
+                    ОБНОВЛЕНО {formatUpdatedAt(updatedAt)}
                 </span>
             </div>
         </header>

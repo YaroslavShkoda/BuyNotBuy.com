@@ -29,7 +29,7 @@ export default function DashboardError({ error, reset }: DashboardErrorProps) {
                     className="state-retry"
                     onClick={reset}
                 >
-                    Try again
+                    Попробовать снова
                 </button>
             </div>
         </main>

@@ -39,7 +39,7 @@
 
 .signal-confidence {
     color: var(--color-text-muted);
-    font-size: 8px;
+    font-size: 10px;
     font-weight: 700;
     letter-spacing: 0.1em;
 }
@@ -52,7 +52,7 @@
     align-items: center;
     gap: 12px;
 
-    margin: 36px 0 32px;
+    margin: 36px 0 24px;
     padding: 0 12px;
     text-align: center;
 }
@@ -100,10 +100,20 @@
 }
 
 .signal-reason {
-    max-width: 240px;
+    max-width: 300px;
     color: var(--color-text-secondary);
-    font-size: 12px;
+    font-size: 13px;
     line-height: 1.55;
+}
+
+.signal-vote-summary {
+    margin: 0 0 20px;
+
+    color: var(--color-text-secondary);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-align: center;
 }
 
 .signal-indicators {
@@ -125,8 +135,19 @@
 
 .signal-indicator {
     padding: 13px 14px;
+
+    border-left: 2px solid transparent;
+
     background: rgba(8, 10, 12, 0.72);
     transition: background-color var(--transition-fast);
+}
+
+.signal-indicator[data-vote="long"] {
+    border-left-color: var(--color-long);
+}
+
+.signal-indicator[data-vote="short"] {
+    border-left-color: var(--color-short);
 }
 
 .signal-indicator:hover {
@@ -146,7 +167,7 @@
 }
 
 .signal-indicator-top strong {
-    font-size: 9px;
+    font-size: 11px;
     letter-spacing: 0.08em;
 }
 
@@ -155,21 +176,13 @@
     margin-top: 5px;
 
     color: var(--color-text-muted);
-    font-size: 9px;
+    font-size: 10px;
     line-height: 1.45;
 }
 
-.signal-long .signal-indicator-top strong {
-    color: var(--color-long);
-}
-
-.signal-short .signal-indicator-top strong {
-    color: var(--color-short);
-}
-
-.signal-neutral .signal-indicator-top strong {
-    color: var(--color-neutral);
-}
+.signal-indicator-top strong.vote-long { color: var(--color-long); }
+.signal-indicator-top strong.vote-short { color: var(--color-short); }
+.signal-indicator-top strong.vote-neutral { color: var(--color-neutral); }
 
 @media (max-width: 640px) {
     .signal-panel {
@@ -177,6 +190,6 @@
     }
 
     .signal-value {
-        margin: 28px 0 26px;
+        margin: 28px 0 20px;
     }
 }
