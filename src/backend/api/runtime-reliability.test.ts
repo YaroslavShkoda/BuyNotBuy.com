@@ -75,13 +75,15 @@ describe('runtime reliability & lifecycle (task 8)', () => {
 
     it('concurrent analyses do not contaminate each other and dedup stays per burst', async () => {
         const app = createApp();
+        mockMarketDataProvider.getPrice.mockClear();
+        mockMarketDataProvider.getCandles.mockClear();
 
         try {
-            const responses = await Promise.all([
-                app.inject({ method: 'GET', url: '/api/analysis' }),
-                app.inject({ method: 'GET', url: '/api/analysis' }),
-                app.inject({ method: 'GET', url: '/api/analysis' }),
-            ]);
+            const responses = await Promise.all(
+                Array.from({ length: 10 }, () =>
+                    app.inject({ method: 'GET', url: '/api/analysis' }),
+                ),
+            );
 
             for (const response of responses) {
                 expect(response.statusCode).toBe(200);
@@ -89,7 +91,63 @@ describe('runtime reliability & lifecycle (task 8)', () => {
                 expect(() => MarketAnalysisSchema.parse(body)).not.toThrow();
                 expect(body.indicators.momentum).toBe(body.momentum.current);
             }
+
+            expect(mockMarketDataProvider.getPrice).toHaveBeenCalledTimes(1);
+            expect(mockMarketDataProvider.getCandles).toHaveBeenCalledTimes(1);
         } finally {
+            await app.close();
+        }
+    });
+
+    it('isolates request IDs across concurrent analysis telemetry', async () => {
+        const analysisService = await import('../services/analysis.service');
+        const requestIds = Array.from({ length: 10 }, (_, index) => `parallel-${index}`);
+        const loggers = requestIds.map(() => ({ info: vi.fn() }));
+
+        await Promise.all(requestIds.map((requestId, index) =>
+            analysisService.analyzeMarket(loggers[index], requestId),
+        ));
+
+        const observedIds = loggers.map((logger) => {
+            expect(logger.info).toHaveBeenCalledTimes(1);
+            const [context] = logger.info.mock.calls[0] as [
+                Record<string, unknown>,
+                string,
+            ];
+            return context['requestId'];
+        });
+
+        expect(observedIds).toEqual(requestIds);
+        expect(new Set(observedIds).size).toBe(requestIds.length);
+    });
+
+    it('recovers after a provider failure in a success/failure/success sequence', async () => {
+        const app = createApp();
+        let call = 0;
+        mockMarketDataProvider.getPrice.mockImplementation(async () => {
+            call += 1;
+            if (call === 2) {
+                throw new MarketDataError('injected provider failure');
+            }
+            return { symbol: 'BTCUSDT', price: 80000 };
+        });
+
+        try {
+            const first = await app.inject({ method: 'GET', url: '/api/analysis' });
+            const failed = await app.inject({ method: 'GET', url: '/api/analysis' });
+            const recovered = await app.inject({ method: 'GET', url: '/api/analysis' });
+
+            expect(first.statusCode).toBe(200);
+            expect(failed.statusCode).toBe(502);
+            expect(recovered.statusCode).toBe(200);
+            expect(() => MarketAnalysisSchema.parse(recovered.json())).not.toThrow();
+            expect(call).toBe(3);
+        } finally {
+            mockMarketDataProvider.getPrice.mockReset();
+            mockMarketDataProvider.getPrice.mockImplementation(async () => ({
+                symbol: 'BTCUSDT',
+                price: 80000,
+            }));
             await app.close();
         }
     });
