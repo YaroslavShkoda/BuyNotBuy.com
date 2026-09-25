@@ -3,6 +3,7 @@ export type ErrorCode =
     | 'MARKET_PROVIDER_ERROR'
     | 'MARKET_PROVIDER_TIMEOUT'
     | 'VALIDATION_ERROR'
+    | 'INVALID_REQUEST'
     | 'INTERNAL_ERROR';
 
 export interface ApplicationErrorOptions {

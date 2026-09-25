@@ -1,5 +1,10 @@
 ﻿import { describe, expect, it, vi } from 'vitest';
 
+vi.mock('../history/signal-history.service', () => ({
+    recordSignalHistory: vi.fn(),
+    getSignalHistory: vi.fn(() => []),
+}));
+
 import { analyzeMarket } from './analysis.service';
 import * as marketService from '../market/market.service';
 import * as divergenceService from '../indicators/divergence.service';

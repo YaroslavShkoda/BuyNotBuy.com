@@ -9,6 +9,7 @@ import { calculateMarketIndicators } from '../indicators/indicator.service';
 import { calculateSignal } from '../signals/signal.service';
 import { calculateMomentumSeries } from '../indicators/momentum-series';
 import { analyzeDivergence } from '../indicators/divergence.service';
+import { recordSignalHistory } from '../history/signal-history.service';
 import { marketConfig } from '../config/market.config';
 import {
     attachAnalysisErrorContext,
@@ -18,12 +19,14 @@ import {
 } from './analysis.telemetry';
 
 import type { AnalysisFailedStage, AnalysisTelemetryLogger } from './analysis.telemetry';
+import type { SignalHistoryLogger } from '../history/signal-history.types';
 
 const MOMENTUM_PERIOD = 100;
 
 export async function analyzeMarket(
     logger?: AnalysisTelemetryLogger,
     requestId?: string,
+    historyLogger?: SignalHistoryLogger,
 ): Promise<MarketAnalysis> {
     const totalStart = performance.now();
     const completedDurations: {
@@ -140,6 +143,20 @@ export async function analyzeMarket(
             },
         ),
         'market_analysis_completed',
+    );
+
+    // Non-critical side effect: every successful analysis is recorded into
+    // signal history, but a persistence failure must never fail the analysis
+    // response (recordSignalHistory is fail-open by contract).
+    recordSignalHistory(
+        {
+            timestamp: analysis.timestamp,
+            symbol: marketData.price.symbol,
+            signal: analysis.signal.signal,
+            consensus: analysis.signal.confidence,
+            price: analysis.price,
+        },
+        historyLogger,
     );
 
     return analysis;

@@ -30,6 +30,11 @@ vi.mock('../market/market.provider', () => ({
     marketDataProvider: mockMarketDataProvider,
 }));
 
+vi.mock('../history/signal-history.service', () => ({
+    recordSignalHistory: vi.fn(),
+    getSignalHistory: vi.fn(() => []),
+}));
+
 import { createApp } from '../app';
 
 describe('runtime reliability & lifecycle (task 8)', () => {

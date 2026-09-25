@@ -8,6 +8,7 @@
 @import "./styles/components/chart.css";
 @import "./styles/components/market-details.css";
 @import "./styles/components/signal.css";
+@import "./styles/components/signal-history.css";
 @import "./styles/components/state.css";
 @import "./styles/components/market-pulse.css";
 @import "./styles/components/technical-analysis.css";

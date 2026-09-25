@@ -1,5 +1,6 @@
 import { createApp } from './app';
 import { appConfig } from './config/app.config';
+import { closeSignalHistoryRepository } from './history/signal-history.repository';
 
 const app = createApp();
 
@@ -18,6 +19,11 @@ async function shutdown(): Promise<void> {
         app.log.error(error);
         process.exit(1);
     }
+
+    // Release the process-wide SQLite handle so the database file is not
+    // left locked on shutdown (Windows would otherwise block cleanup with
+    // EPERM). Reopening on a later start is handled by the lazy singleton.
+    closeSignalHistoryRepository();
 }
 
 process.on('SIGINT', () => {

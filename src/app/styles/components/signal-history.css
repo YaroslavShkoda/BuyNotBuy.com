@@ -1,0 +1,203 @@
+.signal-history {
+    display: flex;
+    flex-direction: column;
+
+    min-width: 0;
+    padding: 24px;
+}
+
+.signal-history-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    margin-bottom: 14px;
+}
+
+.signal-history-note {
+    color: var(--color-text-muted);
+
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+}
+
+.signal-history-list {
+    display: grid;
+    gap: 1px;
+
+    margin: 0;
+    padding: 0;
+
+    overflow: hidden;
+
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+
+    background: var(--color-border);
+    list-style: none;
+}
+
+.signal-history-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+
+    padding: 10px 12px;
+
+    border-left: 2px solid transparent;
+
+    background: rgba(8, 10, 12, 0.72);
+}
+
+.signal-history-row[data-transition="true"] {
+    background: rgba(18, 22, 26, 0.85);
+}
+
+.signal-history-row[data-transition="true"][data-signal="long"] {
+    border-left-color: var(--color-long);
+}
+
+.signal-history-row[data-transition="true"][data-signal="short"] {
+    border-left-color: var(--color-short);
+}
+
+.signal-history-row[data-transition="true"][data-signal="neutral"] {
+    border-left-color: var(--color-neutral);
+}
+
+.signal-history-time {
+    color: var(--color-text-muted);
+
+    font-size: 10px;
+    font-variant-numeric: tabular-nums;
+}
+
+.signal-history-signal {
+    font-size: 11px;
+    letter-spacing: 0.08em;
+}
+
+.signal-history-row[data-signal="long"] .signal-history-signal {
+    color: var(--color-long);
+}
+
+.signal-history-row[data-signal="short"] .signal-history-signal {
+    color: var(--color-short);
+}
+
+.signal-history-row[data-signal="neutral"] .signal-history-signal {
+    color: var(--color-neutral);
+}
+
+/* Repeated states stay readable but visually quieter than transitions. */
+.signal-history-row[data-transition="false"] .signal-history-signal,
+.signal-history-row:not([data-transition]) .signal-history-signal {
+    opacity: 0.55;
+}
+
+.signal-history-consensus {
+    color: var(--color-text-secondary);
+
+    font-size: 10px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.signal-history-empty {
+    margin: 0;
+
+    color: var(--color-text-muted);
+
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+/* Compact stability context for the current signal, derived from the
+   available hourly snapshots. Text-first so it stays readable without
+   color; signal colors are used only as reinforcement. */
+.history-summary {
+    display: grid;
+    gap: 8px;
+
+    margin: 0 0 16px;
+    padding: 14px 16px;
+
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+
+    background: rgba(8, 10, 12, 0.55);
+}
+
+.history-summary-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.history-summary-label {
+    color: var(--color-text-muted);
+
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    white-space: nowrap;
+}
+
+.history-summary-value {
+    margin: 0;
+
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+}
+
+.history-summary-row[data-signal="long"] .history-summary-value {
+    color: var(--color-long);
+}
+
+.history-summary-row[data-signal="short"] .history-summary-value {
+    color: var(--color-short);
+}
+
+.history-summary-row[data-signal="neutral"] .history-summary-value {
+    color: var(--color-neutral);
+}
+
+.history-summary-transition {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 4px;
+}
+
+.history-summary-signal-long { color: var(--color-long); }
+.history-summary-signal-short { color: var(--color-short); }
+.history-summary-signal-neutral { color: var(--color-neutral); }
+
+.history-summary-prev-duration {
+    color: var(--color-text-muted);
+
+    font-weight: 500;
+}
+
+.history-summary-muted {
+    color: var(--color-text-muted);
+
+    font-weight: 500;
+}
+
+@media (max-width: 640px) {
+    .history-summary {
+        padding: 12px 14px;
+    }
+}
+
+@media (max-width: 640px) {
+    .signal-history {
+        padding: 20px;
+    }
+}

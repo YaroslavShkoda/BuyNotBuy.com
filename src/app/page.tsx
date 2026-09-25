@@ -2,13 +2,16 @@
 import { Topbar } from './components/topbar';
 import { getAnalysis } from './lib/analysis';
 import { getMarket } from './lib/market';
-import { MarketChart } from './components/market-chart';
+import { getSignalHistory } from './lib/history';
 import { MarketDetails } from './components/market-details';
 
 export default async function Home() {
-    const [analysis, market] = await Promise.all([
+    // Signal history is a non-critical request: if it fails, the dashboard
+    // must still render and the history block shows an unavailable state.
+    const [analysis, market, history] = await Promise.all([
         getAnalysis(),
         getMarket(),
+        getSignalHistory().catch(() => null),
     ]);
 
     return (
@@ -20,10 +23,15 @@ export default async function Home() {
             />
 
             <div className="content-stack">
-                <Hero analysis={analysis} />
-                <MarketChart candles={market.candles} symbol={market.price.symbol} ema300={analysis.indicators.ema300} />
-                <MarketDetails candles={market.candles} analysis={analysis} />
-            </div>
+                            <Hero
+                                analysis={analysis}
+                                history={history}
+                                candles={market.candles}
+                                symbol={market.price.symbol}
+                                ema300={analysis.indicators.ema300}
+                            />
+                            <MarketDetails candles={market.candles} analysis={analysis} />
+                        </div>
         </main>
     );
 }

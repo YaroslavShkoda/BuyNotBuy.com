@@ -21,6 +21,7 @@ export async function getAnalysis(
     const analysis = await analyzeMarket(
         adapter,
         requestId,
+        logger,
     );
 
     return MarketAnalysisSchema.parse(analysis);

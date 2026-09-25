@@ -3,6 +3,7 @@
 import { priceRoutes } from './api/routes/price';
 import { marketRoutes } from './api/routes/market';
 import { analysisRoutes } from './api/routes/analysis';
+import { signalHistoryRoutes } from './api/routes/signal-history';
 import { registerErrorHandler } from './api/error-handler';
 
 export function createApp() {
@@ -19,6 +20,7 @@ export function createApp() {
     app.register(priceRoutes);
     app.register(marketRoutes);
     app.register(analysisRoutes);
+    app.register(signalHistoryRoutes);
 
     registerErrorHandler(app);
 

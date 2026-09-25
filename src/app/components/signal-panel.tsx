@@ -1,13 +1,35 @@
 ﻿import type { IndicatorAnalysis, IndicatorSignal, SignalResult } from '../types/analysis';
 
+interface IndicatorValue {
+    ema300: number;
+    stochastic: number;
+    momentum: number;
+}
+
 interface SignalPanelProps {
     signal: SignalResult;
+    indicatorValues: IndicatorValue;
 }
 
 export function getConfidenceWidth(confidence: number): string {
     if (!Number.isFinite(confidence)) return '0%';
     const clamped = Math.min(100, Math.max(0, Math.round(confidence)));
     return `${clamped}%`;
+}
+
+// Format a single indicator's numeric value, keyed by its display name so the
+// value rendered next to each row matches the name the backend emits.
+function getIndicatorValueText(name: string, values: IndicatorValue): string | null {
+    switch (name) {
+        case 'EMA 300':
+            return `$${values.ema300.toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
+        case 'Стохастик':
+            return values.stochastic.toFixed(2);
+        case 'Momentum 100':
+            return `${values.momentum > 0 ? '+' : ''}${values.momentum.toFixed(2)}`;
+        default:
+            return null;
+    }
 }
 
 function getIndicatorNoun(count: number): string {
@@ -47,12 +69,12 @@ export function getVoteSummary(
     return null;
 }
 
-export function SignalPanel({ signal }: SignalPanelProps) {
+export function SignalPanel({ signal, indicatorValues }: SignalPanelProps) {
     const signalClass = signal.signal.toLowerCase();
     const voteSummary = getVoteSummary(signal.indicators, signal.signal);
 
     return (
-        <aside className={`signal-panel depth-surface signal-${signalClass}`}>
+        <aside className={`signal-panel signal-${signalClass}`}>
             <div className="signal-panel-header">
                 <span className="eyebrow">MARKET SIGNAL</span>
 
@@ -87,27 +109,36 @@ export function SignalPanel({ signal }: SignalPanelProps) {
             )}
 
             <div className="signal-indicators">
-                {signal.indicators.map((indicator) => {
-                    const vote = indicator.signal.toLowerCase();
+                            {signal.indicators.map((indicator) => {
+                                const vote = indicator.signal.toLowerCase();
+                                const indicatorValue = getIndicatorValueText(indicator.name, indicatorValues);
 
-                    return (
-                        <div
-                            className="signal-indicator"
-                            key={indicator.name}
-                            data-vote={vote}
-                        >
-                            <div className="signal-indicator-top">
-                                <span>{indicator.name}</span>
-                                <strong className={`vote-${vote}`}>{indicator.signal}</strong>
-                            </div>
+                                return (
+                                    <div
+                                        className="signal-indicator"
+                                        key={indicator.name}
+                                        data-vote={vote}
+                                    >
+                                        <div className="signal-indicator-top">
+                                            <span>{indicator.name}</span>
 
-                            <span className="signal-indicator-reason">
-                                {indicator.reason}
-                            </span>
+                                            <div className="signal-indicator-right">
+                                                {indicatorValue !== null && (
+                                                    <span className="signal-indicator-value">
+                                                        {indicatorValue}
+                                                    </span>
+                                                )}
+                                                <strong className={`vote-${vote}`}>{indicator.signal}</strong>
+                                            </div>
+                                        </div>
+
+                                        <span className="signal-indicator-reason">
+                                            {indicator.reason}
+                                        </span>
+                                    </div>
+                                );
+                            })}
                         </div>
-                    );
-                })}
-            </div>
-        </aside>
+                    </aside>
     );
 }

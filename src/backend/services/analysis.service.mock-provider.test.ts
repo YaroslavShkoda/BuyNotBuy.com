@@ -1,5 +1,10 @@
 ﻿import { describe, expect, it, vi } from 'vitest';
 
+vi.mock('../history/signal-history.service', () => ({
+    recordSignalHistory: vi.fn(),
+    getSignalHistory: vi.fn(() => []),
+}));
+
 describe('analyzeMarket with MockProvider', () => {
     it('builds complete analysis without Binance', async () => {
         vi.resetModules();

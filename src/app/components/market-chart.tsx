@@ -142,11 +142,10 @@ export function MarketChart({ candles, symbol, ema300 }: MarketChartProps) {
                     <h2>Движение рынка</h2>
                 </div>
                 <div className="chart-summary">
-                    <strong>{last?.close.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) ?? '—'}</strong>
-                    <span className={change >= 0 ? 'chart-change positive' : 'chart-change negative'}>
-                        {change >= 0 ? '+' : ''}{change.toFixed(2)}% <span>{windowLabel !== null ? `за ${windowLabel} · ` : ''}{symbol}</span>
-                    </span>
-                </div>
+                                    <span className={change >= 0 ? 'chart-change positive' : 'chart-change negative'}>
+                                        {change >= 0 ? '+' : ''}{change.toFixed(2)}% <span>{windowLabel !== null ? `за ${windowLabel} · ` : ''}{symbol}</span>
+                                    </span>
+                                </div>
             </div>
             <div className="chart-plot">
                 <div className="chart-axis-labels" aria-hidden="true">

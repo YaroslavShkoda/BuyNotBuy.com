@@ -1,9 +1,10 @@
 .hero {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 340px;
-    gap: var(--section-gap);
-    row-gap: var(--section-gap);
+    gap: 0;
+    row-gap: 0;
     align-items: stretch;
+    overflow: hidden;
 }
 
 .hero-main {
@@ -11,19 +12,6 @@
     min-width: 0;
     padding: clamp(28px, 4vw, 52px);
     overflow: hidden;
-    background:
-        radial-gradient(
-            520px 300px at 82% 8%,
-            rgba(113, 223, 173, 0.055),
-            transparent 70%
-        ),
-        linear-gradient(
-            145deg,
-            rgba(255,255,255,0.04),
-            rgba(255,255,255,0.012) 48%,
-            rgba(255,255,255,0.006)
-        ),
-        rgba(10, 12, 14, 0.78);
 }
 
 .hero-main::before {
@@ -39,25 +27,39 @@
     pointer-events: none;
 }
 
-.hero-main::after {
-    content: "₿";
-    position: absolute;
-    z-index: 0;
-    top: 50%;
-    right: -18px;
+/* Compact asset-glyph badge under the asset name (replaces the old giant
+   watermark). Driven by the asset map in lib/assets.ts — one glyph per asset. */
+.hero-asset-line {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.hero-asset-glyph {
     display: grid;
     place-items: center;
-    width: clamp(190px, 23vw, 330px);
+    flex: 0 0 auto;
+
+    width: clamp(42px, 5vw, 54px);
     aspect-ratio: 1;
-    border: 1px solid rgba(255, 255, 255, .07);
-    border-radius: 50%;
-    color: rgba(255, 255, 255, .035);
-    font-size: clamp(160px, 20vw, 270px);
+
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: var(--radius-md);
+
+    color: var(--color-long);
+    background:
+        radial-gradient(70% 70% at 50% 0%, rgba(113, 223, 173, 0.14), transparent 70%),
+        rgba(10, 12, 14, 0.7);
+
+    font-size: clamp(22px, 2.6vw, 30px);
     font-weight: 700;
     line-height: 1;
-    transform: translateY(-38%);
-    box-shadow: 0 0 0 24px rgba(255, 255, 255, .012), 0 0 0 58px rgba(255, 255, 255, .008), inset 0 0 70px rgba(138, 227, 183, .045);
-    pointer-events: none;
+
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.06),
+        0 0 24px rgba(113, 223, 173, 0.08);
+
+    user-select: none;
 }
 
 .hero-heading {
@@ -66,8 +68,8 @@
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
-    gap: 32px;
-    column-gap: calc(var(--space-7) + var(--section-gap) / 2);
+    gap: 24px;
+    column-gap: 24px;
 }
 
 .eyebrow {
@@ -104,12 +106,15 @@
     align-items: flex-end;
     gap: 7px;
     padding-top: 5px;
+    min-width: 0;
+    flex-shrink: 1;
 }
 
 .hero-price {
     white-space: nowrap;
+    max-width: 100%;
 
-    font-size: clamp(30px, 3.4vw, 46px);
+    font-size: clamp(26px, 3vw, 38px);
     line-height: 1;
     font-weight: 275;
     letter-spacing: -0.045em;
@@ -170,14 +175,49 @@
     line-height: 1.4;
 }
 
+.hero-side {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    min-width: 0;
+
+    border-left: 1px solid var(--color-border);
+}
+
+/* The chart sits inline in the left column right under the asset metrics.
+   It shares the hero panel's surface, so its own card frame is dropped. */
+.hero-chart {
+    margin-top: clamp(24px, 3vw, 40px);
+    padding-top: clamp(22px, 3vw, 34px);
+    border-top: 1px solid var(--color-border);
+}
+
+.hero-chart .chart-card {
+    padding: 0;
+    overflow: hidden;
+    background: none;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+}
+
+/* Horizontal divider between the signal panel and the history block. */
+.hero-side .signal-panel + .signal-history {
+    border-top: 1px solid var(--color-border);
+}
+
 @media (max-width: 1000px) {
     .hero {
         grid-template-columns: 1fr;
-        row-gap: var(--section-gap);
+        row-gap: 0;
     }
 
-    .signal-panel {
+    .hero-side {
         order: -1;
+        border-left: 0;
+        border-bottom: 1px solid var(--color-border);
     }
 }
 

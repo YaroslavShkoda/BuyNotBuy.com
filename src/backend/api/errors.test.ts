@@ -26,6 +26,11 @@ vi.mock('../market/market.provider', () => ({
     marketDataProvider: mockMarketDataProvider,
 }));
 
+vi.mock('../history/signal-history.service', () => ({
+    recordSignalHistory: vi.fn(),
+    getSignalHistory: vi.fn(() => []),
+}));
+
 import { createApp } from '../app';
 
 describe('API error handling', () => {

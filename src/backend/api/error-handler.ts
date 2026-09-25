@@ -13,6 +13,7 @@ const PUBLIC_MESSAGES: Record<ErrorCode, string> = {
     MARKET_PROVIDER_ERROR: 'Market data provider unavailable',
     MARKET_PROVIDER_TIMEOUT: 'Market data provider timed out',
     VALIDATION_ERROR: 'Invalid market data response',
+    INVALID_REQUEST: 'Invalid request parameters',
     INTERNAL_ERROR: 'Internal server error',
 };
 

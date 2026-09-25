@@ -76,6 +76,36 @@ export const MarketAnalysisSchema = z.object({
     divergence: DivergenceAnalysisSchema,
 });
 
+export const SignalHistoryEntrySchema = z.object({
+    timestamp: z.number(),
+    symbol: z.string(),
+    signal: IndicatorSignalSchema,
+    consensus: z.number().min(0).max(100),
+    price: z.number(),
+});
+
+export const SignalHistoryLastTransitionSchema = z.object({
+    from: IndicatorSignalSchema,
+    to: IndicatorSignalSchema,
+    timestamp: z.number(),
+});
+
+export const SignalHistorySummarySchema = z.object({
+    currentSignal: IndicatorSignalSchema.nullable(),
+    currentDurationHours: z.number().int().min(1).nullable(),
+    currentDurationBounded: z.boolean(),
+    changes24h: z.number().int().min(0),
+    lastTransition: SignalHistoryLastTransitionSchema.nullable(),
+    previousDurationHours: z.number().int().min(1).nullable(),
+    previousDurationBounded: z.boolean(),
+    sampleHours: z.number().int().min(0),
+});
+
+export const SignalHistoryResponseSchema = z.object({
+    entries: z.array(SignalHistoryEntrySchema),
+    summary: SignalHistorySummarySchema,
+});
+
 export const PriceResponseSchema = AssetPriceSchema;
 
 export const ApiErrorResponseSchema = z.object({
@@ -91,3 +121,7 @@ export type SignalResultDto = z.infer<typeof SignalResultSchema>;
 export type MarketDataDto = z.infer<typeof MarketDataSchema>;
 export type MarketAnalysisDto = z.infer<typeof MarketAnalysisSchema>;
 export type PriceResponseDto = z.infer<typeof PriceResponseSchema>;
+export type SignalHistoryEntryDto = z.infer<typeof SignalHistoryEntrySchema>;
+export type SignalHistoryLastTransitionDto = z.infer<typeof SignalHistoryLastTransitionSchema>;
+export type SignalHistorySummaryDto = z.infer<typeof SignalHistorySummarySchema>;
+export type SignalHistoryResponseDto = z.infer<typeof SignalHistoryResponseSchema>;
