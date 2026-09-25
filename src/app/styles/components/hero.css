@@ -203,9 +203,9 @@
     -webkit-backdrop-filter: none;
 }
 
-/* Horizontal divider between the signal panel and the history block. */
+/* The history block has its own card frame; keep a small gap above it. */
 .hero-side .signal-panel + .signal-history {
-    border-top: 1px solid var(--color-border);
+    margin-top: 12px;
 }
 
 @media (max-width: 1000px) {

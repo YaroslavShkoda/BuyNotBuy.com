@@ -12,12 +12,12 @@ const chartHeight = 250;
 export function getVisibleCandles(candles: Candle[]): Candle[] {
     return candles.filter(
         (candle) =>
-            Number.isFinite(candle.timestamp) &&
-            Number.isFinite(candle.open) &&
-            Number.isFinite(candle.high) &&
-            Number.isFinite(candle.low) &&
-            Number.isFinite(candle.close) &&
-            Number.isFinite(candle.volume),
+    Number.isFinite(candle.timestamp) &&
+    Number.isFinite(candle.open) &&
+    Number.isFinite(candle.high) &&
+    Number.isFinite(candle.low) &&
+    Number.isFinite(candle.close) &&
+    Number.isFinite(candle.volume),
     ).slice(-48);
 }
 
@@ -48,7 +48,7 @@ export function getCandleIntervalMs(candles: Candle[]): number | null {
         const delta = current.timestamp - previous.timestamp;
 
         if (Number.isFinite(delta) && delta > 0 && (min === null || delta < min)) {
-            min = delta;
+    min = delta;
         }
     }
 
@@ -99,8 +99,12 @@ export function MarketChart({ candles, symbol, ema300 }: MarketChartProps) {
     const closes = visibleCandles.map((candle) => candle.close);
     const hasEma = Number.isFinite(ema300);
     const { low, high, span } = computeChartScale(closes, hasEma ? ema300 : null);
+    // Reserve horizontal padding so the end-of-line price marker (r≈4) is not
+    // clipped by the card's overflow:hidden at the right edge.
+    const markerPad = 8;
+    const plotWidth = chartWidth - markerPad * 2;
     const points = closes.map((close, index) => ({
-        x: (index / Math.max(closes.length - 1, 1)) * chartWidth,
+        x: markerPad + (index / Math.max(closes.length - 1, 1)) * plotWidth,
         y: chartHeight - ((close - low) / span) * (chartHeight - 24) - 12,
     }));
     const line = points.map(({ x, y }, index) => `${index ? 'L' : 'M'} ${x} ${y}`).join(' ');
@@ -119,76 +123,76 @@ export function MarketChart({ candles, symbol, ema300 }: MarketChartProps) {
 
     if (visibleCandles.length === 0) {
         return (
-            <section className="chart-card depth-surface" aria-label="График рынка">
-                <div className="chart-heading">
-                    <div>
-                        <span className="eyebrow">PRICE ACTION</span>
-                        <h2>Движение рынка</h2>
-                    </div>
-                </div>
+    <section className="chart-card depth-surface" aria-label="График рынка">
+        <div className="chart-heading">
+            <div>
+                <span className="eyebrow">PRICE ACTION</span>
+                <h2>Движение рынка</h2>
+            </div>
+        </div>
 
-                <p className="table-empty">Нет данных по свечам</p>
-            </section>
+        <p className="table-empty">Нет данных по свечам</p>
+    </section>
         );
     }
 
     return (
         <section className="chart-card depth-surface" aria-label="График рынка">
-            <div className="chart-heading">
-                <div>
-                    <span className="eyebrow">
-                        PRICE ACTION{windowLabel !== null ? ` · ПОСЛЕДНИЕ ${windowLabel.toUpperCase()}` : ''}
-                    </span>
-                    <h2>Движение рынка</h2>
-                </div>
-                <div className="chart-summary">
-                                    <span className={change >= 0 ? 'chart-change positive' : 'chart-change negative'}>
-                                        {change >= 0 ? '+' : ''}{change.toFixed(2)}% <span>{windowLabel !== null ? `за ${windowLabel} · ` : ''}{symbol}</span>
-                                    </span>
-                                </div>
-            </div>
-            <div className="chart-plot">
-                <div className="chart-axis-labels" aria-hidden="true">
-                    <span>{high.toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
-                    <span>{((high + low) / 2).toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
-                    <span>{low.toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
-                </div>
-                <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} preserveAspectRatio="none" role="img" aria-label={`График цены${windowLabel !== null ? ` за последние ${windowLabel}` : ''} с уровнем EMA 300`}>
-                    <defs>
-                        <linearGradient id="chart-fill" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="#8ae3b7" stopOpacity=".24" />
-                            <stop offset="100%" stopColor="#8ae3b7" stopOpacity="0" />
-                        </linearGradient>
-                    </defs>
-                    {[0.08, 0.5, 0.92].map((position) => <line key={position} x1="0" x2={chartWidth} y1={chartHeight * position} y2={chartHeight * position} className="chart-gridline" />)}
-                    {hasEma && (
-                        <line x1="0" x2={chartWidth} y1={emaY} y2={emaY} className="chart-ema-line" />
-                    )}
-                    <path d={area} fill="url(#chart-fill)" />
-                    <path d={line} className="chart-line" />
-                    {points.length > 0 && <circle cx={points.at(-1)!.x} cy={points.at(-1)!.y} r="4" className="chart-marker" />}
-                </svg>
-                {hasEma && (
-                    <span className="chart-ema-label" style={{ top: `${emaLabelTop}%` }}>
-                        EMA 300 · ${ema300.toLocaleString('en-US', { maximumFractionDigits: 0 })}
-                    </span>
-                )}
-            </div>
-            <div className="chart-time-labels">
-                <span>{first !== undefined ? formatAxisTime(first.timestamp, windowMs) : '—'}</span>
-                <span>Сейчас</span>
-            </div>
-            <div className="volume-heading"><span>ОБЪЁМ ТОРГОВ</span><span>VOLUME</span></div>
-            <div className="volume-plot" role="img" aria-label="Объём торгов по периодам">
-                <svg viewBox={`0 0 ${chartWidth} 76`} preserveAspectRatio="none" aria-hidden="true">
-                    {visibleCandles.map((candle, index) => {
-                        const barHeight = Math.max((candle.volume / maxVolume) * 68, 2);
-                        const rising = candle.close >= candle.open;
-                        return <rect key={candle.timestamp} x={index * barStep + barStep * 0.18} y={76 - barHeight} width={Math.max(barStep * 0.62, 1)} height={barHeight} rx="1.5" className={rising ? 'volume-bar rising' : 'volume-bar falling'} />;
-                    })}
-                </svg>
-            </div>
-            <p className="chart-volume-note">Объём окрашен по направлению закрытия свечи</p>
+    <div className="chart-heading">
+        <div>
+            <span className="eyebrow">
+                PRICE ACTION{windowLabel !== null ? ` · ПОСЛЕДНИЕ ${windowLabel.toUpperCase()}` : ''}
+            </span>
+            <h2>Движение рынка</h2>
+        </div>
+        <div className="chart-summary">
+                            <span className={change >= 0 ? 'chart-change positive' : 'chart-change negative'}>
+                                {change >= 0 ? '+' : ''}{change.toFixed(2)}% <span>{windowLabel !== null ? `за ${windowLabel} · ` : ''}{symbol}</span>
+                            </span>
+                        </div>
+    </div>
+    <div className="chart-plot">
+        <div className="chart-axis-labels" aria-hidden="true">
+            <span>{high.toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
+            <span>{((high + low) / 2).toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
+            <span>{low.toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
+        </div>
+        <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} preserveAspectRatio="none" role="img" aria-label={`График цены${windowLabel !== null ? ` за последние ${windowLabel}` : ''} с уровнем EMA 300`}>
+            <defs>
+                <linearGradient id="chart-fill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#8ae3b7" stopOpacity=".24" />
+                    <stop offset="100%" stopColor="#8ae3b7" stopOpacity="0" />
+                </linearGradient>
+            </defs>
+            {[0.08, 0.5, 0.92].map((position) => <line key={position} x1="0" x2={chartWidth} y1={chartHeight * position} y2={chartHeight * position} className="chart-gridline" />)}
+            {hasEma && (
+                <line x1="0" x2={chartWidth} y1={emaY} y2={emaY} className="chart-ema-line" />
+            )}
+            <path d={area} fill="url(#chart-fill)" />
+            <path d={line} className="chart-line" />
+            {points.length > 0 && <circle cx={points.at(-1)!.x} cy={points.at(-1)!.y} r="4" className="chart-marker" />}
+        </svg>
+        {hasEma && (
+            <span className="chart-ema-label" style={{ top: `${emaLabelTop}%` }}>
+                EMA 300 · ${ema300.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+            </span>
+        )}
+    </div>
+    <div className="chart-time-labels">
+        <span>{first !== undefined ? formatAxisTime(first.timestamp, windowMs) : '—'}</span>
+        <span>Сейчас</span>
+    </div>
+    <div className="volume-heading"><span>ОБЪЁМ ТОРГОВ</span><span>VOLUME</span></div>
+    <div className="volume-plot" role="img" aria-label="Объём торгов по периодам">
+        <svg viewBox={`0 0 ${chartWidth} 76`} preserveAspectRatio="none" aria-hidden="true">
+            {visibleCandles.map((candle, index) => {
+                const barHeight = Math.max((candle.volume / maxVolume) * 68, 2);
+                const rising = candle.close >= candle.open;
+                return <rect key={candle.timestamp} x={index * barStep + barStep * 0.18} y={76 - barHeight} width={Math.max(barStep * 0.62, 1)} height={barHeight} rx="1.5" className={rising ? 'volume-bar rising' : 'volume-bar falling'} />;
+            })}
+        </svg>
+    </div>
+    <p className="chart-volume-note">Объём окрашен по направлению закрытия свечи</p>
         </section>
     );
 }
