@@ -130,6 +130,24 @@ const RATIO = new Intl.NumberFormat('ru-RU', {
     maximumFractionDigits: 1,
 });
 
+// Matches the volume tooltip's formatting, so the two readouts that sit a few
+// pixels apart on the same panel are not written in two different styles.
+const PRICE = new Intl.NumberFormat('ru-RU', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+});
+
+const CANDLE_TIME = new Intl.DateTimeFormat('ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+});
+
+function formatCandleTime(timestamp: number): string {
+    return CANDLE_TIME.format(timestamp);
+}
+
 function VolumeStats({ candles, symbol }: { candles: Candle[]; symbol: string }) {
     const summary = summariseVolume(candles);
 
@@ -232,6 +250,11 @@ export function MarketChart({ candles, symbol, ema300 }: MarketChartProps) {
 
     return (
         <section className="chart-card depth-surface" aria-label="График рынка">
+    {/* One frame around the price plot and the volume strip together, in the
+        same shape as the cards in the right-hand column. They are read as one
+        picture — price and the activity behind it — and two frames would split
+        a single idea down the middle. */}
+    <div className="chart-frame">
     <div className="chart-heading">
         <div>
             <span className="eyebrow">
@@ -276,6 +299,64 @@ export function MarketChart({ candles, symbol, ema300 }: MarketChartProps) {
                     aria-hidden="true"
                 />
             )}
+
+            {/* The price readout, built the same way as the volume one: hit
+                targets in the markup and CSS on :hover, so the chart stays a
+                server component with nothing to hydrate and the numbers are in
+                the served HTML. The targets are placed from the same x mapping
+                the line uses, not from a per-candle fraction of the width, so
+                the figure appears over the point it belongs to. */}
+            <div className="price-track" aria-hidden="true">
+                {visibleCandles.map((candle, index) => {
+                    const point = points[index];
+
+                    if (point === undefined) return null;
+
+                    const move = candle.open > 0
+                        ? ((candle.close - candle.open) / candle.open) * 100
+                        : 0;
+
+                    // Below the point while the point is high, above it while the
+                    // point is low, so the box never covers the line it is
+                    // annotating and never reaches the card's clipped edge.
+                    // The vertical anchor is the point's own y rather than a
+                    // fixed offset from the top of the plot: a box parked in a
+                    // corner still reports the time and the price, but loses the
+                    // one thing the pointer was asking — which point this is.
+                    const percent = (point.y / chartHeight) * 100;
+                    const below = percent < 55;
+
+                    return (
+                        <div
+                            className="price-hit"
+                            key={candle.timestamp}
+                            style={{
+                                left: `${(point.x / chartWidth) * 100}%`,
+                                width: `${(barStep / chartWidth) * 100}%`,
+                            }}
+                        >
+                            <span
+                                className="price-tooltip"
+                                style={
+                                    below
+                                        ? { top: `${percent}%`, marginTop: 12 }
+                                        : { bottom: `${100 - percent}%`, marginBottom: 12 }
+                                }
+                            >
+                                <span className="price-tooltip-time">
+                                    {formatCandleTime(candle.timestamp)}
+                                </span>
+                                <span className="price-tooltip-value">
+                                    {PRICE.format(candle.close)} {quoteAssetOf(symbol)}
+                                </span>
+                                <span className="price-tooltip-compact">
+                                    {move >= 0 ? '+' : ''}{move.toFixed(2)}% за час
+                                </span>
+                            </span>
+                        </div>
+                    );
+                })}
+            </div>
         </div>
         {hasEma && (
             <span className="chart-ema-label" style={{ top: `${emaLabelTop}%` }}>
@@ -298,6 +379,7 @@ export function MarketChart({ candles, symbol, ema300 }: MarketChartProps) {
             barStep={barStep}
             chartWidth={chartWidth}
         />
+    </div>
         <VolumeStats candles={visibleCandles} symbol={symbol} />
         </section>
     );
