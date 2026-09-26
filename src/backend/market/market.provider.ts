@@ -63,3 +63,82 @@ function createMarketDataProvider(): MarketDataProvider {
 
 export const marketDataProvider =
     createMarketDataProvider();
+
+/**
+ * The venue currently answering, or null when there is nothing to switch.
+ *
+ * Null rather than a name when failover is off, so a caller cannot report a
+ * "venue" that was never a choice.
+ */
+export function activeMarketVenue(): string | null {
+    return marketDataProvider instanceof FailoverProvider
+        ? marketDataProvider.activeVenue
+        : null;
+}
+
+export interface VenueWatcherLogger {
+    warn(context: Record<string, unknown>, message: string): void;
+    info?(context: Record<string, unknown>, message: string): void;
+}
+
+/**
+ * Reports a venue change, once, the next time it is called.
+ *
+ * The switch is otherwise silent, and silent is the wrong property for it. The
+ * two venues do not print the same price, so a service quietly running on the
+ * backup looks like a market move in every metric and every chart. An operator
+ * has to be able to tell "the price changed" from "we stopped asking".
+ *
+ * It is a poll rather than a callback because the provider is built at import
+ * time, long before the logger exists, and the poller is deliberately ignorant
+ * of which venues exist.
+ */
+export function createVenueWatcher(
+    logger: VenueWatcherLogger,
+    currentVenue: () => string | null = activeMarketVenue,
+    configuredPrimary: string = marketConfig.provider,
+): () => void {
+    let last: string | null | undefined;
+
+    return () => {
+        const venue = currentVenue();
+
+        if (venue === last) {
+            return;
+        }
+
+        const from = last;
+
+        last = venue;
+
+        // The first observation is the process starting, not a failover, and
+        // logging it as one would cry wolf on every restart. The configured
+        // primary is in the line anyway, because a service that boots while the
+        // primary is already unreachable starts life on the backup and an
+        // operator at 3am needs to be told which venue was skipped.
+        if (from === undefined) {
+            if (venue !== null) {
+                logger.info?.(
+                    {
+                        event: 'market_venue_active',
+                        venue,
+                        primary: configuredPrimary,
+                        onBackup: venue !== configuredPrimary,
+                    },
+                    'market_venue_active',
+                );
+            }
+
+            return;
+        }
+
+        if (venue === null) {
+            return;
+        }
+
+        logger.warn(
+            { event: 'market_venue_switched', from, to: venue },
+            'market_venue_switched',
+        );
+    };
+}

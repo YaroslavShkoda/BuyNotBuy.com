@@ -84,14 +84,87 @@ export async function recordIndicatorVotes(
     }
 }
 
-function candleIndexByTimestamp(candles: Candle[]): Map<number, Candle> {
-    const index = new Map<number, Candle>();
+type CandleLookup =
+    /** The candle that was open at that instant, and is the one that closes it. */
+    | { status: 'covers'; candle: Candle }
+    /** The instant is inside the newest candle, which has not closed yet. */
+    | { status: 'notClosed' }
+    /** The instant predates the oldest candle the provider returned. */
+    | { status: 'outsideWindow' };
 
-    for (const candle of candles) {
-        index.set(candle.timestamp, candle);
-    }
+/**
+ * Builds a lookup for the candle that covers an instant.
+ *
+ * A vote is stamped with the wall-clock time the analysis actually ran, which is
+ * almost never a candle boundary: a poll at 14:46 stamps 14:46:32, and an hour
+ * later the target is 15:46:32 — a moment no hourly candle is labelled with.
+ * Looking the target up by equality therefore matched nothing, ever, and no
+ * horizon was ever settled. Every forward return stayed null and the accuracy
+ * figures had nothing to report.
+ *
+ * "The candle that covers the target" is found from the series itself rather
+ * than from a known interval, so a gap in the data or a changed timeframe does
+ * not need this function told about it. The distinction between *not closed yet*
+ * and *outside the window* is the whole point: one clears by waiting, the other
+ * never will, and a caller that cannot tell them apart will sit forever on a
+ * backlog it believes is still on schedule.
+ *
+ * The cost is that a vote stamped mid-hour settles against a close slightly
+ * beyond its nominal horizon, up to one interval. The alternative — the nearest
+ * close — truncates it by the same amount the other way and lets a vote settle
+ * early, which is worse: an early settlement scores a return over a period
+ * shorter than the one the horizon claims.
+ */
+function candleCovering(candles: Candle[]): (instant: number) => CandleLookup {
+    const sorted = [...candles].sort((a, b) => a.timestamp - b.timestamp);
+    const stamps = sorted.map((candle) => candle.timestamp);
 
-    return index;
+    return (instant) => {
+        const lastIndex = stamps.length - 1;
+
+        if (lastIndex < 0) {
+            return { status: 'outsideWindow' };
+        }
+
+        let low = 0;
+        let high = lastIndex;
+        let found = -1;
+
+        while (low <= high) {
+            const middle = (low + high) >> 1;
+            const middleStamp = stamps[middle];
+
+            if (middleStamp === undefined) {
+                break;
+            }
+
+            if (middleStamp <= instant) {
+                found = middle;
+                low = middle + 1;
+            } else {
+                high = middle - 1;
+            }
+        }
+
+        if (found === -1) {
+            return { status: 'outsideWindow' };
+        }
+
+        const candle = sorted[found];
+        const stamp = stamps[found];
+
+        if (candle === undefined || stamp === undefined) {
+            return { status: 'outsideWindow' };
+        }
+
+        // Inside the newest candle, so that candle has not closed and its close
+        // is not a price the market has reached yet.
+        if (found === lastIndex && stamp < instant) {
+            return { status: 'notClosed' };
+        }
+
+        return { status: 'covers', candle };
+    };
 }
 
 function directionOf(signal: 'LONG' | 'SHORT' | 'NEUTRAL'): 1 | -1 | 0 {
@@ -143,11 +216,21 @@ export async function settleForwardReturns(
         return { examined: 0, settled: 0, stillPending: 0 };
     }
 
-    const byTimestamp = candleIndexByTimestamp(candles);
+    const candleAt = candleCovering(candles);
     const updates: SettleUpdate[] = [];
 
     let settled = 0;
     let stillPending = 0;
+
+    // Why a horizon did not resolve. Kept separate because "waiting for the
+    // future" and "the data needed to resolve it is missing" look identical
+    // from the outside, and only one of them is ever going to clear.
+    const reasons = {
+        horizonNotClosed: 0,
+        candleMissing: 0,
+        unusablePrice: 0,
+        unknownHorizon: 0,
+    };
 
     for (const vote of unsettled) {
         const direction = directionOf(vote.signal);
@@ -156,17 +239,35 @@ export async function settleForwardReturns(
 
         for (const horizon of vote.pending) {
             const horizonMs = horizonMsByName[horizon];
-            const target = byTimestamp.get(vote.timestamp + (horizonMs ?? 0));
 
-            if (horizonMs === undefined || target === undefined || vote.price <= 0) {
-                // The horizon has not closed yet, the candle is outside the
-                // window the provider returned, or the price it was recorded
-                // against is unusable. Either way the value stays absent
-                // rather than being guessed, and the vote keeps waiting.
+            if (horizonMs === undefined) {
+                reasons.unknownHorizon += 1;
                 unresolved += 1;
                 continue;
             }
 
+            if (vote.price <= 0) {
+                reasons.unusablePrice += 1;
+                unresolved += 1;
+                continue;
+            }
+
+            const found = candleAt(vote.timestamp + horizonMs);
+
+            if (found.status !== 'covers') {
+                // The value stays absent rather than being guessed, and the
+                // vote keeps waiting.
+                if (found.status === 'notClosed') {
+                    reasons.horizonNotClosed += 1;
+                } else {
+                    reasons.candleMissing += 1;
+                }
+
+                unresolved += 1;
+                continue;
+            }
+
+            const target = found.candle;
             const move = (target.close - vote.price) / vote.price;
 
             returns[horizon] =
@@ -184,6 +285,26 @@ export async function settleForwardReturns(
         if (unresolved > 0) {
             stillPending += 1;
         }
+    }
+
+    // A settlement that quietly never happens is indistinguishable from one
+    // that is simply not due yet, from every log line and every figure on the
+    // dashboard. Anything other than "waiting for the future" is said out loud.
+    const blocked =
+        reasons.candleMissing + reasons.unusablePrice + reasons.unknownHorizon;
+
+    if (blocked > 0) {
+        logger?.warn(
+            {
+                event: 'indicator_vote_settle_blocked',
+                symbol,
+                candleMissing: reasons.candleMissing,
+                unusablePrice: reasons.unusablePrice,
+                unknownHorizon: reasons.unknownHorizon,
+                horizonNotClosed: reasons.horizonNotClosed,
+            },
+            'indicator_vote_settle_blocked',
+        );
     }
 
     if (updates.length > 0) {

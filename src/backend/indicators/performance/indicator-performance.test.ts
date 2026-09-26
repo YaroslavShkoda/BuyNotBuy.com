@@ -262,6 +262,173 @@ describe('forward return settlement', () => {
         expect(stored[0]?.fwdReturns['24h']).toBeUndefined();
     });
 
+    it('settles a vote that was stamped between two candles', async () => {
+        const repository = openRepository();
+
+        // A poll runs at 14:46:32, not at the hour. The target one hour later is
+        // 15:46:32, a moment no hourly candle is labelled with, and matching it
+        // by equality found nothing — so no horizon ever settled and the
+        // accuracy figures stayed empty. Every other test here stamps a vote
+        // exactly on the boundary, which is why this went unnoticed.
+        const stampedAt = HOUR + 46 * 60_000 + 32_000;
+
+        await repository.record([vote({ timestamp: stampedAt })]);
+
+        const summary = await settle(
+            repository,
+            candlesFrom([[0, 100], [1, 105], [2, 110], [3, 200]]),
+        );
+
+        expect(summary.settled).toBe(1);
+
+        const stored = await repository.list('BTCUSDT', 10);
+
+        // A target of 15:46 sits inside the 15:00 candle, so that candle's close
+        // is the one to measure against. The 16:00 candle has not opened yet.
+        expect(stored[0]?.fwdReturns['1h']).toBeCloseTo(0.05 - 0.002, 10);
+    });
+
+    it('settles against the candle that covers the target, not the one before it', async () => {
+        const repository = openRepository();
+
+        const stampedAt = HOUR + 59 * 60_000;
+
+        await repository.record([vote({ timestamp: stampedAt })]);
+
+        // A target of 01:59 sits inside the 01:00 candle. The 00:00 candle has
+        // already closed and cannot know the price yet.
+        await settle(repository, candlesFrom([[0, 100], [1, 90], [2, 130]]));
+
+        const stored = await repository.list('BTCUSDT', 10);
+
+        expect(stored[0]?.fwdReturns['1h']).toBeCloseTo(-0.1 - 0.002, 10);
+    });
+
+    it('settles a vote even when the candles arrive out of order', async () => {
+        const repository = openRepository();
+
+        await repository.record([vote({ timestamp: HOUR + 46 * 60_000 })]);
+
+        await settle(
+            repository,
+            candlesFrom([[3, 200], [1, 110], [0, 100], [2, 90]]),
+        );
+
+        const stored = await repository.list('BTCUSDT', 10);
+
+        expect(stored[0]?.fwdReturns['1h']).toBeCloseTo(0.1 - 0.002, 10);
+    });
+
+    describe('saying out loud when a settlement is stuck', () => {
+        async function settleLogged(
+            repository: IndicatorVoteRepository,
+            candles: Candle[],
+            horizonMsByName?: Record<string, number>,
+        ) {
+            const logger = { warn: vi.fn(), info: vi.fn(), error: vi.fn() };
+
+            const summary = await settleForwardReturns(
+                'BTCUSDT',
+                candles,
+                horizonMsByName,
+                logger,
+                repository,
+            );
+
+            return { logger, summary };
+        }
+
+        it('stays quiet when every horizon is simply waiting for the future', async () => {
+            const repository = openRepository();
+
+            await repository.record([vote({ timestamp: HOUR })]);
+
+            const { logger } = await settleLogged(
+                repository,
+                candlesFrom([[0, 100], [1, 110]]),
+            );
+
+            // This is the ordinary case and it happens on most cycles. A warning
+            // every minute would train an operator to stop reading them.
+            expect(logger.warn).not.toHaveBeenCalled();
+        });
+
+        it('stays quiet once a mid-hour vote settles normally', async () => {
+            const repository = openRepository();
+
+            await repository.record([vote({ timestamp: HOUR + 46 * 60_000 })]);
+
+            const { logger, summary } = await settleLogged(
+                repository,
+                candlesFrom([[0, 100], [1, 105], [2, 110]]),
+            );
+
+            expect(summary.settled).toBe(1);
+            expect(logger.warn).not.toHaveBeenCalled();
+        });
+
+        it('warns when the candle that would settle it has fallen out of the window', async () => {
+            const repository = openRepository();
+
+            await repository.record([vote({ timestamp: HOUR })]);
+
+            // Every candle here is newer than the target. Waiting will not help:
+            // no amount of time brings back a candle the provider stopped
+            // returning, and silence would let this look like "not due yet"
+            // forever.
+            const { logger } = await settleLogged(
+                repository,
+                candlesFrom([[5, 100], [6, 110]]),
+            );
+
+            expect(logger.warn).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    event: 'indicator_vote_settle_blocked',
+                }),
+                'indicator_vote_settle_blocked',
+            );
+
+            // The two are told apart on purpose. 1h and 4h point before the
+            // oldest candle and will never resolve by waiting; 24h simply has
+            // not happened yet and will. Reporting both as one number would
+            // leave a backlog looking on-schedule while stuck forever.
+            expect(
+                logger.warn.mock.calls[0]?.[0] as Record<string, unknown>,
+            ).toMatchObject({ candleMissing: 2, horizonNotClosed: 1 });
+        });
+
+        it('warns when the recorded price cannot be used', async () => {
+            const repository = openRepository();
+
+            await repository.record([vote({ timestamp: HOUR, price: 0 })]);
+
+            const { logger } = await settleLogged(
+                repository,
+                candlesFrom([[0, 100], [1, 110], [2, 120], [3, 130]]),
+            );
+
+            expect(
+                logger.warn.mock.calls[0]?.[0] as Record<string, unknown>,
+            ).toMatchObject({ unusablePrice: 3 });
+        });
+
+        it('warns when a stored horizon name is one the service cannot map', async () => {
+            const repository = openRepository();
+
+            await repository.record([vote({ timestamp: HOUR })]);
+
+            const { logger } = await settleLogged(
+                repository,
+                candlesFrom([[0, 100], [1, 110]]),
+                {},
+            );
+
+            expect(
+                logger.warn.mock.calls[0]?.[0] as Record<string, unknown>,
+            ).toMatchObject({ unknownHorizon: 3 });
+        });
+    });
+
     it('signs the return by the direction of the vote', async () => {
         const repository = openRepository();
 

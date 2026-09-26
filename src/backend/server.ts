@@ -7,6 +7,7 @@ import { closePool } from './db/pool.js';
 import { flushSignalHistoryBacklog } from './history/signal-history.service.js';
 import { settleForwardReturns } from './indicators/performance/indicator-performance.service.js';
 import { getMarketData } from './market/market.service.js';
+import { createVenueWatcher } from './market/market.provider.js';
 import { analyzeMarket } from './services/analysis.service.js';
 import { startPoller } from './services/poller.js';
 
@@ -14,6 +15,14 @@ import type { Poller } from './services/poller.js';
 import type { Candle } from './types/market.js';
 
 const app = createApp();
+
+/**
+ * Names the venue that answered, but only when it changes.
+ *
+ * Created here because this is the first point with a logger; the provider was
+ * built at import time and knows nothing about one.
+ */
+const reportVenueChange = createVenueWatcher(app.log);
 
 let isShuttingDown = false;
 
@@ -90,6 +99,11 @@ async function startServer() {
                     // indicator's own vote, and keeps the snapshot cache warm
                     // for the next page load.
                     const candles = await getMarketSeries();
+
+                    // After the read rather than before it: the venue that
+                    // answered is the one worth reporting, and a switch that
+                    // happened during this cycle is exactly the interesting one.
+                    reportVenueChange();
 
                     await analyzeMarket(app.log, 'poller', app.log);
 
