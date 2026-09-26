@@ -74,8 +74,30 @@ export function redactValue(value: unknown, depth = 0): unknown {
     return value;
 }
 
-const REQUEST_ID_PATTERN = /^[\x21-\x7E]+$/;
+/**
+ * A pino `logMethod` hook that redacts every argument on its way to the sink.
+ *
+ * Redaction has to live *inside* the logger, not wrapped around it. Fastify
+ * captures the raw pino instance when the server is created and hands every
+ * request a `request.log` derived from it with `child()`. A wrapper assigned
+ * afterwards — `app.log = redactLogger(app.log)` — therefore only ever affects
+ * the one object it was assigned to: every request-scoped logger bypasses it
+ * completely, and the error handler logs through exactly that scope. Putting
+ * the hook in the logger options means pino applies it to `child()` loggers too,
+ * because the hook travels with the instance.
+ */
+export function redactLogMethod(
+    this: unknown,
+    args: unknown[],
+    method: (obj: unknown, message?: string, ...rest: unknown[]) => void,
+): void {
+    method.apply(
+        this,
+        args.map((argument) => redactValue(argument)) as Parameters<typeof method>,
+    );
+}
 
+const REQUEST_ID_PATTERN = /^[\x21-\x7E]+$/;
 /**
  * Accepts a client-supplied request id only if it is safe to log.
  *

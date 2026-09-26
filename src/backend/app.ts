@@ -7,19 +7,24 @@ import { signalHistoryRoutes } from './api/routes/signal-history.js';
 import { registerHealthRoutes } from './api/routes/health.js';
 import { registerErrorHandler } from './api/error-handler.js';
 import { registerRateLimit } from './api/middleware/rate-limit.plugin.js';
-import {
-    redactLogger,
-    registerRequestContext,
-} from './api/middleware/request-context.plugin.js';
+import { registerRequestContext } from './api/middleware/request-context.plugin.js';
 import { applySecurityHeaders } from './api/middleware/security-headers.js';
 import { applyCorsHeaders, registerPreflight } from './api/middleware/cors.js';
+import { redactLogMethod } from './api/lib/redaction.js';
 import { appConfig } from './config/app.config.js';
 
-export function createApp() {    const app = Fastify({
-        // Redaction sits between the call sites and the sink, so a value that
-        // arrives inside an exception cannot reach a log file unfiltered.
+export function createApp(logDestination?: NodeJS.WritableStream) {
+    const app = Fastify({
         logger: {
             level: 'info',
+            ...(logDestination === undefined ? {} : { stream: logDestination }),
+            // Redaction is installed on the logger itself rather than wrapped
+            // around it. Fastify hands every request a logger derived from this
+            // instance with `child()`, so a wrapper applied afterwards would
+            // cover `app.log` and leave `request.log` — the scope the error
+            // handler writes through — completely unfiltered. A hook set here
+            // travels with the instance and therefore covers every child too.
+            hooks: { logMethod: redactLogMethod },
         },
         bodyLimit: appConfig.bodyLimitBytes,
         connectionTimeout: appConfig.connectionTimeoutMs,
@@ -30,8 +35,6 @@ export function createApp() {    const app = Fastify({
         // their apparent address and bypass the rate limit.
         trustProxy: appConfig.trustProxy,
     });
-
-    app.log = redactLogger(app.log) as typeof app.log;
 
     // Security headers go on first so they are present even when a later hook
     // throws, and so a failed request is still not sniffable or framable.
