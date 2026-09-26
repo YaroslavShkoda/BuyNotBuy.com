@@ -47,16 +47,13 @@
     pointer-events: none;
 }
 
-/* Compact asset-glyph badge under the asset name (replaces the old giant
-   watermark). Driven by the asset map in lib/assets.ts — one glyph per asset.
-   The tile is always square (aspect-ratio) and centred against the name +
-   description block, so it can never smear into a vertical strip. */
+/* The badge sits beside the asset name. Driven by the asset map in
+   lib/assets.ts — one glyph per asset. The tile is always square (aspect-ratio)
+   and sized on its own vw curve, so it can never smear into a vertical strip. */
 .hero-asset-line {
     display: flex;
     align-items: center;
     gap: 20px;
-
-    margin-top: clamp(16px, 1.8vw, 32px);
 }
 
 .hero-asset-glyph {
@@ -64,9 +61,9 @@
     place-items: center;
     flex: 0 0 auto;
 
-    /* ~100% of the height of the name + description block beside it, tracked
-       off the same 5vw h1 curve so the two stay in proportion. The mark inside
-       is a percentage of the tile, so growing the tile scales it uniformly. */
+    /* Sized on the same 5vw h1 curve so the badge and the name stay in
+       proportion. The mark inside is a percentage of the tile, so growing the
+       tile scales it uniformly. */
     aspect-ratio: 1;
     width: clamp(72px, calc(4.93vw + 31px), 108px);
 
@@ -100,18 +97,29 @@
     position: relative;
     z-index: 1;
     display: flex;
-    /* If the title and the price stop fitting side by side, the price drops to
+    flex-direction: column;
+    gap: clamp(16px, 1.8vw, 32px);
+}
+
+.hero-heading-row {
+    display: flex;
+    /* If the name and the price stop fitting side by side, the price drops to
        its own line (still flush right) instead of pushing past the panel edge. */
     flex-wrap: wrap;
-    align-items: flex-start;
+    /* Centred, so the price block and the asset name share one line box. The
+       price is 48px and the name 67px, and centring puts the top of the price
+       level with the top of the name without either being offset — which is
+       what a baseline relationship would have to do, through a flex row and a
+       heading deep enough that the baseline has to be synthesised from a box
+       rather than read off the text. */
+    align-items: center;
     justify-content: space-between;
-    gap: 24px;
     column-gap: 24px;
 }
 
-/* min-width stays `auto` on purpose: the asset name and headline keep their
-   intrinsic width, so the price block is what gives up its line. */
-.hero-title {
+/* min-width stays `auto` on purpose: the asset name keeps its intrinsic width,
+   so the price block is what gives up its line. */
+.hero-asset-line {
     flex: 1 1 280px;
 }
 
@@ -126,9 +134,9 @@
 }
 
 .hero h1 {
-    /* The top spacing now lives on .hero-asset-line, so the badge and the
-       headline both clear the "ОБЗОР РЫНКА" eyebrow by the same amount. */
-    margin: 0 0 8px;
+    /* No bottom margin: it used to clear the description under the name, and
+       with the description gone it would only open a gap above the chart. */
+    margin: 0;
 
     font-size: clamp(42px, 5vw, 72px);
     line-height: 0.95;
@@ -136,21 +144,11 @@
     font-weight: 550;
 }
 
-.hero-description {
-    max-width: 440px;
-    margin: 0;
-
-    color: var(--color-text-secondary);
-    font-size: 14px;
-    line-height: 1.6;
-}
-
 .hero-price-block {
     display: flex;
     flex-direction: column;
     align-items: flex-end;
     gap: 7px;
-    padding-top: 5px;
     /* Never compress: the price is nowrap, so a squeezed block would let the
        digits spill out of it and collide with the panel frame. margin-left:auto
        keeps it flush right once flex-wrap moves it to a line of its own. */
@@ -162,7 +160,11 @@
     white-space: nowrap;
     max-width: 100%;
 
-    font-size: clamp(26px, 3vw, 38px);
+    /* Big enough to be the first thing the eye lands on, and tracked off the
+       same viewport curve as the h1 so the two never look like they were
+       sized independently. Still a step below the asset name on purpose: the
+       name says which market, the price says what it costs. */
+    font-size: clamp(30px, 3.6vw, 48px);
     line-height: 1;
     font-weight: 275;
     letter-spacing: -0.045em;
@@ -291,8 +293,13 @@
 }
 
 @media (max-width: 640px) {
-    .hero-heading {
+    /* The name and the price stop sharing a line: a 48px price needs the full
+       width on a phone, and the flex-wrap above would only manage that by
+       squeezing the name. */
+    .hero-heading-row {
         flex-direction: column;
+        align-items: flex-start;
+        row-gap: 16px;
     }
 
     .hero-price-block {
