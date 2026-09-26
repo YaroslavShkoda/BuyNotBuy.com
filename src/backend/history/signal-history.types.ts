@@ -10,6 +10,8 @@ export interface SignalHistoryEntry {
 
 export interface SignalHistoryLogger {
     warn(context: Record<string, unknown>, message: string): void;
+    /** Optional: not every caller in the codebase is a pino logger. */
+    debug?(context: Record<string, unknown>, message: string): void;
 }
 
 export interface SignalHistoryLastTransition {

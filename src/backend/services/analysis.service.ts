@@ -11,6 +11,8 @@ import { calculateMomentumSeries } from '../indicators/momentum-series.js';
 import { analyzeDivergence } from '../indicators/divergence.service.js';
 import { recordSignalHistory } from '../history/signal-history.service.js';
 import { recordIndicatorVotes } from '../indicators/performance/indicator-performance.service.js';
+import { getSignalSnapshotRepository } from '../analysis/signal-snapshot.repository.js';
+import { getStrategyVersionRepository } from '../analysis/strategy-version.repository.js';
 import { marketConfig } from '../config/market.config.js';
 import {
     indicatorConfig,
@@ -229,5 +231,60 @@ export async function analyzeMarketWithStatus(
     // fail-open, and it does not belong in the response either way.
     void recordIndicatorVotes(analysis, marketData.price.symbol);
 
+    // The full analysis, stored immutably, under the version of the strategy
+    // that produced it.
+    //
+    // This is the record every later stage of the pipeline is measured
+    // against. The summary history and the votes can only say what the signal
+    // was; they cannot say what the indicators were, what the inputs looked
+    // like, or which configuration produced them. Without that, a hit rate
+    // measured today cannot be re-derived tomorrow, and the chain from
+    // signal to outcome to statistics has nothing to be attached to.
+    //
+    // Fire-and-forget for the same reason as the two calls above: a
+    // persistence failure must not become a slow page load. It is idempotent
+    // on the input hash, so a retry cannot produce a second copy.
+    void storeSnapshot(analysis, marketData, historyLogger).catch(() => undefined);
+
     return { analysis, stale: marketDataStale, ageMs: marketDataAgeMs };
+}
+
+/**
+ * Writes one immutable snapshot, resolving its strategy version first.
+ *
+ * Split out so the version lookup — a write, not a read — happens on the same
+ * detached promise as the insert, and so a failure to resolve a version is
+ * logged rather than lost in a discarded rejection.
+ */
+async function storeSnapshot(
+    analysis: MarketAnalysis,
+    marketData: MarketData,
+    logger?: SignalHistoryLogger,
+): Promise<void> {
+    try {
+        const strategyVersion = await getStrategyVersionRepository().resolveActive();
+
+        const stored = await getSignalSnapshotRepository().record({
+            symbol: marketData.price.symbol,
+            strategyVersion,
+            price: analysis.price,
+            candles: marketData.candles,
+            snapshot: analysis,
+        });
+
+        logger?.debug?.(
+            {
+                event: 'signal_snapshot_stored',
+                snapshotId: stored.id,
+                strategyVersionId: strategyVersion.id,
+                deduplicated: !stored.created,
+            },
+            'signal_snapshot_stored',
+        );
+    } catch (error) {
+        logger?.warn(
+            { event: 'signal_snapshot_store_failed', err: error },
+            'signal_snapshot_store_failed',
+        );
+    }
 }
