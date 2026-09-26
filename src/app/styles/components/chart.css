@@ -1,4 +1,4 @@
-﻿.chart-card {
+.chart-card {
     /* Reserved strip on the left for the Y-axis price labels. Every row of the
        chart (plot, time labels, volume, note) is offset by the same amount, so
        a single variable keeps them all aligned. */
@@ -211,16 +211,101 @@
     letter-spacing: .14em;
 }
 
+/* Not clipped: the tooltip rises above the bars, over the price plot, and the
+   card would otherwise cut it off at the top of the panel. Horizontally it
+   still fits, because .volume-tooltip clamps its own centre. */
 .volume-plot {
+    position: relative;
     height: 58px;
     margin: 10px 0 0 var(--chart-gutter);
-    overflow: hidden;
 }
 
 .volume-plot svg { display: block; width: 100%; height: 100%; }
 .volume-bar { opacity: .78; }
 .volume-bar.rising { fill: #78d5a8; }
 .volume-bar.falling { fill: #d48089; }
+
+/* The hover targets. Full height of the plot so a two-pixel bar is still easy
+   to put the pointer on, which it is not if the target matches the bar. */
+.volume-track {
+    position: absolute;
+    inset: 0;
+}
+
+.volume-hit {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+}
+
+.volume-hit:hover { background: rgba(255, 255, 255, 0.04); }
+
+/* 152px wide, so a tooltip centred on the first or last bar — each about 2% from
+   the edge — would hang off the card. Those two are pinned by the selectors
+   below; every other bar centres normally. */
+.volume-tooltip {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+
+    width: 152px;
+    padding: 8px 10px;
+
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-sm);
+
+    background: rgba(10, 12, 15, 0.96);
+    box-shadow: var(--shadow-elevated);
+
+    font-size: 10px;
+    line-height: 1.35;
+    white-space: nowrap;
+    pointer-events: none;
+
+    /* Hidden, not merely transparent: a transparent box still takes part in hit
+       testing and still lands in the accessibility tree. */
+    visibility: hidden;
+    opacity: 0;
+    transition: opacity var(--transition-fast);
+}
+
+.volume-hit:hover .volume-tooltip {
+    visibility: visible;
+    opacity: 1;
+}
+
+.volume-hit:first-child .volume-tooltip {
+    left: 76px;
+    transform: none;
+}
+
+.volume-hit:last-child .volume-tooltip {
+    left: auto;
+    right: 76px;
+    transform: none;
+}
+
+.volume-tooltip-time {
+    color: var(--color-text-muted);
+    font-size: 9px;
+    letter-spacing: .04em;
+}
+
+.volume-tooltip-value {
+    color: var(--color-text);
+    font-weight: 650;
+    font-variant-numeric: tabular-nums;
+}
+
+.volume-tooltip-compact {
+    color: var(--color-text-dim);
+    font-size: 9px;
+}
 
 @media (max-width: 560px) {
     .chart-card { --chart-gutter: 40px; }

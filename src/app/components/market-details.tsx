@@ -36,13 +36,25 @@ function formatDivergenceMomentum(value: number): string {
     return formatMomentumPercent(value, 1);
 }
 
+/**
+ * The noun a numeral takes, in the genitive: "1 свеча", "3 свечи", "7 свечей".
+ *
+ * A count followed by "назад" is not in the prepositional case. "В 3 свечах" is
+ * a place; "3 свечи назад" is a distance back from now, and it wants the same
+ * form as any other counted noun. The prepositional endings produced "1 свече
+ * назад" and "53 свечах назад", which read as grammar borrowed from the wrong
+ * part of the sentence.
+ *
+ * The teens are the whole difficulty: the last digit picks the form everywhere
+ * else and lies in exactly the numbers a count is most likely to land on.
+ */
 function pluralizeBars(value: number): string {
-    const mod100 = value % 100;
-    const mod10 = value % 10;
+    const mod100 = Math.abs(value) % 100;
+    const mod10 = Math.abs(value) % 10;
 
-    if (mod10 === 1 && mod100 !== 11) return 'свече';
-    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return 'свечах';
-    return 'свечах';
+    if (mod10 === 1 && mod100 !== 11) return 'свеча';
+    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return 'свечи';
+    return 'свечей';
 }
 
 export function describeDivergence(divergence: DivergenceAnalysis): DivergencePresentation {

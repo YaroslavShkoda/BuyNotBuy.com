@@ -1,4 +1,4 @@
-﻿import Image from 'next/image';
+import Image from 'next/image';
 
 export function formatUpdatedAt(timestamp: number, now: Date = new Date()): string {
     // Guard against zero/negative timestamps: they would render a misleading
@@ -24,12 +24,10 @@ export function formatUpdatedAt(timestamp: number, now: Date = new Date()): stri
 }
 
 interface TopbarProps {
-    symbol: string;
-    price: number;
     updatedAt: number;
 }
 
-export function Topbar({ symbol, price, updatedAt }: TopbarProps) {
+export function Topbar({ updatedAt }: TopbarProps) {
     return (
         <header className="topbar">
             <div className="topbar-brand">
@@ -51,16 +49,12 @@ export function Topbar({ symbol, price, updatedAt }: TopbarProps) {
                 </div>
             </div>
 
+            {/* The pair and its price used to sit here, above the fold and
+                separate from the asset they describe. The hero now carries both
+                as one figure under the name, and a second copy in the bar read
+                as a second quote. What is left is the brand and the only thing
+                the bar says that the hero does not: how fresh the data is. */}
             <div className="topbar-market">
-                <span className="topbar-symbol">{symbol}</span>
-
-                <span className="topbar-price">
-                    ${price.toLocaleString('en-US', {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                    })}
-                </span>
-
                 <span className="topbar-updated">
                     <span className="topbar-updated-dot" />
                     ОБНОВЛЕНО {formatUpdatedAt(updatedAt)}

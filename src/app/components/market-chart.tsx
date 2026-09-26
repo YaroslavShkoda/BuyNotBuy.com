@@ -1,4 +1,5 @@
-﻿import type { Candle } from '../types/analysis';
+import type { Candle } from '../types/analysis';
+import { VolumePlot } from './volume-plot';
 
 interface MarketChartProps {
     candles: Candle[];
@@ -194,15 +195,12 @@ export function MarketChart({ candles, symbol, ema300 }: MarketChartProps) {
         <span>Сейчас</span>
     </div>
     <div className="volume-heading"><span>ОБЪЁМ ТОРГОВ</span><span>VOLUME</span></div>
-    <div className="volume-plot" role="img" aria-label="Объём торгов по периодам">
-        <svg viewBox={`0 0 ${chartWidth} 76`} preserveAspectRatio="none" aria-hidden="true">
-            {visibleCandles.map((candle, index) => {
-                const barHeight = Math.max((candle.volume / maxVolume) * 68, 2);
-                const rising = candle.close >= candle.open;
-                return <rect key={candle.timestamp} x={index * barStep + barStep * 0.18} y={76 - barHeight} width={Math.max(barStep * 0.62, 1)} height={barHeight} rx="1.5" className={rising ? 'volume-bar rising' : 'volume-bar falling'} />;
-            })}
-        </svg>
-    </div>
+        <VolumePlot
+            candles={visibleCandles}
+            maxVolume={maxVolume}
+            barStep={barStep}
+            chartWidth={chartWidth}
+        />
         </section>
     );
 }

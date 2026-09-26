@@ -43,7 +43,7 @@ describe('divergence presentation', () => {
         expect(presentation.label).toBe('Бычья дивергенция');
         expect(presentation.tone).toBe('positive');
         expect(presentation.detail).toBe(
-            'Цена: $67,400 → $66,900 (ниже) · Momentum: -1.2% → -0.9% (выше) · Подтверждена 16 свечах назад',
+            'Цена: $67,400 → $66,900 (ниже) · Momentum: -1.2% → -0.9% (выше) · Подтверждена 16 свечей назад',
         );
     });
 
@@ -58,8 +58,44 @@ describe('divergence presentation', () => {
         };
 
         expect(describeDivergence(divergence).detail).toContain(
-            'Подтверждена 1 свече назад',
+            'Подтверждена 1 свеча назад',
         );
+    });
+
+    it('agrees the counted noun with the age in every plural form', () => {
+        // The count sits in front of "назад", so it takes the genitive like any
+        // other counted noun. The teens are the trap: the last digit says 1, 2
+        // and 4, and all three are wrong in 11, 12 and 14.
+        const ages = [
+            { age: 1, noun: 'свеча' },
+            { age: 2, noun: 'свечи' },
+            { age: 4, noun: 'свечи' },
+            { age: 5, noun: 'свечей' },
+            { age: 11, noun: 'свечей' },
+            { age: 12, noun: 'свечей' },
+            { age: 14, noun: 'свечей' },
+            { age: 21, noun: 'свеча' },
+            { age: 22, noun: 'свечи' },
+            { age: 25, noun: 'свечей' },
+            { age: 53, noun: 'свечи' },
+            { age: 101, noun: 'свеча' },
+            { age: 111, noun: 'свечей' },
+        ];
+
+        for (const { age, noun } of ages) {
+            const divergence: DivergenceAnalysis = {
+                bullish: {
+                    type: 'BULLISH',
+                    previous: { index: 1, confirmedAtIndex: 3, age: 40, price: 60_000, momentum: -2 },
+                    current: { index: 2, confirmedAtIndex: 4, age, price: 59_000, momentum: -1 },
+                },
+                bearish: null,
+            };
+
+            expect(describeDivergence(divergence).detail).toContain(
+                `Подтверждена ${age} ${noun} назад`,
+            );
+        }
     });
 
     it('describes a bearish divergence with actual price and momentum points', () => {
@@ -77,7 +113,7 @@ describe('divergence presentation', () => {
         expect(presentation.label).toBe('Медвежья дивергенция');
         expect(presentation.tone).toBe('negative');
         expect(presentation.detail).toBe(
-            'Цена: $70,000 → $71,200 (выше) · Momentum: +1.5% → +0.9% (ниже) · Подтверждена 3 свечах назад',
+            'Цена: $70,000 → $71,200 (выше) · Momentum: +1.5% → +0.9% (ниже) · Подтверждена 3 свечи назад',
         );
     });
 

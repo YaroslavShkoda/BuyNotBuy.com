@@ -1,4 +1,4 @@
-﻿.topbar {
+.topbar {
     position: relative;
     z-index: 10;
     display: flex;
@@ -99,24 +99,8 @@
     letter-spacing: 0.14em;
 }
 
-.topbar-market {
-    gap: 14px;
-}
-
-.topbar-symbol {
-    color: var(--color-text-muted);
-    font-size: 11px;
-    font-weight: 650;
-    letter-spacing: 0.08em;
-}
-
-.topbar-price {
-    font-size: 15px;
-    font-weight: 600;
-    letter-spacing: -0.02em;
-    font-variant-numeric: tabular-nums;
-}
-
+/* The pair and the price that used to live here are gone; the bar now holds
+   the update time alone, so the numeric alignment is all it still needs. */
 .topbar-market {
     font-variant-numeric: tabular-nums;
 }
@@ -181,10 +165,6 @@
         flex-wrap: wrap;
         justify-content: flex-end;
         gap: 8px;
-    }
-
-    .topbar-symbol {
-        display: none;
     }
 
     .topbar-subtitle {

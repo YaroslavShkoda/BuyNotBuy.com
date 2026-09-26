@@ -22,11 +22,7 @@ export default async function Home() {
                 there. */}
             <AutoRefresh />
 
-            <Topbar
-                symbol={market.price.symbol}
-                price={market.price.price}
-                updatedAt={analysis.timestamp}
-            />
+            <Topbar updatedAt={analysis.timestamp} />
 
             <div className="content-stack">
                             <Hero
