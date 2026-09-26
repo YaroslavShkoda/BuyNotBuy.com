@@ -47,30 +47,29 @@ export function Hero({ analysis, history, candles, symbol, ema300 }: HeroProps) 
                     <div className="hero-heading">
                         <span className="eyebrow">ОБЗОР РЫНКА</span>
 
-                        {/* The badge, the asset name and the price share one
-                            centred row, so the price starts level with the name
-                            instead of being pushed down by an offset invented
-                            to clear the eyebrow. */}
-                        <div className="hero-heading-row">
-                            <div className="hero-asset-line">
-                                <span className="hero-asset-glyph" aria-hidden="true">
-                                    {asset.glyph === '₿' ? <BitcoinMark /> : asset.glyph}
-                                </span>
+                        {/* The badge, the name and the price read as one figure:
+                            the name, and the number for it, stacked on a shared
+                            left edge beside the badge. */}
+                        <div className="hero-asset-line">
+                            <span className="hero-asset-glyph" aria-hidden="true">
+                                {asset.glyph === '₿' ? <BitcoinMark /> : asset.glyph}
+                            </span>
 
+                            <div className="hero-asset-text">
                                 <h1>{asset.name}</h1>
-                            </div>
 
-                            <div className="hero-price-block">
-                                <span className="hero-price">
-                                    ${price.toLocaleString('en-US', {
-                                        minimumFractionDigits: 2,
-                                        maximumFractionDigits: 2,
-                                    })}
-                                </span>
+                                <div className="hero-price-block">
+                                    <span className="hero-price">
+                                        ${price.toLocaleString('en-US', {
+                                            minimumFractionDigits: 2,
+                                            maximumFractionDigits: 2,
+                                        })}
+                                    </span>
 
-                                <span className="hero-price-label">
-                                    {asset.ticker} / {asset.quote}
-                                </span>
+                                    <span className="hero-price-label">
+                                        {asset.ticker} / {asset.quote}
+                                    </span>
+                                </div>
                             </div>
                         </div>
                     </div>

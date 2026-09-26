@@ -101,32 +101,24 @@
     gap: clamp(16px, 1.8vw, 32px);
 }
 
-.hero-heading-row {
+/* The badge sits beside the asset name and its price. Driven by the asset map
+   in lib/assets.ts — one glyph per asset. The tile is always square
+   (aspect-ratio) and sized on its own vw curve, so it can never smear into a
+   vertical strip. Top-aligned, so the name starts level with the top of the
+   tile rather than floating in the middle of it — the price now stacks under
+   the name, and centring the name would push it away from the tile it labels. */
+.hero-asset-line {
     display: flex;
-    /* If the name and the price stop fitting side by side, the price drops to
-       its own line instead of pushing past the panel edge. */
-    flex-wrap: wrap;
-    /* Centred, so the price block and the asset name share one line box. The
-       price is larger than the name's cap height, and centring puts the top
-       of the price level with the top of the name without either being
-       offset — which is what a baseline relationship would have to do, through
-       a flex row and a heading deep enough that the baseline has to be
-       synthesised from a box rather than read off the text. */
-    align-items: center;
-    /* Left, not space-between: pushed to the far edge the price reads as a
-       statistic belonging to the panel, not as the number for the asset named
-       next to it. The name and the price are one fact, and they sit together
-       with a gap between them. */
-    justify-content: flex-start;
-    column-gap: clamp(24px, 3vw, 44px);
+    align-items: flex-start;
+    gap: 20px;
 }
 
-/* No grow: a growing asset row would absorb the free space and push the price
-   back to the far edge, which is the gap this layout exists to close. It still
-   shrinks, so the price — which cannot be squeezed, its digits are nowrap —
-   wins the argument when the two stop fitting. */
-.hero-asset-line {
-    flex: 0 1 auto;
+/* One left edge for every line in the figure: name, price, ticker. */
+.hero-asset-text {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: clamp(8px, 0.8vw, 14px);
     min-width: 0;
 }
 
@@ -298,19 +290,11 @@
 }
 
 @media (max-width: 640px) {
-    /* The name and the price stop sharing a line: a 48px price needs the full
-       width on a phone, and the flex-wrap above would only manage that by
-       squeezing the name. */
-    .hero-heading-row {
+    /* The badge gets out of the way: at phone widths the tile and a 58px price
+       side by side leave the name almost no room. */
+    .hero-asset-line {
         flex-direction: column;
-        align-items: flex-start;
-        row-gap: 16px;
-    }
-
-    .hero-price-block {
-        align-items: flex-start;
-        /* Column layout: an auto inline margin would shove the block right. */
-        margin-left: 0;
+        gap: 14px;
     }
 
     .hero-metrics {
