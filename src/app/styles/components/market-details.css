@@ -1,4 +1,4 @@
-.detail-grid {
+﻿.detail-grid {
     display: grid;
     grid-template-columns: minmax(0, .92fr) minmax(0, 1.08fr);
     gap: var(--space-5);
@@ -12,7 +12,6 @@
 
 .detail-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .detail-heading h2 { margin: 9px 0 0; font-size: 19px; font-weight: 560; letter-spacing: -.035em; }
-.detail-index { color: var(--color-text-dim); font-size: 9px; font-weight: 650; letter-spacing: .12em; }
 
 .indicator-list { margin-top: 25px; border-top: 1px solid var(--color-border); }
 .indicator-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 2px; border-bottom: 1px solid var(--color-border); }

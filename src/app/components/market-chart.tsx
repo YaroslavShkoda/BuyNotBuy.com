@@ -1,4 +1,4 @@
-import type { Candle } from '../types/analysis';
+﻿import type { Candle } from '../types/analysis';
 
 interface MarketChartProps {
     candles: Candle[];
@@ -157,21 +157,32 @@ export function MarketChart({ candles, symbol, ema300 }: MarketChartProps) {
             <span>{((high + low) / 2).toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
             <span>{low.toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
         </div>
-        <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} preserveAspectRatio="none" role="img" aria-label={`График цены${windowLabel !== null ? ` за последние ${windowLabel}` : ''} с уровнем EMA 300`}>
-            <defs>
-                <linearGradient id="chart-fill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#8ae3b7" stopOpacity=".24" />
-                    <stop offset="100%" stopColor="#8ae3b7" stopOpacity="0" />
-                </linearGradient>
-            </defs>
-            {[0.08, 0.5, 0.92].map((position) => <line key={position} x1="0" x2={chartWidth} y1={chartHeight * position} y2={chartHeight * position} className="chart-gridline" />)}
-            {hasEma && (
-                <line x1="0" x2={chartWidth} y1={emaY} y2={emaY} className="chart-ema-line" />
+        <div className="chart-plot-surface">
+            <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} preserveAspectRatio="none" role="img" aria-label={`График цены${windowLabel !== null ? ` за последние ${windowLabel}` : ''} с уровнем EMA 300`}>
+                <defs>
+                    <linearGradient id="chart-fill" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#8ae3b7" stopOpacity=".24" />
+                        <stop offset="100%" stopColor="#8ae3b7" stopOpacity="0" />
+                    </linearGradient>
+                </defs>
+                {[0.08, 0.5, 0.92].map((position) => <line key={position} x1="0" x2={chartWidth} y1={chartHeight * position} y2={chartHeight * position} className="chart-gridline" />)}
+                {hasEma && (
+                    <line x1="0" x2={chartWidth} y1={emaY} y2={emaY} className="chart-ema-line" />
+                )}
+                <path d={area} fill="url(#chart-fill)" />
+                <path d={line} className="chart-line" />
+            </svg>
+            {points.length > 0 && (
+                <span
+                    className="chart-marker"
+                    style={{
+                        left: `${(points.at(-1)!.x / chartWidth) * 100}%`,
+                        top: `${(points.at(-1)!.y / chartHeight) * 100}%`,
+                    }}
+                    aria-hidden="true"
+                />
             )}
-            <path d={area} fill="url(#chart-fill)" />
-            <path d={line} className="chart-line" />
-            {points.length > 0 && <circle cx={points.at(-1)!.x} cy={points.at(-1)!.y} r="4" className="chart-marker" />}
-        </svg>
+        </div>
         {hasEma && (
             <span className="chart-ema-label" style={{ top: `${emaLabelTop}%` }}>
                 EMA 300 · ${ema300.toLocaleString('en-US', { maximumFractionDigits: 0 })}
@@ -192,7 +203,6 @@ export function MarketChart({ candles, symbol, ema300 }: MarketChartProps) {
             })}
         </svg>
     </div>
-    <p className="chart-volume-note">Объём окрашен по направлению закрытия свечи</p>
         </section>
     );
 }

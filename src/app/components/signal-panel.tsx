@@ -76,10 +76,10 @@ export function SignalPanel({ signal, indicatorValues }: SignalPanelProps) {
     return (
         <aside className={`signal-panel signal-${signalClass}`}>
             <div className="signal-panel-header">
-                <span className="eyebrow">MARKET SIGNAL</span>
+                <span className="eyebrow">СИГНАЛ РЫНКА</span>
 
                 <span className="signal-confidence">
-                    {signal.confidence}% CONSENSUS
+                    КОНСЕНСУС {signal.confidence}%
                 </span>
             </div>
 
@@ -91,7 +91,7 @@ export function SignalPanel({ signal, indicatorValues }: SignalPanelProps) {
                 <div
                     className="signal-meter"
                     role="img"
-                    aria-label={`Consensus ${signal.confidence} percent`}
+                    aria-label={`Консенсус ${signal.confidence} процентов`}
                 >
                     <span
                         className="signal-meter-fill"

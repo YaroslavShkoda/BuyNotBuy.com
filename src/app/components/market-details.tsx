@@ -1,4 +1,4 @@
-import type { Candle, DivergenceAnalysis, MarketAnalysis } from '../types/analysis';
+﻿import type { Candle, DivergenceAnalysis, MarketAnalysis } from '../types/analysis';
 
 interface MarketDetailsProps {
     candles: Candle[];
@@ -86,7 +86,6 @@ export function MarketDetails({ candles, analysis }: MarketDetailsProps) {
                 <article className="detail-card depth-surface">
                     <header className="detail-heading">
                         <div><span className="eyebrow">ТЕХНИЧЕСКИЙ СРЕЗ</span><h2>Из чего складывается сигнал</h2></div>
-                        <span className="detail-index">01 / 02</span>
                     </header>
 
                     <div className="detail-section">
@@ -135,7 +134,6 @@ export function MarketDetails({ candles, analysis }: MarketDetailsProps) {
                 <article className="detail-card depth-surface">
                     <header className="detail-heading">
                         <div><span className="eyebrow">ПОСЛЕДНИЕ ИНТЕРВАЛЫ</span><h2>Активность рынка</h2></div>
-                        <span className="detail-index">02 / 02</span>
                     </header>
                     <div className="candle-table-wrap">
                         <table className="candle-table">

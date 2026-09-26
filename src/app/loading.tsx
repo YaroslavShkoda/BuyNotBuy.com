@@ -1,8 +1,8 @@
-export default function DashboardLoading() {
+﻿export default function DashboardLoading() {
     return (
         <main className="app-shell" aria-busy="true" aria-label="Загрузка данных рынка">
             <div className="state-card depth-surface">
-                <span className="eyebrow">MARKET OVERVIEW</span>
+                <span className="eyebrow">ОБЗОР РЫНКА</span>
 
                 <h1>Загрузка данных рынка…</h1>
 

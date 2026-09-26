@@ -1,11 +1,23 @@
 ﻿.signal-panel {
+    /* Gutter of the panel; the indicator strip bleeds into it, so both have to
+       be derived from the same value to stay in sync at any breakpoint. */
+    --panel-gutter: 24px;
+
+    position: relative;
     display: flex;
     flex-direction: column;
 
     min-width: 0;
-    padding: 30px;
+    padding: var(--panel-gutter);
 
     overflow: hidden;
+
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    background: rgba(10, 12, 14, 0.85);
+    box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.05),
+        inset 0 -1px 0 rgba(0,0,0,0.4);
 }
 
 .signal-panel::before {
@@ -116,6 +128,9 @@
     text-align: center;
 }
 
+/* The indicator strip bleeds ~15% of its width past the panel padding on each
+   side (24px * 0.8), reaching much closer to the card edges. Negative inline
+   margins widen a stretched flex item symmetrically. */
 .signal-indicators {
     position: relative;
 
@@ -126,9 +141,7 @@
 
     border-radius: var(--radius-md);
 
-    align-self: center;
-    margin-inline: auto;
-    width: calc(100% - 16px);
+    margin-inline: calc(var(--panel-gutter) * -0.8);
 }
 
 .signal-indicator {
@@ -213,7 +226,7 @@
 
 @media (max-width: 640px) {
     .signal-panel {
-        padding: 24px;
+        --panel-gutter: 20px;
     }
 
     .signal-value {

@@ -1,4 +1,4 @@
-import type { IndicatorSignal } from '../types/analysis';
+﻿import type { IndicatorSignal } from '../types/analysis';
 import type { SignalHistoryEntry, SignalHistoryResponse } from '../types/history';
 import { formatUpdatedAt } from './topbar';
 import { HistorySummary } from './history-summary';
@@ -68,8 +68,8 @@ export function SignalHistory({ data }: SignalHistoryProps) {
     return (
         <section className="signal-history" aria-label="История сигнала">
             <div className="signal-history-header">
-                <span className="eyebrow">SIGNAL HISTORY</span>
-                <span className="signal-history-note">CONSENSUS</span>
+                <span className="eyebrow">ИСТОРИЯ СИГНАЛОВ</span>
+                <span className="signal-history-note">КОНСЕНСУС</span>
             </div>
 
             {data === null ? (

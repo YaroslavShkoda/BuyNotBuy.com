@@ -13,6 +13,30 @@ interface HeroProps {
     ema300: number;
 }
 
+// The asset badge used to render the "₿" character straight from the map. That
+// glyph lives in U+20BF, which plenty of system fonts simply do not ship (a
+// missing codepoint renders as a tofu box), and font-weight: 700 is often
+// synthesised by smearing, which looks soft at badge size. A path stays sharp
+// at any resolution and inherits the accent colour from the tile.
+function BitcoinMark() {
+    return (
+        <svg
+            className="hero-asset-mark"
+            viewBox="0 0 48 48"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={2.8}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+        >
+            {/* Two bowls, the shared stem, and the four tick marks above/below. */}
+            <path d="M15 10h10a7 7 0 0 1 0 14H15M15 24h11a7 7 0 0 1 0 14H15M15 10v28" />
+            <path d="M21 10V4M29 10V4M21 38v6M29 38v6" />
+        </svg>
+    );
+}
+
 export function Hero({ analysis, history, candles, symbol, ema300 }: HeroProps) {
     const { signal, indicators, price, momentum } = analysis;
     const asset = getAssetInfo(symbol);
@@ -22,18 +46,18 @@ export function Hero({ analysis, history, candles, symbol, ema300 }: HeroProps) 
                 <div className="hero-main">
                     <div className="hero-heading">
                         <div className="hero-title">
-                            <span className="eyebrow">MARKET OVERVIEW</span>
+                            <span className="eyebrow">ОБЗОР РЫНКА</span>
 
                             <div className="hero-asset-line">
                                 <span className="hero-asset-glyph" aria-hidden="true">
-                                    {asset.glyph}
+                                    {asset.glyph === '₿' ? <BitcoinMark /> : asset.glyph}
                                 </span>
 
                                 <div>
                                     <h1>{asset.name}</h1>
 
                                     <p className="hero-description">
-                                        Real-time market structure and technical intelligence.
+                                        Структура рынка и технический анализ в реальном времени.
                                     </p>
                                 </div>
                             </div>

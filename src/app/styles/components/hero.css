@@ -1,6 +1,9 @@
+﻿/* The right column keeps the two signal cards; the left column (Price Action
+   + chart + volume) takes everything else. 300px — rather than the previous
+   340px — buys the chart ~12% more width. */
 .hero {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 340px;
+    grid-template-columns: minmax(0, 1fr) 300px;
     gap: 0;
     row-gap: 0;
     align-items: stretch;
@@ -9,8 +12,14 @@
 
 .hero-main {
     position: relative;
+    display: flex;
+    flex-direction: column;
+
     min-width: 0;
-    padding: clamp(28px, 4vw, 52px);
+    padding-block: clamp(28px, 4vw, 52px);
+    /* Vertical rhythm is unchanged; the inline padding is trimmed so the
+       chart and the volume bars get ~24px more room on each side. */
+    padding-inline: clamp(20px, 2vw, 28px);
     overflow: hidden;
 }
 
@@ -28,11 +37,15 @@
 }
 
 /* Compact asset-glyph badge under the asset name (replaces the old giant
-   watermark). Driven by the asset map in lib/assets.ts — one glyph per asset. */
+   watermark). Driven by the asset map in lib/assets.ts — one glyph per asset.
+   The tile is always square (aspect-ratio) and centred against the name +
+   description block, so it can never smear into a vertical strip. */
 .hero-asset-line {
     display: flex;
     align-items: center;
-    gap: 14px;
+    gap: 20px;
+
+    margin-top: clamp(16px, 1.8vw, 32px);
 }
 
 .hero-asset-glyph {
@@ -40,8 +53,11 @@
     place-items: center;
     flex: 0 0 auto;
 
-    width: clamp(42px, 5vw, 54px);
+    /* ~100% of the height of the name + description block beside it, tracked
+       off the same 5vw h1 curve so the two stay in proportion. The mark inside
+       is a percentage of the tile, so growing the tile scales it uniformly. */
     aspect-ratio: 1;
+    width: clamp(72px, calc(4.93vw + 31px), 108px);
 
     border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: var(--radius-md);
@@ -51,7 +67,7 @@
         radial-gradient(70% 70% at 50% 0%, rgba(113, 223, 173, 0.14), transparent 70%),
         rgba(10, 12, 14, 0.7);
 
-    font-size: clamp(22px, 2.6vw, 30px);
+    font-size: clamp(30px, 2.4vw, 48px);
     font-weight: 700;
     line-height: 1;
 
@@ -62,14 +78,30 @@
     user-select: none;
 }
 
+/* Vector asset mark (see BitcoinMark in hero.tsx). Sized as a percentage of the
+   tile so it stays crisp at any breakpoint and inherits the accent colour. */
+.hero-asset-mark {
+    width: 56%;
+    height: 56%;
+}
+
 .hero-heading {
     position: relative;
     z-index: 1;
     display: flex;
+    /* If the title and the price stop fitting side by side, the price drops to
+       its own line (still flush right) instead of pushing past the panel edge. */
+    flex-wrap: wrap;
     align-items: flex-start;
     justify-content: space-between;
     gap: 24px;
     column-gap: 24px;
+}
+
+/* min-width stays `auto` on purpose: the asset name and headline keep their
+   intrinsic width, so the price block is what gives up its line. */
+.hero-title {
+    flex: 1 1 280px;
 }
 
 .eyebrow {
@@ -83,7 +115,9 @@
 }
 
 .hero h1 {
-    margin: 10px 0 8px;
+    /* The top spacing now lives on .hero-asset-line, so the badge and the
+       headline both clear the "ОБЗОР РЫНКА" eyebrow by the same amount. */
+    margin: 0 0 8px;
 
     font-size: clamp(42px, 5vw, 72px);
     line-height: 0.95;
@@ -106,8 +140,11 @@
     align-items: flex-end;
     gap: 7px;
     padding-top: 5px;
-    min-width: 0;
-    flex-shrink: 1;
+    /* Never compress: the price is nowrap, so a squeezed block would let the
+       digits spill out of it and collide with the panel frame. margin-left:auto
+       keeps it flush right once flex-wrap moves it to a line of its own. */
+    flex: 0 0 auto;
+    margin-left: auto;
 }
 
 .hero-price {
@@ -178,21 +215,34 @@
 .hero-side {
     display: flex;
     flex-direction: column;
-    gap: 0;
+    gap: 12px;
     min-width: 0;
+    padding: 12px;
 
     border-left: 1px solid var(--color-border);
 }
 
 /* The chart sits inline in the left column right under the asset metrics.
    It shares the hero panel's surface, so its own card frame is dropped. */
+/* The chart takes the leftover height of the left column instead of sitting at
+   a fixed size, so it fills the panel down to the bottom edge. */
 .hero-chart {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+
     margin-top: clamp(24px, 3vw, 40px);
     padding-top: clamp(22px, 3vw, 34px);
     border-top: 1px solid var(--color-border);
 }
 
 .hero-chart .chart-card {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+
     padding: 0;
     overflow: hidden;
     background: none;
@@ -203,12 +253,20 @@
     -webkit-backdrop-filter: none;
 }
 
-/* The history block has its own card frame; keep a small gap above it. */
-.hero-side .signal-panel + .signal-history {
-    margin-top: 12px;
+/* The signal panel and history block each carry their own card frame;
+   the flex gap on .hero-side handles the spacing between them. */
+
+/* Below this width the fixed 300px sidebar starves the left column, so the
+   badge gives space back to the asset name. */
+@media (max-width: 1300px) {
+    .hero-asset-glyph {
+        width: clamp(67px, calc(4.93vw + 31px), 90px);
+    }
 }
 
-@media (max-width: 1000px) {
+/* Stacks to a single column: below this the two columns cannot both hold their
+   content and the hero headline starts to clip. */
+@media (max-width: 1200px) {
     .hero {
         grid-template-columns: 1fr;
         row-gap: 0;
@@ -228,6 +286,8 @@
 
     .hero-price-block {
         align-items: flex-start;
+        /* Column layout: an auto inline margin would shove the block right. */
+        margin-left: 0;
     }
 
     .hero-metrics {
