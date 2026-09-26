@@ -42,11 +42,21 @@
     display: grid;
     place-items: center;
 
+    /* A flex item defaults to flex-shrink: 1, and this one was shrinking
+       below 42px whenever the bar ran short of room — measured 38px at both
+       900px and 700px. The frame is fixed-size, so it does not yield. */
+    flex: 0 0 auto;
+
     width: 42px;
     height: 42px;
 
     border: 1px solid var(--color-border-strong);
     border-radius: 12px;
+
+    /* The image now fills the frame, and a square-cornered image would ignore
+       the 12px radius and poke out past it. The radius only masks content that
+       is clipped. */
+    overflow: hidden;
 
     background: rgba(255, 255, 255, 0.035);
 
@@ -55,11 +65,19 @@
         0 8px 25px rgba(0, 0, 0, 0.3);
 }
 
+/* The file is cropped to a square to match this frame, so the mark fills the
+   box outright instead of leaving slivers of background down each side — a
+   non-square image in a square frame fits by whichever dimension is longer and
+   never covers the other. The frame's radius clips the corners, so the
+   artwork is masked rather than left square-cornered.
+   `cover` rather than `contain` is deliberate: on a square in a square the two
+   are identical today, but if the frame is ever made rectangular, contain
+   would re-open the very gap this crop closed. */
 .topbar-logo img {
     display: block;
-    width: 28px;
-    height: 28px;
-    object-fit: contain;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
 }
 
 .topbar-brand-copy {
