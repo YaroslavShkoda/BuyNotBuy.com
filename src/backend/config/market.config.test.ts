@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 describe('marketConfig', () => {
     it('loads default configuration', async () => {
@@ -17,8 +17,14 @@ describe('marketConfig', () => {
 
         expect(marketConfig).toEqual({
             provider: 'binance',
+            // On by default: the reason this setting exists is a primary venue
+            // that is unreachable from some networks, and a backup nobody
+            // enables protects nobody.
+            fallbackProviders: ['bitget'],
             baseUrl: 'https://data-api.binance.vision',
+            fallbackBaseUrl: 'https://api.bitget.com',
             symbol: 'BTCUSDT',
+            fallbackSymbol: 'BTCUSDT',
             candleInterval: '1h',
             defaultCandleLimit: 900,
             requestTimeoutMs: 10000,
@@ -52,13 +58,19 @@ describe('marketConfig', () => {
         process.env.MARKET_CIRCUIT_COOLDOWN_MS = '15000';
         process.env.MARKET_MAX_RETRY_AFTER_MS = '90000';
         process.env.MARKET_USER_AGENT = 'Custom/9.9';
+        process.env.MARKET_FALLBACK_PROVIDERS = 'bitget';
+        process.env.MARKET_FALLBACK_BASE_URL = 'https://backup.example.com';
+        process.env.MARKET_FALLBACK_SYMBOL = 'ETHUSDT';
 
         const { marketConfig } = await import('./market.config');
 
         expect(marketConfig).toEqual({
             provider: 'binance',
+            fallbackProviders: ['bitget'],
             baseUrl: 'https://example.com',
+            fallbackBaseUrl: 'https://backup.example.com',
             symbol: 'ETHUSDT',
+            fallbackSymbol: 'ETHUSDT',
             candleInterval: '15m',
             defaultCandleLimit: 500,
             requestTimeoutMs: 5000,
@@ -182,5 +194,95 @@ describe('marketConfig', () => {
             delete process.env.MARKET_MAX_RETRY_AFTER_MS;
             delete process.env.MARKET_USER_AGENT;
         }
+    });
+});
+
+describe('fallback provider configuration', () => {
+    async function loadWith(
+        env: Record<string, string | undefined>,
+    ): Promise<{ fallbackProviders: string[]; provider: string }> {
+        vi.resetModules();
+
+        for (const [key, value] of Object.entries(env)) {
+            if (value === undefined) {
+                delete process.env[key];
+            } else {
+                process.env[key] = value;
+            }
+        }
+
+        const { marketConfig } = await import('./market.config');
+
+        return {
+            fallbackProviders: marketConfig.fallbackProviders,
+            provider: marketConfig.provider,
+        };
+    }
+
+    afterEach(() => {
+        delete process.env.MARKET_PROVIDER;
+        delete process.env.MARKET_FALLBACK_PROVIDERS;
+    });
+
+    it('trims the list and keeps its order', async () => {
+        // The order is the whole meaning of the setting: the first entry is the
+        // one tried, and the rest are the rest. Whitespace is the likeliest
+        // mistake when writing a comma-separated list by hand.
+        const loaded = await loadWith({
+            MARKET_PROVIDER: 'binance',
+            MARKET_FALLBACK_PROVIDERS: '  bitget  ,  binance  ',
+        });
+
+        expect(loaded.fallbackProviders).toEqual(['bitget']);
+    });
+
+    it('drops a backup that names the primary, since that is not a backup', async () => {
+        const loaded = await loadWith({
+            MARKET_PROVIDER: 'binance',
+            MARKET_FALLBACK_PROVIDERS: 'binance,bitget',
+        });
+
+        expect(loaded.fallbackProviders).toEqual(['bitget']);
+    });
+
+    it('accepts an explicitly empty list, for a deployment that wants no backup', async () => {
+        const loaded = await loadWith({
+            MARKET_PROVIDER: 'binance',
+            MARKET_FALLBACK_PROVIDERS: '',
+        });
+
+        expect(loaded.fallbackProviders).toEqual([]);
+    });
+
+    it('refuses a mock as a fallback, rather than quietly ignoring it', async () => {
+        // Silently dropping it would be how a site ends up with invented prices
+        // on the chart the first time a real venue fails.
+        await expect(
+            loadWith({
+                MARKET_PROVIDER: 'binance',
+                MARKET_FALLBACK_PROVIDERS: 'mock',
+            }),
+        ).rejects.toThrow(/mock/);
+    });
+
+    it('gives a mock primary no backup at all', async () => {
+        // The setting exists so the suite and a laptop run with no network. A
+        // live venue behind it would make the suite depend on the internet.
+        const loaded = await loadWith({
+            MARKET_PROVIDER: 'mock',
+            MARKET_FALLBACK_PROVIDERS: undefined,
+        });
+
+        expect(loaded.provider).toBe('mock');
+        expect(loaded.fallbackProviders).toEqual([]);
+    });
+
+    it('names a typo instead of accepting it, so the backup is not a surprise', async () => {
+        await expect(
+            loadWith({
+                MARKET_PROVIDER: 'binance',
+                MARKET_FALLBACK_PROVIDERS: 'bitgett',
+            }),
+        ).rejects.toThrow();
     });
 });

@@ -3,8 +3,78 @@ import { z } from 'zod';
 /** Binance /api/v3/klines silently caps the limit at 1000 per request. */
 export const MAX_CANDLE_LIMIT = 1000;
 
+/** A venue this application knows how to read. */
+const MarketProviderSchema = z.enum(['binance', 'bitget', 'mock']);
+
+/**
+ * Reads the backup list from a comma-separated setting.
+ *
+ * Two rules, both about not quietly doing the wrong thing:
+ *
+ * - A backup that names the primary is dropped rather than rejected. A
+ *   deployment that sets both to the same venue has asked for no backup, and
+ *   the intent is unambiguous even though the setting is not.
+ * - `mock` is refused outright. A mock is a test double, and a mock that took
+ *   over would put invented prices on the dashboard the moment a real venue
+ *   failed — the one outcome this application exists to avoid, and the one no
+ *   screenshot of the page would ever make obvious.
+ */
+function parseFallbackProviders(
+    raw: string,
+    primary: MarketProviderName,
+): MarketProviderName[] {
+    const names = raw
+        .split(',')
+        .map((name) => name.trim())
+        .filter((name) => name !== '');
+
+    if (names.includes('mock')) {
+        throw new Error(
+            'MARKET_FALLBACK_PROVIDERS cannot include "mock": a test double must never take over from a real venue',
+        );
+    }
+
+    const parsed = MarketProviderSchema.array().parse(names);
+
+    return parsed.filter((name) => name !== primary);
+}
+
+/**
+ * A mock primary has no backup on purpose: the setting exists so the suite and
+ * a laptop can run with no network at all, and a live venue behind it would
+ * quietly make the suite depend on the internet again.
+ */
+function defaultFallbackProviders(
+    primary: MarketProviderName,
+): string {
+    return primary === 'mock' ? '' : 'bitget';
+}
+
+export type MarketProviderName = z.infer<typeof MarketProviderSchema>;
+
+/**
+ * Read through the schema rather than cast, so an unsupported venue is named in
+ * the failure instead of surfacing later as a default branch that throws the
+ * same message for every typo. It is also needed twice — here and again for
+ * the backup list — so it is resolved once, at the boundary, where the rest of
+ * the configuration is validated.
+ */
+const primaryProvider = MarketProviderSchema.parse(
+    process.env.MARKET_PROVIDER ?? 'binance',
+);
+
 const MarketConfigSchema = z.object({
-    provider: z.enum(['binance', 'mock']),
+    provider: MarketProviderSchema,
+    /**
+     * Where to go when the primary will not answer.
+     *
+     * Ordered, because more than one backup is a realistic answer to a venue
+     * being unreachable from a region: the first is preferred, the rest are
+     * tried in order. Empty means no backup, which is a legitimate setting for
+     * a deployment that would rather see an error than a price from somewhere
+     * other than where it asked.
+     */
+    fallbackProviders: z.array(MarketProviderSchema),
     /**
      * Market data must travel over TLS. A plaintext connection lets anyone on
      * the path rewrite prices, which this application would then report as a
@@ -39,6 +109,19 @@ const MarketConfigSchema = z.object({
         // provider error on every request.
         .regex(/^[A-Z0-9]{1,32}$/, {
             message: 'Symbol must be an uppercase alphanumeric ticker',
+        }),
+    /**
+     * Where the backup is reached, and under which ticker.
+     *
+     * Separate from the primary's, because a pair that trades on one venue need
+     * not trade on the other, and because the whole point of the backup is that
+     * its address is known to work from wherever the server is deployed.
+     */
+    fallbackBaseUrl: z.string().min(1),
+    fallbackSymbol: z.string()
+        .min(1)
+        .regex(/^[A-Z0-9]{1,32}$/, {
+            message: 'Fallback symbol must be an uppercase alphanumeric ticker',
         }),
     candleInterval: z.string()
         .min(1)
@@ -95,16 +178,33 @@ const MarketConfigSchema = z.object({
 export type MarketConfig = z.infer<typeof MarketConfigSchema>;
 
 export const marketConfig: MarketConfig = MarketConfigSchema.parse({
-    provider:
-        process.env.MARKET_PROVIDER ??
-        'binance',
+    provider: primaryProvider,
+
+    /**
+     * Bitget is on by default rather than opt-in. The reason this project needs
+     * a backup at all is that its primary venue is unreachable from some
+     * networks, and a setting nobody turns on protects nobody. Set
+     * MARKET_FALLBACK_PROVIDERS to an empty string to run without one.
+     */
+    fallbackProviders: parseFallbackProviders(
+        process.env.MARKET_FALLBACK_PROVIDERS ?? defaultFallbackProviders(primaryProvider),
+        primaryProvider,
+    ),
 
     baseUrl:
         process.env.MARKET_BASE_URL ??
         'https://data-api.binance.vision',
 
+    fallbackBaseUrl:
+        process.env.MARKET_FALLBACK_BASE_URL ??
+        'https://api.bitget.com',
+
     symbol:
         process.env.MARKET_SYMBOL ??
+        'BTCUSDT',
+
+    fallbackSymbol:
+        process.env.MARKET_FALLBACK_SYMBOL ??
         'BTCUSDT',
 
     candleInterval:

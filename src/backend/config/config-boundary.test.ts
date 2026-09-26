@@ -4,6 +4,13 @@ const MARKET_ENV_KEYS = [
     'MARKET_PROVIDER',
     'MARKET_BASE_URL',
     'MARKET_SYMBOL',
+    // Clearing the backup settings matters exactly as much as the primary ones:
+    // a leftover MARKET_FALLBACK_PROVIDERS from a neighbouring test would
+    // decide whether the provider is wrapped, and the factory is built once per
+    // import.
+    'MARKET_FALLBACK_PROVIDERS',
+    'MARKET_FALLBACK_BASE_URL',
+    'MARKET_FALLBACK_SYMBOL',
     'MARKET_CANDLE_INTERVAL',
     'MARKET_DEFAULT_CANDLE_LIMIT',
     'MARKET_REQUEST_TIMEOUT_MS',
@@ -60,8 +67,11 @@ describe('configuration boundary hardening (task 7)', () => {
 
         expect(marketConfig).toEqual({
             provider: 'binance',
+            fallbackProviders: ['bitget'],
             baseUrl: 'https://example.com',
+            fallbackBaseUrl: 'https://api.bitget.com',
             symbol: 'BTCUSDT',
+            fallbackSymbol: 'BTCUSDT',
             candleInterval: '1h',
             defaultCandleLimit: 900,
             requestTimeoutMs: 5000,
@@ -134,7 +144,7 @@ describe('configuration boundary hardening (task 7)', () => {
         }
     });
 
-    it('mock env selects MockProvider and binance env selects BinanceProvider', async () => {
+    it('mock env selects MockProvider and binance env selects a failing-over provider', async () => {
         vi.resetModules();
         clearMarketEnv();
         Object.assign(process.env, {
@@ -144,6 +154,7 @@ describe('configuration boundary hardening (task 7)', () => {
 
         const mockModule = await import('../market/market.provider');
 
+        // A mock primary keeps no backup, so the suite still runs with no network.
         expect(mockModule.marketDataProvider.constructor.name).toBe(
             'MockProvider',
         );
@@ -158,7 +169,7 @@ describe('configuration boundary hardening (task 7)', () => {
         const binanceModule = await import('../market/market.provider');
 
         expect(binanceModule.marketDataProvider.constructor.name).toBe(
-            'BinanceProvider',
+            'FailoverProvider',
         );
     });
 
