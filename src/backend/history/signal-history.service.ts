@@ -32,6 +32,44 @@ export interface BacklogState {
     dropped: number;
 }
 
+/**
+ * How often retention may run, per process.
+ *
+ * Retention used to run inside every write. With the write happening on each
+ * page load and once a minute from the poller, that is a full scan per request
+ * to delete at most one row — and in the database it had never deleted a row
+ * at all, so the cost was pure and the benefit zero. A cadence keeps the
+ * guarantee that the table is bounded while making the cost proportional to
+ * how fast the table actually grows.
+ */
+const RETENTION_MIN_INTERVAL_MS = 5 * 60_000;
+
+let lastTrimAt = 0;
+
+/**
+ * Enforces the retention limit, at most once per interval per process.
+ *
+ * A failure is swallowed: retention is housekeeping, and refusing to record
+ * history because the trimming statement was slow would trade a bounded table
+ * for a missing hour. The next attempt comes round regardless.
+ */
+async function maybeTrimRetention(
+    symbol: string,
+    now: number = Date.now(),
+): Promise<number> {
+    if (now - lastTrimAt < RETENTION_MIN_INTERVAL_MS) {
+        return 0;
+    }
+
+    lastTrimAt = now;
+
+    try {
+        return await getSignalHistoryRepository().trimRetention(symbol);
+    } catch {
+        return 0;
+    }
+}
+
 // History is a non-critical subsystem: a persistence failure must never
 // propagate into the market analysis path, so this wrapper is fail-open
 // by contract and never rejects. A failed write is buffered rather than
@@ -47,6 +85,11 @@ export async function recordSignalHistory(
 ): Promise<void> {
     try {
         await getSignalHistoryRepository().record(entry);
+
+        // The upsert succeeded, so the write path is healthy and this is a
+        // good moment to do the housekeeping against a database that just
+        // answered.
+        await maybeTrimRetention(entry.symbol);
     } catch (error) {
         writeBuffer.push(entry);
 

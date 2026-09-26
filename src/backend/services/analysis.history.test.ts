@@ -128,6 +128,7 @@ describe('analysis → signal history integration', () => {
             ),
             list: (symbol, limit, before) =>
                 realRepository.list(symbol, limit, before),
+            trimRetention: (symbol) => realRepository.trimRetention(symbol),
             schemaVersion: () => realRepository.schemaVersion(),
             durabilitySettings: () => realRepository.durabilitySettings(),
         };

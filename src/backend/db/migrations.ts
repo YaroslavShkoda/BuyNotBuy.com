@@ -78,12 +78,103 @@ export const LATEST_SCHEMA_VERSION: number =
 const MIGRATION_LOCK_NAMESPACE = 0x627564;
 const MIGRATION_LOCK_KEY = 0x6e627579;
 
+/**
+ * How long a booting process waits for another one to finish migrating.
+ *
+ * Long enough for a real migration — adding a constrained column to a large
+ * table, building an index — and short enough that a genuinely stuck holder is
+ * reported while someone is still watching the rollout.
+ */
+const MIGRATION_LOCK_WAIT_MS = 30_000;
+
 async function readStoredVersion(client: PoolClient): Promise<number> {
     const result = await client.query<{ version: number }>(
         'SELECT COALESCE(MAX(version), 0) AS version FROM schema_migrations',
     );
 
     return result.rows[0]?.version ?? 0;
+}
+
+/**
+ * Refuses a ledger with a hole in it.
+ *
+ * `MAX(version)` answers "what is the newest thing that ran", not "what has
+ * run". Versions {1, 3} read as 3, and the loop below then skips 2 forever —
+ * leaving a database shaped like version 2 that reports itself as version 3,
+ * which no restart can recover from because the only evidence of the missing
+ * step is the absence the code refuses to look for.
+ *
+ * Reachable from the code as written: the test suite deletes version rows
+ * directly, so a cleanup path that can produce the gap already exists.
+ */
+async function assertContiguous(client: PoolClient): Promise<void> {
+    const result = await client.query<{ count: number; max: number | null }>(
+        'SELECT COUNT(*)::int AS count, MAX(version) AS max FROM schema_migrations',
+    );
+
+    const row = result.rows[0];
+    const count = row?.count ?? 0;
+    const max = row?.max ?? 0;
+
+    if (count === 0) {
+        return;
+    }
+
+    if (count !== max) {
+        throw new Error(
+            `schema_migrations is not contiguous: ${count} row(s) with a highest ` +
+                `version of ${max}. A version is missing, so the schema is ` +
+                `neither at 0 nor fully migrated and cannot be repaired by ` +
+                `re-running. Restore the missing version from a backup.`,
+        );
+    }
+}
+
+/**
+ * Takes the migration lock, waiting for whoever holds it rather than failing.
+ *
+ * The connection pool sets `lock_timeout` on every connection so a wedged write
+ * gives up quickly and lands in the retry buffer. That same setting applies to
+ * `pg_advisory_lock`, which is the wrong trade here: during a rolling restart
+ * the readiness probe and the server bootstrap arrive together by design, the
+ * one holding the lock is applying migrations and about to finish, and the one
+ * waiting would fail its wait, propagate, and call `process.exit(1)`. Two
+ * instances booting is the normal case, and it was the one case that killed
+ * the process.
+ *
+ * A try-lock with backoff, bounded by an overall deadline, handles both: a
+ * holder that finishes is waited out, and a lock that is genuinely stuck is
+ * reported as a migration problem rather than as a connection timeout.
+ */
+async function acquireMigrationLock(
+    client: PoolClient,
+    deadlineMs: number,
+): Promise<void> {
+    const startedAt = Date.now();
+    let delayMs = 50;
+
+    for (;;) {
+        const result = await client.query<{ locked: boolean }>(
+            'SELECT pg_try_advisory_lock($1, $2) AS locked',
+            [MIGRATION_LOCK_NAMESPACE, MIGRATION_LOCK_KEY],
+        );
+
+        if (result.rows[0]?.locked === true) {
+            return;
+        }
+
+        if (Date.now() - startedAt >= deadlineMs) {
+            throw new Error(
+                `Could not take the migration lock within ${deadlineMs}ms. ` +
+                    'Another process is applying migrations and has not finished; ' +
+                    'if none is, it died holding the lock and its connection is ' +
+                    'still open.',
+            );
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+        delayMs = Math.min(delayMs * 2, 1_000);
+    }
 }
 
 /**
@@ -98,10 +189,16 @@ export async function applyMigrations(): Promise<number> {
     const client = await getPool().connect();
 
     try {
-        await client.query('SELECT pg_advisory_lock($1, $2)', [
-            MIGRATION_LOCK_NAMESPACE,
-            MIGRATION_LOCK_KEY,
-        ]);
+        // No `SET lock_timeout` here, and that is deliberate. The pool sets one
+        // on every connection so a wedged write gives up quickly, and an
+        // earlier version of this function raised the timeout for the
+        // migration session and put the old value back only on the happy path —
+        // so a migration that threw left `30s` on a connection that went back
+        // to the pool, and the next borrower inherited it. The wait this
+        // function needs is the lock wait, and the lock wait is not a
+        // server-side one: `pg_try_advisory_lock` never blocks, so the deadline
+        // is kept in this loop and no session setting is involved at all.
+        await acquireMigrationLock(client, MIGRATION_LOCK_WAIT_MS);
 
         await client.query(`
             CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -110,6 +207,8 @@ export async function applyMigrations(): Promise<number> {
                 applied_at BIGINT NOT NULL
             )
         `);
+
+        await assertContiguous(client);
 
         const storedVersion = await readStoredVersion(client);
 

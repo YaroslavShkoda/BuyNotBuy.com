@@ -1,6 +1,6 @@
 import { historyConfig } from '../config/history.config.js';
 import { applyMigrations, currentSchemaVersion } from '../db/migrations.js';
-import { query, withTransaction } from '../db/pool.js';
+import { query } from '../db/pool.js';
 
 import type { SignalHistoryEntry } from './signal-history.types.js';
 
@@ -16,6 +16,8 @@ export interface SignalHistoryRepositoryOptions {
 export interface SignalHistoryRepository {
     record(entry: SignalHistoryEntry): Promise<void>;
     list(symbol: string, limit: number, before?: number): Promise<SignalHistoryEntry[]>;
+    /** Drops entries past the retention limit for one symbol. Returns how many. */
+    trimRetention(symbol: string): Promise<number>;
     /** Schema version currently stored in the database. */
     schemaVersion(): Promise<number>;
     /**
@@ -50,14 +52,44 @@ const UPSERT_SQL = `
     WHERE EXCLUDED.timestamp > signal_history.timestamp
 `;
 
+/**
+ * Drops everything older than the newest `maxEntries` buckets of *one* symbol.
+ *
+ * Two defects in the version this replaces. It was not scoped to a symbol, so a
+ * symbol with a short history and a symbol with a long one competed for one
+ * limit: three symbols at `maxEntries = 720` kept 240 hours each, and the
+ * slowest symbol silently cut the retention of the others. And it was written
+ * as `WHERE hour_bucket NOT IN (SELECT DISTINCT ... ORDER BY ... LIMIT)`, which
+ * PostgreSQL cannot turn into an index walk — the `DISTINCT` plus the `NOT IN`
+ * force a sequential scan and a hashed anti-join, on every single write.
+ *
+ * A keyed subquery with `OFFSET` reads down the primary key, and the delete
+ * that follows is a range delete on the same key.
+ *
+ * `$2` is the count of buckets to keep, not the offset: the subquery lands on
+ * the *oldest bucket being kept* — position `keep - 1` counting from zero — and
+ * the delete is strictly below it. Passing the keep count as an offset instead
+ * would keep one bucket too many, and the error would be a table that is
+ * quietly `maxEntries + 1` rows deep forever.
+ *
+ * When a symbol has fewer rows than the limit the subquery returns nothing,
+ * the cutoff falls back to the row's own bucket, and the condition is false —
+ * so a short history is left alone rather than emptied.
+ */
 const TRIM_SQL = `
     DELETE FROM signal_history
-    WHERE hour_bucket NOT IN (
-        SELECT DISTINCT hour_bucket
-        FROM signal_history
-        ORDER BY hour_bucket DESC
-        LIMIT $1
-    )
+    WHERE symbol = $1
+      AND hour_bucket < COALESCE(
+          (
+              SELECT hour_bucket
+              FROM signal_history
+              WHERE symbol = $1
+              ORDER BY hour_bucket DESC
+              LIMIT 1 OFFSET $2 - 1
+          ),
+          hour_bucket
+      )
+    RETURNING 1
 `;
 
 const SELECT_SQL = `
@@ -88,21 +120,30 @@ export function createSignalHistoryRepository(
 ): SignalHistoryRepository {
     return {
         async record(entry: SignalHistoryEntry): Promise<void> {
-            // One transaction, so a failed trim cannot leave the retention
-            // half-applied — and so the pair costs one round trip rather than
-            // two on a path that runs once an hour per instance.
-            await withTransaction(async (client) => {
-                await client.query(UPSERT_SQL, [
-                    entry.symbol,
-                    Math.floor(entry.timestamp / HOUR_MS),
-                    entry.timestamp,
-                    entry.signal,
-                    Math.round(entry.consensus),
-                    entry.price,
-                ]);
+            // Not a transaction any more. It held a paired trim, and the trim
+            // was the reason: retention now runs on its own cadence, and a
+            // single upsert does not need an explicit transaction to be atomic.
+            await query(UPSERT_SQL, [
+                entry.symbol,
+                Math.floor(entry.timestamp / HOUR_MS),
+                entry.timestamp,
+                entry.signal,
+                Math.round(entry.consensus),
+                entry.price,
+            ]);
+        },
 
-                await client.query(TRIM_SQL, [options.maxEntries]);
-            });
+        async trimRetention(symbol: string): Promise<number> {
+            // `RETURNING` is what lets a data-modifying statement sit in a CTE
+            // and still be counted; without it PostgreSQL rejects the query
+            // rather than silently running the delete and discarding it.
+            const result = await query<{ count: number }>(
+                `WITH deleted AS (${TRIM_SQL})
+                 SELECT COUNT(*)::int AS count FROM deleted`,
+                [symbol, options.maxEntries],
+            );
+
+            return result.rows[0]?.count ?? 0;
         },
 
         async list(

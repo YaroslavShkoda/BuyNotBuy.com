@@ -42,16 +42,39 @@ async function withStoredSchemaVersion(
     version: number,
     work: () => Promise<void>,
 ): Promise<void> {
-    await query(
-        `INSERT INTO schema_migrations (version, name, applied_at)
-         VALUES ($1, $2, $3)`,
-        [version, 'written_by_a_newer_build', 1_737_950_400_000],
-    );
+    // Every version up to `version`, not just the newest. A build that reached
+    // version 99 ran 1 through 99 in order, and a ledger of {1, 2, 99} is a
+    // different thing entirely: it is a hole, and the migration code now
+    // refuses holes for its own reason — so faking one here would test the
+    // wrong guard.
+    const inserted: number[] = [];
+
+    for (let applied = 1; applied <= version; applied += 1) {
+        const result = await query(
+            `INSERT INTO schema_migrations (version, name, applied_at)
+             VALUES ($1, $2, $3)
+             ON CONFLICT (version) DO NOTHING
+             RETURNING version`,
+            [applied, 'written_by_a_newer_build', 1_737_950_400_000],
+        );
+
+        if ((result.rowCount ?? 0) > 0) {
+            inserted.push(applied);
+        }
+    }
 
     try {
         await work();
     } finally {
-        await query('DELETE FROM schema_migrations WHERE version = $1', [version]);
+        // Only what this helper added. Removing every version up to `version`
+        // would take the database's real migration history with it, and the
+        // next test in this file would inherit a database that no build can
+        // read.
+        for (const applied of inserted) {
+            await query('DELETE FROM schema_migrations WHERE version = $1', [
+                applied,
+            ]);
+        }
     }
 }
 
@@ -152,6 +175,11 @@ describe('signal history repository', () => {
             await repository.record(makeEntry({ timestamp: dayStart + hour * HOUR_MS }));
         }
 
+        // Retention is its own statement now, not a paired half of the write:
+        // run inside every write it was a full table scan per request, and the
+        // live database showed it had never once deleted a row.
+        await repository.trimRetention('BTCUSDT');
+
         const entries = await repository.list('BTCUSDT', 10);
 
         expect(entries.map((entry) => entry.timestamp)).toEqual([
@@ -159,6 +187,45 @@ describe('signal history repository', () => {
             dayStart + 3 * HOUR_MS,
             dayStart + 2 * HOUR_MS,
         ]);
+    });
+
+    it('trims one symbol without cutting the retention of another', async () => {
+        const repository = createSignalHistoryRepository({ maxEntries: 3 });
+
+        const dayStart = 1_737_936_000_000;
+
+        for (let hour = 0; hour < 5; hour += 1) {
+            await repository.record(
+                makeEntry({ timestamp: dayStart + hour * HOUR_MS }),
+            );
+        }
+
+        // A symbol with a full history of its own.
+        for (let hour = 0; hour < 5; hour += 1) {
+            await repository.record(
+                makeEntry({
+                    symbol: 'ETHUSDT',
+                    timestamp: dayStart + hour * HOUR_MS,
+                }),
+            );
+        }
+
+        await repository.trimRetention('BTCUSDT');
+
+        // The unscoped delete the trim replaced kept the newest `maxEntries`
+        // buckets across the whole table, so whichever symbol happened to write
+        // most recently decided how much history the others were allowed.
+        expect(await repository.list('BTCUSDT', 10)).toHaveLength(3);
+        expect(await repository.list('ETHUSDT', 10)).toHaveLength(5);
+    });
+
+    it('leaves a symbol with less history than the limit alone', async () => {
+        const repository = createSignalHistoryRepository({ maxEntries: 720 });
+
+        await repository.record(makeEntry());
+
+        expect(await repository.trimRetention('BTCUSDT')).toBe(0);
+        expect(await repository.list('BTCUSDT', 10)).toEqual([makeEntry()]);
     });
 
     it('keeps symbols independent', async () => {
@@ -401,28 +468,25 @@ describe('signal history durability', () => {
     });
 
     it('leaves nothing half-written when the retention trim fails', async () => {
-        // `record()` stores the snapshot and trims the retention window in one
-        // transaction, so a trim that fails has to take the snapshot with it.
-        // A stored entry with no corresponding trim is exactly what a
-        // half-applied retention policy looks like from the outside. A
-        // negative LIMIT is the one trim failure a test can provoke without
+        // A negative OFFSET is the one trim failure a test can provoke without
         // corrupting anything first: the server rejects it outright.
         const repository = createSignalHistoryRepository({ maxEntries: -1 });
 
-        await expect(repository.record(makeEntry())).rejects.toThrow();
+        await repository.record(makeEntry());
+
+        // The invariant is now structural rather than transactional, and worth
+        // asserting directly: the write and the trim are separate statements, so
+        // a trim that fails cannot take a stored snapshot with it, and cannot
+        // leave one behind un-trimmed in the way a shared transaction could.
+        await expect(repository.trimRetention('BTCUSDT')).rejects.toThrow();
 
         const afterFailure = await query<{ total: number }>(
             'SELECT COUNT(*)::int AS total FROM signal_history',
         );
 
-        expect(afterFailure.rows[0]?.total).toBe(0);
+        expect(afterFailure.rows[0]?.total).toBe(1);
 
-        // The client that ran the failed transaction goes back to the pool, so
-        // the next write has to work. A connection left mid-transaction would
-        // fail here, and in production long after the cause.
         const healthy = createSignalHistoryRepository({ maxEntries: 720 });
-        await expect(healthy.record(makeEntry())).resolves.toBeUndefined();
-
         expect(await healthy.list('BTCUSDT', 10)).toEqual([makeEntry()]);
     });
 });
