@@ -5,15 +5,18 @@
     --color-surface-floating: #15191d;
 
     --color-text: #f5f7f8;
-    /* The three steps below are the same ramp as before, each moved halfway
-       to white. They read as grey next to a near-white primary, and on a dark
-       panel the dimmer two were the first thing to disappear — the label on a
-       chart axis, the ticker under the price. The gaps between the steps are
-       kept, only narrowed: a flat ramp would make every caption equally loud
-       and leave the eye nothing to rank them by. */
-    --color-text-secondary: #d2d6d9;
-    --color-text-muted: #bec2c6;
-    --color-text-dim: #adb1b5;
+    /* The three steps below are white. Halfway to white still read as grey on
+       a near-black panel — the whole ramp now sits within fourteen points of the
+       primary, so nothing on the page is tinted.
+
+       The steps are not collapsed to one value. A caption, an axis label and a
+       heading set in the same weight and the same white are one wall of text,
+       and the eye has nothing to rank them by; a whisper of separation between
+       them survives the round trip from any reasonable viewing distance while
+       the smallest one still reads as white. 14 points of range, not 70. */
+    --color-text-secondary: #f4f6f7;
+    --color-text-muted: #eef0f2;
+    --color-text-dim: #e7e9eb;
 
     --color-border: rgba(255, 255, 255, 0.08);
     --color-border-strong: rgba(255, 255, 255, 0.14);
