@@ -247,6 +247,63 @@
 .volume-bar.rising { fill: #78d5a8; }
 .volume-bar.falling { fill: #d48089; }
 
+/* The amounts behind the bars.
+   The bar heights are ratios against each hour's own recent past, which is what
+   keeps the panel readable across a venue change — and which also means a bar's
+   height no longer says how much was traded. These figures put the amounts
+   back, so the window can be read as a quantity and not only as "busier or
+   quieter than the last few hours".
+
+   Median sits next to average on purpose. When they pull apart, that is the
+   finding: a mean well above the median means a few loud hours carried the
+   window rather than the window being busy throughout. */
+.volume-stats {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 12px;
+    margin: 14px 0 0 var(--chart-gutter);
+}
+
+.volume-stat { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+
+.volume-stat-label {
+    color: var(--color-text-dim);
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: .12em;
+    white-space: nowrap;
+}
+
+.volume-stat strong {
+    color: var(--color-text);
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: -.02em;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.volume-stat small {
+    color: var(--color-text-muted);
+    font-size: 9px;
+    line-height: 1.35;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+@media (max-width: 1100px) {
+    .volume-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (max-width: 900px) {
+    .volume-stats { gap: 10px; }
+}
+
+@media (max-width: 560px) {
+    .volume-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
 /* The hover targets. Full height of the plot so a two-pixel bar is still easy
    to put the pointer on, which it is not if the target matches the bar. */
 .volume-track {

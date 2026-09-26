@@ -1,5 +1,6 @@
 import { VolumePlot } from './volume-plot';
 import { buildVolumeScale } from '../lib/volume-scale';
+import { summariseVolume } from '../lib/volume-summary';
 import { quoteAssetOf } from '../lib/quote-asset';
 
 import type { Candle } from '../types/analysis';
@@ -96,6 +97,95 @@ export function formatAxisTime(timestamp: number, windowMs: number): string {
     return windowMs >= 24 * 3600000
         ? date.toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
         : date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+}
+
+/**
+ * The volumes behind the bars, as figures rather than as shapes.
+ *
+ * The bar heights are ratios — each hour against its own recent past — which is
+ * what lets the panel survive the venue changing underneath it. The cost is that
+ * a bar's height no longer says how much was traded, so these four numbers put
+ * the amounts back underneath.
+ *
+ * Compact notation, not the full digits: the point is a glance at how the window
+ * compares with itself, and `2,1 млн` is read faster than `2 143 907`. The exact
+ * value is one hover away on the bar itself.
+ */
+const COMPACT_VOLUME = new Intl.NumberFormat('ru-RU', {
+    notation: 'compact',
+    maximumFractionDigits: 2,
+});
+
+const VOLUME_TIME = new Intl.DateTimeFormat('ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+});
+
+// A Russian decimal comma, which `toFixed` does not give: the panel would show
+// "×3.7" beside "171,28 млн" and read like two different number systems.
+const RATIO = new Intl.NumberFormat('ru-RU', {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+});
+
+function VolumeStats({ candles, symbol }: { candles: Candle[]; symbol: string }) {
+    const summary = summariseVolume(candles);
+
+    if (summary.count === 0) {
+        return null;
+    }
+
+    const when = (timestamp: number | undefined) =>
+        timestamp === undefined ? '—' : VOLUME_TIME.format(timestamp);
+
+    return (
+        <div className="volume-stats">
+            <div className="volume-stat">
+                <span className="volume-stat-label">МАКСИМУМ</span>
+                <strong>{COMPACT_VOLUME.format(summary.max?.value ?? 0)}</strong>
+                <small>{when(summary.max?.timestamp)}</small>
+            </div>
+
+            <div className="volume-stat">
+                <span className="volume-stat-label">МИНИМУМ</span>
+                <strong>{COMPACT_VOLUME.format(summary.min?.value ?? 0)}</strong>
+                <small>{when(summary.min?.timestamp)}</small>
+            </div>
+
+            <div className="volume-stat">
+                <span className="volume-stat-label">СРЕДНЕЕ</span>
+                <strong>{COMPACT_VOLUME.format(summary.average)}</strong>
+                <small>за {summary.count} ч</small>
+            </div>
+
+            <div className="volume-stat">
+                <span className="volume-stat-label">МЕДИАНА</span>
+                <strong>{COMPACT_VOLUME.format(summary.median)}</strong>
+                <small>типичный час</small>
+            </div>
+
+            {/* The one figure that is scale-free: it reads the same on a quiet
+                market and a frantic one, which is what makes it a judgement
+                rather than a number to remember. */}
+            <div className="volume-stat">
+                <span className="volume-stat-label">ПИК</span>
+                <strong>
+                    {summary.peakRatio > 0
+                        ? `×${RATIO.format(summary.peakRatio)}`
+                        : '—'}
+                </strong>
+                <small>к среднему</small>
+            </div>
+
+            <div className="volume-stat">
+                <span className="volume-stat-label">ВСЕГО</span>
+                <strong>{COMPACT_VOLUME.format(summary.total)}</strong>
+                <small>{quoteAssetOf(symbol)}</small>
+            </div>
+        </div>
+    );
 }
 
 export function MarketChart({ candles, symbol, ema300 }: MarketChartProps) {
@@ -208,6 +298,7 @@ export function MarketChart({ candles, symbol, ema300 }: MarketChartProps) {
             barStep={barStep}
             chartWidth={chartWidth}
         />
+        <VolumeStats candles={visibleCandles} symbol={symbol} />
         </section>
     );
 }
