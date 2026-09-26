@@ -343,6 +343,12 @@ describe('signal history schema', () => {
         // That is only true while the constraint is there, and a missing
         // constraint would make the cast quietly wrong instead of loudly
         // wrong — so the guarantee is asserted here, at the server.
+        //
+        // Matched on the constraint's *name*, not on the words of the error.
+        // PostgreSQL localises its messages, so an installation with a
+        // non-English `lc_messages` reports this in that language and a
+        // message match would fail on a server that is working correctly.
+        // The name is the migration's, and is the same everywhere.
         await expect(
             query(
                 `INSERT INTO signal_history
@@ -350,7 +356,7 @@ describe('signal history schema', () => {
                  VALUES ($1, $2, $3, $4, $5, $6)`,
                 ['BTCUSDT', 482_000, 1_737_950_400_000, 'VERY_LONG', 50, 100_000],
             ),
-        ).rejects.toThrow(/check constraint/i);
+        ).rejects.toThrow(/signal_history_signal_check/);
 
         // ... and the row really was refused rather than stored and read back.
         const repository = createSignalHistoryRepository({ maxEntries: 720 });
