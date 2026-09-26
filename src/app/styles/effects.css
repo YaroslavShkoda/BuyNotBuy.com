@@ -51,14 +51,21 @@ body::after {
     position: relative;
     border: 1px solid var(--color-border);
     border-radius: var(--radius-lg);
-    background:
-        linear-gradient(
-            145deg,
-            rgba(255,255,255,0.04),
-            rgba(255,255,255,0.012) 48%,
-            rgba(255,255,255,0.006)
-        ),
-        rgba(10, 12, 14, 0.78);
+    /* Flat, with no white gradient over the fill.
+       It used to carry a 145deg ramp from rgba(255,255,255,0.04) at the top
+       left to 0.006 at the bottom right, which was meant to read as a light
+       source falling across the panel. Measured on the real page it read as
+       the panel being two different colours: down the hero's left column the
+       luminance ran 18.9 at the top to 12.9 at the bottom, and down the right
+       column 14.9 to 11.9. Anyone comparing the area behind the asset name with
+       the area down at the volume figures was looking at two surfaces and could
+       not tell that the design intended one.
+
+       The glows that did the same thing from the other side — body::before's
+       fixed washes and the signal panel's top-right bloom — land on the page
+       behind a fill this opaque and contribute under 0.3 of a level, which is
+       why the fill can stay translucent and still read as one tone. */
+    background: rgba(10, 12, 14, 0.78);
     box-shadow:
         var(--shadow-surface),
         inset 0 1px 0 rgba(255,255,255,0.055),

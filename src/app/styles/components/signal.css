@@ -20,22 +20,12 @@
         inset 0 -1px 0 rgba(0,0,0,0.4);
 }
 
-.signal-panel::before {
-    content: "";
-
-    position: absolute;
-    inset: 0;
-
-    pointer-events: none;
-
-    background:
-        radial-gradient(
-            420px 240px at 100% 0%,
-            rgba(255,255,255,0.045),
-            transparent 70%
-        );
-}
-
+/* Removed: a 420x240 white bloom anchored at the panel's top right. It sat on
+   top of the fill rather than under it, so it lit the top of this card and left
+   the bottom alone — the same top-is-lighter split the hero had, inside a card
+   whose own background is a flat fill. Two cards side by side reading as two
+   different greys. Nothing replaced it: the flat fill plus the border and the
+   inset highlights already carry the depth. */
 .signal-panel-header {
     position: relative;
     margin-top: 10px;
