@@ -92,6 +92,7 @@ export function Hero({ analysis, history, candles, symbol, ema300 }: HeroProps) 
                             atr: indicators.atr,
                             rsi: indicators.rsi,
                             macdHistogram: indicators.macd.histogram,
+                            price,
                         }}
                     />
                     <SignalHistory data={history} />

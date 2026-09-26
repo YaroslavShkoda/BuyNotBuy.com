@@ -167,7 +167,7 @@ export function MarketDetails({ candles, analysis }: MarketDetailsProps) {
                                     <small>Гистограмма, %</small>
                                 </div>
                                 <div className="indicator-reading">
-                                    <strong>{formatSignedPercent(indicators.macd.histogram)}</strong>
+                                    <strong>{formatSignedPercent(indicators.macd.histogram / analysis.price, 3)}</strong>
                                     <span className={indicators.macd.histogram >= 0 ? 'reading-positive' : 'reading-negative'}>
                                         {indicators.macd.histogram >= 0 ? 'Быки сильнее' : 'Медведи сильнее'}
                                     </span>

@@ -24,9 +24,12 @@ export function formatPercent(value: number, fractionDigits = 2): string {
 /**
  * A signed fraction, rendered as a percentage.
  *
- * The MACD histogram is a direction, so it needs a sign, and it is stored as a
- * fraction of price for the same reason ATR is: a value in currency is not
- * comparable between instruments.
+ * The MACD histogram needs a sign, and the sign is the reading: above zero the
+ * fast line leads. The *value* needs dividing by the price before it gets
+ * here, because the histogram is the gap between two lines built from prices
+ * and therefore arrives in currency. This function only knows how to scale a
+ * fraction; it cannot tell which of the two it was handed, and a currency
+ * amount scaled as a fraction reads as a wildly plausible percentage.
  */
 export function formatSignedPercent(value: number, fractionDigits = 2): string {
     const sign = value > 0 ? '+' : '';

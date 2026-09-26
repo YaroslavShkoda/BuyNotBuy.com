@@ -10,6 +10,8 @@ interface IndicatorValue {
     atr: number;
     rsi: number;
     macdHistogram: number;
+    /** The price the histogram is measured against — see getContextIndicators. */
+    price: number;
 }
 
 /**
@@ -41,8 +43,16 @@ export function getContextIndicators(values: IndicatorValue, periods: Periods): 
         },
         {
             name: `MACD ${periods.macdFast}/${periods.macdSlow}/${periods.macdSignal}`,
-            value: formatSignedPercent(values.macdHistogram),
-            reason: 'Гистограмма, %',
+            // Divided by the price on the way in, not in the formatter. The
+            // histogram is the gap between the two lines, and the lines are
+            // built from prices, so it arrives in currency: on BTC a healthy
+            // reading is a few dollars. Handed straight to a formatter that
+            // expects a fraction, it was multiplied by 100 and labelled a
+            // percentage, which reported "+1846%" for a histogram of $18 — a
+            // number that looks like a market event and is the price of the
+            // instrument multiplied into it.
+            value: formatSignedPercent(values.macdHistogram / values.price, 3),
+            reason: 'Гистограмма, % от цены',
         },
     ];
 }

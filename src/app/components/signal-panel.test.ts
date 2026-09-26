@@ -98,14 +98,23 @@ describe('signal vote summary', () => {
     });
 });
 
-/** Every value the panel renders, so a fixture cannot silently fall behind. */
+/**
+ * Every value the panel renders, so a fixture cannot silently fall behind.
+ *
+ * `macdHistogram` is in dollars, not in a fraction. It used to be written as a
+ * small fraction here, which is what let the currency/percentage mix-up stand:
+ * the fixture agreed with the formatter's assumption instead of with what the
+ * backend sends, so the test passed while the page reported "+1846%" for a
+ * histogram of eighteen dollars. The values below are a real BTCUSDT reading.
+ */
 const FULL = {
-    ema300: 1,
-    stochastic: 2,
-    momentum: 4.2,
-    atr: 0.01,
-    rsi: 50,
-    macdHistogram: 0.001,
+    ema300: 82172.9,
+    stochastic: 24.1,
+    momentum: -2.68,
+    atr: 0.00203,
+    rsi: 48.5,
+    macdHistogram: 18.46,
+    price: 84120,
 };
 
 describe('indicator values survive a configurable period', () => {
@@ -114,7 +123,7 @@ describe('indicator values survive a configurable period', () => {
     // nothing would look broken — the number would simply stop being rendered.
     it('renders the momentum value whatever the period in the label', () => {
         // The label never reaches the formatter at all; the key decides.
-        expect(getIndicatorValueText('momentum', FULL)).toBe('+4.20%');
+        expect(getIndicatorValueText('momentum', FULL)).toBe('-2.68%');
     });
 
     it('renders every key', () => {
@@ -163,8 +172,36 @@ describe('context indicators', () => {
         const rows = getContextIndicators(FULL, periods);
 
         // A range is not above or below anything; a histogram direction is.
-        expect(rows[0]?.value).toBe('1.00%');
-        expect(rows[2]?.value).toBe('+0.10%');
+        expect(rows[0]?.value).toBe('0.20%');
+        expect(rows[2]?.value).toBe('+0.022%');
+    });
+
+    it('reports the histogram as a share of price, not as dollars per cent', () => {
+        // 18.46 dollars on an 84,120 dollar instrument is 0.022% of price. Scaled
+        // without dividing it would read "+1846%", a number large enough to look
+        // like a market event and which moves with the price of the instrument
+        // rather than with the market: halve BTC and the reading halves, with
+        // no change in what the two MACD lines are doing.
+        const rows = getContextIndicators(FULL, periods);
+        const value = Number((rows[2]?.value ?? '').replace('+', '').replace('%', ''));
+
+        expect(Math.abs(value)).toBeLessThan(1);
+        // Three places, because that is all the rendered reading carries: the
+        // rendered number is rounded, and asking it to match to five would be
+        // asserting on precision the page does not show.
+        expect(value).toBeCloseTo((FULL.macdHistogram / FULL.price) * 100, 3);
+    });
+
+    it('keeps the histogram reading comparable across instruments', () => {
+        // The same gap between the two lines, on a cheap coin, is a much larger
+        // share of its price. Converting through the price is what makes the two
+        // numbers mean the same thing; without it they are dollars per cent.
+        const cheap = getContextIndicators(
+            { ...FULL, price: 841.2, macdHistogram: 18.46 },
+            periods,
+        );
+
+        expect(cheap[2]?.value).toBe('+2.194%');
     });
 
     it('carries no vote, so it cannot be mistaken for a second opinion', () => {
