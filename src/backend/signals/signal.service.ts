@@ -39,7 +39,10 @@ function analyzeEMA(
     const confirmBars = config.ema.confirmBars;
     const scale = config.ema.convictionScalePercent;
 
-    if (ema300 <= 0 || price <= 0) {
+    if (!Number.isFinite(price) || !Number.isFinite(ema300) || ema300 <= 0 || price <= 0) {
+        // `ema300 <= 0` alone is not enough: every comparison against NaN is
+        // false, so a NaN average would sail past the guard and be reported as
+        // a working indicator that simply could not find a side.
         return {
             key: 'ema',
             name,
@@ -103,6 +106,20 @@ function analyzeStochastic(
         center,
     } = config.stochastic;
 
+    // A value that is not a number is not a reading in the middle of the range.
+    // Left unguarded it would fall through both comparisons and land in the
+    // neutral zone below, which claims the indicator read the data and found
+    // nothing — a different statement from "this could not be computed".
+    if (!Number.isFinite(stochastic)) {
+        return {
+            key: 'stochastic',
+            name,
+            signal: 'NEUTRAL',
+            reason: 'Стохастик недоступен',
+            weight: 0,
+        };
+    }
+
     const weight = conviction(
         stochastic - center,
         Math.max(center, 100 - center),
@@ -146,6 +163,24 @@ function analyzeMomentum(
         deadbandPercent,
         convictionScalePercent,
     } = config.momentum;
+
+    // The deadband below is `Math.abs(momentum) <= deadband`, and every
+    // comparison against NaN is false — so a non-finite momentum skipped the
+    // deadband, skipped the positive branch, and fell into the negative one.
+    // The indicator reported SHORT with the reason "Momentum ниже 0" for a
+    // value that is not below zero and not above it either. The consensus
+    // happened to survive it, because a single voter cannot make a majority,
+    // but the per-indicator line is shown on the dashboard and it was simply
+    // untrue.
+    if (!Number.isFinite(momentum)) {
+        return {
+            key: 'momentum',
+            name,
+            signal: 'NEUTRAL',
+            reason: `${name} недоступен`,
+            weight: 0,
+        };
+    }
 
     // A rate of change measured in hundredths of a percent is noise, not a
     // trend. Without the deadband it flipped the headline signal on rounding.

@@ -272,6 +272,8 @@ describe('summarizeHistory', () => {
             currentSignal: null,
             currentDurationHours: null,
             currentDurationBounded: false,
+            currentObservedHours: null,
+            currentGaps: 0,
             changes24h: 0,
             lastTransition: null,
             previousDurationHours: null,
@@ -289,12 +291,52 @@ describe('summarizeHistory', () => {
             currentSignal: 'SHORT',
             currentDurationHours: 0,
             currentDurationBounded: false,
+            currentObservedHours: 1,
+            currentGaps: 0,
             changes24h: 0,
             lastTransition: null,
             previousDurationHours: null,
             previousDurationBounded: false,
             sampleHours: 0,
         });
+    });
+
+    it('separates elapsed hours from the hours actually observed', () => {
+        // Six hourly records, but the fourth is two hours older than the third:
+        // the bucket between them was never written. The run spans six elapsed
+        // hours across seven buckets, and one of those buckets is a hole — a
+        // different claim from six continuous hours, and the dashboard should
+        // not have to make the reader work out which one it is looking at.
+        const entries = [
+            { hoursAgo: 0, signal: 'SHORT' as const },
+            { hoursAgo: 1, signal: 'SHORT' as const },
+            { hoursAgo: 2, signal: 'SHORT' as const },
+            { hoursAgo: 4, signal: 'SHORT' as const },
+            { hoursAgo: 5, signal: 'SHORT' as const },
+            { hoursAgo: 6, signal: 'SHORT' as const },
+        ].map((entry) => ({
+            timestamp: DAY_START + (24 - entry.hoursAgo) * HOUR_MS,
+            symbol: 'BTCUSDT',
+            signal: entry.signal,
+            consensus: 60,
+            price: 100,
+        }));
+
+        const summary = summarizeHistory(entries);
+
+        expect(summary.currentDurationHours).toBe(6);
+        expect(summary.currentObservedHours).toBe(6);
+        expect(summary.currentGaps).toBe(1);
+    });
+
+    it('reports no gaps in a continuous run', () => {
+        const summary = summarizeHistory(
+            entriesNewestFirst(['SHORT', 'SHORT', 'SHORT', 'SHORT']),
+        );
+
+        expect(summary.currentGaps).toBe(0);
+        expect(summary.currentObservedHours).toBe(4);
+        expect(summary.currentDurationHours).toBe(3);
     });
 
     it('measures a stable LONG run and reports zero changes', () => {

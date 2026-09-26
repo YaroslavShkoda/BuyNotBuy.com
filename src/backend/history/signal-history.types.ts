@@ -25,6 +25,26 @@ export interface SignalHistorySummary {
     currentSignal: IndicatorSignal | null;
     currentDurationHours: number | null;
     currentDurationBounded: boolean;
+    /**
+     * How many of those hours were actually observed.
+     *
+     * `currentDurationHours` is elapsed time between the newest record and the
+     * first record of the run, so a process that was down for an hour in the
+     * middle of a stable stretch makes the stretch *look* longer, not shorter.
+     * That is the safe direction for a duration, and it is still a claim the
+     * dashboard should not make alone: "the signal has held for 40 hours" over
+     * 38 observations and one missing hour is a different sentence from the
+     * same 40 over 40. Reported alongside it rather than folded into it, so
+     * neither number has to be interpreted by the reader.
+     */
+    currentObservedHours: number | null;
+    /**
+     * Missing hourly buckets inside the current run, for the same reason.
+     * The live database had exactly one of these: hour 497344 was absent from
+     * both the history and the vote table, which is what a backlog dying with
+     * its process looks like from the data side.
+     */
+    currentGaps: number;
     changes24h: number;
     lastTransition: SignalHistoryLastTransition | null;
     previousDurationHours: number | null;

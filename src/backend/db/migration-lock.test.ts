@@ -38,13 +38,34 @@ describe('migration lock', () => {
         await closePool();
     });
 
-    it('waits for a lock another process is holding', async () => {
-        const held = await holder.query<{ locked: boolean }>(
-            'SELECT pg_try_advisory_lock($1, $2) AS locked',
-            [NAMESPACE, KEY],
-        );
+    /**
+     * Takes the lock, waiting for whoever has it.
+     *
+     * The key belongs to the database, not to a schema, and this file's suite
+     * runs beside eighty-six others that each migrate in `beforeAll` — so the
+     * lock is usually already taken by a neighbour. Retrying is the difference
+     * between a test that proves the wait and a test that fails on a full
+     * machine for no reason.
+     */
+    async function takeLock(): Promise<void> {
+        for (let attempt = 0; attempt < 100; attempt += 1) {
+            const result = await holder.query<{ locked: boolean }>(
+                'SELECT pg_try_advisory_lock($1, $2) AS locked',
+                [NAMESPACE, KEY],
+            );
 
-        expect(held.rows[0]?.locked).toBe(true);
+            if (result.rows[0]?.locked === true) {
+                return;
+            }
+
+            await new Promise((resolve) => setTimeout(resolve, 50));
+        }
+
+        throw new Error('another test file kept the migration lock');
+    }
+
+    it('waits for a lock another process is holding', async () => {
+        await takeLock();
 
         // Released well past the pool's `statement_timeout`, so this can only
         // pass if the wait is not a blocking server-side one.
@@ -73,11 +94,6 @@ describe('migration lock', () => {
         // If the lock leaked, a second run in the same process would succeed
         // by re-entering a lock it already owns rather than by taking a new
         // one, and a second *process* would wait for the full deadline.
-        const free = await holder.query<{ locked: boolean }>(
-            'SELECT pg_try_advisory_lock($1, $2) AS locked',
-            [NAMESPACE, KEY],
-        );
-
-        expect(free.rows[0]?.locked).toBe(true);
+        await takeLock();
     });
 });

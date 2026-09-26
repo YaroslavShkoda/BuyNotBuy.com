@@ -200,12 +200,21 @@ const EMPTY_SUMMARY: SignalHistorySummary = {
     currentSignal: null,
     currentDurationHours: null,
     currentDurationBounded: false,
+    currentObservedHours: null,
+    currentGaps: 0,
     changes24h: 0,
     lastTransition: null,
     previousDurationHours: null,
     previousDurationBounded: false,
     sampleHours: 0,
 };
+
+/** Records are bucketed hourly, so a jump larger than this is a hole. */
+const BUCKET_MS = 3_600_000;
+
+function isGap(newer: number, older: number): boolean {
+    return newer - older > BUCKET_MS + BUCKET_MS / 2;
+}
 
 /**
  * Turns a run of consecutive same-signal records into elapsed hours.
@@ -236,6 +245,9 @@ function runDurationHours(
  *   - Durations are elapsed time between timestamps, never a record count, and
  *     never interpolated across a gap: "N hours" is the time between the
  *     newest record and the first record of the run.
+ *   - `currentObservedHours` and `currentGaps` say how densely that span was
+ *     sampled, so an elapsed duration spanning a hole is not read as a
+ *     continuously observed one.
  *   - A run is "bounded" when an older record with a different signal exists,
  *     i.e. the run start is visible in the sample. An unbounded run means the
  *     true duration may be longer ("at least N hours").
@@ -342,6 +354,25 @@ export function summarizeHistory(
 
     const oldest = entries[entries.length - 1];
 
+    // How much of the current run was actually looked at, and how much of it
+    // is missing. `currentDurationHours` above measures the span; these two
+    // say how densely that span was sampled, which is the difference between
+    // "held for 40 hours" and "held for 40 hours, 38 of which were recorded".
+    let currentGaps = 0;
+
+    for (let index = 1; index < currentRun; index += 1) {
+        const newer = entries[index - 1];
+        const older = entries[index];
+
+        if (
+            newer !== undefined &&
+            older !== undefined &&
+            isGap(newer.timestamp, older.timestamp)
+        ) {
+            currentGaps += 1;
+        }
+    }
+
     return {
         currentSignal,
         currentDurationHours:
@@ -352,6 +383,8 @@ export function summarizeHistory(
                     runStart.timestamp,
                 ),
         currentDurationBounded: currentRun < entries.length,
+        currentObservedHours: currentRun,
+        currentGaps,
         changes24h,
         lastTransition,
         previousDurationHours,
