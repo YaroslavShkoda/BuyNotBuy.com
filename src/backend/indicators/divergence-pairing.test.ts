@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
     findDivergencePair,
-} from './divergence-pairing';
+} from './divergence-pairing.js';
 
 describe('findDivergencePair', () => {
     it('pairs two price bottoms with two different momentum bottoms', () => {

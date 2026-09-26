@@ -1,4 +1,4 @@
-import type { IndicatorSignal } from '../signals/signal.types';
+import type { IndicatorSignal } from '../signals/signal.types.js';
 
 export interface SignalHistoryEntry {
     timestamp: number;

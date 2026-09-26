@@ -18,8 +18,6 @@ const ASSET_MAP: Record<string, Omit<AssetInfo, 'ticker' | 'quote'>> = {
     BTC: { name: 'Bitcoin', glyph: '₿' },
 };
 
-const DEFAULT_GLYPH = '◆';
-
 /**
  * Parse a symbol like "BTCUSDT" into base ("BTC") and quote ("USDT").
  * Falls back to the full symbol as the base when no quote match is found.

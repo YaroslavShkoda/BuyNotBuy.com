@@ -3,14 +3,23 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=22.13.0"
+  },
   "scripts": {
     "dev": "next dev",
     "backend": "node --env-file=.env --import=tsx src/backend/server.ts",
-    "build": "next build",
+    "backtest": "node --env-file=.env --import=tsx src/backend/backtest/backtest.cli.ts",
+    "indicators": "node --env-file=.env --import=tsx src/backend/indicators/performance/indicator-performance.cli.ts",
+    "build": "next build && npm run build:backend",
+    "build:backend": "tsc -p src/backend/tsconfig.build.json",
     "start": "next start",
+    "start:backend": "node --env-file-if-exists=.env dist/backend/server.js",
     "typecheck": "tsc --noEmit",
     "typecheck:backend": "tsc -p src/backend/tsconfig.json --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "lint": "biome lint",
+    "verify": "npm run lint && npm run typecheck && npm run typecheck:backend && npm test"
   },
   "dependencies": {
     "fastify": "^5.12.5",
@@ -20,8 +29,10 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.5.14",
     "@types/node": "26.6.1",
     "@types/react": "19.3.0",
+    "fast-check": "^4.10.2",
     "tsx": "^4.23.13",
     "typescript": "7.0.2",
     "vitest": "^5.0.1"

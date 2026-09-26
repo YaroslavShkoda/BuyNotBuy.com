@@ -1,6 +1,6 @@
 ﻿import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('../history/signal-history.service', () => ({
+vi.mock('../history/signal-history.service.js', () => ({
     recordSignalHistory: vi.fn(),
     getSignalHistory: vi.fn(() => []),
 }));
@@ -17,7 +17,9 @@ describe('analyzeMarket with MockProvider', () => {
 
         const result = await analyzeMarket();
 
-        expect(result.price).toBe(100000);
+        // MockProvider generates 900 candles at 100000 + index, so the last
+        // closed close - the reference price - is 100899.
+        expect(result.price).toBe(100899);
 
         expect(result.indicators).toHaveProperty(
             'ema300',

@@ -1,0 +1,68 @@
+{
+    "$schema": "https://biomejs.dev/schemas/2.5.14/schema.json",
+    "vcs": {
+        "enabled": true,
+        "clientKind": "git",
+        "useIgnoreFile": true
+    },
+    "files": {
+        "includes": [
+            "**",
+            "!**/node_modules/**",
+            "!**/dist/**",
+            "!**/.next/**",
+            "!**/data/**",
+            "!**/coverage/**"
+        ]
+    },
+    "formatter": {
+        "enabled": false
+    },
+    "linter": {
+        "enabled": true,
+        "rules": {
+            "recommended": false,
+            "correctness": {
+                "noUnusedVariables": "error",
+                "noUnusedImports": "error",
+                "noConstantCondition": "error",
+                "noInvalidUseBeforeDeclaration": "error",
+                "noInnerDeclarations": "error",
+                "noSwitchDeclarations": "error"
+            },
+            "suspicious": {
+                "noExplicitAny": "error",
+                "noAssignInExpressions": "error",
+                "noShadowRestrictedNames": "error",
+                "noDoubleEquals": "error",
+                "noPrototypeBuiltins": "error",
+                "useIterableCallbackReturn": "error",
+                "noConsole": "error"
+            },
+            "style": {
+                "noParameterAssign": "error"
+            },
+            "security": {
+                "noGlobalEval": "error"
+            }
+        }
+    },
+    "overrides": [
+        {
+            "includes": ["**/*.cli.ts"],
+            "linter": { "rules": { "suspicious": { "noConsole": "off" } } }
+        },
+        {
+            "includes": ["src/backend/server.ts"],
+            "linter": { "rules": { "suspicious": { "noConsole": "off" } } }
+        },
+        {
+            "includes": ["src/app/error.tsx"],
+            "linter": { "rules": { "suspicious": { "noConsole": "off" } } }
+        },
+        {
+            "includes": ["**/*.test.ts", "**/*.test.tsx"],
+            "linter": { "rules": { "style": { "noNonNullAssertion": "off" } } }
+        }
+    ]
+}

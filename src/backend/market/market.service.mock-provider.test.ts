@@ -10,16 +10,18 @@ describe('market.service with MockProvider', () => {
             getMarketData,
         } = await import('./market.service');
 
-        const result = await getMarketData();
+        const { data, stale } = await getMarketData();
 
-        expect(result.price).toEqual({
+        expect(stale).toBe(false);
+
+        expect(data.price).toEqual({
             symbol: 'BTCUSDT',
-            price: 100000,
+            price: 100899,
         });
 
-        expect(result.candles).toHaveLength(300);
+        expect(data.candles).toHaveLength(900);
 
-        expect(result.candles[0]).toEqual({
+        expect(data.candles[0]).toEqual({
             timestamp: 1_700_000_000_000,
             open: 99990,
             high: 100010,
@@ -28,14 +30,14 @@ describe('market.service with MockProvider', () => {
             volume: 1000,
         });
 
-        expect(result.candles[299]).toEqual({
+        expect(data.candles[899]).toEqual({
             timestamp:
                 1_700_000_000_000 +
-                299 * 60 * 60 * 1000,
-            open: 100289,
-            high: 100309,
-            low: 100279,
-            close: 100299,
+                899 * 60 * 60 * 1000,
+            open: 100889,
+            high: 100909,
+            low: 100879,
+            close: 100899,
             volume: 1000,
         });
 

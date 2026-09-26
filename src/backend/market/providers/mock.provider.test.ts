@@ -1,7 +1,7 @@
 ﻿import { describe, expect, it } from 'vitest';
 
-import { marketConfig } from '../../config/market.config';
-import { MockProvider } from './mock.provider';
+import { marketConfig } from '../../config/market.config.js';
+import { MockProvider } from './mock.provider.js';
 
 describe('MockProvider', () => {
     it('returns a mock market price for the configured symbol', async () => {
@@ -15,26 +15,44 @@ describe('MockProvider', () => {
         });
     });
 
-    it('returns defaultCandleLimit candles by default', async () => {
+    it('returns one candle fewer than requested, like Binance', async () => {
         const provider = new MockProvider();
 
         const result = await provider.getCandles();
 
-        expect(result).toHaveLength(marketConfig.defaultCandleLimit);
+        // Binance always ends a klines response with the bar that is still
+        // forming, and the provider layer drops it. The mock used to return a
+        // full `limit`, which hid the off-by-one in the warm-up window.
+        expect(result).toHaveLength(
+            marketConfig.defaultCandleLimit - 1,
+        );
     });
 
-    it('returns the requested number of candles', async () => {
+    it('returns the requested number of closed candles', async () => {
         const provider = new MockProvider();
 
         const result = await provider.getCandles(10);
 
-        expect(result).toHaveLength(10);
+        expect(result).toHaveLength(9);
+    });
+
+    it('returns nothing when asked for a single bar', async () => {
+        const provider = new MockProvider();
+
+        // That one bar is the forming one.
+        expect(await provider.getCandles(1)).toEqual([]);
+    });
+
+    it('never returns a negative count for a zero limit', async () => {
+        const provider = new MockProvider();
+
+        expect(await provider.getCandles(0)).toEqual([]);
     });
 
     it('returns candles with the expected structure', async () => {
         const provider = new MockProvider();
 
-        const result = await provider.getCandles(1);
+        const result = await provider.getCandles(2);
 
         expect(result[0]).toEqual({
             timestamp: 1_700_000_000_000,
@@ -49,7 +67,9 @@ describe('MockProvider', () => {
     it('generates candles with hourly timestamps and increasing prices', async () => {
         const provider = new MockProvider();
 
-        const result = await provider.getCandles(3);
+        const result = await provider.getCandles(4);
+
+        expect(result).toHaveLength(3);
 
         expect(result[0]?.timestamp).toBe(
             1_700_000_000_000,

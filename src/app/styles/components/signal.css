@@ -1,4 +1,4 @@
-﻿.signal-panel {
+.signal-panel {
     /* Gutter of the panel; the indicator strip bleeds into it, so both have to
        be derived from the same value to stay in sync at any breakpoint. */
     --panel-gutter: 24px;
@@ -56,12 +56,20 @@
     letter-spacing: 0.1em;
 }
 
+/* The headline takes the panel's spare height and centres itself in it, so the
+   verdict sits in the middle of the card rather than pinned under the header
+   with all the slack below it. `flex: 1` does the growing; the column already
+   exists, so `justify-content: center` places the three children inside the
+   space that was handed to it. The margins stay as the gaps to the header and
+   to the indicator strip — without them the block would touch both. */
 .signal-value {
     position: relative;
 
     display: flex;
+    flex: 1 1 auto;
     flex-direction: column;
     align-items: center;
+    justify-content: center;
     gap: 12px;
 
     margin: 36px 0 24px;
@@ -177,6 +185,14 @@
     border-left-color: var(--color-short);
 }
 
+/* A context reading has no vote, so the left rule that marks one stays empty
+   rather than borrowing a colour it did not earn. The caption sits slightly
+   back so the block reads as context next to the three rows that decided the
+   signal. */
+.signal-indicator[data-vote="context"] .signal-indicator-reason {
+    color: var(--color-text-muted);
+}
+
 .signal-indicator:hover {
     background: rgba(18, 22, 26, 0.82);
 }
@@ -211,6 +227,15 @@
     letter-spacing: 0.08em;
 }
 
+/* The name has to be allowed to shrink. "Momentum 100" + "+0.10%" + the
+   NEUTRAL badge is the longest row in the panel, and at a 375px window it
+   measured 187px inside a 161px box — the badge was being clipped by the
+   panel. The badge itself is untouched: this only lets the name wrap. */
+.signal-indicator-top > span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
 .signal-indicator-reason {
     display: block;
     margin-top: 5px;
@@ -218,6 +243,12 @@
     color: var(--color-text-muted);
     font-size: 10px;
     line-height: 1.45;
+
+    /* A long caption ("Перекупленность и перепроданность") is a single
+       unbreakable token in a narrow card, and the panel clips at its own
+       radius. Letting it break by character is the difference between a
+       two-line caption and a cut-off one. */
+    overflow-wrap: anywhere;
 }
 
 .signal-indicator-top strong.vote-long { color: var(--color-long); }

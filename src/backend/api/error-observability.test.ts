@@ -1,7 +1,7 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { MarketDataError } from '../errors/market-data.error';
-import { marketConfig } from '../config/market.config';
+import { MarketDataError } from '../errors/market-data.error.js';
+import { marketConfig } from '../config/market.config.js';
 
 const { mockMarketDataProvider } = vi.hoisted(() => ({
     mockMarketDataProvider: {
@@ -9,7 +9,7 @@ const { mockMarketDataProvider } = vi.hoisted(() => ({
             symbol: 'BTCUSDT',
             price: 80000,
         })),
-        getCandles: vi.fn(async (limit = 300) =>
+        getCandles: vi.fn(async (limit = 900) =>
             Array.from({ length: limit }, (_, index) => ({
                 timestamp: index,
                 open: 100 + index,
@@ -22,27 +22,28 @@ const { mockMarketDataProvider } = vi.hoisted(() => ({
     },
 }));
 
-vi.mock('../market/market.provider', () => ({
+vi.mock('../market/market.provider.js', () => ({
     marketDataProvider: mockMarketDataProvider,
 }));
 
-vi.mock('../history/signal-history.service', () => ({
+vi.mock('../history/signal-history.service.js', () => ({
     recordSignalHistory: vi.fn(),
     getSignalHistory: vi.fn(() => []),
 }));
 
-import { createApp } from '../app';
-import { ApiErrorResponseSchema } from './schemas';
-import { getMarketData } from '../market/market.service';
-import { analyzeMarket } from '../services/analysis.service';
-import { readAnalysisErrorContext } from '../services/analysis.telemetry';
+import { createApp } from '../app.js';
+import { ApiErrorResponseSchema } from './schemas.js';
+import { getMarketData, resetMarketDataCache } from '../market/market.service.js';
+import { freshMarketData } from '../test-support/market-data-result.js';
+import { analyzeMarket } from '../services/analysis.service.js';
+import { readAnalysisErrorContext } from '../services/analysis.telemetry.js';
 
-import type { MarketAnalysis } from '../types/analysis';
+import type { MarketAnalysis } from '../types/analysis.js';
 
-import * as marketService from '../market/market.service';
-import * as indicatorService from '../indicators/indicator.service';
-import * as divergenceService from '../indicators/divergence.service';
-import * as signalService from '../signals/signal.service';
+import * as marketService from '../market/market.service.js';
+import * as indicatorService from '../indicators/indicator.service.js';
+import * as divergenceService from '../indicators/divergence.service.js';
+import * as signalService from '../signals/signal.service.js';
 
 function risingCandles(length: number) {
     return Array.from({ length }, (_, index) => ({
@@ -58,7 +59,7 @@ function risingCandles(length: number) {
 function createMarketData() {
     return {
         price: { symbol: 'BTCUSDT', price: 200 },
-        candles: risingCandles(300),
+        candles: risingCandles(900),
     };
 }
 
@@ -74,6 +75,13 @@ afterEach(() => {
 });
 
 describe('error observability & diagnostics (task 17)', () => {
+    beforeEach(() => {
+        // The market snapshot cache is process-wide; without a reset a healthy
+        // response from an earlier test would satisfy a later error-path test
+        // and hide the failure it is meant to assert.
+        resetMarketDataCache();
+    });
+
     describe('failed-stage diagnostics', () => {
         it('marks market-data stage on provider failure and skips later stages', async () => {
             const marketDataSpy = vi.spyOn(marketService, 'getMarketData')
@@ -98,7 +106,7 @@ describe('error observability & diagnostics (task 17)', () => {
 
         it('marks indicators stage and skips downstream stages on indicator failure', async () => {
             vi.spyOn(marketService, 'getMarketData')
-                .mockResolvedValueOnce(createMarketData());
+                .mockResolvedValueOnce(freshMarketData(createMarketData()));
             vi.spyOn(indicatorService, 'calculateMarketIndicators')
                 .mockImplementationOnce(() => {
                     throw new Error('indicator computation failed');
@@ -124,7 +132,7 @@ describe('error observability & diagnostics (task 17)', () => {
 
         it('marks divergence stage with completed prior stage durations', async () => {
             vi.spyOn(marketService, 'getMarketData')
-                .mockResolvedValueOnce(createMarketData());
+                .mockResolvedValueOnce(freshMarketData(createMarketData()));
             vi.spyOn(divergenceService, 'analyzeDivergence')
                 .mockImplementationOnce(() => {
                     throw new Error('divergence computation failed');
@@ -150,7 +158,7 @@ describe('error observability & diagnostics (task 17)', () => {
 
         it('marks signal stage after all prior stages completed', async () => {
             vi.spyOn(marketService, 'getMarketData')
-                .mockResolvedValueOnce(createMarketData());
+                .mockResolvedValueOnce(freshMarketData(createMarketData()));
             vi.spyOn(signalService, 'calculateSignal')
                 .mockImplementationOnce(() => {
                     throw new Error('signal computation failed');
@@ -198,7 +206,7 @@ describe('error observability & diagnostics (task 17)', () => {
                             code: 'MARKET_PROVIDER_TIMEOUT',
                         });
                     }
-                    return createMarketData();
+                    return freshMarketData(createMarketData());
                 });
 
             try {
@@ -269,7 +277,7 @@ describe('error observability & diagnostics (task 17)', () => {
                     if (call === 2) {
                         throw new MarketDataError('transient outage');
                     }
-                    return createMarketData();
+                    return freshMarketData(createMarketData());
                 });
 
             try {
@@ -436,7 +444,7 @@ describe('error observability & diagnostics (task 17)', () => {
             }
         });
 
-        it('maps a malformed internal market response to a stable 500 on /api/market', async () => {
+        it('maps a malformed internal market response to a stable 502 on /api/market', async () => {
             mockMarketDataProvider.getCandles.mockResolvedValueOnce([
                 { timestamp: 'not-a-number' },
             ] as unknown as Awaited<ReturnType<typeof mockMarketDataProvider.getCandles>>);
@@ -446,11 +454,13 @@ describe('error observability & diagnostics (task 17)', () => {
             try {
                 const response = await app.inject({ method: 'GET', url: '/api/market' });
 
-                expect(response.statusCode).toBe(500);
+                // Broken candles come from the provider, so the blame — and the
+                // status — belongs to the upstream, not to this service.
+                expect(response.statusCode).toBe(502);
                 expect(response.json()).toEqual({
                     error: {
-                        code: 'INTERNAL_ERROR',
-                        message: 'Internal server error',
+                        code: 'MARKET_PROVIDER_ERROR',
+                        message: 'Market data provider unavailable',
                     },
                 });
             } finally {

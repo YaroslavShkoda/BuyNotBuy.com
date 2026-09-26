@@ -80,6 +80,13 @@ describe('formatDurationHours', () => {
         expect(formatDurationHours(null, false)).toBe('—');
     });
 
+    it('renders a run that started within the current hour as zero', () => {
+        // Durations come from timestamps, so a run seen only in the newest
+        // record legitimately measures zero hours.
+        expect(formatDurationHours(0, true)).toBe('0 Ч');
+        expect(formatDurationHours(0, false)).toBe('0+ Ч');
+    });
+
     it('clamps malformed negative values', () => {
         expect(formatDurationHours(-5, true)).toBe('0 Ч');
     });
@@ -88,6 +95,11 @@ describe('formatDurationHours', () => {
 describe('getChangesWindowLabel', () => {
     it('labels a full 24-hour sample as 24', () => {
         expect(getChangesWindowLabel(24)).toBe('24 Ч');
+    });
+
+    it('still says 24 for a longer sample, because the count really is 24h', () => {
+        // The backend restricts the count to the last 24 hours, so a week of
+        // history does not make the label a lie.
         expect(getChangesWindowLabel(168)).toBe('24 Ч');
     });
 

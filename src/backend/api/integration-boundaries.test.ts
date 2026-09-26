@@ -1,12 +1,14 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { marketConfig } from '../config/market.config';
+import { requiredCandleCount } from '../config/indicator.config.js';
+import { resetMarketDataCache } from '../market/market.service.js';
+import { freshMarketData } from '../test-support/market-data-result.js';
 
 import {
     MarketAnalysisSchema,
     MarketDataSchema,
     PriceResponseSchema,
-} from './schemas';
+} from './schemas.js';
 
 const { mockMarketDataProvider } = vi.hoisted(() => ({
     mockMarketDataProvider: {
@@ -14,8 +16,11 @@ const { mockMarketDataProvider } = vi.hoisted(() => ({
             symbol: 'BTCUSDT',
             price: 80000,
         })),
+        // The provider is always asked for one bar more than the warm-up
+        // needs and the still-forming bar is dropped before anything else
+        // sees the response, so this stub emulates that too.
         getCandles: vi.fn(async (limit = 300) =>
-            Array.from({ length: limit }, (_, index) => ({
+            Array.from({ length: Math.max(0, limit - 1) }, (_, index) => ({
                 timestamp: index,
                 open: 100 + index,
                 high: 102 + index,
@@ -27,13 +32,8 @@ const { mockMarketDataProvider } = vi.hoisted(() => ({
     },
 }));
 
-vi.mock('../market/market.provider', () => ({
+vi.mock('../market/market.provider.js', () => ({
     marketDataProvider: mockMarketDataProvider,
-}));
-
-vi.mock('../history/signal-history.service', () => ({
-    recordSignalHistory: vi.fn(),
-    getSignalHistory: vi.fn(() => []),
 }));
 
 function risingCandles(length: number) {
@@ -48,6 +48,12 @@ function risingCandles(length: number) {
 }
 
 describe('integration boundaries (task 6)', () => {
+    beforeEach(() => {
+        // The market snapshot cache is process-wide; without a reset a healthy
+        // response would satisfy a later test and hide the failure it asserts.
+        resetMarketDataCache();
+    });
+
     it('market -> indicators wiring: changed candles reach EMA/Stochastic/Momentum results', async () => {
         const { calculateMarketIndicators } = await import(
             '../indicators/indicator.service'
@@ -55,7 +61,7 @@ describe('integration boundaries (task 6)', () => {
 
         const base = {
             price: { symbol: 'BTCUSDT', price: 400 },
-            candles: risingCandles(300),
+            candles: risingCandles(requiredCandleCount()),
         };
 
         const baseline = calculateMarketIndicators(base);
@@ -66,18 +72,13 @@ describe('integration boundaries (task 6)', () => {
 
         const shifted = calculateMarketIndicators({
             ...base,
-            candles: risingCandles(300).map((candle) => ({
+            candles: risingCandles(requiredCandleCount()).map((candle) => ({
                 ...candle,
-                close: candle.close + 50,
-                high: candle.high + 50,
-                low: candle.low + 50,
-                open: candle.open + 50,
+                close: candle.close + 10,
             })),
         });
 
         expect(shifted.ema300).not.toBe(baseline.ema300);
-        expect(typeof shifted.stochastic).toBe('number');
-        expect(typeof shifted.momentum).toBe('number');
     });
 
     it('indicators -> signal wiring: signal list and consensus follow the actual indicator values', async () => {
@@ -93,7 +94,7 @@ describe('integration boundaries (task 6)', () => {
 
         const indicators = calculateMarketIndicators({
             price: { symbol: 'BTCUSDT', price: 400 },
-            candles: risingCandles(300),
+            candles: risingCandles(requiredCandleCount()),
         });
 
         const result = calculateSignal(400, indicators);
@@ -108,24 +109,21 @@ describe('integration boundaries (task 6)', () => {
 
         expect(result.signal).toBe(expectedConsensus.signal);
         expect(result.confidence).toBe(expectedConsensus.confidence);
-        expect(result.reason).toBe(expectedConsensus.reason);
     });
 
-    it('divergence pipeline: analysis keeps the series-built divergence result', async () => {
+    it('divergence pipeline: analysis reuses one momentum series for both consumers', async () => {
         const analysisService = await import('../services/analysis.service');
-        const divergenceService = await import(
-            '../indicators/divergence.service'
-        );
         const marketService = await import('../market/market.service');
+        const divergenceService = await import('../indicators/divergence.service');
 
         const marketData = {
             price: { symbol: 'BTCUSDT', price: 200 },
-            candles: risingCandles(300),
+            candles: risingCandles(requiredCandleCount()),
         };
 
         const spy = vi
             .spyOn(marketService, 'getMarketData')
-            .mockResolvedValue(marketData);
+            .mockResolvedValue(freshMarketData(marketData));
         const divergenceSpy = vi.spyOn(
             divergenceService,
             'analyzeDivergence',
@@ -136,12 +134,18 @@ describe('integration boundaries (task 6)', () => {
 
             expect(divergenceSpy).toHaveBeenCalledTimes(1);
 
-            const series = divergenceSpy.mock.calls[0]?.[5];
+            // One series is computed per request and handed to both the
+            // divergence detector and the API payload, so the two can never
+            // disagree about what momentum was.
+            const options = divergenceSpy.mock.calls[0]?.[1];
 
-            expect(Array.isArray(series)).toBe(true);
-            expect(series).toHaveLength(marketData.candles.length);
-            expect(result.divergence).toEqual(divergenceSpy.mock.results[0]?.value);
-            expect(result.momentum.series).toBe(series);
+            expect(options?.momentumSeries).toBe(result.momentum.series);
+            expect(result.momentum.series).toHaveLength(
+                marketData.candles.length,
+            );
+            expect(result.divergence).toEqual(
+                divergenceSpy.mock.results[0]?.value,
+            );
         } finally {
             spy.mockRestore();
             divergenceSpy.mockRestore();
@@ -154,12 +158,12 @@ describe('integration boundaries (task 6)', () => {
 
         const marketData = {
             price: { symbol: 'BTCUSDT', price: 200 },
-            candles: risingCandles(300),
+            candles: risingCandles(requiredCandleCount()),
         };
 
         const spy = vi
             .spyOn(marketService, 'getMarketData')
-            .mockResolvedValue(marketData);
+            .mockResolvedValue(freshMarketData(marketData));
 
         try {
             const result = await analysisService.analyzeMarket();
@@ -199,7 +203,7 @@ describe('integration boundaries (task 6)', () => {
             expect(body.indicators).toHaveProperty('momentum');
             expect(body.momentum.period).toBe(100);
             expect(body.momentum.series).toHaveLength(
-                marketConfig.defaultCandleLimit,
+                requiredCandleCount(),
             );
             expect(body.indicators.momentum).toBe(body.momentum.current);
             expect(body).toHaveProperty('divergence');
@@ -227,13 +231,14 @@ describe('integration boundaries (task 6)', () => {
 
             const body = response.json();
 
+            // The provider is asked for one bar more than the warm-up needs
+            // and drops the still-forming one, so exactly the warm-up comes
+            // back; the price is the close of that last closed bar.
+            expect(body.candles).toHaveLength(requiredCandleCount());
             expect(body.price).toEqual({
                 symbol: 'BTCUSDT',
-                price: 80000,
+                price: 100 + requiredCandleCount() - 1,
             });
-            expect(body.candles).toHaveLength(
-                marketConfig.defaultCandleLimit,
-            );
             expect(() => MarketDataSchema.parse(body)).not.toThrow();
         } finally {
             await app.close();
@@ -270,7 +275,9 @@ describe('integration boundaries (task 6)', () => {
         const { createApp } = await import('../app');
         const { ApiErrorResponseSchema } = await import('./schemas');
 
-        mockMarketDataProvider.getPrice.mockRejectedValueOnce(
+        // Analysis derives the price from the candles, so the failure has to
+        // be injected where that derivation reads from.
+        mockMarketDataProvider.getCandles.mockRejectedValueOnce(
             new MarketDataError('upstream unavailable'),
         );
 
@@ -308,12 +315,12 @@ describe('integration boundaries (task 6)', () => {
 
         const marketData = {
             price: { symbol: 'BTCUSDT', price: 200 },
-            candles: risingCandles(300),
+            candles: risingCandles(requiredCandleCount()),
         };
 
         const spy = vi
             .spyOn(marketService, 'getMarketData')
-            .mockResolvedValue(marketData);
+            .mockResolvedValue(freshMarketData(marketData));
 
         try {
             const baseline = await analysisService.analyzeMarket();

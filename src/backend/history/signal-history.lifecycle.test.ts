@@ -3,9 +3,9 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { createSignalHistoryRepository } from './signal-history.repository';
+import { createSignalHistoryRepository } from './signal-history.repository.js';
 
-import type { SignalHistoryEntry } from './signal-history.types';
+import type { SignalHistoryEntry } from './signal-history.types.js';
 
 const HOUR_MS = 3_600_000;
 

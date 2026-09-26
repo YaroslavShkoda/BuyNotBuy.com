@@ -1,4 +1,4 @@
-﻿.detail-grid {
+.detail-grid {
     display: grid;
     grid-template-columns: minmax(0, .92fr) minmax(0, 1.08fr);
     gap: var(--space-5);
@@ -18,7 +18,22 @@
 .indicator-row > div:first-child, .indicator-reading { display: flex; flex-direction: column; gap: 5px; }
 .indicator-row > div:first-child > span { font-size: 12px; font-weight: 600; }
 .indicator-row small { color: var(--color-text-muted); font-size: 9px; line-height: 1.5; }
+/* Both columns have to be allowed to shrink. A flex item defaults to
+   `min-width: auto`, which refuses to go below its own min-content width — so
+   the long captions ("Изменение цены за 100 периодов, %") pushed the row
+   wider than its card and `.detail-card` clipped the overflow. Measured at a
+   660px window, rows were overrunning their box by 47px. `min-width: 0` lets
+   the text wrap instead; the reading keeps its natural width because a number
+   that reflows is worse than a wrapped caption. */
+.indicator-row > div:first-child, .signal-indicator > div:first-child { min-width: 0; }
+.indicator-reading, .signal-indicator-right { flex: 0 0 auto; }
 .indicator-reading { align-items: flex-end; text-align: right; }
+/* Same reason as the rows: the two halves of a section heading are flex items
+   that refuse to shrink, and at letter-spacing .12em a pair like
+   "СТОХАСТИК · MOMENTUM" overran its card by ~24px at a 660px window, where
+   `.detail-card` silently clipped the excess. */
+.signal-list-heading { flex-wrap: wrap; }
+.signal-list-heading > span { min-width: 0; }
 .indicator-reading strong { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .indicator-reading span { color: var(--color-text-secondary); font-size: 9px; }
 .reading-positive, .reading-long { color: var(--color-long) !important; }
@@ -33,6 +48,21 @@
 .divergence-block p { margin: 0; color: var(--color-text-secondary); font-size: 10px; line-height: 1.55; }
 
 .candle-table-wrap { margin-top: 27px; overflow-x: auto; }
+
+/* The activity card is the one that has to match the height of the technical
+   card beside it, and that height swings with the viewport because the left
+   card's captions wrap. A fixed row count can only be right at one width, so
+   the table is given the card's leftover height and the rows absorb it: the
+   wrap grows as a flex item, and `height: 100%` on the table lets the rows
+   share the space instead of leaving a gap at the bottom. Sixteen rows is what
+   fills a desktop column before any stretching has to happen. */
+.detail-card-activity { display: flex; flex-direction: column; }
+.detail-card-activity .candle-table-wrap { flex: 1 1 auto; display: flex; flex-direction: column; }
+.detail-card-activity .candle-table { height: 100%; }
+/* The header must not share the stretch — it is one row, and a proportional
+   split would hand it a sixth of the extra height and a towering heading. */
+.detail-card-activity .candle-table thead tr { height: 1px; }
+.detail-card-activity .candle-table tbody tr { height: 1px; }
 .candle-table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; text-align: left; }
 .candle-table th { padding: 0 9px 12px; color: var(--color-text-muted); font-size: 8px; font-weight: 700; letter-spacing: .1em; white-space: nowrap; }
 .candle-table th:first-child, .candle-table td:first-child { padding-left: 2px; }
@@ -45,7 +75,38 @@
 .dashboard-footer { display: flex; justify-content: space-between; gap: 18px; padding: 4px 6px 0; color: var(--color-text-dim); font-size: 8px; font-weight: 650; letter-spacing: .12em; }
 .dashboard-footer i { padding: 0 5px; color: var(--color-long); font-style: normal; }
 
-@media (max-width: 900px) { .detail-grid { grid-template-columns: 1fr; } }
+/* Inside the two-column band the card holding the four-column table takes the
+   larger share, and the table's cells tighten up. Both exist for the same
+   reason: `.app-shell` runs at `zoom: 1.30`, so the layout is computed in
+   coordinates 1.3x smaller than the screen. A 900px-wide window is really
+   ~500px of layout width, and the table's four columns do not fit in half of
+   that at the default cell padding — measured, they came out ~67px too wide at
+   900px and started scrolling inside the card. */
+@media (max-width: 960px) {
+    .detail-grid {
+        grid-template-columns: minmax(0, .82fr) minmax(0, 1.18fr);
+        /* Reclaimed from the gutter, straight into the table's card: measured,
+           this is the last ~8px the four columns were short by at 960px. */
+        gap: 12px;
+    }
+}
+
+/* The table's cells tighten as soon as the card can no longer hold them at
+   the default padding. Measured: 274px of columns, and the card drops under
+   that at roughly 1200px of window, so that is where the tightening starts. */
+@media (max-width: 1200px) {
+    .candle-table th { padding-inline: 4px; }
+    .candle-table td { padding-inline: 4px; }
+}
+
+/* The two cards sit side by side down to 620px and stack below that.
+   The threshold used to be 900px, which put a perfectly capable window —
+   anything from 620 to 900 — into a single column for no reason: the card on
+   the right is a four-column table that only starts needing 440px of its own
+   below 560px, and the card on the left wraps its rows happily. The two
+   breakpoints now line up instead of leaving a 340px band where the layout
+   gave up early. */
+@media (max-width: 620px) { .detail-grid { grid-template-columns: 1fr; } }
 @media (max-width: 560px) {
     .candle-table { min-width: 440px; }
     .dashboard-footer { flex-direction: column; line-height: 1.6; }

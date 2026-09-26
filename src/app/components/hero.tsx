@@ -1,4 +1,4 @@
-﻿import type { Candle, MarketAnalysis } from '../types/analysis';
+import type { Candle, MarketAnalysis } from '../types/analysis';
 import type { SignalHistoryResponse } from '../types/history';
 import { SignalPanel } from './signal-panel';
 import { SignalHistory } from './signal-history';
@@ -87,10 +87,14 @@ export function Hero({ analysis, history, candles, symbol, ema300 }: HeroProps) 
                 <div className="hero-side">
                     <SignalPanel
                         signal={signal}
+                        periods={analysis.periods}
                         indicatorValues={{
                             ema300: indicators.ema300,
                             stochastic: indicators.stochastic,
                             momentum: momentum.current,
+                            atr: indicators.atr,
+                            rsi: indicators.rsi,
+                            macdHistogram: indicators.macd.histogram,
                         }}
                     />
                     <SignalHistory data={history} />

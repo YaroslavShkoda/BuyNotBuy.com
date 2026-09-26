@@ -1,6 +1,6 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../history/signal-history.repository', async (importOriginal) => {
+vi.mock('../history/signal-history.repository.js', async (importOriginal) => {
     const actual = await importOriginal<
         typeof import('../history/signal-history.repository')
     >();
@@ -16,15 +16,16 @@ vi.mock('../history/signal-history.repository', async (importOriginal) => {
     };
 });
 
-import { analyzeMarket } from './analysis.service';
-import * as marketService from '../market/market.service';
-import { MarketDataError } from '../errors/market-data.error';
+import { analyzeMarket } from './analysis.service.js';
+import * as marketService from '../market/market.service.js';
+import { freshMarketData } from '../test-support/market-data-result.js';
+import { MarketDataError } from '../errors/market-data.error.js';
 import {
     createSignalHistoryRepository,
     getSignalHistoryRepository,
-} from '../history/signal-history.repository';
+} from '../history/signal-history.repository.js';
 
-import type { SignalHistoryRepository } from '../history/signal-history.repository';
+import type { SignalHistoryRepository } from '../history/signal-history.repository.js';
 import type { MockInstance } from 'vitest';
 
 const marketDataFixture = {
@@ -33,7 +34,7 @@ const marketDataFixture = {
         price: 200,
     },
     candles: Array.from(
-        { length: 300 },
+        { length: 900 },
         (_, index) => ({
             timestamp: index,
             open: 100,
@@ -50,7 +51,7 @@ describe('analysis → signal history integration', () => {
 
     beforeEach(() => {
         marketDataSpy = vi.spyOn(marketService, 'getMarketData')
-            .mockResolvedValue(marketDataFixture);
+            .mockResolvedValue(freshMarketData(marketDataFixture));
 
         // Fresh in-memory database per test so recorded entries never leak
         // between tests.
@@ -76,8 +77,8 @@ describe('analysis → signal history integration', () => {
         expect(entries[0]).toMatchObject({
             timestamp: analysis.timestamp,
             symbol: 'BTCUSDT',
-            signal: 'SHORT',
-            consensus: 67,
+            signal: 'LONG',
+            consensus: 61,
             price: 200,
         });
     });
@@ -100,6 +101,11 @@ describe('analysis → signal history integration', () => {
                 throw new Error('history storage unavailable');
             },
             list: () => [],
+            schemaVersion: () => 1,
+            durabilitySettings: () => ({
+                journalMode: 'memory',
+                synchronous: '2',
+            }),
             close: () => {},
         };
 
@@ -109,7 +115,7 @@ describe('analysis → signal history integration', () => {
         const analysis = await analyzeMarket();
 
         expect(analysis.price).toBe(200);
-        expect(analysis.signal.signal).toBe('SHORT');
+        expect(analysis.signal.signal).toBe('LONG');
     });
 
     it('does not create duplicates for concurrent analyses in the same hour', async () => {

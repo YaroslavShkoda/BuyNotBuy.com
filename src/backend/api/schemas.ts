@@ -6,10 +6,14 @@ export const IndicatorSignalSchema = z.enum([
     'NEUTRAL',
 ]);
 
+export const IndicatorKeySchema = z.enum(['ema', 'stochastic', 'momentum']);
+
 export const IndicatorAnalysisSchema = z.object({
+    key: IndicatorKeySchema,
     name: z.string(),
     signal: IndicatorSignalSchema,
     reason: z.string(),
+    weight: z.number().min(0).max(1),
 });
 
 export const SignalResultSchema = z.object({
@@ -42,6 +46,13 @@ export const MarketIndicatorsSchema = z.object({
     ema300: z.number(),
     stochastic: z.number(),
     momentum: z.number(),
+    atr: z.number().min(0),
+    rsi: z.number().min(0).max(100),
+    macd: z.object({
+        macd: z.number(),
+        signal: z.number(),
+        histogram: z.number(),
+    }),
 });
 
 export const MomentumAnalysisSchema = z.object({
@@ -51,7 +62,9 @@ export const MomentumAnalysisSchema = z.object({
 });
 
 export const DivergencePointSchema = z.object({
-    index: z.number(),
+    index: z.number().int().min(0),
+    confirmedAtIndex: z.number().int().min(0),
+    age: z.number().int().min(0),
     price: z.number(),
     momentum: z.number(),
 });
@@ -74,6 +87,16 @@ export const MarketAnalysisSchema = z.object({
     signal: SignalResultSchema,
     momentum: MomentumAnalysisSchema,
     divergence: DivergenceAnalysisSchema,
+    periods: z.object({
+        ema: z.number(),
+        stochastic: z.number(),
+        momentum: z.number(),
+        atr: z.number(),
+        rsi: z.number(),
+        macdFast: z.number(),
+        macdSlow: z.number(),
+        macdSignal: z.number(),
+    }),
 });
 
 export const SignalHistoryEntrySchema = z.object({
@@ -92,11 +115,13 @@ export const SignalHistoryLastTransitionSchema = z.object({
 
 export const SignalHistorySummarySchema = z.object({
     currentSignal: IndicatorSignalSchema.nullable(),
-    currentDurationHours: z.number().int().min(1).nullable(),
+    // Durations are elapsed hours, so a run that started within the current
+    // hour legitimately measures zero.
+    currentDurationHours: z.number().int().min(0).nullable(),
     currentDurationBounded: z.boolean(),
     changes24h: z.number().int().min(0),
     lastTransition: SignalHistoryLastTransitionSchema.nullable(),
-    previousDurationHours: z.number().int().min(1).nullable(),
+    previousDurationHours: z.number().int().min(0).nullable(),
     previousDurationBounded: z.boolean(),
     sampleHours: z.number().int().min(0),
 });
@@ -104,6 +129,14 @@ export const SignalHistorySummarySchema = z.object({
 export const SignalHistoryResponseSchema = z.object({
     entries: z.array(SignalHistoryEntrySchema),
     summary: SignalHistorySummarySchema,
+    /**
+     * Where to ask for the next, older page, or null at the end of the record.
+     *
+     * Opaque by design, so it is carried as a string rather than a number:
+     * the boundary is an implementation detail and a client that reads one
+     * would be reading a promise the format cannot keep.
+     */
+    nextCursor: z.string().nullable(),
 });
 
 export const PriceResponseSchema = AssetPriceSchema;

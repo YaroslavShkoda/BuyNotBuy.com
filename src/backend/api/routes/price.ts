@@ -1,6 +1,6 @@
 ﻿import type { FastifyInstance } from 'fastify';
 
-import { getPrice } from '../controllers/price.controller';
+import { getPrice } from '../controllers/price.controller.js';
 
 export async function priceRoutes(
     app: FastifyInstance,

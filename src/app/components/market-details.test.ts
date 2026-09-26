@@ -32,8 +32,8 @@ describe('divergence presentation', () => {
         const divergence: DivergenceAnalysis = {
             bullish: {
                 type: 'BULLISH',
-                previous: { index: 10, price: 67_400, momentum: -120 },
-                current: { index: 20, price: 66_900, momentum: -85 },
+                previous: { index: 10, confirmedAtIndex: 14, age: 26, price: 67_400, momentum: -1.2 },
+                current: { index: 20, confirmedAtIndex: 24, age: 16, price: 66_900, momentum: -0.9 },
             },
             bearish: null,
         };
@@ -43,7 +43,22 @@ describe('divergence presentation', () => {
         expect(presentation.label).toBe('Бычья дивергенция');
         expect(presentation.tone).toBe('positive');
         expect(presentation.detail).toBe(
-            'Цена: $67,400 → $66,900 (ниже) · Momentum: -120 → -85 (выше)',
+            'Цена: $67,400 → $66,900 (ниже) · Momentum: -1.2% → -0.9% (выше) · Подтверждена 16 свечах назад',
+        );
+    });
+
+    it('agrees with the confirmation age of the current pivot', () => {
+        const divergence: DivergenceAnalysis = {
+            bullish: {
+                type: 'BULLISH',
+                previous: { index: 1, confirmedAtIndex: 3, age: 40, price: 60_000, momentum: -2 },
+                current: { index: 2, confirmedAtIndex: 4, age: 1, price: 59_000, momentum: -1 },
+            },
+            bearish: null,
+        };
+
+        expect(describeDivergence(divergence).detail).toContain(
+            'Подтверждена 1 свече назад',
         );
     });
 
@@ -52,8 +67,8 @@ describe('divergence presentation', () => {
             bullish: null,
             bearish: {
                 type: 'BEARISH',
-                previous: { index: 5, price: 70_000, momentum: 150 },
-                current: { index: 15, price: 71_200, momentum: 90 },
+                previous: { index: 5, confirmedAtIndex: 9, age: 3, price: 70_000, momentum: 1.5 },
+                current: { index: 15, confirmedAtIndex: 19, age: 3, price: 71_200, momentum: 0.9 },
             },
         };
 
@@ -62,7 +77,7 @@ describe('divergence presentation', () => {
         expect(presentation.label).toBe('Медвежья дивергенция');
         expect(presentation.tone).toBe('negative');
         expect(presentation.detail).toBe(
-            'Цена: $70,000 → $71,200 (выше) · Momentum: +150 → +90 (ниже)',
+            'Цена: $70,000 → $71,200 (выше) · Momentum: +1.5% → +0.9% (ниже) · Подтверждена 3 свечах назад',
         );
     });
 
@@ -70,13 +85,13 @@ describe('divergence presentation', () => {
         const divergence: DivergenceAnalysis = {
             bullish: {
                 type: 'BULLISH',
-                previous: { index: 1, price: 60_000, momentum: -10 },
-                current: { index: 2, price: 59_000, momentum: -5 },
+                previous: { index: 1, confirmedAtIndex: 3, age: 0, price: 60_000, momentum: -10 },
+                current: { index: 2, confirmedAtIndex: 4, age: 0, price: 59_000, momentum: -5 },
             },
             bearish: {
                 type: 'BEARISH',
-                previous: { index: 3, price: 70_000, momentum: 100 },
-                current: { index: 4, price: 71_000, momentum: 50 },
+                previous: { index: 3, confirmedAtIndex: 5, age: 0, price: 70_000, momentum: 100 },
+                current: { index: 4, confirmedAtIndex: 6, age: 0, price: 71_000, momentum: 50 },
             },
         };
 

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { freshMarketData } from '../test-support/market-data-result.js';
 
 import {
     attachAnalysisErrorContext,
@@ -6,7 +7,7 @@ import {
     measureAsync,
     measureSync,
     readAnalysisErrorContext,
-} from './analysis.telemetry';
+} from './analysis.telemetry.js';
 
 describe('analysis.telemetry', () => {
     it('measures sync/async durations without asserting thresholds', () => {
@@ -32,6 +33,9 @@ describe('analysis.telemetry', () => {
                     ema300: 90,
                     stochastic: 20,
                     momentum: 5,
+                    atr: 0.015,
+                    rsi: 52.5,
+                    macd: { macd: 12.5, signal: 9.75, histogram: 2.75 },
                 },
                 signal: {
                     signal: 'LONG',
@@ -48,7 +52,16 @@ describe('analysis.telemetry', () => {
                     bullish: null,
                     bearish: null,
                 },
-            },
+    periods: {
+        ema: 300,
+        stochastic: 100,
+        momentum: 100,
+        atr: 14,
+        rsi: 14,
+        macdFast: 12,
+        macdSlow: 26,
+        macdSignal: 9,
+    },            },
             {
                 marketDataDurationMs: 1,
                 indicatorsDurationMs: 2,
@@ -111,7 +124,7 @@ describe('analyzeMarket observability', () => {
                 price: 200,
             },
             candles: Array.from(
-                { length: 300 },
+                { length: 900 },
                 (_, index) => ({
                     timestamp: index,
                     open: 100,
@@ -124,7 +137,7 @@ describe('analyzeMarket observability', () => {
         };
 
         const getMarketDataSpy = vi.spyOn(marketService, 'getMarketData')
-            .mockResolvedValue(marketData);
+            .mockResolvedValue(freshMarketData(marketData));
 
         try {
             const baseline = await analyzeMarket();

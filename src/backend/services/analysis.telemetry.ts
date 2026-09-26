@@ -1,10 +1,10 @@
 import type {
     MarketAnalysis,
-} from '../types/analysis';
+} from '../types/analysis.js';
 
 import type {
     IndicatorSignal,
-} from '../signals/signal.types';
+} from '../signals/signal.types.js';
 
 export interface AnalysisTelemetryLogger {
     info(

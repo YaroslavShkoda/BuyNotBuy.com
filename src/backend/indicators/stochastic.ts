@@ -1,4 +1,4 @@
-﻿import type { Candle } from '../types/market';
+import type { Candle } from '../types/market.js';
 
 export function calculateStochastic(
     candles: Candle[],
@@ -18,7 +18,7 @@ export function calculateStochastic(
 
     const recentCandles = candles.slice(-period);
 
-    const higestHigh = Math.max(
+    const highestHigh = Math.max(
         ...recentCandles.map((candle) => candle.high),
     );
 
@@ -34,11 +34,11 @@ export function calculateStochastic(
 
     const currentClose = currentCandle.close;
 
-    if (higestHigh === lowestLow) {
+    if (highestHigh === lowestLow) {
         throw new Error('Stochastic cannot be calculated when highest high equals lowest low');
     }
 
     return(
-        ((currentClose - lowestLow) / (higestHigh - lowestLow)) * 100
+        ((currentClose - lowestLow) / (highestHigh - lowestLow)) * 100
     );
 }

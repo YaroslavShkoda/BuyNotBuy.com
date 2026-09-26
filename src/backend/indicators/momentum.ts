@@ -1,4 +1,4 @@
-import type { Candle } from '../types/market';
+import type { Candle } from '../types/market.js';
 
 export function calculateMomentum(
     candles: Candle[],
@@ -35,5 +35,24 @@ export function calculateMomentum(
 
     const previousClose = previousCandle.close;
 
-    return currentClose - previousClose;
+    return percentageChange(previousClose, currentClose);
+}
+
+/**
+ * Rate of change in percent, not an absolute price delta. An absolute delta
+ * is neither scale-invariant nor stationary: the same 100-bar move reads ~5x
+ * larger at $100k than at $20k, which makes momentum incomparable between
+ * regimes and makes the divergence axis meaningless across instruments.
+ */
+function percentageChange(
+    previousClose: number,
+    currentClose: number,
+): number {
+    if (previousClose === 0) {
+        throw new Error(
+            'Momentum cannot be calculated against a zero base price',
+        );
+    }
+
+    return ((currentClose - previousClose) / previousClose) * 100;
 }

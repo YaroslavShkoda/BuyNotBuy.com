@@ -1,8 +1,14 @@
-import { getMarketData } from '../../market/market.service';
-import { MarketDataSchema } from '../schemas';
+import { getMarketData } from '../../market/market.service.js';
+import { MarketDataSchema } from '../schemas.js';
 
-export async function getMarket() {
-    const marketData = await getMarketData();
+import type { ControllerResult } from './analysis.controller.js';
 
-    return MarketDataSchema.parse(marketData);
+export async function getMarket(): Promise<ControllerResult<ReturnType<typeof MarketDataSchema.parse>>> {
+    const { data, stale, ageMs } = await getMarketData();
+
+    return {
+        payload: MarketDataSchema.parse(data),
+        stale,
+        ageMs,
+    };
 }

@@ -1,0 +1,24 @@
+# The build needs the manifest and the sources, and nothing else. Copying the
+# host's node_modules in would ship whatever the developer happened to have
+# installed, which is not what the lockfile describes.
+node_modules
+.next
+dist
+data
+out
+build
+coverage
+
+.git
+.gitignore
+.env
+.env.local
+.env.*.local
+
+*.tsbuildinfo
+*.log
+npm-debug.log*
+
+Dockerfile
+.dockerignore
+README.md

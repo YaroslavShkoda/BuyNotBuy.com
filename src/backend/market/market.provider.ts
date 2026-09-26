@@ -1,9 +1,9 @@
-﻿import { marketConfig } from '../config/market.config';
+﻿import { marketConfig } from '../config/market.config.js';
 
-import { BinanceProvider } from './providers/binance.provider';
-import { MockProvider } from './providers/mock.provider';
+import { BinanceProvider } from './providers/binance.provider.js';
+import { MockProvider } from './providers/mock.provider.js';
 
-import type { MarketDataProvider } from './providers/market-data.provider';
+import type { MarketDataProvider } from './providers/market-data.provider.js';
 
 function createMarketDataProvider(): MarketDataProvider {
     switch (marketConfig.provider) {

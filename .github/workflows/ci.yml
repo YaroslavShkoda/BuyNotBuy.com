@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# A new push makes a running build irrelevant. Nothing here needs a runner
+# that only exists for a few minutes, and a stale green check is worse than no
+# check at all.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # node:sqlite needs 22.13 or newer, and a container built on an older
+          # base than CI would hide a failure that only appears in production.
+          node-version: '22.13.0'
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Types
+        run: |
+          npm run typecheck
+          npm run typecheck:backend
+
+      - name: Tests
+        run: npm test
+
+      - name: Build
+        run: npm run build

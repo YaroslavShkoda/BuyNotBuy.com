@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import type { Candle } from '../types/market';
-import { calculateMomentumSeries } from './momentum-series';
+import type { Candle } from '../types/market.js';
+import { calculateMomentumSeries } from './momentum-series.js';
 
 function createCandle(close: number): Candle {
     return {
@@ -26,13 +26,12 @@ describe('calculateMomentumSeries', () => {
 
         const result = calculateMomentumSeries(candles, 2);
 
-        expect(result).toEqual([
-            null,
-            null,
-            10,
-            10,
-            10,
-        ]);
+        expect(result).toHaveLength(5);
+        expect(result[0]).toBeNull();
+        expect(result[1]).toBeNull();
+        expect(result[2]).toBeCloseTo(10, 10);
+        expect(result[3]).toBeCloseTo((115 - 105) / 105 * 100, 10);
+        expect(result[4]).toBeCloseTo((120 - 110) / 110 * 100, 10);
     });
 
     it('calculates negative momentum correctly', () => {
@@ -45,12 +44,8 @@ describe('calculateMomentumSeries', () => {
 
         const result = calculateMomentumSeries(candles, 2);
 
-        expect(result).toEqual([
-            null,
-            null,
-            -10,
-            -10,
-        ]);
+        expect(result[2]).toBeCloseTo((110 - 120) / 120 * 100, 10);
+        expect(result[3]).toBeCloseTo((105 - 115) / 115 * 100, 10);
     });
 
     it('returns zero when prices are equal', () => {

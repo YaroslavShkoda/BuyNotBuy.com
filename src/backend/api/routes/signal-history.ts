@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 
-import { getSignalHistory } from '../controllers/signal-history.controller';
+import { getSignalHistory } from '../controllers/signal-history.controller.js';
 
 export async function signalHistoryRoutes(
     app: FastifyInstance,

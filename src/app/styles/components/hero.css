@@ -1,4 +1,4 @@
-﻿/* The right column keeps the two signal cards; the left column (Price Action
+/* The right column keeps the two signal cards; the left column (Price Action
    + chart + volume) takes everything else. 300px — rather than the previous
    340px — buys the chart ~12% more width. */
 .hero {
@@ -23,10 +23,21 @@
     overflow: hidden;
 }
 
-.hero-main::before {
+/* The accent stripe runs alongside the heading block — the one holding the
+   asset name and its badge — and stops where that block stops.
+   It used to be drawn on .hero-main at `inset: 0`, which made it span the
+   whole overview panel: it rose roughly 50px above the asset badge, past the
+   top of the thing it is meant to be accenting, and carried on down past the
+   chart. A rule that outlines something has to be the length of that thing,
+   or it reads as a separate element that escaped its own box.
+   The negative offset puts it back on the panel's inner edge: the heading
+   starts after .hero-main's inline padding, and the stripe belongs outside
+   that padding, on the border. */
+.hero-heading::before {
     content: "";
     position: absolute;
     inset: 0 auto 0 0;
+    left: calc(-1 * clamp(20px, 2vw, 28px));
     width: 2px;
     background: linear-gradient(
         to bottom,

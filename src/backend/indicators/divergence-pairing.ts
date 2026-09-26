@@ -24,100 +24,79 @@ export function findDivergencePairs(
         return [];
     }
 
-    const pairs: Array<{
-        pair: DivergencePair;
-        distance: number;
-    }> = [];
+    const pairs: DivergencePair[] = [];
+
+    // Both lists are sorted ascending, so a single forward-only pointer pairs
+    // them in O(price + momentum). The previous implementation nested four
+    // loops over every combination and then sorted the result by distance,
+    // which cost hundreds of thousands of iterations per request to pick the
+    // tightest - usually the oldest - pair.
+    let momentumCursor = 0;
 
     for (
-        let previousPrice = 0;
-        previousPrice < priceExtrema.length - 1;
-        previousPrice += 1
+        let priceCursor = 0;
+        priceCursor < priceExtrema.length - 1;
+        priceCursor += 1
     ) {
-        for (
-            let currentPrice = previousPrice + 1;
-            currentPrice < priceExtrema.length;
-            currentPrice += 1
-        ) {
-            const previousPriceIndex =
-                priceExtrema[previousPrice];
+        const previousPriceIndex = priceExtrema[priceCursor];
+        const currentPriceIndex = priceExtrema[priceCursor + 1];
 
-            const currentPriceIndex =
-                priceExtrema[currentPrice];
+        if (
+            previousPriceIndex === undefined ||
+            currentPriceIndex === undefined
+        ) {
+            continue;
+        }
+
+        while (momentumCursor < momentumExtrema.length - 1) {
+            const previousMomentumIndex =
+                momentumExtrema[momentumCursor];
+
+            const currentMomentumIndex =
+                momentumExtrema[momentumCursor + 1];
 
             if (
-                previousPriceIndex === undefined ||
-                currentPriceIndex === undefined
+                previousMomentumIndex === undefined ||
+                currentMomentumIndex === undefined
             ) {
-                continue;
+                break;
             }
 
-            for (
-                let previousMomentum = 0;
-                previousMomentum < momentumExtrema.length - 1;
-                previousMomentum += 1
+            const currentDistance =
+                Math.abs(currentMomentumIndex - currentPriceIndex);
+
+            // Momentum has run past this price pivot and will not come back,
+            // so the next price pivot is the only candidate left for it.
+            if (
+                currentDistance > maxDistance &&
+                currentMomentumIndex > currentPriceIndex
             ) {
-                for (
-                    let currentMomentum =
-                        previousMomentum + 1;
-                    currentMomentum < momentumExtrema.length;
-                    currentMomentum += 1
-                ) {
-                    const previousMomentumIndex =
-                        momentumExtrema[previousMomentum];
-
-                    const currentMomentumIndex =
-                        momentumExtrema[currentMomentum];
-
-                    if (
-                        previousMomentumIndex === undefined ||
-                        currentMomentumIndex === undefined
-                    ) {
-                        continue;
-                    }
-
-                    const previousDistance =
-                        Math.abs(
-                            previousMomentumIndex -
-                                previousPriceIndex,
-                        );
-
-                    const currentDistance =
-                        Math.abs(
-                            currentMomentumIndex -
-                                currentPriceIndex,
-                        );
-
-                    if (
-                        previousDistance > maxDistance ||
-                        currentDistance > maxDistance
-                    ) {
-                        continue;
-                    }
-
-                    pairs.push({
-                        pair: {
-                            previousPriceIndex,
-                            previousMomentumIndex,
-                            currentPriceIndex,
-                            currentMomentumIndex,
-                        },
-                        distance:
-                            previousDistance +
-                            currentDistance,
-                    });
-                }
+                break;
             }
+
+            const previousDistance =
+                Math.abs(previousMomentumIndex - previousPriceIndex);
+
+            if (
+                previousDistance <= maxDistance &&
+                currentDistance <= maxDistance
+            ) {
+                pairs.push({
+                    previousPriceIndex,
+                    previousMomentumIndex,
+                    currentPriceIndex,
+                    currentMomentumIndex,
+                });
+            }
+
+            momentumCursor += 1;
         }
     }
 
-    pairs.sort(
-        (a, b) => a.distance - b.distance,
-    );
-
-    return pairs.map(
-        ({ pair }) => pair,
-    );
+    // Most recent first. The signal layer takes the first pair that actually
+    // diverges, so a fresh formation can no longer lose to an ancient one
+    // that happened to sit closer.
+    return pairs.reverse();
 }
 
 export function findDivergencePair(

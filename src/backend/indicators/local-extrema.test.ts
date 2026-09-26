@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
     findLocalBottoms,
     findLocalTops,
-} from './local-extrema';
+} from './local-extrema.js';
 
 describe('findLocalBottoms', () => {
     it('finds local bottoms', () => {
@@ -60,10 +60,27 @@ describe('findLocalBottoms', () => {
         ]);
     });
 
-    it('does not consider equal values to be a local bottom', () => {
-        const values = [10, 8, 8, 12];
+    it('reports the middle of a flat bottom instead of dropping the pivot', () => {
+        // A strict comparison satisfies nothing on a plateau, so the pivot
+        // used to disappear silently on any series that printed the same
+        // close two hours in a row.
+        expect(findLocalBottoms([10, 8, 8, 12])).toEqual([1]);
 
-        expect(findLocalBottoms(values)).toEqual([]);
+        expect(findLocalBottoms([10, 8, 8, 8, 12])).toEqual([2]);
+    });
+
+    it('treats a whole flat stretch as a single bottom', () => {
+        const values = [
+            10, 9, 8, 5, 5, 5, 5, 9, 10, 11, 12,
+        ];
+
+        expect(findLocalBottoms(values)).toEqual([4]);
+    });
+
+    it('still needs a full window on both sides of a plateau', () => {
+        // The plateau touches the end of the series, so it is not confirmed.
+        expect(findLocalBottoms([8, 8, 12])).toEqual([]);
+        expect(findLocalBottoms([10, 8, 8])).toEqual([]);
     });
 
     it('throws when the window is zero or negative', () => {
@@ -128,10 +145,15 @@ describe('findLocalTops', () => {
         ]);
     });
 
-    it('does not consider equal values to be a local top', () => {
-        const values = [10, 12, 12, 8];
+    it('reports the middle of a flat top instead of dropping the pivot', () => {
+        expect(findLocalTops([10, 12, 12, 8])).toEqual([1]);
 
-        expect(findLocalTops(values)).toEqual([]);
+        expect(findLocalTops([10, 12, 12, 12, 8])).toEqual([2]);
+    });
+
+    it('still needs a full window on both sides of a plateau', () => {
+        expect(findLocalTops([12, 12, 8])).toEqual([]);
+        expect(findLocalTops([8, 12, 12])).toEqual([]);
     });
 
     it('throws when the window is zero or negative', () => {

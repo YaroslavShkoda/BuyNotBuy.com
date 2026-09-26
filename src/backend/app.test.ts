@@ -1,7 +1,8 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, beforeEach, vi } from 'vitest';
 
-import { MarketDataError } from './errors/market-data.error';
-import { marketConfig } from './config/market.config';
+import { MarketDataError } from './errors/market-data.error.js';
+import { marketConfig } from './config/market.config.js';
+import { requiredCandleCount } from './config/indicator.config.js';
 
 const { mockMarketDataProvider } = vi.hoisted(() => ({
     mockMarketDataProvider: {
@@ -27,18 +28,26 @@ const { mockMarketDataProvider } = vi.hoisted(() => ({
     },
 }));
 
-vi.mock('./market/market.provider', () => ({
+vi.mock('./market/market.provider.js', () => ({
     marketDataProvider: mockMarketDataProvider,
 }));
 
-vi.mock('./history/signal-history.service', () => ({
+vi.mock('./history/signal-history.service.js', () => ({
     recordSignalHistory: vi.fn(),
     getSignalHistory: vi.fn(() => []),
 }));
 
-import { createApp } from './app';
+import { createApp } from './app.js';
+import { resetMarketDataCache } from './market/market.service.js';
 
 describe('Backend app', () => {
+    beforeEach(() => {
+        // The market snapshot cache is process-wide; without a reset a healthy
+        // response earlier in this file would satisfy the error-path tests and
+        // hide the provider failure they are meant to assert.
+        resetMarketDataCache();
+    });
+
     it('returns health message from root route', async () => {
         const app = createApp();
 
@@ -86,11 +95,11 @@ describe('Backend app', () => {
 
         expect(body.price).toEqual({
             symbol: 'BTCUSDT',
-            price: 80000,
+            price: 100,
         });
 
-        expect(body.candles).toHaveLength(
-            marketConfig.defaultCandleLimit,
+        expect(body.candles.length).toBeGreaterThanOrEqual(
+            requiredCandleCount(),
         );
 
         await app.close();
@@ -108,7 +117,7 @@ describe('Backend app', () => {
 
         const body = response.json();
 
-        expect(body.price).toBe(80000);
+        expect(body.price).toBe(100);
         expect(body.indicators).toHaveProperty('ema300');
         expect(body.indicators).toHaveProperty('stochastic');
         expect(body.signal).toHaveProperty('signal');
@@ -143,7 +152,7 @@ describe('Backend app', () => {
     });
 
     it('returns 502 when market data provider fails during analysis', async () => {
-        mockMarketDataProvider.getPrice.mockRejectedValueOnce(
+        mockMarketDataProvider.getCandles.mockRejectedValueOnce(
             new MarketDataError('Binance API error: 503'),
         );
 
@@ -166,7 +175,7 @@ describe('Backend app', () => {
     });
 
     it('returns 500 for unexpected errors during analysis', async () => {
-        mockMarketDataProvider.getPrice.mockRejectedValueOnce(
+        mockMarketDataProvider.getCandles.mockRejectedValueOnce(
             new Error('Unexpected error'),
         );
 

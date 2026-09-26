@@ -1,6 +1,6 @@
 ﻿import { describe, expect, it } from 'vitest';
-import { calculateStochastic } from './stochastic';
-import type { Candle } from '../types/market';
+import { calculateStochastic } from './stochastic.js';
+import type { Candle } from '../types/market.js';
 
 function createCandle(
     high: number,

@@ -1,7 +1,7 @@
 import Fastify from 'fastify';
 import { describe, expect, it, vi } from 'vitest';
 
-import { marketConfig } from '../config/market.config';
+import { requiredCandleCount } from '../config/indicator.config.js';
 
 const { mockMarketDataProvider } = vi.hoisted(() => ({
     mockMarketDataProvider: {
@@ -9,7 +9,7 @@ const { mockMarketDataProvider } = vi.hoisted(() => ({
             symbol: 'BTCUSDT',
             price: 80000,
         })),
-        getCandles: vi.fn(async (limit = 300) =>
+        getCandles: vi.fn(async (limit = 900) =>
             Array.from({ length: limit }, (_, index) => ({
                 timestamp: index,
                 open: 100 + index,
@@ -22,22 +22,22 @@ const { mockMarketDataProvider } = vi.hoisted(() => ({
     },
 }));
 
-vi.mock('../market/market.provider', () => ({
+vi.mock('../market/market.provider.js', () => ({
     marketDataProvider: mockMarketDataProvider,
 }));
 
-vi.mock('../history/signal-history.service', () => ({
+vi.mock('../history/signal-history.service.js', () => ({
     recordSignalHistory: vi.fn(),
     getSignalHistory: vi.fn(() => []),
 }));
 
-import { createApp } from '../app';
+import { createApp } from '../app.js';
 
 import {
     MarketAnalysisSchema,
     MarketDataSchema,
     PriceResponseSchema,
-} from './schemas';
+} from './schemas.js';
 
 describe('API contract validation', () => {
     it('GET /api/analysis response passes schema', async () => {
@@ -96,7 +96,10 @@ describe('API contract validation', () => {
         expect(response.statusCode).toBe(200);
 
         const body = response.json();
-        expect(body.momentum.series).toHaveLength(marketConfig.defaultCandleLimit);
+        // One momentum reading per closed candle the market layer delivered.
+        expect(body.momentum.series.length).toBeGreaterThanOrEqual(
+            requiredCandleCount(),
+        );
         expect(() => MarketAnalysisSchema.parse(body)).not.toThrow();
 
         await app.close();

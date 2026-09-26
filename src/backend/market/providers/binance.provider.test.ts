@@ -6,8 +6,9 @@
     vi,
 } from 'vitest';
 
-import { BinanceProvider } from './binance.provider';
-import { MarketDataError } from '../../errors/market-data.error';
+import { BinanceProvider } from './binance.provider.js';
+import { MarketDataError } from '../../errors/market-data.error.js';
+import { requiredCandleCount } from '../../config/indicator.config.js';
 
 afterEach(() => {
     vi.unstubAllGlobals();
@@ -124,6 +125,9 @@ describe('BinanceProvider', () => {
     });
 
     describe('getCandles', () => {
+        const CLOSED_1 = 1700003599999;
+        const CLOSED_2 = 1700007199999;
+
         it('uses configured symbol, interval, and default limit', async () => {
             const fetchMock = vi.fn().mockResolvedValue({
                 ok: true,
@@ -141,7 +145,7 @@ describe('BinanceProvider', () => {
             const [url] = fetchMock.mock.calls[0] ?? [];
 
             expect(url).toBe(
-                'https://data-api.binance.vision/api/v3/klines?symbol=BTCUSDT&interval=1h&limit=300',
+                'https://data-api.binance.vision/api/v3/klines?symbol=BTCUSDT&interval=1h&limit=900',
             );
         });
 
@@ -156,6 +160,7 @@ describe('BinanceProvider', () => {
                         '79000.00',
                         '80500.00',
                         '123.45',
+                        CLOSED_1,
                     ],
                     [
                         1700003600000,
@@ -164,6 +169,7 @@ describe('BinanceProvider', () => {
                         '80000.00',
                         '81500.00',
                         '150.25',
+                        CLOSED_2,
                     ],
                 ],
             });
@@ -202,6 +208,136 @@ describe('BinanceProvider', () => {
             );
 
             expect(options?.signal).toBeInstanceOf(AbortSignal);
+        });
+
+        it('drops the still-forming candle so one URL yields one signal', async () => {
+            const now = Date.now();
+            const hourMs = 60 * 60 * 1000;
+            const openTime = now - hourMs;
+
+            vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+                ok: true,
+                json: async () => [
+                    [
+                        openTime - hourMs,
+                        '80000.00',
+                        '81000.00',
+                        '79000.00',
+                        '80500.00',
+                        '123.45',
+                        openTime - 1,
+                    ],
+                    [
+                        openTime,
+                        '80500.00',
+                        '82000.00',
+                        '80000.00',
+                        '81000.00',
+                        '150.25',
+                        now + 60_000,
+                    ],
+                ],
+            }));
+
+            const provider = new BinanceProvider();
+
+            const result = await provider.getCandles(2);
+
+            // The last element of every Binance klines response is the hour
+            // that is still running. Feeding it to the indicators made the
+            // signal change several times within a single candle.
+            expect(result).toHaveLength(1);
+            expect(result[0]?.timestamp).toBe(openTime - hourMs);
+            expect(result[0]?.close).toBe(80500);
+        });
+
+        it('yields exactly the warm-up count when asked for one bar more', async () => {
+            const now = Date.now();
+            const hourMs = 60 * 60 * 1000;
+            const oldest = now - (requiredCandleCount() + 1) * hourMs;
+
+            const rows = Array.from(
+                { length: requiredCandleCount() + 1 },
+                (_, index) => {
+                    const openTime = oldest + index * hourMs;
+                    const isLast = index === requiredCandleCount();
+
+                    return [
+                        openTime,
+                        '80000.00',
+                        '81000.00',
+                        '79000.00',
+                        '80500.00',
+                        '123.45',
+                        // Everything but the final bar has closed.
+                        isLast ? now + 60_000 : openTime + hourMs - 1,
+                    ];
+                },
+            );
+
+            vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+                ok: true,
+                json: async () => rows,
+            }));
+
+            const provider = new BinanceProvider();
+
+            const result = await provider.getCandles(
+                requiredCandleCount() + 1,
+            );
+
+            // This is the contract the market layer depends on: one extra
+            // requested bar absorbs the one still forming, so the indicator
+            // warm-up receives the full window instead of coming up short.
+            expect(result).toHaveLength(requiredCandleCount());
+        });
+
+        it('returns an empty list when the whole response is still forming', async () => {
+            const now = Date.now();
+
+            vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+                ok: true,
+                json: async () => [
+                    [
+                        now,
+                        '80000.00',
+                        '81000.00',
+                        '79000.00',
+                        '80500.00',
+                        '123.45',
+                        now + 3_600_000,
+                    ],
+                ],
+            }));
+
+            const provider = new BinanceProvider();
+
+            await expect(provider.getCandles(2)).resolves.toEqual([]);
+        });
+
+        it('rejects a candle without a close time instead of guessing', async () => {
+            vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+                ok: true,
+                json: async () => [
+                    [
+                        1700000000000,
+                        '80000.00',
+                        '81000.00',
+                        '79000.00',
+                        '80500.00',
+                        '123.45',
+                    ],
+                ],
+            }));
+
+            const provider = new BinanceProvider();
+
+            const error = await provider.getCandles(1).catch((e: unknown) => e);
+
+            // Without closeTime there is no way to tell a closed candle from
+            // the running one, so the boundary refuses the response.
+            expect(error).toBeInstanceOf(MarketDataError);
+            expect((error as MarketDataError).code).toBe('MARKET_PROVIDER_ERROR');
         });
 
         it('accepts live Binance klines with trailing fields', async () => {
@@ -276,6 +412,7 @@ describe('BinanceProvider', () => {
                         '79000.00',
                         '80500.00',
                         '123.45',
+                        CLOSED_1,
                     ],
                     [
                         1700003600000,
@@ -284,6 +421,7 @@ describe('BinanceProvider', () => {
                         '80000.00',
                         '81500.00',
                         '150.25',
+                        CLOSED_2,
                     ],
                 ],
             });
@@ -310,6 +448,7 @@ describe('BinanceProvider', () => {
                         '79000.00',
                         '80500.00',
                         '123.45',
+                        CLOSED_1,
                     ],
                 ],
             });
@@ -374,6 +513,7 @@ describe('BinanceProvider', () => {
                         '79000.00',
                         '80500.00',
                         '123.45',
+                        CLOSED_1,
                     ],
                 ],
             });

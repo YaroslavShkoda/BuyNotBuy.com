@@ -1,17 +1,22 @@
-﻿import { ApplicationError } from './application.error';
+import { ApplicationError } from './application.error.js';
 
-import type { ErrorCode } from './application.error';
+import type { ErrorCode } from './application.error.js';
 
 interface MarketDataErrorOptions {
     code?: ErrorCode;
     statusCode?: number;
     cause?: unknown;
+    retryAfterSeconds?: number;
 }
 
 function statusCodeFor(code: ErrorCode): number {
     switch (code) {
         case 'MARKET_PROVIDER_TIMEOUT':
             return 504;
+
+        case 'MARKET_INSUFFICIENT_HISTORY':
+        case 'MARKET_RATE_LIMITED':
+            return 503;
 
         case 'MARKET_DATA_UNAVAILABLE':
         case 'MARKET_PROVIDER_ERROR':
@@ -30,6 +35,9 @@ export class MarketDataError extends ApplicationError {
             code,
             statusCode: options.statusCode ?? statusCodeFor(code),
             cause: options.cause,
+            ...(options.retryAfterSeconds === undefined
+                ? {}
+                : { retryAfterSeconds: options.retryAfterSeconds }),
         });
 
         this.name = 'MarketDataError';

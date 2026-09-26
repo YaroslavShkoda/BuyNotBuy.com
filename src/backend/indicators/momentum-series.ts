@@ -1,4 +1,4 @@
-import type { Candle } from '../types/market';
+import type { Candle } from '../types/market.js';
 
 export function calculateMomentumSeries(
     candles: Candle[],
@@ -23,6 +23,12 @@ export function calculateMomentumSeries(
             throw new Error('Momentum series requires at least one candle');
         }
 
-        return candle.close - previousCandle.close;
+        const previousClose = previousCandle.close;
+
+        if (previousClose === 0) {
+            return null;
+        }
+
+        return ((candle.close - previousClose) / previousClose) * 100;
     });
 }

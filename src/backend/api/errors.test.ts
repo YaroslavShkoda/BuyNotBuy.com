@@ -1,7 +1,7 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { MarketDataError } from '../errors/market-data.error';
-import { ApiErrorResponseSchema } from './schemas';
+import { MarketDataError } from '../errors/market-data.error.js';
+import { ApiErrorResponseSchema } from './schemas.js';
 
 const { mockMarketDataProvider } = vi.hoisted(() => ({
     mockMarketDataProvider: {
@@ -9,7 +9,7 @@ const { mockMarketDataProvider } = vi.hoisted(() => ({
             symbol: 'BTCUSDT',
             price: 80000,
         })),
-        getCandles: vi.fn(async (limit = 300) =>
+        getCandles: vi.fn(async (limit = 900) =>
             Array.from({ length: limit }, (_, index) => ({
                 timestamp: index,
                 open: 100 + index,
@@ -22,18 +22,25 @@ const { mockMarketDataProvider } = vi.hoisted(() => ({
     },
 }));
 
-vi.mock('../market/market.provider', () => ({
+vi.mock('../market/market.provider.js', () => ({
     marketDataProvider: mockMarketDataProvider,
 }));
 
-vi.mock('../history/signal-history.service', () => ({
+vi.mock('../history/signal-history.service.js', () => ({
     recordSignalHistory: vi.fn(),
     getSignalHistory: vi.fn(() => []),
 }));
 
-import { createApp } from '../app';
+import { createApp } from '../app.js';
+import { resetMarketDataCache } from '../market/market.service.js';
 
 describe('API error handling', () => {
+    beforeEach(() => {
+        // The snapshot cache is process-wide; a healthy response from an
+        // earlier test would otherwise satisfy a later error-path test.
+        resetMarketDataCache();
+    });
+
     it('1. provider MarketDataError maps to HTTP status with stable code', async () => {
         mockMarketDataProvider.getPrice.mockRejectedValueOnce(
             new MarketDataError('Market data provider timed out', {
@@ -59,7 +66,7 @@ describe('API error handling', () => {
     });
 
     it('2. provider timeout surfaces timeout code on /api/analysis', async () => {
-        mockMarketDataProvider.getPrice.mockRejectedValueOnce(
+        mockMarketDataProvider.getCandles.mockRejectedValueOnce(
             new MarketDataError('timed out', { code: 'MARKET_PROVIDER_TIMEOUT' }),
         );
 
@@ -73,7 +80,7 @@ describe('API error handling', () => {
     });
 
     it('3. unexpected internal error maps to INTERNAL_ERROR without details', async () => {
-        mockMarketDataProvider.getPrice.mockRejectedValueOnce(
+        mockMarketDataProvider.getCandles.mockRejectedValueOnce(
             new Error('secret stack trace /etc/passwd API_KEY=xxx'),
         );
 
@@ -96,19 +103,35 @@ describe('API error handling', () => {
     });
 
     it('4. broken internal response shape maps to INTERNAL_ERROR', async () => {
-        mockMarketDataProvider.getPrice.mockResolvedValueOnce({
-            symbol: 'BTCUSDT',
-            price: 'NOT_A_NUMBER',
-        } as unknown as { symbol: string; price: number });
+        mockMarketDataProvider.getCandles.mockResolvedValueOnce([
+            {
+                timestamp: 'NOT_A_TIMESTAMP',
+                open: 1,
+                high: 1,
+                low: 1,
+                close: 1,
+                volume: 1,
+            },
+        ] as unknown as Array<{
+            timestamp: number;
+            open: number;
+            high: number;
+            low: number;
+            close: number;
+            volume: number;
+        }>);
 
         const app = createApp();
-        const response = await app.inject({ method: 'GET', url: '/api/price' });
+        const response = await app.inject({ method: 'GET', url: '/api/market' });
 
-        expect(response.statusCode).toBe(500);
+        // The provider sent a broken series, so this is an upstream contract
+        // violation, not a fault in this service. Reporting 500 would have
+        // pointed an operator at the wrong system.
+        expect(response.statusCode).toBe(502);
         expect(response.json()).toEqual({
             error: {
-                code: 'INTERNAL_ERROR',
-                message: 'Internal server error',
+                code: 'MARKET_PROVIDER_ERROR',
+                message: 'Market data provider unavailable',
             },
         });
 
@@ -153,6 +176,47 @@ describe('API error handling', () => {
 
         const analysis = await app.inject({ method: 'GET', url: '/api/analysis' });
         expect(() => MarketAnalysisSchema.parse(analysis.json())).not.toThrow();
+
+        await app.close();
+    });
+
+    it('7. a rate-limited provider answers 503 with Retry-After and no partial payload', async () => {
+        const app = createApp();
+
+        mockMarketDataProvider.getCandles.mockRejectedValueOnce(
+            new MarketDataError('Market data provider rate limit reached', {
+                code: 'MARKET_RATE_LIMITED',
+                retryAfterSeconds: 30,
+            }),
+        );
+
+        const response = await app.inject({ method: 'GET', url: '/api/analysis' });
+
+        expect(response.statusCode).toBe(503);
+        // Without this a client that just got throttled has no way to know it
+        // should back off, and keeps making the situation worse.
+        expect(response.headers['retry-after']).toBe('30');
+        expect(response.json()).toEqual({
+            error: {
+                code: 'MARKET_RATE_LIMITED',
+                message: 'Market data provider rate limit reached',
+            },
+        });
+
+        await app.close();
+    });
+
+    it('8. errors without a retry window do not advertise one', async () => {
+        const app = createApp();
+
+        mockMarketDataProvider.getCandles.mockRejectedValueOnce(
+            new MarketDataError('upstream unavailable'),
+        );
+
+        const response = await app.inject({ method: 'GET', url: '/api/analysis' });
+
+        expect(response.statusCode).toBe(502);
+        expect(response.headers['retry-after']).toBeUndefined();
 
         await app.close();
     });

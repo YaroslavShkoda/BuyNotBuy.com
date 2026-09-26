@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
     detectDivergence,
     type DivergencePoint,
-} from './divergence';
+} from './divergence.js';
 
 function createPoint(
     index: number,
@@ -12,6 +12,8 @@ function createPoint(
 ): DivergencePoint {
     return {
         index,
+        confirmedAtIndex: index,
+        age: 0,
         price,
         momentum,
     };

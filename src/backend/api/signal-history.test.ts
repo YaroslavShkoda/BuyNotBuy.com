@@ -4,7 +4,7 @@ const { mockGetSignalHistory } = vi.hoisted(() => ({
     mockGetSignalHistory: vi.fn((): unknown => []),
 }));
 
-vi.mock('../history/signal-history.service', async (importOriginal) => {
+vi.mock('../history/signal-history.service.js', async (importOriginal) => {
     const actual = await importOriginal<
         typeof import('../history/signal-history.service')
     >();
@@ -16,10 +16,10 @@ vi.mock('../history/signal-history.service', async (importOriginal) => {
     };
 });
 
-import { createApp } from '../app';
-import { historyConfig } from '../config/history.config';
+import { createApp } from '../app.js';
+import { historyConfig } from '../config/history.config.js';
 
-import type { SignalHistoryEntry } from '../history/signal-history.types';
+import type { SignalHistoryEntry } from '../history/signal-history.types.js';
 
 function makeEntry(overrides: Partial<SignalHistoryEntry> = {}): SignalHistoryEntry {
     return {
@@ -53,18 +53,25 @@ describe('GET /api/signal-history', () => {
             entries: [entry],
             summary: {
                 currentSignal: 'SHORT',
-                currentDurationHours: 1,
+                // A single record proves the signal is current but not how
+                // long it has held.
+                currentDurationHours: 0,
                 currentDurationBounded: false,
                 changes24h: 0,
                 lastTransition: null,
                 previousDurationHours: null,
                 previousDurationBounded: false,
-                sampleHours: 1,
+                sampleHours: 0,
             },
+            // No more rows behind the single one, so the walk is over.
+            nextCursor: null,
         });
 
+        // A single query serves both: the page is a prefix of the full record
+        // the summary is built from, so there is nothing left to ask for.
+        expect(mockGetSignalHistory).toHaveBeenCalledTimes(1);
         expect(mockGetSignalHistory).toHaveBeenCalledWith(
-            historyConfig.defaultLimit,
+            historyConfig.maxEntries,
         );
 
         await app.close();
@@ -79,7 +86,12 @@ describe('GET /api/signal-history', () => {
         });
 
         expect(response.statusCode).toBe(200);
-        expect(mockGetSignalHistory).toHaveBeenCalledWith(5);
+        // The limit trims the page, not the read, so the summary still sees
+        // the whole record.
+        expect(response.json().entries).toHaveLength(0);
+        expect(mockGetSignalHistory).toHaveBeenCalledWith(
+            historyConfig.maxEntries,
+        );
 
         await app.close();
     });
@@ -158,6 +170,7 @@ describe('GET /api/signal-history', () => {
                 previousDurationBounded: false,
                 sampleHours: 0,
             },
+            nextCursor: null,
         });
 
         await app.close();

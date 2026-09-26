@@ -7,6 +7,15 @@ const MARKET_ENV_KEYS = [
     'MARKET_CANDLE_INTERVAL',
     'MARKET_DEFAULT_CANDLE_LIMIT',
     'MARKET_REQUEST_TIMEOUT_MS',
+    'MARKET_CACHE_TTL_MS',
+    'MARKET_MAX_STALE_MS',
+    'MARKET_MAX_RETRIES',
+    'MARKET_RETRY_BASE_DELAY_MS',
+    'MARKET_RETRY_MAX_DELAY_MS',
+    'MARKET_CIRCUIT_FAILURE_THRESHOLD',
+    'MARKET_CIRCUIT_COOLDOWN_MS',
+    'MARKET_MAX_RETRY_AFTER_MS',
+    'MARKET_USER_AGENT',
 ] as const;
 
 const VALID_ENV: Record<string, string> = {
@@ -14,8 +23,17 @@ const VALID_ENV: Record<string, string> = {
     MARKET_BASE_URL: 'https://example.com',
     MARKET_SYMBOL: 'BTCUSDT',
     MARKET_CANDLE_INTERVAL: '1h',
-    MARKET_DEFAULT_CANDLE_LIMIT: '300',
+    MARKET_DEFAULT_CANDLE_LIMIT: '900',
     MARKET_REQUEST_TIMEOUT_MS: '5000',
+    MARKET_CACHE_TTL_MS: '60000',
+    MARKET_MAX_STALE_MS: '3600000',
+    MARKET_MAX_RETRIES: '2',
+    MARKET_RETRY_BASE_DELAY_MS: '250',
+    MARKET_RETRY_MAX_DELAY_MS: '5000',
+    MARKET_CIRCUIT_FAILURE_THRESHOLD: '5',
+    MARKET_CIRCUIT_COOLDOWN_MS: '30000',
+    MARKET_MAX_RETRY_AFTER_MS: '120000',
+    MARKET_USER_AGENT: 'BuyNotBuy.com/1.0 (+https://buynotbuy.com)',
 };
 
 function clearMarketEnv(): void {
@@ -45,8 +63,17 @@ describe('configuration boundary hardening (task 7)', () => {
             baseUrl: 'https://example.com',
             symbol: 'BTCUSDT',
             candleInterval: '1h',
-            defaultCandleLimit: 300,
+            defaultCandleLimit: 900,
             requestTimeoutMs: 5000,
+            cacheTtlMs: 60000,
+            maxStaleMs: 3600000,
+            maxRetries: 2,
+            retryBaseDelayMs: 250,
+            retryMaxDelayMs: 5000,
+            circuitFailureThreshold: 5,
+            circuitCooldownMs: 30000,
+            maxRetryAfterMs: 120000,
+            userAgent: 'BuyNotBuy.com/1.0 (+https://buynotbuy.com)',
         });
     });
 
@@ -86,6 +113,18 @@ describe('configuration boundary hardening (task 7)', () => {
         for (const env of [
             { MARKET_DEFAULT_CANDLE_LIMIT: 'abc' },
             { MARKET_REQUEST_TIMEOUT_MS: 'abc' },
+            { MARKET_CACHE_TTL_MS: 'abc' },
+            { MARKET_CACHE_TTL_MS: '-1' },
+            { MARKET_MAX_STALE_MS: 'abc' },
+            { MARKET_MAX_STALE_MS: '-1' },
+            { MARKET_MAX_RETRIES: '-1' },
+            { MARKET_MAX_RETRIES: '6' },
+            { MARKET_RETRY_BASE_DELAY_MS: '-1' },
+            { MARKET_RETRY_MAX_DELAY_MS: '-1' },
+            { MARKET_CIRCUIT_FAILURE_THRESHOLD: '0' },
+            { MARKET_CIRCUIT_COOLDOWN_MS: '-1' },
+            { MARKET_MAX_RETRY_AFTER_MS: '-1' },
+            { MARKET_USER_AGENT: '' },
         ]) {
             vi.resetModules();
             clearMarketEnv();
@@ -153,6 +192,6 @@ describe('configuration boundary hardening (task 7)', () => {
         const { marketConfig: defaults } = await import('./market.config');
 
         expect(defaults.provider).toBe('binance');
-        expect(defaults.defaultCandleLimit).toBe(300);
+        expect(defaults.defaultCandleLimit).toBe(900);
     });
 });
