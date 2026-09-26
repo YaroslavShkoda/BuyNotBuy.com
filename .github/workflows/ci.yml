@@ -21,13 +21,34 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
+    # The repositories are tested against a real PostgreSQL rather than a
+    # fake: a fake would have to reimplement the parts that are exactly what
+    # changed — transactional upserts, BIGINT round-tripping, the advisory lock
+    # that serializes migrations. A test double that agrees with the code by
+    # construction proves nothing about the migration.
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: buynotbuy_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          # node:sqlite needs 22.13 or newer, and a container built on an older
-          # base than CI would hide a failure that only appears in production.
+          # Kept in step with the `engines` field in package.json: a container
+          # built on an older base than CI would hide a failure that only
+          # appears in production.
           node-version: '22.13.0'
           cache: npm
 
@@ -43,6 +64,10 @@ jobs:
           npm run typecheck:backend
 
       - name: Tests
+        env:
+          # Each test file gets its own schema inside this database, created
+          # and dropped by the test setup.
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/buynotbuy_test
         run: npm test
 
       - name: Build

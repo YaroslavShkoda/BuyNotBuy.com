@@ -1,55 +1,21 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { DatabaseSync } from 'node:sqlite';
+import { describe, expect, it, vi } from 'vitest';
+import { randomUUID } from 'node:crypto';
 
-import { createSignalHistoryRepository, closeSignalHistoryRepository } from './signal-history.repository.js';
+import {
+    LATEST_SCHEMA_VERSION,
+    applyMigrations,
+    currentSchemaVersion,
+} from '../db/migrations.js';
+import { query } from '../db/pool.js';
+import {
+    assertSignalHistorySchemaReady,
+    createSignalHistoryRepository,
+} from './signal-history.repository.js';
 
+import type { SignalHistoryRepository } from './signal-history.repository.js';
 import type { SignalHistoryEntry } from './signal-history.types.js';
 
 const HOUR_MS = 3_600_000;
-
-const temporaryDirectories: string[] = [];
-
-function temporaryDatabasePath(): string {
-    const directory = mkdtempSync(join(tmpdir(), 'signal-history-'));
-    temporaryDirectories.push(directory);
-
-    // The nested folder is what the repository creates in production, so the
-    // helper creates it here too for the tests that open the file directly.
-    const nested = join(directory, 'nested');
-    mkdirSync(nested, { recursive: true });
-
-    return join(nested, 'history.db');
-}
-
-function readPragma(path: string, pragma: string): string {
-    const db = new DatabaseSync(path);
-
-    try {
-        const rows = db.prepare(`PRAGMA ${pragma}`).all() as unknown as Array<
-            Record<string, unknown>
-        >;
-
-        return String(Object.values(rows[0] ?? {})[0]);
-    } finally {
-        db.close();
-    }
-}
-
-afterEach(() => {
-    delete process.env.HISTORY_DB_PATH;
-    closeSignalHistoryRepository();
-
-    while (temporaryDirectories.length > 0) {
-        const directory = temporaryDirectories.pop();
-
-        if (directory !== undefined) {
-            rmSync(directory, { recursive: true, force: true });
-        }
-    }
-});
 
 function makeEntry(overrides: Partial<SignalHistoryEntry> = {}): SignalHistoryEntry {
     return {
@@ -62,39 +28,58 @@ function makeEntry(overrides: Partial<SignalHistoryEntry> = {}): SignalHistoryEn
     };
 }
 
+/**
+ * Stages a `schema_migrations` row this build cannot understand, then removes
+ * it again.
+ *
+ * A database written by a newer build is the one thing a test cannot ask the
+ * server to produce on demand, and that version row is the entire evidence
+ * the migration code goes on — so the test writes it by hand. The removal is
+ * not optional: the version bookkeeping lives in its own table, which the
+ * per-test `TRUNCATE` of the two service tables never touches.
+ */
+async function withStoredSchemaVersion(
+    version: number,
+    work: () => Promise<void>,
+): Promise<void> {
+    await query(
+        `INSERT INTO schema_migrations (version, name, applied_at)
+         VALUES ($1, $2, $3)`,
+        [version, 'written_by_a_newer_build', 1_737_950_400_000],
+    );
+
+    try {
+        await work();
+    } finally {
+        await query('DELETE FROM schema_migrations WHERE version = $1', [version]);
+    }
+}
+
 describe('signal history repository', () => {
-    it('stores and returns an entry with all fields preserved', () => {
-        const repository = createSignalHistoryRepository({
-            databasePath: ':memory:',
-            maxEntries: 720,
-        });
+    it('stores and returns an entry with all fields preserved', async () => {
+        const repository = createSignalHistoryRepository({ maxEntries: 720 });
 
-        repository.record(makeEntry());
+        await repository.record(makeEntry());
 
-        expect(repository.list('BTCUSDT', 10)).toEqual([
-            makeEntry(),
-        ]);
+        expect(await repository.list('BTCUSDT', 10)).toEqual([makeEntry()]);
     });
 
-    it('keeps a single record per hour and the newest analysis wins', () => {
-        const repository = createSignalHistoryRepository({
-            databasePath: ':memory:',
-            maxEntries: 720,
-        });
+    it('keeps a single record per hour and the newest analysis wins', async () => {
+        const repository = createSignalHistoryRepository({ maxEntries: 720 });
 
         const hourStart = 1_737_950_400_000;
 
-        repository.record(makeEntry({
+        await repository.record(makeEntry({
             timestamp: hourStart + 10 * 60_000,
             signal: 'LONG',
             price: 99_000,
         }));
 
-        repository.record(makeEntry({
+        await repository.record(makeEntry({
             timestamp: hourStart + 40 * 60_000,
         }));
 
-        const entries = repository.list('BTCUSDT', 10);
+        const entries = await repository.list('BTCUSDT', 10);
 
         expect(entries).toHaveLength(1);
         expect(entries[0]?.timestamp).toBe(hourStart + 40 * 60_000);
@@ -102,43 +87,37 @@ describe('signal history repository', () => {
         expect(entries[0]?.price).toBe(100_000);
     });
 
-    it('does not overwrite a newer record with a late-arriving older snapshot', () => {
-        const repository = createSignalHistoryRepository({
-            databasePath: ':memory:',
-            maxEntries: 720,
-        });
+    it('does not overwrite a newer record with a late-arriving older snapshot', async () => {
+        const repository = createSignalHistoryRepository({ maxEntries: 720 });
 
         const hourStart = 1_737_950_400_000;
 
-        repository.record(makeEntry({
+        await repository.record(makeEntry({
             timestamp: hourStart + 40 * 60_000,
         }));
 
-        repository.record(makeEntry({
+        await repository.record(makeEntry({
             timestamp: hourStart + 10 * 60_000,
             signal: 'LONG',
         }));
 
-        const entries = repository.list('BTCUSDT', 10);
+        const entries = await repository.list('BTCUSDT', 10);
 
         expect(entries).toHaveLength(1);
         expect(entries[0]?.timestamp).toBe(hourStart + 40 * 60_000);
         expect(entries[0]?.signal).toBe('SHORT');
     });
 
-    it('returns entries newest-first across hours', () => {
-        const repository = createSignalHistoryRepository({
-            databasePath: ':memory:',
-            maxEntries: 720,
-        });
+    it('returns entries newest-first across hours', async () => {
+        const repository = createSignalHistoryRepository({ maxEntries: 720 });
 
         const dayStart = 1_737_936_000_000;
 
-        repository.record(makeEntry({ timestamp: dayStart + 2 * HOUR_MS }));
-        repository.record(makeEntry({ timestamp: dayStart + HOUR_MS }));
-        repository.record(makeEntry({ timestamp: dayStart }));
+        await repository.record(makeEntry({ timestamp: dayStart + 2 * HOUR_MS }));
+        await repository.record(makeEntry({ timestamp: dayStart + HOUR_MS }));
+        await repository.record(makeEntry({ timestamp: dayStart }));
 
-        const entries = repository.list('BTCUSDT', 10);
+        const entries = await repository.list('BTCUSDT', 10);
 
         expect(entries.map((entry) => entry.timestamp)).toEqual([
             dayStart + 2 * HOUR_MS,
@@ -147,19 +126,16 @@ describe('signal history repository', () => {
         ]);
     });
 
-    it('limits the number of returned entries to the newest ones', () => {
-        const repository = createSignalHistoryRepository({
-            databasePath: ':memory:',
-            maxEntries: 720,
-        });
+    it('limits the number of returned entries to the newest ones', async () => {
+        const repository = createSignalHistoryRepository({ maxEntries: 720 });
 
         const dayStart = 1_737_936_000_000;
 
         for (let hour = 0; hour < 5; hour += 1) {
-            repository.record(makeEntry({ timestamp: dayStart + hour * HOUR_MS }));
+            await repository.record(makeEntry({ timestamp: dayStart + hour * HOUR_MS }));
         }
 
-        const entries = repository.list('BTCUSDT', 2);
+        const entries = await repository.list('BTCUSDT', 2);
 
         expect(entries.map((entry) => entry.timestamp)).toEqual([
             dayStart + 4 * HOUR_MS,
@@ -167,19 +143,16 @@ describe('signal history repository', () => {
         ]);
     });
 
-    it('trims retained entries down to maxEntries keeping the newest', () => {
-        const repository = createSignalHistoryRepository({
-            databasePath: ':memory:',
-            maxEntries: 3,
-        });
+    it('trims retained entries down to maxEntries keeping the newest', async () => {
+        const repository = createSignalHistoryRepository({ maxEntries: 3 });
 
         const dayStart = 1_737_936_000_000;
 
         for (let hour = 0; hour < 5; hour += 1) {
-            repository.record(makeEntry({ timestamp: dayStart + hour * HOUR_MS }));
+            await repository.record(makeEntry({ timestamp: dayStart + hour * HOUR_MS }));
         }
 
-        const entries = repository.list('BTCUSDT', 10);
+        const entries = await repository.list('BTCUSDT', 10);
 
         expect(entries.map((entry) => entry.timestamp)).toEqual([
             dayStart + 4 * HOUR_MS,
@@ -188,220 +161,274 @@ describe('signal history repository', () => {
         ]);
     });
 
-    it('keeps symbols independent', () => {
-        const repository = createSignalHistoryRepository({
-            databasePath: ':memory:',
-            maxEntries: 720,
-        });
+    it('keeps symbols independent', async () => {
+        const repository = createSignalHistoryRepository({ maxEntries: 720 });
 
-        repository.record(makeEntry());
-        repository.record(makeEntry({ symbol: 'ETHUSDT', signal: 'LONG' }));
+        await repository.record(makeEntry());
+        await repository.record(makeEntry({ symbol: 'ETHUSDT', signal: 'LONG' }));
 
-        expect(repository.list('BTCUSDT', 10)).toEqual([makeEntry()]);
-        expect(repository.list('ETHUSDT', 10)).toEqual([
+        expect(await repository.list('BTCUSDT', 10)).toEqual([makeEntry()]);
+        expect(await repository.list('ETHUSDT', 10)).toEqual([
             makeEntry({ symbol: 'ETHUSDT', signal: 'LONG' }),
         ]);
     });
 
-    it('rounds consensus to an integer', () => {
-        const repository = createSignalHistoryRepository({
-            databasePath: ':memory:',
-            maxEntries: 720,
-        });
+    it('rounds consensus to an integer', async () => {
+        const repository = createSignalHistoryRepository({ maxEntries: 720 });
 
-        repository.record(makeEntry({ consensus: 66.6 }));
+        await repository.record(makeEntry({ consensus: 66.6 }));
 
-        const entries = repository.list('BTCUSDT', 10);
+        const entries = await repository.list('BTCUSDT', 10);
 
         expect(entries[0]?.consensus).toBe(67);
     });
 
-    it('returns an empty list for unknown symbol', () => {
-        const repository = createSignalHistoryRepository({
-            databasePath: ':memory:',
-            maxEntries: 720,
-        });
+    it('returns an empty list for unknown symbol', async () => {
+        const repository = createSignalHistoryRepository({ maxEntries: 720 });
 
-        expect(repository.list('BTCUSDT', 10)).toEqual([]);
+        expect(await repository.list('BTCUSDT', 10)).toEqual([]);
     });
 });
 
+/**
+ * Same connection string, different `search_path`.
+ *
+ * Everything already in `options` is kept and only the `search_path` entry is
+ * swapped, so the timeouts the pool puts there travel with the new URL. Used
+ * by the fresh-database test below, which needs module registrations built
+ * from a connection string that points somewhere else.
+ */
+function withSearchPath(url: string, schema: string): string {
+    const parsed = new URL(url);
+    const carried = parsed.searchParams.get('options') ?? '';
+    const kept = carried
+        .split(' ')
+        .filter((option) => !option.startsWith('-c search_path='))
+        .join(' ');
+
+    parsed.searchParams.set('options', `${kept} -c search_path=${schema}`.trim());
+
+    return parsed.toString();
+}
+
 describe('signal history schema', () => {
-    it('records its version in the database file', () => {
-        const repository = createSignalHistoryRepository({
-            databasePath: temporaryDatabasePath(),
-            maxEntries: 720,
-        });
+    it('records its version in the database', async () => {
+        const repository = createSignalHistoryRepository({ maxEntries: 720 });
 
-        // A version number stored in the file is what makes an upgrade
+        // A version number stored in the database is what makes an upgrade
         // distinguishable from a fresh install.
-        expect(repository.schemaVersion()).toBe(1);
+        expect(await repository.schemaVersion()).toBe(LATEST_SCHEMA_VERSION);
 
-        repository.close();
+        // Read straight out of the bookkeeping table rather than through the
+        // repository: the point is that the number is *stored*, so going back
+        // through the code under test would prove nothing.
+        const stored = await query<{ version: number }>(
+            'SELECT COALESCE(MAX(version), 0) AS version FROM schema_migrations',
+        );
+
+        expect(stored.rows[0]?.version).toBe(LATEST_SCHEMA_VERSION);
     });
 
-    it('keeps the version across a reopen', () => {
-        const path = temporaryDatabasePath();
+    it('keeps the version across a new repository instance', async () => {
+        // A repository no longer owns a connection or a file, so there is
+        // nothing to reopen — the version lives in the database, which is
+        // exactly why a second instance over the same database reads back the
+        // same number. That is the property a restart depends on.
+        const first = createSignalHistoryRepository({ maxEntries: 720 });
+        const second = createSignalHistoryRepository({ maxEntries: 720 });
 
-        createSignalHistoryRepository({ databasePath: path, maxEntries: 720 })
-            .close();
+        expect(await first.schemaVersion()).toBe(LATEST_SCHEMA_VERSION);
+        expect(await second.schemaVersion()).toBe(await first.schemaVersion());
+    });
 
-        const reopened = createSignalHistoryRepository({
-            databasePath: path,
-            maxEntries: 720,
+    it('refuses a database written by a newer build, and leaves it alone', async () => {
+        await withStoredSchemaVersion(99, async () => {
+            // An older build writing into a newer schema would produce a
+            // database it cannot read back. Refusing to start is recoverable;
+            // corrupting the history is not.
+            await expect(applyMigrations()).rejects.toThrow(/version 99/);
+
+            // The refusal is a refusal, not a repair: the version the newer
+            // build left behind is still exactly where it was.
+            expect(await currentSchemaVersion()).toBe(99);
         });
-
-        expect(reopened.schemaVersion()).toBe(1);
-
-        reopened.close();
-    });
-
-    it('refuses to open a database from a newer build', () => {
-        const path = temporaryDatabasePath();
-
-        const db = new DatabaseSync(path);
-        db.exec('PRAGMA user_version = 99');
-        db.close();
-
-        // An older binary writing into a newer file would produce a schema it
-        // cannot read back. Refusing to start is recoverable.
-        expect(() =>
-            createSignalHistoryRepository({
-                databasePath: path,
-                maxEntries: 720,
-            }),
-        ).toThrow(/version 99/);
-    });
-
-    it('creates the table on a database that has never been written to', () => {
-        const path = temporaryDatabasePath();
-
-        const repository = createSignalHistoryRepository({
-            databasePath: path,
-            maxEntries: 720,
-        });
-
-        repository.record(makeEntry());
-
-        expect(repository.list('BTCUSDT', 10)).toHaveLength(1);
-
-        repository.close();
     });
 
     it('finds an unusable database at startup, not at the first request', async () => {
-        // The repository is a lazy singleton for testability, so without an
-        // explicit startup check a service would boot, report itself healthy,
-        // and then fail every market request.
-        const path = temporaryDatabasePath();
-        const db = new DatabaseSync(path);
-        db.exec('PRAGMA user_version = 99');
-        db.close();
+        await withStoredSchemaVersion(99, async () => {
+            // The repository is a lazy factory for testability, so without an
+            // explicit startup check a service would boot, report itself
+            // healthy, and then fail every market request.
+            await expect(assertSignalHistorySchemaReady()).rejects.toThrow(
+                /version 99/,
+            );
 
-        process.env.HISTORY_DB_PATH = path;
+            // Failing that check must not take the shared pool down with it.
+            // The pool is process-wide, so a connection left holding the
+            // migration lock, or stuck in a failed transaction, would break
+            // every later caller rather than just the one that failed.
+            const repository = createSignalHistoryRepository({ maxEntries: 720 });
+            await expect(repository.record(makeEntry())).resolves.toBeUndefined();
+
+            expect(await repository.list('BTCUSDT', 10)).toEqual([makeEntry()]);
+        });
+    });
+
+    it('creates the tables on a database that has never been written to', async () => {
+        // A fresh deployment boots into a database with no tables and no
+        // migration bookkeeping, and the readiness probe has to be able to fix
+        // that on its own. Reaching that state from inside a test that already
+        // has a migrated database would mean dropping the tables every other
+        // test in this file is using, so this one gets a schema of its own and
+        // a second set of module registrations pointed at it — which is the
+        // only way to get a genuinely untouched database to migrate.
+        const schema = `buynotbuy_fresh_${randomUUID().replace(/-/g, '')}`;
+        const previousUrl = process.env.DATABASE_URL ?? '';
+
+        await query(`CREATE SCHEMA IF NOT EXISTS ${schema}`);
+
+        process.env.DATABASE_URL = withSearchPath(previousUrl, schema);
         vi.resetModules();
 
-        const module = await import('./signal-history.repository');
+        try {
+            const migrations = await import('../db/migrations.js');
+            const pool = await import('../db/pool.js');
+            const repository = await import('./signal-history.repository.js');
 
-        expect(() => module.assertSignalHistorySchemaReady()).toThrow(
-            /version 99/,
-        );
+            try {
+                expect(await migrations.currentSchemaVersion()).toBe(0);
+                expect(await migrations.applyMigrations()).toBe(
+                    migrations.LATEST_SCHEMA_VERSION,
+                );
+                expect(await migrations.currentSchemaVersion()).toBe(
+                    migrations.LATEST_SCHEMA_VERSION,
+                );
 
-        delete process.env.HISTORY_DB_PATH;
-        vi.resetModules();
+                // The tables the repository needs are the ones the migrations
+                // created — nothing else creates them.
+                const tables = await pool.query<{ name: string | null }>(
+                    "SELECT to_regclass('signal_history')::text AS name",
+                );
+
+                expect(tables.rows[0]?.name).toBe('signal_history');
+
+                const fresh = repository.createSignalHistoryRepository({
+                    maxEntries: 720,
+                });
+
+                await fresh.record(makeEntry());
+
+                expect(await fresh.list('BTCUSDT', 10)).toEqual([makeEntry()]);
+
+                // Applying again is a no-op rather than a second set of
+                // tables, so a probe that runs every few seconds is free.
+                expect(await migrations.applyMigrations()).toBe(
+                    migrations.LATEST_SCHEMA_VERSION,
+                );
+            } finally {
+                // The second set of registrations owns a second pool. Nothing
+                // else closes it, and a pool left open keeps the process alive.
+                await pool.closePool();
+            }
+        } finally {
+            process.env.DATABASE_URL = previousUrl;
+            vi.resetModules();
+            await query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`);
+        }
+    });
+
+    it('rejects a signal the storage layer does not allow', async () => {
+        // `list()` casts the signal column without validating it, on the
+        // grounds that the CHECK constraint makes a foreign value impossible.
+        // That is only true while the constraint is there, and a missing
+        // constraint would make the cast quietly wrong instead of loudly
+        // wrong — so the guarantee is asserted here, at the server.
+        await expect(
+            query(
+                `INSERT INTO signal_history
+                     (symbol, hour_bucket, timestamp, signal, consensus, price)
+                 VALUES ($1, $2, $3, $4, $5, $6)`,
+                ['BTCUSDT', 482_000, 1_737_950_400_000, 'VERY_LONG', 50, 100_000],
+            ),
+        ).rejects.toThrow(/check constraint/i);
+
+        // ... and the row really was refused rather than stored and read back.
+        const repository = createSignalHistoryRepository({ maxEntries: 720 });
+
+        expect(await repository.list('BTCUSDT', 10)).toEqual([]);
     });
 });
 
 describe('signal history durability', () => {
-    it('uses write-ahead logging for a file database', () => {
-        const path = temporaryDatabasePath();
+    it('reports the server-side timeouts in force on the pool', async () => {
+        const repository = createSignalHistoryRepository({ maxEntries: 720 });
 
-        const repository = createSignalHistoryRepository({
-            databasePath: path,
-            maxEntries: 720,
-        });
-        repository.close();
+        // SQLite's durability knobs — the write-ahead log, and
+        // `synchronous = NORMAL` so a commit does not fsync — have no
+        // PostgreSQL equivalent worth asserting here. WAL is a property of the
+        // server's own storage, chosen cluster-wide rather than per client, and
+        // how often the server fsyncs is neither readable back nor something a
+        // client can influence. What took their place is the pair of
+        // per-connection limits below, and those *are* per-connection state:
+        // they are sent to the server with the connection string, so reading
+        // them back off the pool is the check that a health endpoint asking
+        // for them gets the values the running connections actually carry.
+        const settings = await repository.durabilitySettings();
 
-        // WAL lets a reader work while a writer holds the database, which a
-        // rollback journal cannot do.
-        expect(readPragma(path, 'journal_mode').toLowerCase()).toBe('wal');
+        expect(settings.statementTimeout).toBe('10s');
+        expect(settings.lockTimeout).toBe('5s');
     });
 
-    it('does not fsync on every single commit', () => {
-        const repository = createSignalHistoryRepository({
-            databasePath: temporaryDatabasePath(),
-            maxEntries: 720,
-        });
+    it('keeps the data readable by a separate connection while a writer holds it', async () => {
+        const repository = createSignalHistoryRepository({ maxEntries: 720 });
+        await repository.record(makeEntry());
 
-        // NORMAL still fsyncs at checkpoints, so the file cannot be
-        // corrupted; it just stops fsyncing on each commit. The setting is
-        // per-connection, so it has to be read from this one.
-        expect(repository.durabilitySettings().synchronous).toBe('1');
+        // A read through a different pooled connection has to see the committed
+        // row. The SQLite version of this test proved it with a second file
+        // handle, which a rollback journal would have refused outright; the
+        // guarantee is the same one arriving by a different mechanism now.
+        const rows = await query<{ total: number }>(
+            'SELECT COUNT(*)::int AS total FROM signal_history',
+        );
 
-        repository.close();
+        expect(rows.rows[0]?.total).toBe(1);
     });
 
-    it('works on a memory database, where WAL does not apply', () => {
-        const repository = createSignalHistoryRepository({
-            databasePath: ':memory:',
-            maxEntries: 720,
-        });
+    it('leaves nothing half-written when the retention trim fails', async () => {
+        // `record()` stores the snapshot and trims the retention window in one
+        // transaction, so a trim that fails has to take the snapshot with it.
+        // A stored entry with no corresponding trim is exactly what a
+        // half-applied retention policy looks like from the outside. A
+        // negative LIMIT is the one trim failure a test can provoke without
+        // corrupting anything first: the server rejects it outright.
+        const repository = createSignalHistoryRepository({ maxEntries: -1 });
 
-        repository.record(makeEntry());
+        await expect(repository.record(makeEntry())).rejects.toThrow();
 
-        expect(repository.list('BTCUSDT', 10)).toHaveLength(1);
-        expect(repository.schemaVersion()).toBe(1);
+        const afterFailure = await query<{ total: number }>(
+            'SELECT COUNT(*)::int AS total FROM signal_history',
+        );
 
-        repository.close();
-    });
+        expect(afterFailure.rows[0]?.total).toBe(0);
 
-    it('keeps the data readable by a separate connection while a writer holds it', () => {
-        const path = temporaryDatabasePath();
+        // The client that ran the failed transaction goes back to the pool, so
+        // the next write has to work. A connection left mid-transaction would
+        // fail here, and in production long after the cause.
+        const healthy = createSignalHistoryRepository({ maxEntries: 720 });
+        await expect(healthy.record(makeEntry())).resolves.toBeUndefined();
 
-        const repository = createSignalHistoryRepository({
-            databasePath: path,
-            maxEntries: 720,
-        });
-        repository.record(makeEntry());
-
-        // With a rollback journal this would be refused; that is the point of
-        // turning WAL on for a service that is read and written.
-        const reader = new DatabaseSync(path);
-        const rows = reader
-            .prepare('SELECT COUNT(*) AS total FROM signal_history')
-            .all() as unknown as Array<{ total: number }>;
-
-        expect(rows[0]?.total).toBe(1);
-
-        reader.close();
-        repository.close();
-    });
-    it('does not keep a handle open when the file cannot be initialised', () => {
-        const path = temporaryDatabasePath();
-
-        writeFileSync(path, 'this is not a database');
-
-        expect(() =>
-            createSignalHistoryRepository({ databasePath: path, maxEntries: 720 }),
-        ).toThrow();
-
-        // If the constructor leaves the connection open, a readiness probe
-        // that runs every few seconds leaks one per probe. Removing the file
-        // is the direct check: Windows refuses while a handle is still open.
-        expect(() => rmSync(path, { force: true })).not.toThrow();
+        expect(await healthy.list('BTCUSDT', 10)).toEqual([makeEntry()]);
     });
 });
 
 describe('signal history pagination', () => {
     const START = 1_737_936_000_000;
 
-    function filledRepository(hours: number) {
-        const repository = createSignalHistoryRepository({
-            databasePath: ':memory:',
-            maxEntries: 720,
-        });
+    async function filledRepository(hours: number): Promise<SignalHistoryRepository> {
+        const repository = createSignalHistoryRepository({ maxEntries: 720 });
 
         for (let hour = 0; hour < hours; hour += 1) {
-            repository.record(
+            await repository.record(
                 makeEntry({
                     timestamp: START + hour * HOUR_MS,
                     price: 100_000 + hour,
@@ -412,22 +439,20 @@ describe('signal history pagination', () => {
         return repository;
     }
 
-    it('returns the newest records first', () => {
-        const repository = filledRepository(10);
+    it('returns the newest records first', async () => {
+        const repository = await filledRepository(10);
 
-        const page = repository.list('BTCUSDT', 3);
+        const page = await repository.list('BTCUSDT', 3);
 
         expect(page.map((entry) => entry.price)).toEqual([100_009, 100_008, 100_007]);
-
-        repository.close();
     });
 
-    it('continues strictly below the last record of the previous page', () => {
-        const repository = filledRepository(10);
+    it('continues strictly below the last record of the previous page', async () => {
+        const repository = await filledRepository(10);
 
-        const first = repository.list('BTCUSDT', 4);
+        const first = await repository.list('BTCUSDT', 4);
         const boundary = Math.floor(first.at(-1)!.timestamp / HOUR_MS);
-        const second = repository.list('BTCUSDT', 4, boundary);
+        const second = await repository.list('BTCUSDT', 4, boundary);
 
         expect(second.map((entry) => entry.price)).toEqual([
             100_005, 100_004, 100_003, 100_002,
@@ -439,32 +464,26 @@ describe('signal history pagination', () => {
         for (const entry of second) {
             expect(Math.floor(entry.timestamp / HOUR_MS)).toBeLessThan(boundary);
         }
-
-        repository.close();
     });
 
-    it('returns nothing past the oldest record', () => {
-        const repository = filledRepository(3);
+    it('returns nothing past the oldest record', async () => {
+        const repository = await filledRepository(3);
 
-        const page = repository.list('BTCUSDT', 4);
+        const page = await repository.list('BTCUSDT', 4);
         const boundary = Math.floor(page.at(-1)!.timestamp / HOUR_MS);
 
         // An empty page is how the end of the record announces itself.
-        expect(repository.list('BTCUSDT', 4, boundary)).toEqual([]);
-
-        repository.close();
+        expect(await repository.list('BTCUSDT', 4, boundary)).toEqual([]);
     });
 
-    it('returns nothing for a boundary before the whole record', () => {
-        const repository = filledRepository(3);
+    it('returns nothing for a boundary before the whole record', async () => {
+        const repository = await filledRepository(3);
 
-        expect(repository.list('BTCUSDT', 4, 0)).toEqual([]);
-
-        repository.close();
+        expect(await repository.list('BTCUSDT', 4, 0)).toEqual([]);
     });
 
-    it('reaches every record exactly once when walked page by page', () => {
-        const repository = filledRepository(25);
+    it('reaches every record exactly once when walked page by page', async () => {
+        const repository = await filledRepository(25);
         const seen: number[] = [];
 
         let before: number | undefined;
@@ -472,8 +491,8 @@ describe('signal history pagination', () => {
         for (let page = 0; page < 20; page += 1) {
             const entries =
                 before === undefined
-                    ? repository.list('BTCUSDT', 4)
-                    : repository.list('BTCUSDT', 4, before);
+                    ? await repository.list('BTCUSDT', 4)
+                    : await repository.list('BTCUSDT', 4, before);
 
             if (entries.length === 0) {
                 break;
@@ -487,7 +506,5 @@ describe('signal history pagination', () => {
         expect(new Set(seen).size).toBe(25);
         expect(seen[0]).toBe(100_024);
         expect(seen.at(-1)).toBe(100_000);
-
-        repository.close();
     });
 });

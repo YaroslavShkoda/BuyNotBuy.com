@@ -1,9 +1,12 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 const { mockRepository } = vi.hoisted(() => ({
+    // Both repository methods are promises: the driver is asynchronous now, so
+    // a mock that returns an array synchronously would test a repository that
+    // cannot exist any more.
     mockRepository: {
-        record: vi.fn(),
-        list: vi.fn((): unknown[] => []),
+        record: vi.fn((): Promise<void> => Promise.resolve()),
+        list: vi.fn((): Promise<unknown[]> => Promise.resolve([])),
     },
 }));
 
@@ -29,27 +32,41 @@ function makeEntry(overrides: Partial<SignalHistoryEntry> = {}): SignalHistoryEn
 }
 
 describe('recordSignalHistory', () => {
-    beforeEach(() => {
+    beforeEach(async () => {
+        mockRepository.record.mockReset();
+        mockRepository.record.mockResolvedValue(undefined);
+        mockRepository.list.mockReset();
+        mockRepository.list.mockResolvedValue([]);
+
+        // The buffer is a module singleton, so anything an earlier test left
+        // behind has to go before these tests count on its size or on how many
+        // times the repository was called.
+        await flushSignalHistoryBacklog();
         mockRepository.record.mockClear();
-        mockRepository.list.mockClear();
     });
 
-    it('records the entry into the repository', () => {
+    it('records the entry into the repository', async () => {
         const entry = makeEntry();
 
-        recordSignalHistory(entry);
+        await recordSignalHistory(entry);
 
         expect(mockRepository.record).toHaveBeenCalledWith(entry);
     });
 
-    it('swallows repository failures and logs a warning instead', () => {
-        mockRepository.record.mockImplementationOnce(() => {
-            throw new Error('database is locked');
-        });
+    it('resolves rather than rejecting when the write fails, and warns instead', async () => {
+        mockRepository.record.mockRejectedValueOnce(
+            new Error('database is locked'),
+        );
 
         const logger = { warn: vi.fn() };
 
-        expect(() => recordSignalHistory(makeEntry(), logger)).not.toThrow();
+        // History is non-critical, so a broken database must not reach the
+        // analysis path. The contract is that the *promise settles fulfilled*:
+        // an async function never throws synchronously either, so "did not
+        // throw" alone would pass even if this rejected.
+        await expect(
+            recordSignalHistory(makeEntry(), logger),
+        ).resolves.toBeUndefined();
 
         expect(logger.warn).toHaveBeenCalledTimes(1);
         expect(logger.warn.mock.calls[0]?.[0]).toMatchObject({
@@ -57,113 +74,143 @@ describe('recordSignalHistory', () => {
         });
     });
 
-    it('swallows repository failures even without a logger', () => {
-        mockRepository.record.mockImplementationOnce(() => {
-            throw new Error('database is locked');
-        });
+    it('resolves and buffers the entry even with no logger to warn through', async () => {
+        mockRepository.record.mockRejectedValueOnce(
+            new Error('database is locked'),
+        );
 
-        expect(() => recordSignalHistory(makeEntry())).not.toThrow();
+        await expect(recordSignalHistory(makeEntry())).resolves.toBeUndefined();
+
         expect(mockRepository.record).toHaveBeenCalledTimes(1);
+        // Silent is not the same as lost: the entry waits for the poller.
+        expect(getSignalHistoryBacklogSize()).toBe(1);
     });
 });
 
 describe('history write backlog', () => {
-    beforeEach(() => {
+    beforeEach(async () => {
         mockRepository.record.mockReset();
-        mockRepository.record.mockImplementation(() => {});
+        mockRepository.record.mockResolvedValue(undefined);
         mockRepository.list.mockReset();
-        mockRepository.list.mockReturnValue([]);
+        mockRepository.list.mockResolvedValue([]);
 
         // The buffer is a module singleton, so anything an earlier test left
-        // behind has to go before these tests count on its size.
-        flushSignalHistoryBacklog();
+        // behind has to go before these tests count on its size or on how many
+        // times the repository was called.
+        await flushSignalHistoryBacklog();
+        mockRepository.record.mockClear();
     });
 
-    it('keeps an entry that failed to write instead of losing it', () => {
-        mockRepository.record.mockImplementationOnce(() => {
-            throw new Error('database is locked');
-        });
+    it('keeps an entry that failed to write instead of losing it', async () => {
+        mockRepository.record.mockRejectedValueOnce(
+            new Error('database is locked'),
+        );
 
         const entry = makeEntry({ price: 42 });
 
-        recordSignalHistory(entry);
+        await recordSignalHistory(entry);
 
         // A hole in the history reads as "the signal never changed", which is
         // exactly the wrong conclusion to draw from missing data.
         expect(getSignalHistoryBacklogSize()).toBe(1);
 
         mockRepository.record.mockClear();
-        flushSignalHistoryBacklog();
+
+        await expect(flushSignalHistoryBacklog()).resolves.toBe(1);
 
         expect(mockRepository.record).toHaveBeenCalledWith(entry);
         expect(getSignalHistoryBacklogSize()).toBe(0);
     });
 
-    it('does nothing when there is nothing to retry', () => {
+    it('does nothing when there is nothing to retry', async () => {
         mockRepository.record.mockClear();
 
-        expect(flushSignalHistoryBacklog()).toBe(0);
+        await expect(flushSignalHistoryBacklog()).resolves.toBe(0);
         expect(mockRepository.record).not.toHaveBeenCalled();
     });
 
-    it('keeps retrying on a later attempt after a second failure', () => {
-        mockRepository.record.mockImplementationOnce(() => {
-            throw new Error('locked');
-        });
+    it('keeps retrying on a later attempt after a second failure', async () => {
+        mockRepository.record.mockRejectedValueOnce(new Error('locked'));
 
-        recordSignalHistory(makeEntry({ price: 1 }));
+        await recordSignalHistory(makeEntry({ price: 1 }));
 
-        mockRepository.record.mockImplementationOnce(() => {
-            throw new Error('still locked');
-        });
+        mockRepository.record.mockRejectedValueOnce(new Error('still locked'));
 
-        flushSignalHistoryBacklog();
+        await expect(flushSignalHistoryBacklog()).resolves.toBe(0);
 
         expect(getSignalHistoryBacklogSize()).toBe(1);
 
-        mockRepository.record.mockImplementation(() => {});
+        mockRepository.record.mockResolvedValue(undefined);
 
-        expect(flushSignalHistoryBacklog()).toBe(1);
+        await expect(flushSignalHistoryBacklog()).resolves.toBe(1);
         expect(getSignalHistoryBacklogSize()).toBe(0);
     });
 
-    it('stops at the first failure instead of hammering a broken database', () => {
+    it('stops at the first failure instead of hammering a broken database', async () => {
         for (const price of [1, 2, 3]) {
-            mockRepository.record.mockImplementationOnce(() => {
-                throw new Error('locked');
-            });
+            mockRepository.record.mockRejectedValueOnce(new Error('locked'));
 
-            recordSignalHistory(makeEntry({ price }));
+            await recordSignalHistory(makeEntry({ price }));
         }
 
         expect(getSignalHistoryBacklogSize()).toBe(3);
 
         mockRepository.record.mockClear();
-        mockRepository.record.mockImplementationOnce(() => {
-            throw new Error('locked');
-        });
+        mockRepository.record.mockRejectedValueOnce(new Error('locked'));
 
-        flushSignalHistoryBacklog();
+        await expect(flushSignalHistoryBacklog()).resolves.toBe(0);
 
         // One attempt per flush: retrying all three would repeat the same
         // failing write three times per cycle.
         expect(mockRepository.record).toHaveBeenCalledTimes(1);
     });
 
-    it('stays silent about a flush failure rather than throwing at the poller', () => {
-        mockRepository.record.mockImplementationOnce(() => {
-            throw new Error('locked');
-        });
+    // Regression: the loop used to push back only the entry that actually
+    // failed and then break, which discarded everything behind it — no write
+    // and no drop count. While the database was down, a flush of three entries
+    // left one, which is the permanent hole in the record the buffer exists to
+    // prevent. Three entries rather than two, because the entry that fails has
+    // to have another one behind it: losing the tail is what went unnoticed.
+    it('leaves the entries it did not attempt queued for the next flush', async () => {
+        const entries = [1, 2, 3].map((price) => makeEntry({ price }));
 
-        recordSignalHistory(makeEntry());
+        for (const entry of entries) {
+            mockRepository.record.mockRejectedValueOnce(new Error('locked'));
 
-        mockRepository.record.mockImplementationOnce(() => {
-            throw new Error('still locked');
-        });
+            await recordSignalHistory(entry);
+        }
+
+        expect(getSignalHistoryBacklogSize()).toBe(3);
+
+        // A partial outage: the first retry gets through, the second does not.
+        mockRepository.record.mockResolvedValueOnce(undefined);
+        mockRepository.record.mockRejectedValueOnce(new Error('locked'));
+
+        await expect(flushSignalHistoryBacklog()).resolves.toBe(1);
+
+        // The one it could not write, and the one it never reached.
+        expect(getSignalHistoryBacklogSize()).toBe(2);
+
+        mockRepository.record.mockResolvedValue(undefined);
+
+        await expect(flushSignalHistoryBacklog()).resolves.toBe(2);
+        expect(getSignalHistoryBacklogSize()).toBe(0);
+        expect(mockRepository.record).toHaveBeenLastCalledWith(entries[2]);
+    });
+
+    it('stays silent about a flush failure rather than throwing at the poller', async () => {
+        mockRepository.record.mockRejectedValueOnce(new Error('locked'));
+
+        await recordSignalHistory(makeEntry());
+
+        mockRepository.record.mockRejectedValueOnce(new Error('still locked'));
 
         const logger = { warn: vi.fn() };
 
-        expect(() => flushSignalHistoryBacklog(logger)).not.toThrow();
+        // The poller awaits this on a timer, so a rejection here would become
+        // an unhandled rejection instead of a retried write.
+        await expect(flushSignalHistoryBacklog(logger)).resolves.toBe(0);
+
         expect(logger.warn).toHaveBeenCalledWith(
             expect.objectContaining({ event: 'signal_history_flush_failed' }),
             'signal_history_flush_failed',
@@ -172,12 +219,16 @@ describe('history write backlog', () => {
 });
 
 describe('getSignalHistory', () => {
-    it('reads entries for the configured market symbol', () => {
+    beforeEach(() => {
+        mockRepository.list.mockClear();
+    });
+
+    it('reads entries for the configured market symbol', async () => {
         const entries = [makeEntry()];
 
-        mockRepository.list.mockReturnValueOnce(entries);
+        mockRepository.list.mockResolvedValueOnce(entries);
 
-        expect(getSignalHistory(24)).toEqual(entries);
+        await expect(getSignalHistory(24)).resolves.toEqual(entries);
         expect(mockRepository.list).toHaveBeenCalledWith(
             marketConfig.symbol,
             24,
@@ -185,12 +236,12 @@ describe('getSignalHistory', () => {
         );
     });
 
-    it('passes a page boundary down instead of filtering in memory', () => {
+    it('passes a page boundary down instead of filtering in memory', async () => {
         const entries = [makeEntry()];
 
-        mockRepository.list.mockReturnValueOnce(entries);
+        mockRepository.list.mockResolvedValueOnce(entries);
 
-        getSignalHistory(24, 1234);
+        await expect(getSignalHistory(24, 1234)).resolves.toEqual(entries);
 
         // The boundary is part of the query: reading everything and throwing
         // most of it away is how a "20 rows" endpoint ends up scanning years.

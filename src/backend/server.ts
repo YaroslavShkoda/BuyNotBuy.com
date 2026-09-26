@@ -2,11 +2,8 @@ import { createApp } from './app.js';
 import { appConfig } from './config/app.config.js';
 import { historyConfig } from './config/history.config.js';
 import { marketConfig } from './config/market.config.js';
-import { assertSignalHistorySchemaReady, closeSignalHistoryRepository } from './history/signal-history.repository.js';
-import {
-    closeIndicatorVoteRepository,
-    getIndicatorVoteRepository,
-} from './indicators/performance/indicator-vote.repository.js';
+import { assertSignalHistorySchemaReady } from './history/signal-history.repository.js';
+import { closePool } from './db/pool.js';
 import { flushSignalHistoryBacklog } from './history/signal-history.service.js';
 import { settleForwardReturns } from './indicators/performance/indicator-performance.service.js';
 import { getMarketData } from './market/market.service.js';
@@ -54,11 +51,10 @@ async function shutdown(): Promise<void> {
         process.exit(1);
     }
 
-    // Release the process-wide SQLite handles so the database file is not
-    // left locked on shutdown (Windows would otherwise block cleanup with
-    // EPERM). Reopening on a later start is handled by the lazy singleton.
-    closeSignalHistoryRepository();
-    closeIndicatorVoteRepository();
+    // Release the process-wide connection pool so no write is left in flight
+    // at exit. Awaited: a process that walks away mid-write loses that write,
+    // and the history is exactly the record that must not have holes in it.
+    await closePool();
 }
 
 process.on('SIGINT', () => {
@@ -73,9 +69,9 @@ async function startServer() {
     try {
         // Before the socket opens: a database this build cannot read is a
         // deployment mistake, and finding it at boot beats finding it on the
-        // first market request while the service looks healthy.
-        assertSignalHistorySchemaReady();
-        getIndicatorVoteRepository();
+        // first market request while the service looks healthy. Applying the
+        // migrations here also creates the schema on a fresh database.
+        await assertSignalHistorySchemaReady();
 
         const address = await app.listen({
             port: appConfig.port,
@@ -97,12 +93,12 @@ async function startServer() {
 
                     await analyzeMarket(app.log, 'poller', app.log);
 
-                    flushSignalHistoryBacklog(app.log);
+                    await flushSignalHistoryBacklog(app.log);
 
                     // Forward returns can only be filled in once the candle
                     // that closes each horizon exists, which is why this runs
                     // on a timer rather than at record time.
-                    const settled = settleForwardReturns(
+                    const settled = await settleForwardReturns(
                         marketConfig.symbol,
                         candles,
                         undefined,

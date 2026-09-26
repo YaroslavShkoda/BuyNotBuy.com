@@ -24,6 +24,7 @@
   "dependencies": {
     "fastify": "^5.12.5",
     "next": "^16.3.5",
+    "pg": "^8.23.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "zod": "^4.6.5"
@@ -31,6 +32,7 @@
   "devDependencies": {
     "@biomejs/biome": "^2.5.14",
     "@types/node": "26.6.1",
+    "@types/pg": "^8.23.1",
     "@types/react": "19.3.0",
     "fast-check": "^4.10.2",
     "tsx": "^4.23.13",

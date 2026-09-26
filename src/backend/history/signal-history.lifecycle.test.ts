@@ -1,7 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 
 import { createSignalHistoryRepository } from './signal-history.repository.js';
 
@@ -20,134 +17,76 @@ function makeEntry(overrides: Partial<SignalHistoryEntry> = {}): SignalHistoryEn
     };
 }
 
-// Lifecycle coverage for the SQLite file handle. The process-wide singleton
-// (getSignalHistoryRepository / closeSignalHistoryRepository) is exercised
-// end-to-end by the runtime restart/cleanup checks; here we prove the same
-// semantics at the factory level on real temporary database files.
+// Lifecycle coverage for the repository factory over a real database.
+//
+// This file used to cover the SQLite file handle: the handle had to be closed
+// before anything else could read the file, and Windows refused to delete a
+// file that was still open. None of that survives the move to PostgreSQL.
+// There is no handle to close and no per-repository resource at all — the
+// connection pool is process-wide and outlives every repository instance, so
+// "close" and "writes throw after close" have no meaning here.
+//
+// What is left is the part a restart actually depends on: a row committed by
+// one instance is there for the next one, two instances sharing a pool do not
+// blur each other's symbols, and writes that overlap in time all land. The
+// concurrency case is worth more now than it was: a single serialized
+// `DatabaseSync` handle could never produce genuinely overlapping writes,
+// whereas the pool hands each one its own connection and does.
 describe('signal history repository lifecycle', () => {
-    it('persists entries across close and reopen (restart semantics)', () => {
-        const directory = mkdtempSync(join(tmpdir(), 'buy-sqlite-'));
-        const databasePath = join(directory, 'signal-history.db');
+    it('sees rows committed by an earlier repository instance (restart semantics)', async () => {
+        const beforeRestart = createSignalHistoryRepository({ maxEntries: 720 });
 
-        try {
-            const first = createSignalHistoryRepository({
-                databasePath,
-                maxEntries: 720,
-            });
+        await beforeRestart.record(makeEntry());
+        await beforeRestart.record(makeEntry({
+            timestamp: 1_737_950_400_000 - HOUR_MS,
+            signal: 'LONG',
+        }));
 
-            first.record(makeEntry());
-            first.record(makeEntry({
-                timestamp: 1_737_950_400_000 - HOUR_MS,
-                signal: 'LONG',
-            }));
-            first.close();
+        // A service restart builds its repository again over the same
+        // database. Nothing is carried in memory, so every row the new
+        // instance shows came back out of the database.
+        const afterRestart = createSignalHistoryRepository({ maxEntries: 720 });
 
-            // A fresh repository over the same file must still see the data.
-            const reopened = createSignalHistoryRepository({
-                databasePath,
-                maxEntries: 720,
-            });
-
-            try {
-                expect(reopened.list('BTCUSDT', 10)).toHaveLength(2);
-            } finally {
-                reopened.close();
-            }
-        } finally {
-            rmSync(directory, { recursive: true, force: true });
-        }
+        expect(await afterRestart.list('BTCUSDT', 10)).toHaveLength(2);
     });
 
-    it('releases the file lock after close so the database file can be deleted', () => {
-        const directory = mkdtempSync(join(tmpdir(), 'buy-sqlite-'));
-        const databasePath = join(directory, 'signal-history.db');
+    it('keeps symbols independent across repository instances', async () => {
+        const first = createSignalHistoryRepository({ maxEntries: 720 });
 
-        try {
-            const repository = createSignalHistoryRepository({
-                databasePath,
-                maxEntries: 720,
-            });
+        await first.record(makeEntry());
+        await first.record(makeEntry({ symbol: 'ETHUSDT', signal: 'LONG' }));
 
-            repository.record(makeEntry());
-            repository.close();
+        const second = createSignalHistoryRepository({ maxEntries: 720 });
 
-            // On Windows an open SQLite handle would make this throw EPERM;
-            // after a proper close the file must be deletable.
-            expect(() => rmSync(databasePath)).not.toThrow();
-        } finally {
-            rmSync(directory, { recursive: true, force: true });
-        }
+        expect(await second.list('BTCUSDT', 10)).toEqual([makeEntry()]);
+        expect(await second.list('ETHUSDT', 10)).toEqual([
+            makeEntry({ symbol: 'ETHUSDT', signal: 'LONG' }),
+        ]);
     });
 
-    it('makes close idempotent and rejects writes after close', () => {
-        const repository = createSignalHistoryRepository({
-            databasePath: ':memory:',
-            maxEntries: 720,
-        });
+    it('keeps overlapping writes consistent', async () => {
+        const repository = createSignalHistoryRepository({ maxEntries: 720 });
 
-        repository.close();
-        expect(() => repository.close()).not.toThrow();
+        // Started together rather than one after another, so the transactions
+        // really do overlap across pooled connections. Each entry lands in its
+        // own hour bucket, so all ten rows have to survive.
+        const writes: Array<Promise<void>> = [];
 
-        // node:sqlite invalidates the handle on close, so further writes throw.
-        expect(() => repository.record(makeEntry())).toThrow();
-        expect(() => repository.list('BTCUSDT', 10)).toThrow();
-    });
-
-    it('keeps concurrent writes to a file database consistent', () => {
-        const directory = mkdtempSync(join(tmpdir(), 'buy-sqlite-'));
-        const databasePath = join(directory, 'signal-history.db');
-
-        try {
-            const repository = createSignalHistoryRepository({
-                databasePath,
-                maxEntries: 720,
-            });
-
-            try {
-                // Writes are synchronous and serialized by the single
-                // DatabaseSync handle; each entry lands in its own hour bucket.
-                for (let hour = 0; hour < 10; hour += 1) {
-                    repository.record(makeEntry({
-                        timestamp: 1_737_950_400_000 - hour * HOUR_MS,
-                    }));
-                }
-
-                expect(repository.list('BTCUSDT', 10)).toHaveLength(10);
-            } finally {
-                repository.close();
-            }
-        } finally {
-            rmSync(directory, { recursive: true, force: true });
+        for (let hour = 0; hour < 10; hour += 1) {
+            writes.push(repository.record(makeEntry({
+                timestamp: 1_737_950_400_000 - hour * HOUR_MS,
+            })));
         }
-    });
 
-    it('keeps symbols independent after reopen', () => {
-        const directory = mkdtempSync(join(tmpdir(), 'buy-sqlite-'));
-        const databasePath = join(directory, 'signal-history.db');
+        await Promise.all(writes);
 
-        try {
-            const first = createSignalHistoryRepository({
-                databasePath,
-                maxEntries: 720,
-            });
+        const entries = await repository.list('BTCUSDT', 20);
 
-            first.record(makeEntry());
-            first.record(makeEntry({ symbol: 'ETHUSDT', signal: 'LONG' }));
-            first.close();
+        expect(entries).toHaveLength(10);
 
-            const reopened = createSignalHistoryRepository({
-                databasePath,
-                maxEntries: 720,
-            });
-
-            try {
-                expect(reopened.list('BTCUSDT', 10)).toHaveLength(1);
-                expect(reopened.list('ETHUSDT', 10)).toHaveLength(1);
-            } finally {
-                reopened.close();
-            }
-        } finally {
-            rmSync(directory, { recursive: true, force: true });
-        }
+        // Every hour must be present exactly once, not merely "ten rows
+        // somehow": the hourly bucket is the primary key, so a lost update
+        // would show up here as a gap rather than as a wrong count.
+        expect(new Set(entries.map((entry) => entry.timestamp)).size).toBe(10);
     });
 });

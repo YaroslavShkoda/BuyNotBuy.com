@@ -205,7 +205,14 @@ export async function analyzeMarketWithStatus(
     // Non-critical side effect: every successful analysis is recorded into
     // signal history, but a persistence failure must never fail the analysis
     // response (recordSignalHistory is fail-open by contract).
-    recordSignalHistory(
+    //
+    // Deliberately not awaited. Against a file that cost was invisible; against
+    // a database on the network it is a round trip, and awaiting it would turn
+    // "fail open" into "fail slow" — a database that is down would add its
+    // connect timeout to every page load instead of only to the history. Both
+    // calls swallow their own errors, so the discarded promise cannot reject
+    // into an unhandled rejection.
+    void recordSignalHistory(
         {
             timestamp: analysis.timestamp,
             symbol: marketData.price.symbol,
@@ -220,7 +227,7 @@ export async function analyzeMarketWithStatus(
     // own vote is stored next to it. This is what later answers "was the EMA
     // actually right?" instead of leaving it a matter of faith. Also
     // fail-open, and it does not belong in the response either way.
-    recordIndicatorVotes(analysis, marketData.price.symbol);
+    void recordIndicatorVotes(analysis, marketData.price.symbol);
 
     return { analysis, stale: marketDataStale, ageMs: marketDataAgeMs };
 }

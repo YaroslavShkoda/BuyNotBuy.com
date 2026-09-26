@@ -65,7 +65,7 @@ export async function getSignalHistory(
     // the current page would make "how long has this signal held" a function
     // of how many entries the client happened to ask for, so walking back
     // through the history would appear to shorten the run.
-    const fullHistory = readSignalHistory(historyConfig.maxEntries);
+    const fullHistory = await readSignalHistory(historyConfig.maxEntries);
 
     // One extra row answers "is there a next page?" without a second query.
     // Without it the last full page would advertise a cursor that leads to an
@@ -73,7 +73,7 @@ export async function getSignalHistory(
     const entries =
         before === undefined
             ? fullHistory.slice(0, limit + 1)
-            : readSignalHistory(limit + 1, before);
+            : await readSignalHistory(limit + 1, before);
     const hasMore = entries.length > limit;
     const page = hasMore ? entries.slice(0, limit) : entries;
     const last = page.at(-1);

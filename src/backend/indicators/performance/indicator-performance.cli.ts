@@ -29,9 +29,9 @@ function row(performance: IndicatorPerformance): string {
     ].join('  ');
 }
 
-function main(): void {
+async function main(): Promise<void> {
     const repository = getIndicatorVoteRepository();
-    const stored = repository.count(marketConfig.symbol);
+    const stored = await repository.count(marketConfig.symbol);
 
     console.log(`Символ: ${marketConfig.symbol}, свечи ${marketConfig.candleInterval}`);
     console.log(`Сохранено голосов: ${stored}`);
@@ -44,7 +44,7 @@ function main(): void {
         return;
     }
 
-    const performance = summarizeIndicatorPerformance(marketConfig.symbol);
+    const performance = await summarizeIndicatorPerformance(marketConfig.symbol);
 
     if (performance.length === 0) {
         console.log(
@@ -69,4 +69,9 @@ function main(): void {
     console.log('Прошлые голоса не обещают будущих.');
 }
 
-main();
+// A console command that cannot reach its database must say so and exit
+// non-zero, rather than print an empty report that reads like a finding.
+main().catch((error: unknown) => {
+    console.error('Не удалось прочитать сохранённые голоса:', error);
+    process.exit(1);
+});

@@ -47,12 +47,12 @@ export interface SettleSummary {
  * came along. Storing the votes individually is what makes "is the EMA
  * actually any good?" a question with an answer instead of a matter of faith.
  */
-export function recordIndicatorVotes(
+export async function recordIndicatorVotes(
     analysis: MarketAnalysis,
     symbol: string,
     logger?: IndicatorLogger,
     repository: IndicatorVoteRepository = getIndicatorVoteRepository(),
-): void {
+): Promise<void> {
     try {
         const votes: IndicatorVote[] = analysis.signal.indicators.map(
             (indicator) => ({
@@ -75,7 +75,7 @@ export function recordIndicatorVotes(
             }),
         );
 
-        repository.record(votes);
+        await repository.record(votes);
     } catch (error) {
         logger?.warn(
             { event: 'indicator_vote_record_failed', err: error },
@@ -115,18 +115,21 @@ function directionOf(signal: 'LONG' | 'SHORT' | 'NEUTRAL'): 1 | -1 | 0 {
  * settles to zero: it made no prediction, so counting it as a hit or a miss
  * would credit or blame an indicator for staying silent.
  */
-export function settleForwardReturns(
+export async function settleForwardReturns(
     symbol: string,
     candles: Candle[],
     /** Milliseconds each horizon spans. Overridable so tests need not wait a day. */
     horizonMsByName: Record<string, number> = HOUR_MS_BY_HORIZON,
     logger?: IndicatorLogger,
     repository: IndicatorVoteRepository = getIndicatorVoteRepository(),
-): SettleSummary {
+): Promise<SettleSummary> {
     let unsettled;
 
     try {
-        unsettled = repository.listUnsettled(symbol, historyConfig.maxEntries);
+        unsettled = await repository.listUnsettled(
+            symbol,
+            historyConfig.maxEntries,
+        );
     } catch (error) {
         logger?.warn(
             { event: 'indicator_vote_read_failed', err: error },
@@ -185,7 +188,7 @@ export function settleForwardReturns(
 
     if (updates.length > 0) {
         try {
-            repository.settle(symbol, updates);
+            await repository.settle(symbol, updates);
         } catch (error) {
             logger?.warn(
                 { event: 'indicator_vote_settle_failed', err: error },
@@ -205,12 +208,15 @@ export function settleForwardReturns(
  * let an indicator that abstains most of the time show a flattering hit rate
  * built entirely from the few times it spoke.
  */
-export function summarizeIndicatorPerformance(
+export async function summarizeIndicatorPerformance(
     symbol: string,
     horizons: ForwardHorizon[] = ['1h', '4h', '24h'],
     repository: IndicatorVoteRepository = getIndicatorVoteRepository(),
-): IndicatorPerformance[] {
-    const votes = repository.list(symbol, historyConfig.maxEntries * 4);
+): Promise<IndicatorPerformance[]> {
+    const votes = await repository.list(
+        symbol,
+        historyConfig.maxEntries * 4,
+    );
 
     const byIndicator = new Map<
         string,

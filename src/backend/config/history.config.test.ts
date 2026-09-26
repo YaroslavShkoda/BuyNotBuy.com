@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { isAbsolute, sep } from 'node:path';
 
+// The database no longer has a path: it is a server named by DATABASE_URL, so
+// there is no history file to anchor, point somewhere, or leave unset.
 const HISTORY_ENV_KEYS = [
-    'HISTORY_DB_PATH',
     'HISTORY_DEFAULT_LIMIT',
     'HISTORY_MAX_LIMIT',
     'HISTORY_MAX_ENTRIES',
@@ -22,46 +22,17 @@ afterEach(() => {
 });
 
 describe('historyConfig', () => {
-    it('anchors the database outside the working directory', async () => {
+    it('retains a week of hourly snapshots and reads a day of them by default', async () => {
         vi.resetModules();
         clearHistoryEnv();
 
         const { historyConfig } = await import('./history.config');
 
-        // A systemd unit or a container entrypoint starts the process from
-        // `/`; a relative path would put the database somewhere nobody looks.
-        expect(isAbsolute(historyConfig.databasePath)).toBe(true);
-        expect(historyConfig.databasePath.endsWith(`${sep}data${sep}signal-history.db`)).toBe(true);
-    });
-
-    it('lets an explicit path override the default', async () => {
-        vi.resetModules();
-        clearHistoryEnv();
-
-        process.env.HISTORY_DB_PATH = '/tmp/custom-history.db';
-
-        const { historyConfig } = await import('./history.config');
-
-        expect(historyConfig.databasePath).toBe('/tmp/custom-history.db');
-
-        clearHistoryEnv();
-    });
-
-    it('treats an assigned but empty path as unset', async () => {
-        vi.resetModules();
-        clearHistoryEnv();
-
-        // `.env.example` ships `HISTORY_DB_PATH=` to mean "use the default",
-        // and `node --env-file` hands that over as an empty string rather than
-        // an absent variable. Reading it with `??` let the empty string reach
-        // the schema and the service refused to start.
-        process.env.HISTORY_DB_PATH = '';
-
-        const { historyConfig } = await import('./history.config');
-
-        expect(historyConfig.databasePath.endsWith(`${sep}data${sep}signal-history.db`)).toBe(true);
-
-        clearHistoryEnv();
+        // 168 hourly buckets is a week; the default page of 24 covers the last
+        // day, which is the window the stability summary talks about.
+        expect(historyConfig.defaultLimit).toBe(24);
+        expect(historyConfig.maxLimit).toBe(168);
+        expect(historyConfig.maxEntries).toBe(720);
     });
 
     it('runs the poller once a minute by default', async () => {

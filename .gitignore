@@ -6,5 +6,4 @@ dist
 .env
 .env.local
 .edge-inspect-profile/
-data
 *.tsbuildinfo

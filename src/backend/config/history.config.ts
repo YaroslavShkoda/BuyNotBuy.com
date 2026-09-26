@@ -1,9 +1,6 @@
 import { z } from 'zod';
 
-import { dataPath } from './paths.js';
-
 const HistoryConfigSchema = z.object({
-    databasePath: z.string().min(1),
     defaultLimit: z.coerce.number().int().positive(),
     maxLimit: z.coerce.number().int().positive(),
     maxEntries: z.coerce.number().int().positive(),
@@ -33,18 +30,6 @@ const HistoryConfigSchema = z.object({
 export type HistoryConfig = z.infer<typeof HistoryConfigSchema>;
 
 export const historyConfig: HistoryConfig = HistoryConfigSchema.parse({
-    databasePath:
-        // `||` and not `??`: `node --env-file` hands an assigned-but-empty
-        // variable over as an empty string, and `.env.example` ships
-        // `HISTORY_DB_PATH=` to mean "use the default". `??` only catches
-        // undefined, so the empty string reached `min(1)` and the service
-        // refused to start on the documented quick start.
-        process.env.HISTORY_DB_PATH ||
-        // Anchored to the project root, not the working directory: a systemd
-        // unit or a container entrypoint starts the process from `/`, and a
-        // relative path would put the database somewhere nobody looks for it.
-        dataPath('signal-history.db'),
-
     // One entry per hour: 24 entries cover the last 24 hours.
     defaultLimit:
         process.env.HISTORY_DEFAULT_LIMIT ??

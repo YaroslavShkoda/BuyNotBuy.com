@@ -39,16 +39,17 @@ RUN npm ci --omit=dev && npm cache clean --force
 
 COPY --from=build /app/dist ./dist
 
-# The database lives here and must outlive the container. It is a volume so a
-# redeploy does not start with an empty signal history, and it is owned by the
-# unprivileged user the process actually runs as.
-RUN mkdir -p /app/data && chown -R node:node /app/data
-VOLUME ["/app/data"]
+# No volume here: the history lives in PostgreSQL, not in a file beside the
+# process, so a redeploy keeps its signal history by pointing DATABASE_URL at
+# the same database. A volume for a file nothing writes would only be a second
+# thing to back up.
 
 USER node
 
 EXPOSE 3001
 
-# Signal handling is delegated to Node, which is what closes the database
-# handle cleanly; an init process reaps zombies and forwards signals.
+# Signal handling is delegated to Node, which drains the connection pool on
+# shutdown; an init process reaps zombies and forwards signals. Without it a
+# write in flight is lost, and the history is exactly the record that must not
+# have holes in it.
 CMD ["node", "dist/backend/server.js"]

@@ -1,7 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { mkdtempSync, mkdirSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { describe, expect, it, vi } from 'vitest';
 
 import { createIndicatorVoteRepository } from './indicator-vote.repository.js';
 import {
@@ -15,36 +12,23 @@ import type { MarketAnalysis } from '../../types/analysis.js';
 import type {
     IndicatorVote,
     IndicatorVoteRepository,
+    UnsettledVote,
 } from './indicator-performance.types.js';
-import type { ForwardHorizon } from './indicator-performance.types.js';
 
 const HOUR_MS = 3_600_000;
 const HOUR = 1_700_000_000_000;
 
-const temporaryDirectories: string[] = [];
-const openRepositories: IndicatorVoteRepository[] = [];
-
-function temporaryDatabasePath(): string {
-    const directory = mkdtempSync(join(tmpdir(), 'indicator-votes-'));
-    temporaryDirectories.push(directory);
-
-    const nested = join(directory, 'nested');
-    mkdirSync(nested, { recursive: true });
-
-    return join(nested, 'votes.db');
-}
-
+/**
+ * A repository for one test, talking to the file's own PostgreSQL schema.
+ *
+ * The test setup truncates `indicator_vote` before every test, so there is
+ * nothing to tear down: no file to delete, no handle to close, and a
+ * repository abandoned half way through a failed test leaves no state behind
+ * for the next one. That is also why a fresh instance per test is free — the
+ * singleton exists so production shares one pool, not to make tests share rows.
+ */
 function openRepository(maxEntries = 720): IndicatorVoteRepository {
-    const repository = createIndicatorVoteRepository({
-        databasePath: temporaryDatabasePath(),
-        maxEntries,
-    });
-
-    // Tracked so a failing test cannot leave a handle open: Windows then
-    // refuses to delete the directory and the next test sees the fallout.
-    openRepositories.push(repository);
-
-    return repository;
+    return createIndicatorVoteRepository({ maxEntries });
 }
 
 function candlesFrom(entries: [hoursFromStart: number, close: number][]): Candle[] {
@@ -67,6 +51,22 @@ function vote(overrides: Partial<IndicatorVote> = {}): IndicatorVote {
         weight: 0.5,
         price: 100,
         fwdReturns: {},
+        ...overrides,
+    };
+}
+
+/**
+ * The shape a repository hands back for a vote that still owes a horizon.
+ * Built by a helper so the mocks below stay about the failure, not the shape.
+ */
+function unsettled(overrides: Partial<UnsettledVote> = {}): UnsettledVote {
+    return {
+        symbol: 'BTCUSDT',
+        timestamp: HOUR,
+        indicator: 'EMA 300',
+        price: 100,
+        signal: 'LONG',
+        pending: ['1h'],
         ...overrides,
     };
 }
@@ -108,74 +108,56 @@ function analysisWith(
         },
         momentum: { period: 100, current: 1, series: [] },
         divergence: { bullish: null, bearish: null },
-    periods: {
-        ema: 300,
-        stochastic: 100,
-        momentum: 100,
-        atr: 14,
-        rsi: 14,
-        macdFast: 12,
-        macdSlow: 26,
-        macdSignal: 9,
-    },    };
+        periods: {
+            ema: 300,
+            stochastic: 100,
+            momentum: 100,
+            atr: 14,
+            rsi: 14,
+            macdFast: 12,
+            macdSlow: 26,
+            macdSignal: 9,
+        },
+    };
 }
 
-afterEach(() => {
-    while (openRepositories.length > 0) {
-        openRepositories.pop()?.close();
-    }
-
-    while (temporaryDirectories.length > 0) {
-        const directory = temporaryDirectories.pop();
-
-        if (directory !== undefined) {
-            rmSync(directory, { recursive: true, force: true });
-        }
-    }
-});
-
 describe('indicator vote storage', () => {
-    it('keeps one row per indicator per hour', () => {
+    it('keeps one row per indicator per hour', async () => {
         const repository = openRepository();
 
-        repository.record([
+        await repository.record([
             vote({ indicator: 'EMA 300' }),
             vote({ indicator: 'Стохастик', signal: 'SHORT' }),
             vote({ indicator: 'Momentum 100', signal: 'NEUTRAL' }),
         ]);
 
-        expect(repository.count('BTCUSDT')).toBe(3);
+        await expect(repository.count('BTCUSDT')).resolves.toBe(3);
 
-        const stored = repository.list('BTCUSDT', 10);
+        const stored = await repository.list('BTCUSDT', 10);
 
         expect(stored.map((item) => item.indicator).sort()).toEqual([
             'EMA 300',
             'Momentum 100',
             'Стохастик',
         ]);
-
-        repository.close();
     });
 
-    it('stores each indicator separately from the consensus', () => {
+    it('stores each indicator separately from the consensus', async () => {
         const repository = openRepository();
 
         // One consensus number cannot say which of the three earned it.
-        recordIndicatorVotes(
+        await recordIndicatorVotes(
             analysisWith([
-                { key: 'ema' as const,
-                name: 'EMA 300', signal: 'LONG', reason: 'a', weight: 0.8 },
-                { key: 'stochastic' as const,
-                name: 'Стохастик', signal: 'NEUTRAL', reason: 'b', weight: 0 },
-                { key: 'momentum' as const,
-                name: 'Momentum 100', signal: 'LONG', reason: 'c', weight: 0.4 },
+                { key: 'ema', name: 'EMA 300', signal: 'LONG', reason: 'a', weight: 0.8 },
+                { key: 'stochastic', name: 'Стохастик', signal: 'NEUTRAL', reason: 'b', weight: 0 },
+                { key: 'momentum', name: 'Momentum 100', signal: 'LONG', reason: 'c', weight: 0.4 },
             ]),
             'BTCUSDT',
             undefined,
             repository,
         );
 
-        const stored = repository.list('BTCUSDT', 10);
+        const stored = await repository.list('BTCUSDT', 10);
 
         expect(stored).toHaveLength(3);
         // Stored by key, not by label. The label carries the period, so storing
@@ -190,35 +172,33 @@ describe('indicator vote storage', () => {
         expect(
             stored.some((item) => item.indicator === 'EMA 300'),
         ).toBe(false);
-
-        repository.close();
     });
 
-    it('keeps a failing store from breaking the analysis path', () => {
+    it('keeps a failing store from breaking the analysis path', async () => {
         const failing: IndicatorVoteRepository = {
-            record: () => {
-                throw new Error('database is locked');
-            },
-            list: () => [],
-            listUnsettled: () => [],
-            settle: () => {},
-            count: () => 0,
-            close: () => {},
+            record: vi.fn().mockRejectedValue(new Error('database is locked')),
+            list: vi.fn().mockResolvedValue([]),
+            listUnsettled: vi.fn().mockResolvedValue([]),
+            settle: vi.fn().mockResolvedValue(undefined),
+            count: vi.fn().mockResolvedValue(0),
         };
 
         const logger = { warn: vi.fn() };
 
-        expect(() =>
+        // Production fires this off with `void` and never awaits it, so the
+        // property that matters is not that it does not throw but that it
+        // never rejects: an unhandled rejection there would take the process
+        // down over a reading nobody was waiting for anyway.
+        await expect(
             recordIndicatorVotes(
                 analysisWith([
-                    { key: 'ema' as const,
-                name: 'EMA 300', signal: 'LONG', reason: 'a', weight: 1 },
+                    { key: 'ema', name: 'EMA 300', signal: 'LONG', reason: 'a', weight: 1 },
                 ]),
                 'BTCUSDT',
                 logger,
                 failing,
             ),
-        ).not.toThrow();
+        ).resolves.toBeUndefined();
 
         expect(logger.warn).toHaveBeenCalledWith(
             expect.objectContaining({ event: 'indicator_vote_record_failed' }),
@@ -226,114 +206,102 @@ describe('indicator vote storage', () => {
         );
     });
 
-    it('leaves forward returns unset until the horizon closes', () => {
+    it('leaves forward returns unset until the horizon closes', async () => {
         const repository = openRepository();
 
-        repository.record([vote()]);
+        await repository.record([vote()]);
 
         // Zero would be indistinguishable from a vote that predicted nothing.
-        expect(repository.list('BTCUSDT', 10)[0]?.fwdReturns).toEqual({});
-
-        repository.close();
+        expect((await repository.list('BTCUSDT', 10))[0]?.fwdReturns).toEqual({});
     });
 
-    it('replaces a vote when a later reading of the same hour arrives', () => {
+    it('replaces a vote when a later reading of the same hour arrives', async () => {
         const repository = openRepository();
 
-        repository.record([
+        await repository.record([
             vote({ signal: 'NEUTRAL', weight: 0, timestamp: HOUR + 60_000 }),
         ]);
-        repository.record([
+        await repository.record([
             vote({ signal: 'LONG', weight: 0.9, timestamp: HOUR + 120_000 }),
         ]);
 
-        const stored = repository.list('BTCUSDT', 10);
+        const stored = await repository.list('BTCUSDT', 10);
 
         expect(stored).toHaveLength(1);
         expect(stored[0]?.signal).toBe('LONG');
         expect(stored[0]?.weight).toBeCloseTo(0.9, 10);
-
-        repository.close();
     });
 
-    it('never lets a late older reading overwrite a fresher one', () => {
+    it('never lets a late older reading overwrite a fresher one', async () => {
         const repository = openRepository();
 
-        repository.record([vote({ signal: 'LONG', timestamp: HOUR + 120_000 })]);
-        repository.record([vote({ signal: 'SHORT', timestamp: HOUR + 60_000 })]);
+        await repository.record([vote({ signal: 'LONG', timestamp: HOUR + 120_000 })]);
+        await repository.record([vote({ signal: 'SHORT', timestamp: HOUR + 60_000 })]);
 
-        expect(repository.list('BTCUSDT', 10)[0]?.signal).toBe('LONG');
-
-        repository.close();
+        expect((await repository.list('BTCUSDT', 10))[0]?.signal).toBe('LONG');
     });
 });
 
 describe('forward return settlement', () => {
-    it('does not settle a horizon that has not closed yet', () => {
+    it('does not settle a horizon that has not closed yet', async () => {
         const repository = openRepository();
 
-        repository.record([vote({ timestamp: HOUR })]);
+        await repository.record([vote({ timestamp: HOUR })]);
 
         // The window stops one hour in: the 4h and 24h candles are not here.
-        const summary = settle(repository, candlesFrom([[0, 100], [1, 110]]));
+        const summary = await settle(repository, candlesFrom([[0, 100], [1, 110]]));
 
         expect(summary.settled).toBe(1);
         // Two horizons are still owed, so the vote has not finished.
         expect(summary.stillPending).toBe(1);
 
-        const stored = repository.list('BTCUSDT', 10);
+        const stored = await repository.list('BTCUSDT', 10);
 
         expect(stored[0]?.fwdReturns['1h']).toBeCloseTo(0.1 - 0.002, 10);
         expect(stored[0]?.fwdReturns['4h']).toBeUndefined();
         expect(stored[0]?.fwdReturns['24h']).toBeUndefined();
-
-        repository.close();
     });
 
-    it('signs the return by the direction of the vote', () => {
+    it('signs the return by the direction of the vote', async () => {
         const repository = openRepository();
 
-        repository.record([vote({ signal: 'SHORT', timestamp: HOUR })]);
+        await repository.record([vote({ signal: 'SHORT', timestamp: HOUR })]);
 
-        settle(repository, candlesFrom([[0, 100], [1, 90]]));
+        await settle(repository, candlesFrom([[0, 100], [1, 90]]));
 
         // A correct short is a positive result, so longs and shorts can be
         // averaged together instead of cancelling out.
-        expect(repository.list('BTCUSDT', 10)[0]?.fwdReturns['1h']).toBeCloseTo(
+        expect((await repository.list('BTCUSDT', 10))[0]?.fwdReturns['1h']).toBeCloseTo(
             0.1 - 0.002,
             10,
         );
-
-        repository.close();
     });
 
-    it('makes a correct call that cannot cover its costs a loss', () => {
+    it('makes a correct call that cannot cover its costs a loss', async () => {
         const repository = openRepository();
 
-        repository.record([vote({ signal: 'LONG', timestamp: HOUR })]);
+        await repository.record([vote({ signal: 'LONG', timestamp: HOUR })]);
 
         // The price rose 0.1%, and a round trip costs 0.2%.
-        settle(repository, candlesFrom([[0, 100], [1, 100.1]]));
+        await settle(repository, candlesFrom([[0, 100], [1, 100.1]]));
 
-        const value = repository.list('BTCUSDT', 10)[0]?.fwdReturns['1h'];
+        const value = (await repository.list('BTCUSDT', 10))[0]?.fwdReturns['1h'];
 
         expect(value).toBeDefined();
         expect(value ?? 0).toBeLessThan(0);
-
-        repository.close();
     });
 
-    it('settles every indicator of an hour against its own direction', () => {
+    it('settles every indicator of an hour against its own direction', async () => {
         const repository = openRepository();
 
-        repository.record([
+        await repository.record([
             vote({ indicator: 'EMA 300', signal: 'LONG' }),
             vote({ indicator: 'Стохастик', signal: 'SHORT' }),
         ]);
 
-        settle(repository, candlesFrom([[0, 100], [1, 110]]));
+        await settle(repository, candlesFrom([[0, 100], [1, 110]]));
 
-        const stored = repository.list('BTCUSDT', 10);
+        const stored = await repository.list('BTCUSDT', 10);
 
         expect(stored).toHaveLength(2);
 
@@ -346,14 +314,12 @@ describe('forward return settlement', () => {
         expect(
             stored.find((item) => item.indicator === 'Стохастик')?.fwdReturns['1h'],
         ).toBeCloseTo(-0.1 - 0.002, 10);
-
-        repository.close();
     });
 
-    it('keeps a disagreement from being resolved in favour of one side', () => {
+    it('keeps a disagreement from being resolved in favour of one side', async () => {
         const repository = openRepository();
 
-        repository.record([
+        await repository.record([
             vote({ indicator: 'EMA 300', signal: 'LONG', timestamp: HOUR }),
             vote({ indicator: 'Momentum 100', signal: 'SHORT', timestamp: HOUR }),
             vote({ indicator: 'Стохастик', signal: 'LONG', timestamp: HOUR }),
@@ -361,100 +327,109 @@ describe('forward return settlement', () => {
 
         // One collapsed entry per hour would carry whichever signal happened
         // to be read first, and the minority verdict would vanish.
-        expect(repository.listUnsettled('BTCUSDT', 10).map((item) => item.signal)).toEqual(
-            expect.arrayContaining(['LONG', 'SHORT']),
-        );
+        expect(
+            (await repository.listUnsettled('BTCUSDT', 10)).map((item) => item.signal),
+        ).toEqual(expect.arrayContaining(['LONG', 'SHORT']));
 
-        settle(repository, candlesFrom([[0, 100], [1, 110]]));
+        await settle(repository, candlesFrom([[0, 100], [1, 110]]));
 
         const byIndicator = new Map(
-            repository.list('BTCUSDT', 10).map((item) => [item.indicator, item]),
+            (await repository.list('BTCUSDT', 10)).map((item) => [item.indicator, item]),
         );
 
         expect(byIndicator.get('EMA 300')?.fwdReturns['1h']).toBeGreaterThan(0);
         expect(byIndicator.get('Стохастик')?.fwdReturns['1h']).toBeGreaterThan(0);
         expect(byIndicator.get('Momentum 100')?.fwdReturns['1h']).toBeLessThan(0);
-
-        repository.close();
     });
 
-    it('never settles the same horizon twice', () => {        const repository = openRepository();
+    it('never settles the same horizon twice', async () => {
+        const repository = openRepository();
 
-        repository.record([vote({ timestamp: HOUR })]);
+        await repository.record([vote({ timestamp: HOUR })]);
 
         const candles = candlesFrom([[0, 100], [1, 110]]);
 
-        settle(repository, candles);
+        await settle(repository, candles);
 
         // A later price must not rewrite history: the 1h return is whatever
         // the market did one hour after the vote, forever.
-        settle(repository, candlesFrom([[0, 100], [1, 50]]));
+        const second = await settle(repository, candlesFrom([[0, 100], [1, 50]]));
 
-        expect(repository.list('BTCUSDT', 10)[0]?.fwdReturns['1h']).toBeCloseTo(
+        // The vote is still owed the other two horizons, so it comes back round
+        // and the settled one is not even looked at a second time.
+        expect(second.examined).toBe(1);
+        expect(second.settled).toBe(0);
+        expect(second.stillPending).toBe(1);
+
+        expect((await repository.list('BTCUSDT', 10))[0]?.fwdReturns['1h']).toBeCloseTo(
             0.1 - 0.002,
             10,
         );
-
-        repository.close();
     });
 
-    it('settles a neutral vote to zero rather than judging it', () => {
+    it('settles a neutral vote to zero rather than judging it', async () => {
         const repository = openRepository();
 
-        repository.record([vote({ signal: 'NEUTRAL', timestamp: HOUR })]);
+        await repository.record([vote({ signal: 'NEUTRAL', timestamp: HOUR })]);
 
-        settle(repository, candlesFrom([[0, 100], [1, 200]]));
+        await settle(repository, candlesFrom([[0, 100], [1, 200]]));
 
         // The indicator made no prediction, so it is neither right nor wrong.
-        expect(repository.list('BTCUSDT', 10)[0]?.fwdReturns['1h']).toBe(0);
-
-        repository.close();
+        expect((await repository.list('BTCUSDT', 10))[0]?.fwdReturns['1h']).toBe(0);
     });
 
-    it('leaves a vote alone when the price it stored is unusable', () => {
+    it('leaves a vote alone when the price it stored is unusable', async () => {
         const repository = openRepository();
 
-        repository.record([vote({ price: 0, timestamp: HOUR })]);
+        await repository.record([vote({ price: 0, timestamp: HOUR })]);
 
-        settle(repository, candlesFrom([[0, 100], [1, 110]]));
+        await settle(repository, candlesFrom([[0, 100], [1, 110]]));
 
         // Dividing by the vote price would produce a meaningless number that
         // then looked like data.
-        expect(repository.list('BTCUSDT', 10)[0]?.fwdReturns['1h']).toBeUndefined();
-        expect(settle(repository, candlesFrom([[0, 100], [1, 110]])).stillPending).toBe(1);
-
-        repository.close();
+        expect((await repository.list('BTCUSDT', 10))[0]?.fwdReturns['1h']).toBeUndefined();
+        expect((await settle(repository, candlesFrom([[0, 100], [1, 110]]))).stillPending).toBe(1);
     });
 
-    it('does nothing when there is nothing unsettled', () => {
+    it('skips a return that is not a finite number', async () => {
         const repository = openRepository();
 
-        expect(settle(repository, candlesFrom([[0, 100]]))).toEqual({
+        await repository.record([vote({ timestamp: HOUR })]);
+
+        // NaN and Infinity can only arrive from a price that is not a price.
+        // Writing one would store a value the summary would then average in as
+        // though it were a measurement.
+        await repository.settle('BTCUSDT', [
+            { timestamp: HOUR, indicator: 'EMA 300', returns: { '1h': Number.NaN } },
+        ]);
+
+        expect((await repository.list('BTCUSDT', 10))[0]?.fwdReturns['1h']).toBeUndefined();
+    });
+
+    it('does nothing when there is nothing unsettled', async () => {
+        const repository = openRepository();
+
+        await expect(settle(repository, candlesFrom([[0, 100]]))).resolves.toEqual({
             examined: 0,
             settled: 0,
             stillPending: 0,
         });
-
-        repository.close();
     });
 
-    it('survives a store that cannot be read', () => {
+    it('survives a store that cannot be read', async () => {
         const failing: IndicatorVoteRepository = {
-            record: () => {},
-            list: () => [],
-            listUnsettled: () => {
-                throw new Error('database is locked');
-            },
-            settle: () => {},
-            count: () => 0,
-            close: () => {},
+            record: vi.fn().mockResolvedValue(undefined),
+            list: vi.fn().mockResolvedValue([]),
+            listUnsettled: vi.fn().mockRejectedValue(new Error('database is locked')),
+            settle: vi.fn().mockResolvedValue(undefined),
+            count: vi.fn().mockResolvedValue(0),
         };
 
         const logger = { warn: vi.fn() };
 
-        expect(() =>
+        await expect(
             settleForwardReturns('BTCUSDT', [], undefined, logger, failing),
-        ).not.toThrow();
+        ).resolves.toEqual({ examined: 0, settled: 0, stillPending: 0 });
 
         expect(logger.warn).toHaveBeenCalledWith(
             expect.objectContaining({ event: 'indicator_vote_read_failed' }),
@@ -462,32 +437,22 @@ describe('forward return settlement', () => {
         );
     });
 
-    it('keeps the pending horizons when a settlement cannot be written', () => {
+    it('keeps the pending horizons when a settlement cannot be written', async () => {
         const failing: IndicatorVoteRepository = {
-            record: () => {},
-            list: () => [],
-            listUnsettled: () => [
-                {
-                    symbol: 'BTCUSDT',
-                    timestamp: HOUR,
-                    indicator: 'EMA 300',
-                    price: 100,
-                    signal: 'LONG',
-                    pending: ['1h'] as ForwardHorizon[],
-                },
-            ],
-            settle: () => {
-                throw new Error('database is locked');
-            },
-            count: () => 0,
-            close: () => {},
+            record: vi.fn().mockResolvedValue(undefined),
+            list: vi.fn().mockResolvedValue([]),
+            listUnsettled: vi.fn().mockResolvedValue([unsettled()]),
+            settle: vi.fn().mockRejectedValue(new Error('database is locked')),
+            count: vi.fn().mockResolvedValue(0),
         };
 
-        const summary = settleForwardReturns(
+        const logger = { warn: vi.fn() };
+
+        const summary = await settleForwardReturns(
             'BTCUSDT',
             candlesFrom([[0, 100], [1, 110]]),
             undefined,
-            { warn: vi.fn() },
+            logger,
             failing,
         );
 
@@ -495,19 +460,23 @@ describe('forward return settlement', () => {
         // cycle skip the work again.
         expect(summary.settled).toBe(0);
         expect(summary.stillPending).toBe(1);
+        expect(logger.warn).toHaveBeenCalledWith(
+            expect.objectContaining({ event: 'indicator_vote_settle_failed' }),
+            'indicator_vote_settle_failed',
+        );
     });
 });
 
 describe('performance summary', () => {
-    it('counts only the votes that had an opinion', () => {
+    it('counts only the votes that had an opinion', async () => {
         const repository = openRepository();
 
-        repository.record([
+        await repository.record([
             vote({ signal: 'LONG', timestamp: HOUR, fwdReturns: { '1h': 0.01 } }),
             vote({ signal: 'NEUTRAL', timestamp: HOUR + HOUR_MS, fwdReturns: { '1h': 0.05 } }),
         ]);
 
-        const [performance] = summarizeIndicatorPerformance(
+        const [performance] = await summarizeIndicatorPerformance(
             'BTCUSDT',
             ['1h'],
             repository,
@@ -518,30 +487,26 @@ describe('performance summary', () => {
         expect(performance?.samples).toBe(1);
         expect(performance?.averageReturn).toBeCloseTo(0.01, 10);
         expect(performance?.hitRate).toBe(1);
-
-        repository.close();
     });
 
-    it('reports nothing for a horizon nothing has settled yet', () => {
+    it('reports nothing for a horizon nothing has settled yet', async () => {
         const repository = openRepository();
 
-        repository.record([vote({ fwdReturns: { '1h': 0.01 } })]);
+        await repository.record([vote({ fwdReturns: { '1h': 0.01 } })]);
 
-        expect(summarizeIndicatorPerformance('BTCUSDT', ['24h'], repository)).toEqual(
+        expect(await summarizeIndicatorPerformance('BTCUSDT', ['24h'], repository)).toEqual(
             [],
         );
-
-        repository.close();
     });
 
-    it('separates the horizons into their own rows', () => {
+    it('separates the horizons into their own rows', async () => {
         const repository = openRepository();
 
-        repository.record([
+        await repository.record([
             vote({ fwdReturns: { '1h': 0.01, '4h': 0.03, '24h': -0.02 } }),
         ]);
 
-        const summary = summarizeIndicatorPerformance(
+        const summary = await summarizeIndicatorPerformance(
             'BTCUSDT',
             ['1h', '4h', '24h'],
             repository,
@@ -552,19 +517,17 @@ describe('performance summary', () => {
             summary.find((item) => item.horizon === '4h')?.averageReturn,
         ).toBeCloseTo(0.03, 10);
         expect(summary.find((item) => item.horizon === '24h')?.hitRate).toBe(0);
-
-        repository.close();
     });
 
-    it('keeps one row per indicator so they can be told apart', () => {
+    it('keeps one row per indicator so they can be told apart', async () => {
         const repository = openRepository();
 
-        repository.record([
+        await repository.record([
             vote({ indicator: 'EMA 300', fwdReturns: { '1h': 0.01 } }),
             vote({ indicator: 'Стохастик', fwdReturns: { '1h': -0.01 } }),
         ]);
 
-        const summary = summarizeIndicatorPerformance(
+        const summary = await summarizeIndicatorPerformance(
             'BTCUSDT',
             ['1h'],
             repository,
@@ -573,19 +536,17 @@ describe('performance summary', () => {
         expect(summary).toHaveLength(2);
         expect(summary.find((item) => item.indicator === 'EMA 300')?.hitRate).toBe(1);
         expect(summary.find((item) => item.indicator === 'Стохастик')?.hitRate).toBe(0);
-
-        repository.close();
     });
 
-    it('tracks the spread as well as the mean', () => {
+    it('tracks the spread as well as the mean', async () => {
         const repository = openRepository();
 
-        repository.record([
+        await repository.record([
             vote({ timestamp: HOUR, fwdReturns: { '1h': 0.08 } }),
             vote({ timestamp: HOUR + HOUR_MS, fwdReturns: { '1h': -0.03 } }),
         ]);
 
-        const [performance] = summarizeIndicatorPerformance(
+        const [performance] = await summarizeIndicatorPerformance(
             'BTCUSDT',
             ['1h'],
             repository,
@@ -595,17 +556,13 @@ describe('performance summary', () => {
         expect(performance?.averageReturn).toBeCloseTo(0.025, 10);
         expect(performance?.best).toBeCloseTo(0.08, 10);
         expect(performance?.worst).toBeCloseTo(-0.03, 10);
-
-        repository.close();
     });
 
-    it('says nothing at all when no vote has been recorded', () => {
+    it('says nothing at all when no vote has been recorded', async () => {
         const repository = openRepository();
 
         expect(
-            summarizeIndicatorPerformance('BTCUSDT', ['1h', '4h', '24h'], repository),
+            await summarizeIndicatorPerformance('BTCUSDT', ['1h', '4h', '24h'], repository),
         ).toEqual([]);
-
-        repository.close();
     });
 });

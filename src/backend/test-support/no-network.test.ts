@@ -85,12 +85,73 @@ describe('the network guard', () => {
 });
 
 describe('what the guard does not block', () => {
-    it('leaves a file-backed database working', async () => {
-        // The guard exists for the network. A local database is not a network,
-        // and sealing that too would make the integration suites untestable.
-        const { getMetricsSnapshot } = await import('../api/lib/metrics.js');
+    it('leaves the local database reachable', async () => {
+        // The guard exists for the network. PostgreSQL is a local dependency
+        // the repositories cannot be tested without, and the only address the
+        // guard waves through is the one in DATABASE_URL.
+        const { query } = await import('../db/pool.js');
 
-        expect(typeof getMetricsSnapshot().requests).toBe('number');
+        const result = await query<{ one: number }>('SELECT 1 AS one');
+
+        expect(result.rows[0]?.one).toBe(1);
+    });
+
+    it('still refuses a TCP connection to anywhere else', async () => {
+        const { isDatabaseAddress } = await import('./no-network.js');
+
+        // Tested as a decision rather than through `net.connect`, on purpose:
+        // a named ESM import of `connect` is bound when the module is linked,
+        // so it keeps the original function and would open a real connection
+        // instead of hitting the guard. The rule is what must not widen, and
+        // the rule is answerable directly.
+        expect(
+            isDatabaseAddress([{ host: '203.0.113.1', port: 5432 }]),
+        ).toBe(false);
+    });
+
+    it('treats the allowance as an address, not as a port number', async () => {
+        const { isDatabaseAddress } = await import('./no-network.js');
+
+        // Same port, different host: matching on the port alone would let any
+        // other PostgreSQL on the machine be reached from a test.
+        expect(
+            isDatabaseAddress([{ host: '198.51.100.7', port: 5432 }]),
+        ).toBe(false);
+    });
+
+    it('allows the address in DATABASE_URL and nothing else on that host', async () => {
+        const { isDatabaseAddress } = await import('./no-network.js');
+
+        const allowed = new URL(process.env.DATABASE_URL ?? '');
+
+        expect(
+            isDatabaseAddress([
+                { host: allowed.hostname, port: Number(allowed.port) },
+            ]),
+        ).toBe(true);
+
+        // Same host, another port: a stray service on the machine is not the
+        // database, and the guard is not a port filter.
+        expect(
+            isDatabaseAddress([{ host: allowed.hostname, port: 9999 }]),
+        ).toBe(false);
+    });
+
+    it('allows nothing when DATABASE_URL is absent or unparseable', async () => {
+        const { isDatabaseAddress } = await import('./no-network.js');
+        const original = process.env.DATABASE_URL;
+
+        try {
+            delete process.env.DATABASE_URL;
+            expect(isDatabaseAddress([{ host: '127.0.0.1', port: 5432 }])).toBe(false);
+
+            process.env.DATABASE_URL = 'not a url';
+            expect(isDatabaseAddress([{ host: '127.0.0.1', port: 5432 }])).toBe(false);
+        } finally {
+            if (original !== undefined) {
+                process.env.DATABASE_URL = original;
+            }
+        }
     });
 
     it('leaves fake timers usable', async () => {

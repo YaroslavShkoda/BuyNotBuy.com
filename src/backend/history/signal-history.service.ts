@@ -17,14 +17,19 @@ const writeBuffer = createSignalHistoryWriteBuffer({
 
 // History is a non-critical subsystem: a persistence failure must never
 // propagate into the market analysis path, so this wrapper is fail-open
-// by contract and never throws. A failed write is buffered rather than
+// by contract and never rejects. A failed write is buffered rather than
 // dropped, so a momentary database problem leaves no hole in the record.
-export function recordSignalHistory(
+//
+// It still returns a promise, and the caller is expected to await it: a
+// fire-and-forget write against an asynchronous driver would turn every
+// database failure into an unhandled rejection, which is the opposite of
+// fail-open.
+export async function recordSignalHistory(
     entry: SignalHistoryEntry,
     logger?: SignalHistoryLogger,
-): void {
+): Promise<void> {
     try {
-        getSignalHistoryRepository().record(entry);
+        await getSignalHistoryRepository().record(entry);
     } catch (error) {
         writeBuffer.push(entry);
 
@@ -48,19 +53,33 @@ export function recordSignalHistory(
  * attempt instead of replaying the same prefix forever. The signal is recorded
  * once per hour, so a duplicate write is idempotent anyway.
  */
-export function flushSignalHistoryBacklog(logger?: SignalHistoryLogger): number {
+export async function flushSignalHistoryBacklog(
+    logger?: SignalHistoryLogger,
+): Promise<number> {
     if (writeBuffer.size === 0) {
         return 0;
     }
 
+    // Drained once, then handed back wholesale on failure. Peeking instead
+    // would mean a `shift` that throws has already lost the entry.
+    const pending = writeBuffer.drain();
+
     let written = 0;
 
-    for (const entry of writeBuffer.drain()) {
+    for (const [index, entry] of pending.entries()) {
         try {
-            getSignalHistoryRepository().record(entry);
+            await getSignalHistoryRepository().record(entry);
             written += 1;
         } catch (error) {
-            writeBuffer.push(entry);
+            // Everything from the failing entry onwards is still unwritten.
+            // Pushing back only the entry that failed — and stopping there —
+            // would discard the rest of the queue with no write and no count,
+            // which is exactly the permanent hole in the record the buffer
+            // exists to prevent. And the hole would be invisible: a gap in a
+            // stability metric reads as "the signal did not change".
+            for (const unprocessed of pending.slice(index)) {
+                writeBuffer.push(unprocessed);
+            }
 
             logger?.warn(
                 {
@@ -82,8 +101,15 @@ export function getSignalHistoryBacklogSize(): number {
     return writeBuffer.size;
 }
 
-export function getSignalHistory(limit: number, before?: number): SignalHistoryEntry[] {
-    return getSignalHistoryRepository().list(marketConfig.symbol, limit, before);
+export async function getSignalHistory(
+    limit: number,
+    before?: number,
+): Promise<SignalHistoryEntry[]> {
+    return getSignalHistoryRepository().list(
+        marketConfig.symbol,
+        limit,
+        before,
+    );
 }
 
 const HOUR_MS = 3_600_000;

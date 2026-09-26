@@ -1,24 +1,44 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createApp } from '../../app.js';
+import { resetMetrics } from '../lib/metrics.js';
+import { LATEST_SCHEMA_VERSION } from '../../db/migrations.js';
 
 import type { FastifyInstance } from 'fastify';
 
-const temporaryDirectories: string[] = [];
-const openInstances: FastifyInstance[] = [];
-
 /**
- * Handles opened by a freshly re-imported module graph.
+ * The database is replaced, not broken.
  *
- * `vi.resetModules()` gives a new registry, so the singletons the original
- * import created are not the ones a fresh app opened. Closing the wrong ones
- * leaves a SQLite handle open, and Windows then refuses to delete the
- * temporary directory — the next thing to fail is the cleanup, not the test.
+ * There is no database file to point at a piece of garbage any more. What "the
+ * database is unusable" means is now a set of answers the server can give — it
+ * refuses the connection, it holds a schema this build cannot read, a table is
+ * missing — and each of those is a state a mock can be put into directly. It
+ * also stops the probe tests from depending on a server being up in order to
+ * observe it being unreachable.
  */
-const foreignClosers: Array<() => void> = [];
+const { historyRepository, voteRepository } = vi.hoisted(() => ({
+    historyRepository: {
+        schemaVersion: vi.fn(),
+        record: vi.fn(),
+        list: vi.fn(),
+        durabilitySettings: vi.fn(),
+    },
+    voteRepository: {
+        count: vi.fn(),
+    },
+}));
+
+// Both modules reach the database through these two getters, and the
+// repositories they hand out are now entirely asynchronous.
+vi.mock('../../history/signal-history.repository.js', () => ({
+    getSignalHistoryRepository: () => historyRepository,
+}));
+
+vi.mock('../../indicators/performance/indicator-vote.repository.js', () => ({
+    getIndicatorVoteRepository: () => voteRepository,
+}));
+
+const openInstances: FastifyInstance[] = [];
 
 function track(app: FastifyInstance): FastifyInstance {
     openInstances.push(app);
@@ -26,33 +46,28 @@ function track(app: FastifyInstance): FastifyInstance {
     return app;
 }
 
-/** Builds an app whose configuration is read from the current environment. */
-async function appWithFreshModules(): Promise<FastifyInstance> {
-    vi.resetModules();
+beforeEach(() => {
+    // A database this build understands, with nothing recorded in it.
+    historyRepository.schemaVersion.mockResolvedValue(LATEST_SCHEMA_VERSION);
+    historyRepository.record.mockResolvedValue(undefined);
+    historyRepository.list.mockResolvedValue([]);
+    historyRepository.durabilitySettings.mockResolvedValue({
+        statementTimeout: '10s',
+        lockTimeout: '5s',
+    });
+    voteRepository.count.mockResolvedValue(0);
 
-    const fresh = await import('../../app.js');
-    const history = await import('../../history/signal-history.repository.js');
-    const votes = await import(
-        '../../indicators/performance/indicator-vote.repository.js'
-    );
+    // The counters are a module singleton. Without this, a 503 from a
+    // readiness test above would be counted as a failure by a metrics test
+    // below, which asserts on an exact number.
+    resetMetrics();
+});
 
-    foreignClosers.push(
-        history.closeSignalHistoryRepository,
-        votes.closeIndicatorVoteRepository,
-    );
-
-    return track(fresh.createApp());
-}
-
-function temporaryFile(name: string, contents: string): string {
-    const directory = mkdtempSync(join(tmpdir(), 'health-'));
-    temporaryDirectories.push(directory);
-
-    const path = join(directory, name);
-    writeFileSync(path, contents);
-
-    return path;
-}
+afterEach(async () => {
+    while (openInstances.length > 0) {
+        await openInstances.pop()?.close();
+    }
+});
 
 function counterFrom(body: string, name: string): number {
     const match = new RegExp(`^${name} (\\d+)$`, 'm').exec(body);
@@ -63,27 +78,6 @@ function counterFrom(body: string, name: string): number {
 
     return Number(match[1]);
 }
-
-afterEach(async () => {
-    while (openInstances.length > 0) {
-        await openInstances.pop()?.close();
-    }
-
-    while (foreignClosers.length > 0) {
-        foreignClosers.pop()?.();
-    }
-
-    while (temporaryDirectories.length > 0) {
-        const directory = temporaryDirectories.pop();
-
-        if (directory !== undefined) {
-            rmSync(directory, { recursive: true, force: true });
-        }
-    }
-
-    vi.unstubAllEnvs();
-    vi.resetModules();
-});
 
 describe('liveness', () => {
     it('answers plainly', async () => {
@@ -97,11 +91,11 @@ describe('liveness', () => {
     });
 
     it('stays up when the database is unreadable', async () => {
-        const path = temporaryFile('garbage.db', 'this is not sqlite');
+        historyRepository.schemaVersion.mockRejectedValue(
+            new Error('connect ECONNREFUSED 127.0.0.1:5432'),
+        );
 
-        vi.stubEnv('HISTORY_DB_PATH', path);
-
-        const app = await appWithFreshModules();
+        const app = track(createApp());
 
         const live = await app.inject({ method: 'GET', url: '/healthz' });
         const ready = await app.inject({ method: 'GET', url: '/readyz' });
@@ -130,11 +124,11 @@ describe('readiness', () => {
     });
 
     it('says what failed rather than only that something did', async () => {
-        const path = temporaryFile('garbage.db', 'definitely not sqlite');
+        historyRepository.schemaVersion.mockRejectedValue(
+            new Error('password authentication failed for user "buynotbuy"'),
+        );
 
-        vi.stubEnv('HISTORY_DB_PATH', path);
-
-        const response = await (await appWithFreshModules()).inject({
+        const response = await track(createApp()).inject({
             method: 'GET',
             url: '/readyz',
         });
@@ -143,6 +137,49 @@ describe('readiness', () => {
         expect(response.json().status).toBe('not_ready');
         expect(response.json().checks.database.ok).toBe(false);
         expect(typeof response.json().checks.database.detail).toBe('string');
+        // The server's own words: "the database is unusable" is not enough to
+        // tell a wrong password from a wrong host.
+        expect(response.json().checks.database.detail).toContain(
+            'password authentication failed',
+        );
+    });
+
+    it('refuses a database written by a newer build', async () => {
+        historyRepository.schemaVersion.mockResolvedValue(
+            LATEST_SCHEMA_VERSION + 1,
+        );
+
+        const response = await track(createApp()).inject({
+            method: 'GET',
+            url: '/readyz',
+        });
+
+        // Serving it would mean writing rows into a schema this build reads
+        // wrongly, which is not something a probe can recover from.
+        expect(response.statusCode).toBe(503);
+        expect(response.json().checks.database.detail).toContain(
+            `v${LATEST_SCHEMA_VERSION + 1}`,
+        );
+    });
+
+    it('reports an unreadable vote table as not ready', async () => {
+        voteRepository.count.mockRejectedValue(
+            new Error('relation "indicator_vote" does not exist'),
+        );
+
+        const response = await track(createApp()).inject({
+            method: 'GET',
+            url: '/readyz',
+        });
+
+        // The vote store is a second table in the same database, and the
+        // readiness check reads it for exactly this reason: otherwise a
+        // missing table surfaces as a silent no-op on the first write.
+        expect(response.statusCode).toBe(503);
+        expect(response.json().checks.database.ok).toBe(false);
+        expect(response.json().checks.database.detail).toContain(
+            'indicator_vote',
+        );
     });
 });
 
