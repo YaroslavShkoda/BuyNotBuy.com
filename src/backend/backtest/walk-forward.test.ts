@@ -233,11 +233,17 @@ describe('costs', () => {
     });
 
     it('drops a marginal trade into a loss once costs are counted', () => {
-        const result = runWalkForward(SAMPLE, {
-            foldBars: 120,
-            trainingBars: 240,
-            maxFolds: 3,
-        });
+        // A market moving further per bar than the round trip costs cannot
+        // produce a trade whose gross gain is smaller than the cost, so the
+        // sample has to be gentler than the one the rest of this file uses.
+        const result = runWalkForward(
+            marketCandles(3000, 0.01),
+            {
+                foldBars: 120,
+                trainingBars: 240,
+                maxFolds: 3,
+            },
+        );
 
         const marginal = result.trades.filter(
             (trade) => trade.grossReturn > 0 && trade.netReturn < 0,
@@ -338,5 +344,166 @@ describe('signal accounting', () => {
         // The last signal in a fold cannot be traded — its position would
         // leave the window — so the traded count may be lower, never higher.
         expect(result.trades.length).toBeLessThanOrEqual(long + short);
+    });
+});
+
+describe('one position at a time', () => {
+    it('never opens a position while another is open', () => {
+        const result = runWalkForward(SAMPLE, {
+            foldBars: 120,
+            trainingBars: 240,
+            maxFolds: 4,
+        });
+
+        // Stacking trades is leverage nobody sized. Compounding the returns
+        // of two simultaneous full-size positions reports roughly twice the
+        // capital an account could actually commit, and every headline number
+        // built on it is unachievable.
+        for (let index = 1; index < result.trades.length; index += 1) {
+            const previous = result.trades[index - 1]!;
+            const current = result.trades[index]!;
+
+            expect(current.entryIndex).toBeGreaterThanOrEqual(previous.exitIndex);
+        }
+    });
+
+    it('holds no bar as part of two positions', () => {
+        const result = runWalkForward(SAMPLE, {
+            foldBars: 120,
+            trainingBars: 240,
+            maxFolds: 4,
+        });
+
+        const owner = new Map<number, number>();
+
+        for (const trade of result.trades) {
+            for (let bar = trade.entryIndex; bar <= trade.exitIndex; bar += 1) {
+                owner.set(bar, (owner.get(bar) ?? 0) + 1);
+            }
+        }
+
+        for (const count of owner.values()) {
+            expect(count).toBe(1);
+        }
+    });
+});
+
+describe('positions stay inside the window they were measured in', () => {
+    it('closes every position by the end of its own fold', () => {
+        const result = runWalkForward(SAMPLE, {
+            foldBars: 120,
+            trainingBars: 240,
+            maxFolds: 4,
+        });
+
+        for (const fold of result.folds) {
+            const inFold = result.trades.filter(
+                (trade) =>
+                    trade.entryIndex >= fold.startIndex &&
+                    trade.entryIndex <= fold.endIndex,
+            );
+
+            for (const trade of inFold) {
+                // A position that closes past the fold is priced from bars
+                // that belong to the next window — whose thresholds were then
+                // fitted on them. The fold is no longer out of sample.
+                expect(trade.exitIndex).toBeLessThanOrEqual(fold.endIndex);
+            }
+        }
+    });
+
+    it('never exits on a bar past the end of the sample', () => {
+        const result = runWalkForward(SAMPLE, {
+            foldBars: 120,
+            trainingBars: 240,
+            maxFolds: 3,
+        });
+
+        for (const trade of result.trades) {
+            expect(trade.exitIndex).toBeLessThan(SAMPLE.length);
+        }
+    });
+});
+
+describe('benchmarks', () => {
+    it('holds the benchmark to the same bars and the same cost', () => {
+        const result = runWalkForward(SAMPLE, {
+            foldBars: 120,
+            trainingBars: 240,
+            maxFolds: 3,
+        });
+
+        const last = result.folds[result.folds.length - 1]!;
+        const first = result.folds[0]!;
+
+        // The span the strategy was judged over, and nothing else. A benchmark
+        // measured over a different period answers a different question.
+        expect(result.benchmarks.buyAndHold.trades).toBe(1);
+        expect(result.evaluatedBars).toBe(3 * 120);
+        expect(last.endIndex - first.startIndex + 1).toBe(result.evaluatedBars);
+    });
+
+    it('charges the benchmark the round trip a real trade pays', () => {
+        const result = runWalkForward(SAMPLE, {
+            foldBars: 120,
+            trainingBars: 240,
+            maxFolds: 3,
+        });
+
+        // Buy & hold is one long position: its return is the price change over
+        // the window less exactly one round trip. A cost-free benchmark would
+        // flatter the strategy by precisely what it pays in fees.
+        const first = result.folds[0]!;
+        const last = result.folds[result.folds.length - 1]!;
+        const priceChange =
+            SAMPLE[last.endIndex]!.close / SAMPLE[first.startIndex]!.open - 1;
+        const cost = 2 * (0.001 + 0.0005);
+
+        expect(result.benchmarks.buyAndHold.totalReturn).toBeCloseTo(
+            priceChange - cost,
+            10,
+        );
+    });
+
+    it('gives the random benchmark the trade count it says it gives', () => {
+        const result = runWalkForward(SAMPLE, {
+            foldBars: 120,
+            trainingBars: 240,
+            maxFolds: 3,
+        });
+
+        // The label promises a like-for-like comparison. A benchmark that
+        // quietly placed a tenth of the trades is not a benchmark.
+        expect(result.benchmarks.randomEntry.trades).toBeCloseTo(
+            result.trades.length,
+            0,
+        );
+    });
+
+    it('reaches the same answer on the same data', () => {
+        const options = { foldBars: 120, trainingBars: 240, maxFolds: 2 };
+        const first = runWalkForward(SAMPLE, options);
+        const second = runWalkForward(SAMPLE, options);
+
+        // The random benchmark is seeded. A benchmark that moves between two
+        // runs of the same code cannot be used to decide anything.
+        expect(second.benchmarks.randomEntry.totalReturn).toBe(
+            first.benchmarks.randomEntry.totalReturn,
+        );
+    });
+
+    it('reports no excess when the strategy never traded', () => {
+        const flat = makeCandles(3000, () => 100);
+
+        const result = runWalkForward(flat, {
+            foldBars: 120,
+            trainingBars: 240,
+            maxFolds: 2,
+        });
+
+        // Null rather than zero: a run that produced no trades has not matched
+        // the benchmark, it has failed to produce a number.
+        expect(result.trades).toEqual([]);
+        expect(result.excessOverBuyAndHold).toBeNull();
     });
 });

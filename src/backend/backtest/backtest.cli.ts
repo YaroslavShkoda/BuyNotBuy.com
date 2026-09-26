@@ -137,7 +137,7 @@ function describe(report: BacktestReport): string {
             overall.profitFactor === null ? 'н/д (нет убытков)' : number(overall.profitFactor)
         }`,
     );
-    lines.push(`Макс. просадка: ${percent(overall.maxDrawdown)}`);
+    lines.push(`Макс. просадка: ${percent(overall.maxDrawdown)} (${overall.maxDrawdownBars} свечей)`);
     lines.push(`Шарп: ${number(overall.sharpeRatio, 2)}`);
     lines.push('');
 
@@ -146,6 +146,49 @@ function describe(report: BacktestReport): string {
     lines.push(
         `Прибыльных: ${percent(baseline.winRate)}, просадка: ${percent(baseline.maxDrawdown)}`,
     );
+    lines.push('');
+
+    // The section that decides whether any of the above means anything. A
+    // strategy is only interesting relative to what else could have been done
+    // with the same money over the same bars, and a report that omits the
+    // comparison cannot be read as anything but "it went up" or "it went down".
+    lines.push('=== С чем сравнивать (те же свечи, те же издержки) ===');
+    for (const benchmark of [
+        report.benchmarks.buyAndHold,
+        report.benchmarks.randomEntry,
+    ]) {
+        lines.push(
+            `${benchmark.label}: итог ${percent(benchmark.totalReturn)}, ` +
+                `просадка ${percent(benchmark.maxDrawdown)}`,
+        );
+    }
+    lines.push('');
+
+    const excess = report.excessOverBuyAndHold;
+    const overRandom =
+        report.overall.trades > 0
+            ? report.overall.totalReturn - report.benchmarks.randomEntry.totalReturn
+            : null;
+
+    lines.push('=== Вердикт ===');
+    lines.push(
+        excess === null
+            ? 'Сделок не было — сравнивать не с чем.'
+            : `Против buy & hold: ${percent(excess)}.`,
+    );
+    lines.push(
+        overRandom === null
+            ? 'Против случайного входа: сделок не было.'
+            : `Против случайного входа: ${percent(overRandom)}.` +
+                  ' Положительное значение означает, что тайминг сигнала несёт информацию сверх шума.',
+    );
+
+    if (excess !== null && excess < 0) {
+        lines.push(
+            'ВНИМАНИЕ: стратегия проиграла buy & hold. Она проводит время в позиции ' +
+                'и платит издержки за каждую сделку, а рынок за это время вырос.',
+        );
+    }
     lines.push('');
 
     lines.push('=== По окнам ===');

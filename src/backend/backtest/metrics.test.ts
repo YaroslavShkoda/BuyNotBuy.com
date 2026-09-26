@@ -20,9 +20,35 @@ function trade(overrides: Partial<Trade> = {}): Trade {
     };
 }
 
+/**
+ * A flat account value, `length` bars long.
+ *
+ * The equity curve is the caller's to supply, which is the point of the change
+ * that introduced it: a curve rebuilt here from closed trade returns is the
+ * thing that cannot see a position falling while it is open. Most of these
+ * tests are about the trade statistics and do not care what the account did
+ * between trades, so a flat one isolates them.
+ */
+function flatEquity(length: number): number[] {
+    return Array.from({ length }, () => 1);
+}
+
+/** The account value a caller would have had, given these bar-over-bar moves. */
+function equityOf(returns: number[]): number[] {
+    const curve: number[] = [];
+    let equity = 1;
+
+    for (const value of returns) {
+        equity *= 1 + value;
+        curve.push(equity);
+    }
+
+    return curve;
+}
+
 describe('calculateMetrics', () => {
     it('reports nothing at all for an empty sample', () => {
-        const metrics = calculateMetrics([], 0, MIX, BARS_PER_YEAR);
+        const metrics = calculateMetrics([], [], MIX, BARS_PER_YEAR);
 
         expect(metrics.trades).toBe(0);
         expect(metrics.totalReturn).toBe(0);
@@ -32,7 +58,7 @@ describe('calculateMetrics', () => {
     it('does not share state with the empty template', () => {
         const metrics = calculateMetrics(
             [trade({ netReturn: 0.25, grossReturn: 0.28, direction: 1 })],
-            5,
+            flatEquity(5),
             { long: 1, short: 0, neutral: 0 },
             BARS_PER_YEAR,
         );
@@ -47,21 +73,24 @@ describe('calculateMetrics', () => {
         expect(EMPTY_METRICS.totalReturn).toBe(0);
     });
 
-    it('compounds the returns instead of adding them', () => {
+    it('reads the total return off the end of the equity curve', () => {
         const metrics = calculateMetrics(
             [trade({ netReturn: 0.1 }), trade({ netReturn: 0.1 })],
-            10,
+            equityOf([0.1, 0.1]),
             MIX,
             BARS_PER_YEAR,
         );
 
+        // The curve is what an account held, bar by bar. Reading the return
+        // off the trades instead would silently disagree with it whenever a
+        // position was open across bars it did not close on.
         expect(metrics.totalReturn).toBeCloseTo(1.1 * 1.1 - 1, 10);
     });
 
     it('counts a win as a positive net return after costs', () => {
         const metrics = calculateMetrics(
             [trade({ netReturn: -0.001, grossReturn: 0.01 })],
-            10,
+            flatEquity(10),
             MIX,
             BARS_PER_YEAR,
         );
@@ -78,7 +107,7 @@ describe('calculateMetrics', () => {
                 trade({ netReturn: 0.02 }),
                 trade({ netReturn: -0.01 }),
             ],
-            10,
+            flatEquity(10),
             MIX,
             BARS_PER_YEAR,
         );
@@ -89,7 +118,7 @@ describe('calculateMetrics', () => {
     it('leaves the profit factor undefined when there were no losses', () => {
         const metrics = calculateMetrics(
             [trade({ netReturn: 0.02 }), trade({ netReturn: 0.03 })],
-            10,
+            flatEquity(10),
             MIX,
             BARS_PER_YEAR,
         );
@@ -107,7 +136,7 @@ describe('calculateMetrics', () => {
                 trade({ netReturn: -0.5 }),
                 trade({ netReturn: -0.5 }),
             ],
-            10,
+            equityOf([0.5, -0.5, -0.5]),
             MIX,
             BARS_PER_YEAR,
         );
@@ -117,21 +146,53 @@ describe('calculateMetrics', () => {
         expect(metrics.maxDrawdown).toBeCloseTo(0.75, 10);
     });
 
-    it('ignores an unrealised gain when measuring the drawdown', () => {
+    it('measures a dip the account recovered from', () => {
+        // A position that falls 20% and closes higher is money an account lost
+        // and a curve that only steps at trade closes cannot see. This is the
+        // whole reason the curve is passed in rather than rebuilt.
+        const metrics = calculateMetrics(
+            [trade({ netReturn: 0.05 })],
+            equityOf([0.05, -0.25, 0.05, 0.05]),
+            MIX,
+            BARS_PER_YEAR,
+        );
+
+        // The curve runs 1 → 1.05 → 0.7875 → …, so the fall is 25% measured
+        // from the peak. A -25% bar is not a 20% dip: the drop is relative to
+        // where the account stood, not to where it started.
+        expect(metrics.maxDrawdown).toBeCloseTo(0.25, 10);
+    });
+
+    it('reports how long the worst dip lasted', () => {
+        const metrics = calculateMetrics(
+            [trade({ netReturn: 0.05 })],
+            equityOf([0.05, -0.25, -0.05, 0.05, 0.05]),
+            MIX,
+            BARS_PER_YEAR,
+        );
+
+        // A drawdown without a duration cannot be acted on: two strategies can
+        // print the same depth and one recovers in a week and the other in a
+        // quarter.
+        expect(metrics.maxDrawdownBars).toBeGreaterThan(0);
+    });
+
+    it('reports zero drawdown for a curve that only ever rises', () => {
         const metrics = calculateMetrics(
             [trade({ netReturn: 0.2 })],
-            10,
+            equityOf([0.1, 0.1]),
             MIX,
             BARS_PER_YEAR,
         );
 
         expect(metrics.maxDrawdown).toBe(0);
+        expect(metrics.maxDrawdownBars).toBe(0);
     });
 
-    it('reports zero rather than infinity for a flat series', () => {
+    it('reports zero rather than infinity for a flat curve', () => {
         const metrics = calculateMetrics(
             [trade({ netReturn: 0.01 }), trade({ netReturn: 0.01 })],
-            10,
+            flatEquity(10),
             MIX,
             BARS_PER_YEAR,
         );
@@ -140,10 +201,10 @@ describe('calculateMetrics', () => {
         expect(metrics.sharpeRatio).toBe(0);
     });
 
-    it('returns zero Sharpe for a single trade', () => {
+    it('returns zero Sharpe for a curve too short to have a distribution', () => {
         const metrics = calculateMetrics(
             [trade({ netReturn: 0.01 })],
-            10,
+            equityOf([0.01]),
             MIX,
             BARS_PER_YEAR,
         );
@@ -152,15 +213,11 @@ describe('calculateMetrics', () => {
     });
 
     it('scales Sharpe by the number of periods in a year', () => {
-        const trades = [
-            trade({ netReturn: 0.01 }),
-            trade({ netReturn: -0.005 }),
-            trade({ netReturn: 0.012 }),
-            trade({ netReturn: -0.002 }),
-        ];
+        const curve = equityOf([0.01, -0.005, 0.012, -0.002]);
+        const trades = [trade(), trade(), trade(), trade()];
 
-        const daily = calculateMetrics(trades, 100, MIX, 365);
-        const yearly = calculateMetrics(trades, 100, MIX, 1);
+        const daily = calculateMetrics(trades, curve, MIX, 365);
+        const yearly = calculateMetrics(trades, curve, MIX, 1);
 
         expect(Math.abs(daily.sharpeRatio)).toBeGreaterThan(
             Math.abs(yearly.sharpeRatio),
@@ -173,7 +230,7 @@ describe('calculateMetrics', () => {
                 trade({ entryIndex: 0, exitIndex: 5 }),
                 trade({ entryIndex: 2, exitIndex: 3 }),
             ],
-            10,
+            flatEquity(10),
             MIX,
             BARS_PER_YEAR,
         );
@@ -185,7 +242,7 @@ describe('calculateMetrics', () => {
     it('never reports exposure above one', () => {
         const metrics = calculateMetrics(
             [trade({ entryIndex: 0, exitIndex: 20 })],
-            10,
+            flatEquity(10),
             MIX,
             BARS_PER_YEAR,
         );
@@ -196,13 +253,13 @@ describe('calculateMetrics', () => {
     });
 
     it('reports zero exposure for an empty sample rather than dividing by zero', () => {
-        expect(calculateMetrics([], 0, MIX, BARS_PER_YEAR).exposure).toBe(0);
+        expect(calculateMetrics([], [], MIX, BARS_PER_YEAR).exposure).toBe(0);
     });
 
     it('keeps the signal mix, including the bars it declined to trade', () => {
         const metrics = calculateMetrics(
             [trade()],
-            10,
+            flatEquity(10),
             { long: 4, short: 1, neutral: 5 },
             BARS_PER_YEAR,
         );
@@ -215,7 +272,7 @@ describe('calculateMetrics', () => {
 
     it('copies the signal mix instead of aliasing it', () => {
         const mix = { long: 1, short: 1, neutral: 1 };
-        const metrics = calculateMetrics([], 0, mix, BARS_PER_YEAR);
+        const metrics = calculateMetrics([], [], mix, BARS_PER_YEAR);
 
         mix.long = 99;
 
@@ -229,7 +286,7 @@ describe('calculateMetrics', () => {
                 trade({ netReturn: -0.03 }),
                 trade({ netReturn: 0.05 }),
             ],
-            10,
+            flatEquity(10),
             MIX,
             BARS_PER_YEAR,
         );

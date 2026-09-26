@@ -1,4 +1,4 @@
-import { calculateMetrics } from './metrics.js';
+import { benchmarkMetrics, calculateMetrics } from './metrics.js';
 import { computeSignalSeries, reapplyThresholds } from './point-in-time.js';
 
 import {
@@ -8,7 +8,7 @@ import {
 } from '../config/indicator.config.js';
 
 import type { Candle } from '../types/market.js';
-import type { BacktestMetrics, Trade } from './metrics.js';
+import type { BacktestMetrics, BenchmarkMetrics, Trade } from './metrics.js';
 import type { IndicatorSignalOverrides } from '../config/indicator.config.js';
 
 export interface WalkForwardOptions {
@@ -58,6 +58,28 @@ export interface WalkForwardResult {
     overall: BacktestMetrics;
     /** The shipped configuration, run over the same folds for comparison. */
     baseline: BacktestMetrics;
+    /**
+     * Rules held to the same bars, paying the same costs.
+     *
+     * A backtest with nothing to compare against answers a question nobody
+     * asked: whether the strategy made money, rather than whether it would
+     * have been better to do the obvious thing. `randomEntry` is the sharper
+     * of the two — the same number of trades, the same holding period, the
+     * same price path, and no information at all. A strategy that cannot beat
+     * it is reading noise.
+     */
+    benchmarks: {
+        buyAndHold: BenchmarkMetrics;
+        randomEntry: BenchmarkMetrics;
+    };
+    /**
+     * Strategy total return minus buy-and-hold over the same bars, or null
+     * when there was nothing to evaluate.
+     *
+     * Null rather than zero: a run that produced no trades has not matched
+     * the benchmark, it has failed to produce a number.
+     */
+    excessOverBuyAndHold: number | null;
     evaluatedBars: number;
     /** Fold count skipped because the sample was too short to evaluate them. */
     skippedFolds: number;
@@ -85,6 +107,8 @@ type SignalMix = { long: number; short: number; neutral: number };
 interface SimulatedRange {
     trades: Trade[];
     mix: SignalMix;
+    /** Account value at every bar close across the evaluated window. */
+    equity: number[];
 }
 
 function toOverrides(
@@ -94,12 +118,76 @@ function toOverrides(
 }
 
 /**
+ * Account value at the close of every bar in `[startBar, endBar]`.
+ *
+ * Marked to market, not stepped at trade closes. A position that falls 20%
+ * mid-hold and closes higher is money an account lost and a curve that only
+ * moves at closes cannot see — and a drawdown read off that curve is the
+ * number a reader uses to size a position.
+ *
+ * `trades` must not overlap, which `simulateRange` guarantees by holding at
+ * most one position at a time; with overlap there is no single account value
+ * to report, which is the other reason overlap is not left in.
+ */
+function buildEquityCurve(
+    candles: Candle[],
+    trades: readonly Trade[],
+    startBar: number,
+    endBar: number,
+    cost: number,
+): number[] {
+    const curve: number[] = [];
+    let realised = 1;
+    let cursor = 0;
+    let open: Trade | null = null;
+
+    for (let bar = startBar; bar <= endBar; bar += 1) {
+        // Closing before opening keeps a trade that enters and exits on the
+        // same bar counted once, realised, rather than marked and then closed.
+        if (open !== null && bar === open.exitIndex) {
+            realised *= 1 + open.netReturn;
+            open = null;
+        }
+
+        if (cursor < trades.length && trades[cursor]!.entryIndex === bar) {
+            open = trades[cursor]!;
+            cursor += 1;
+        }
+
+        const candle = candles[bar];
+
+        if (open === null || candle === undefined) {
+            curve.push(realised);
+            continue;
+        }
+
+        const unrealised =
+            open.direction * (candle.close / open.entryPrice - 1) - cost;
+
+        curve.push(realised * (1 + unrealised));
+    }
+
+    return curve;
+}
+
+/**
  * Turns signals into trades over `[startIndex, endIndex]`.
  *
  * The signal at bar `i` is built from closes up to and including `i`, so the
  * earliest honest entry is the open of bar `i + 1`. Entering at bar `i`'s own
  * close would trade on a price that only becomes known once that bar has
  * finished — a one-bar head start, repeated on every single trade.
+ *
+ * Two rules keep the result inside the window it claims:
+ *
+ * - A position is closed by `endIndex`. The last signal of a window used to
+ *   exit `holdBars` bars *past* it, which for a training window means the
+ *   threshold fit was scored partly on bars the fold then reported as
+ *   out-of-sample, and for a test window means bars belonging to the next
+ *   window's fitting data. Both are the one thing walk-forward is for.
+ * - One position at a time. A signal arriving while a position is open is
+ *   skipped rather than stacked, because stacking is leverage nobody sized
+ *   and no account has.
  */
 function simulateRange(
     candles: Candle[],
@@ -114,6 +202,10 @@ function simulateRange(
     const trades: Trade[] = [];
     const mix: SignalMix = { long: 0, short: 0, neutral: 0 };
     const cost = roundTripCost(options);
+    const lastEntryIndex = endIndex - 1 - options.holdBars;
+
+    // Bar at which the current position closes; -1 while flat.
+    let flatFrom = startIndex;
 
     for (const point of points) {
         const { index } = point;
@@ -129,6 +221,8 @@ function simulateRange(
                     ? -1
                     : null;
 
+        // Counted for every signal in the window, traded or not: the gap
+        // between this and `trades` is the strategy declining to act.
         if (direction === 1) {
             mix.long += 1;
         } else if (direction === -1) {
@@ -138,6 +232,17 @@ function simulateRange(
         }
 
         if (direction === null) {
+            continue;
+        }
+
+        // Already holding a position: the signal is counted and not taken.
+        if (index < flatFrom) {
+            continue;
+        }
+
+        // Closing past the window would score this trade on bars that belong
+        // to another window.
+        if (index > lastEntryIndex) {
             continue;
         }
 
@@ -161,9 +266,15 @@ function simulateRange(
             netReturn: grossReturn - cost,
             grossReturn,
         });
+
+        flatFrom = index + 1 + options.holdBars;
     }
 
-    return { trades, mix };
+    return {
+        trades,
+        mix,
+        equity: buildEquityCurve(candles, trades, startIndex, endIndex, cost),
+    };
 }
 
 function addMix(target: SignalMix, source: SignalMix): void {
@@ -244,6 +355,157 @@ function isShippedPair(thresholds: {
     );
 }
 
+/** Deterministic PRNG. A benchmark that changes between runs is not a benchmark. */
+function seededRandom(seed: number): () => number {
+    let state = seed >>> 0;
+
+    return () => {
+        state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+
+        return state / 0x1_0000_0000;
+    };
+}
+
+/**
+ * Buy at the first evaluated bar, hold to the last, pay the same round trip.
+ *
+ * Charged the same cost deliberately. A cost-inclusive strategy measured
+ * against a cost-free benchmark is being flattered by exactly the amount it
+ * pays in fees, and that amount is the whole trade.
+ */
+function buyAndHoldBenchmark(
+    candles: Candle[],
+    startBar: number,
+    endBar: number,
+    cost: number,
+    samplesPerYear: number,
+): BenchmarkMetrics {
+    const entry = candles[startBar];
+    const exit = candles[endBar];
+
+    if (entry === undefined || exit === undefined) {
+        return {
+            label: 'Buy & hold',
+            trades: 0,
+            totalReturn: 0,
+            maxDrawdown: 0,
+            sharpeRatio: 0,
+        };
+    }
+
+    const grossReturn = exit.close / entry.open - 1;
+
+    const trade: Trade = {
+        entryIndex: startBar,
+        exitIndex: endBar,
+        direction: 1,
+        entryPrice: entry.open,
+        exitPrice: exit.close,
+        netReturn: grossReturn - cost,
+        grossReturn,
+    };
+
+    return benchmarkMetrics(
+        'Buy & hold',
+        [trade],
+        buildEquityCurve(candles, [trade], startBar, endBar, cost),
+        samplesPerYear,
+    );
+}
+
+/**
+ * The same number of trades, the same holding period, the same price path, and
+ * no information at all — averaged over many seeds.
+ *
+ * This is the benchmark that answers the only question a signal is worth
+ * asking: does the timing carry anything, or does the strategy merely look
+ * busy? A signal that cannot beat random entry over the same bars is
+ * describing the market's noise with a confident voice.
+ */
+function randomEntryBenchmark(
+    candles: Candle[],
+    startBar: number,
+    endBar: number,
+    cost: number,
+    tradeCount: number,
+    holdBars: number,
+    samplesPerYear: number,
+): BenchmarkMetrics {
+    const TRIALS = 200;
+    const random = seededRandom(0x5eed);
+    const lastEntry = endBar - 1 - holdBars;
+
+    let totalReturn = 0;
+    let maxDrawdown = 0;
+    let sharpeSum = 0;
+    let takenTotal = 0;
+
+    for (let trial = 0; trial < TRIALS; trial += 1) {
+        const trades: Trade[] = [];
+        let cursor = startBar;
+
+        // A random tiling of the window, not a random draw repeated until one
+        // happens to fit. Drawing from the free remainder — or from the whole
+        // window and discarding the collisions — runs out of attempts long
+        // before the trade count is reached, because the hit rate falls as the
+        // window fills. Every entry is placed uniformly among the positions
+        // that still leave room for the trades not yet taken, so the count
+        // being compared is the count actually taken.
+        while (trades.length < tradeCount) {
+            const stillNeeded = tradeCount - trades.length;
+            const latest = lastEntry - (stillNeeded - 1) * (holdBars + 1);
+
+            if (latest < cursor) {
+                break;
+            }
+
+            const index = cursor + Math.floor(random() * (latest - cursor + 1));
+            const direction: 1 | -1 = random() < 0.5 ? 1 : -1;
+            const entryCandle = candles[index + 1];
+            const exitCandle = candles[index + 1 + holdBars];
+
+            if (entryCandle === undefined || exitCandle === undefined) {
+                break;
+            }
+
+            const grossReturn =
+                direction * (exitCandle.close / entryCandle.open - 1);
+
+            trades.push({
+                entryIndex: index + 1,
+                exitIndex: index + 1 + holdBars,
+                direction,
+                entryPrice: entryCandle.open,
+                exitPrice: exitCandle.close,
+                netReturn: grossReturn - cost,
+                grossReturn,
+            });
+
+            cursor = index + 1 + holdBars;
+        }
+
+        const sample = benchmarkMetrics(
+            '',
+            trades,
+            buildEquityCurve(candles, trades, startBar, endBar, cost),
+            samplesPerYear,
+        );
+
+        totalReturn += sample.totalReturn;
+        maxDrawdown += sample.maxDrawdown;
+        sharpeSum += sample.sharpeRatio;
+        takenTotal += trades.length;
+    }
+
+    return {
+        label: `Случайный вход (${tradeCount} сделок, среднее из ${TRIALS})`,
+        trades: takenTotal / TRIALS,
+        totalReturn: totalReturn / TRIALS,
+        maxDrawdown: maxDrawdown / TRIALS,
+        sharpeRatio: sharpeSum / TRIALS,
+    };
+}
+
 export function runWalkForward(
     candles: Candle[],
     options: Partial<WalkForwardOptions> = {},
@@ -272,7 +534,13 @@ export function runWalkForward(
     const allTrades: Trade[] = [];
     const baselineTrades: Trade[] = [];
     const mix: SignalMix = { long: 0, short: 0, neutral: 0 };
+    // The baseline's own mix, not a second copy of the fitted one: the two
+    // strategies signal on different bars, and reporting the fitted strategy's
+    // counts under the baseline's name is a wrong number, not an approximation.
+    const baselineMix: SignalMix = { long: 0, short: 0, neutral: 0 };
     let evaluatedBars = 0;
+    let evaluatedStart = Number.POSITIVE_INFINITY;
+    let evaluatedEnd = Number.NEGATIVE_INFINITY;
 
     for (let offset = 0; offset < foldCount; offset += 1) {
         const foldEnd = candles.length - 1 - offset * step;
@@ -320,7 +588,10 @@ export function runWalkForward(
         );
 
         addMix(mix, result.mix);
+        addMix(baselineMix, baseline.mix);
         evaluatedBars += step;
+        evaluatedStart = Math.min(evaluatedStart, foldStart);
+        evaluatedEnd = Math.max(evaluatedEnd, foldEnd);
         allTrades.push(...result.trades);
         baselineTrades.push(...baseline.trades);
 
@@ -332,33 +603,92 @@ export function runWalkForward(
             fitted: !isShippedPair(fitted.thresholds),
             metrics: calculateMetrics(
                 result.trades,
-                step,
+                result.equity,
                 result.mix,
                 resolved.barsPerYear,
             ),
         });
     }
 
+    if (evaluatedBars === 0) {
+        return emptyResult(resolved);
+    }
+
+    // Folds are visited newest first, so the pooled trades arrive backwards.
+    // The equity curve walks bars forwards and has to find them in order.
+    allTrades.sort(byEntryIndex);
+    baselineTrades.sort(byEntryIndex);
+
+    const cost = roundTripCost(resolved);
+    const overallEquity = buildEquityCurve(
+        candles,
+        allTrades,
+        evaluatedStart,
+        evaluatedEnd,
+        cost,
+    );
+    const baselineEquity = buildEquityCurve(
+        candles,
+        baselineTrades,
+        evaluatedStart,
+        evaluatedEnd,
+        cost,
+    );
+
+    const benchmarks = {
+        buyAndHold: buyAndHoldBenchmark(
+            candles,
+            evaluatedStart,
+            evaluatedEnd,
+            cost,
+            resolved.barsPerYear,
+        ),
+        randomEntry: randomEntryBenchmark(
+            candles,
+            evaluatedStart,
+            evaluatedEnd,
+            cost,
+            allTrades.length,
+            resolved.holdBars,
+            resolved.barsPerYear,
+        ),
+    };
+
+    const overall = calculateMetrics(
+        allTrades,
+        overallEquity,
+        mix,
+        resolved.barsPerYear,
+    );
+
     return {
         // Oldest fold first: a reader compares the ends of the list.
         folds: folds.reverse(),
         trades: allTrades,
-        overall: calculateMetrics(allTrades, evaluatedBars, mix, resolved.barsPerYear),
+        overall,
         baseline: calculateMetrics(
             baselineTrades,
-            evaluatedBars,
-            mix,
+            baselineEquity,
+            baselineMix,
             resolved.barsPerYear,
         ),
+        benchmarks,
+        excessOverBuyAndHold: allTrades.length === 0
+            ? null
+            : overall.totalReturn - benchmarks.buyAndHold.totalReturn,
         evaluatedBars,
         skippedFolds: Math.max(0, possibleFolds - foldCount),
     };
 }
 
+function byEntryIndex(left: Trade, right: Trade): number {
+    return left.entryIndex - right.entryIndex;
+}
+
 function emptyResult(options: WalkForwardOptions): WalkForwardResult {
     const empty = calculateMetrics(
         [],
-        0,
+        [],
         { long: 0, short: 0, neutral: 0 },
         options.barsPerYear,
     );
@@ -368,6 +698,24 @@ function emptyResult(options: WalkForwardOptions): WalkForwardResult {
         trades: [],
         overall: empty,
         baseline: empty,
+        benchmarks: {
+            buyAndHold: {
+                label: 'Buy & hold',
+                trades: 0,
+                totalReturn: 0,
+                maxDrawdown: 0,
+                sharpeRatio: 0,
+            },
+            randomEntry: {
+                label: 'Случайный вход',
+                trades: 0,
+                totalReturn: 0,
+                maxDrawdown: 0,
+                sharpeRatio: 0,
+            },
+        },
+        // Nothing was evaluated, so nothing was beaten.
+        excessOverBuyAndHold: null,
         evaluatedBars: 0,
         skippedFolds: 0,
     };

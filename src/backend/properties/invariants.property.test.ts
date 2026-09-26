@@ -322,6 +322,26 @@ describe('backtest metrics', () => {
             .array(tradeArb, { minLength, maxLength })
             .map((lists) => lists.flat());
 
+    /**
+     * The account value a caller would have held, given these bar-over-bar
+     * moves. The metrics layer reads the curve rather than rebuilding one, so
+     * the trade statistics below are exercised against an account that did
+     * nothing between trades; the curve itself is property-tested where it is
+     * built, in the walk-forward module.
+     */
+    const flatEquity = (length: number) => Array.from({ length }, () => 1);
+
+    /** One trade, for the properties that vary the curve and not the trades. */
+    const oneTrade = (): Trade => ({
+        entryIndex: 0,
+        exitIndex: 0,
+        direction: 1,
+        entryPrice: 100,
+        exitPrice: 101,
+        netReturn: 0.01,
+        grossReturn: 0.01,
+    });
+
     it('accounts for every trade in the win rate', () => {
         fc.assert(
             fc.property(
@@ -329,7 +349,7 @@ describe('backtest metrics', () => {
                 (trades) => {
                     const metrics = calculateMetrics(
                         trades,
-                        trades.length,
+                        flatEquity(trades.length),
                         { long: 0, short: 0, neutral: 0 },
                         365 * 24,
                     );
@@ -350,44 +370,26 @@ describe('backtest metrics', () => {
         );
     });
 
-    it('compounds rather than sums', () => {
-        // Returns are bounded here. A chain of twenty 6x gains overflows to
-        // infinity, and an assertion that cannot survive its own input is not
-        // a rule about compounding.
-        const bounded = fc.array(
-            fc.double({ min: -0.5, max: 0.5, noNaN: true, noDefaultInfinity: true }),
-            { minLength: 1, maxLength: 20 },
-        );
-
+    it('reports the total return as the end of the equity curve', () => {
         fc.assert(
-            fc.property(bounded, (returns) => {
-                const trades = returns.map(
-                    (netReturn, index): Trade => ({
-                        entryIndex: index * 2,
-                        exitIndex: index * 2 + 1,
-                        direction: 1,
-                        entryPrice: 100,
-                        exitPrice: 100 * (1 + netReturn),
-                        netReturn,
-                        grossReturn: netReturn,
-                    }),
-                );
+            fc.property(
+                fc.array(
+                    fc.double({ min: 0.05, max: 3, noNaN: true, noDefaultInfinity: true }),
+                    { minLength: 1, maxLength: 20 },
+                ),
+                (values) => {
+                    const metrics = calculateMetrics(
+                        [oneTrade()],
+                        values,
+                        { long: 0, short: 0, neutral: 0 },
+                        365 * 24,
+                    );
 
-                const metrics = calculateMetrics(
-                    trades,
-                    trades.length,
-                    { long: 0, short: 0, neutral: 0 },
-                    365 * 24,
-                );
-
-                const expected =
-                    returns.reduce(
-                        (product, value) => product * (1 + value),
-                        1,
-                    ) - 1;
-
-                expect(metrics.totalReturn).toBeCloseTo(expected, 6);
-            }),
+                    // Whatever the account was worth on the last bar it
+                    // evaluated is the total return, and nothing else is.
+                    expect(metrics.totalReturn).toBeCloseTo(values.at(-1)! - 1, 10);
+                },
+            ),
             { numRuns: 200 },
         );
     });
@@ -395,17 +397,21 @@ describe('backtest metrics', () => {
     it('never reports a drawdown above one', () => {
         fc.assert(
             fc.property(
-                tradeListArb(1, 40),
-                (trades) => {
+                fc.array(
+                    fc.double({ min: 0.01, max: 4, noNaN: true, noDefaultInfinity: true }),
+                    { minLength: 1, maxLength: 40 },
+                ),
+                (values) => {
                     const metrics = calculateMetrics(
-                        trades,
-                        trades.length,
+                        [oneTrade()],
+                        values,
                         { long: 0, short: 0, neutral: 0 },
                         365 * 24,
                     );
 
                     expect(metrics.maxDrawdown).toBeGreaterThanOrEqual(0);
                     expect(metrics.maxDrawdown).toBeLessThanOrEqual(1);
+                    expect(metrics.maxDrawdownBars).toBeLessThanOrEqual(values.length);
                 },
             ),
             { numRuns: 200 },
@@ -432,7 +438,7 @@ describe('backtest metrics', () => {
                                 grossReturn: netReturn,
                             }),
                         ),
-                        returns.length,
+                        flatEquity(returns.length),
                         { long: 0, short: 0, neutral: 0 },
                         365 * 24,
                     );
@@ -453,13 +459,13 @@ describe('backtest metrics', () => {
                 (trades) => {
                     const first = calculateMetrics(
                         trades,
-                        trades.length,
+                        flatEquity(trades.length),
                         { long: 1, short: 2, neutral: 3 },
                         365 * 24,
                     );
                     const second = calculateMetrics(
                         trades,
-                        trades.length,
+                        flatEquity(trades.length),
                         { long: 1, short: 2, neutral: 3 },
                         365 * 24,
                     );

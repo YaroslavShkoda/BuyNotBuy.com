@@ -22,7 +22,9 @@ export interface BacktestMetrics {
     profitFactor: number | null;
     expectancy: number;
     maxDrawdown: number;
-    /** Annualised from per-bar trade returns; 0 when there is no variance. */
+    /** How long the worst dip lasted, in bars. A drawdown you cannot time is half a number. */
+    maxDrawdownBars: number;
+    /** Annualised from per-bar returns of the equity curve; 0 when there is no variance. */
     sharpeRatio: number;
     averageWin: number;
     averageLoss: number;
@@ -33,9 +35,19 @@ export interface BacktestMetrics {
      *
      * Without it a high hit rate is unreadable: a strategy that only speaks
      * when it is certain will show a flattering hit rate precisely because it
-     * declined to take the trades it would have lost.
+     * declined to take the trades it would have lost. It counts signals, not
+     * trades, so it can exceed `trades` — that gap is the abstention.
      */
     signalMix: { long: number; short: number; neutral: number };
+}
+
+/** A rule held to the same bars as the strategy, to say whether it earned anything. */
+export interface BenchmarkMetrics {
+    label: string;
+    trades: number;
+    totalReturn: number;
+    maxDrawdown: number;
+    sharpeRatio: number;
 }
 
 export const EMPTY_METRICS: BacktestMetrics = {
@@ -47,6 +59,7 @@ export const EMPTY_METRICS: BacktestMetrics = {
     profitFactor: null,
     expectancy: 0,
     maxDrawdown: 0,
+    maxDrawdownBars: 0,
     sharpeRatio: 0,
     averageWin: 0,
     averageLoss: 0,
@@ -56,52 +69,73 @@ export const EMPTY_METRICS: BacktestMetrics = {
 };
 
 /**
- * Compounded equity curve, step by step.
+ * Worst peak-to-trough fall on the equity curve, and how long it lasted.
  *
- * Compounding rather than summing is the honest choice: it is the only way the
- * number matches what an account holding the position would have experienced.
+ * Measured bar by bar rather than at trade closes. A position that goes −20%
+ * mid-hold and closes at +1% is a drawdown an account would have felt and a
+ * curve that only steps at closes cannot see; the flat stretches between
+ * positions are where the account sat still and still lost nothing.
  */
-function equityCurve(returns: number[]): number[] {
-    const curve: number[] = [];
-    let equity = 1;
-
-    for (const value of returns) {
-        equity *= 1 + value;
-        curve.push(equity);
-    }
-
-    return curve;
-}
-
-function maxDrawdown(returns: number[]): number {
-    const curve = equityCurve(returns);
-
-    let peak = 1;
+function drawdown(equity: readonly number[]): {
+    depth: number;
+    bars: number;
+} {
+    let peak = equity[0] ?? 1;
     let worst = 0;
+    let worstBars = 0;
+    let troughIndex = 0;
+    let peakIndex = 0;
 
-    for (const equity of curve) {
-        peak = Math.max(peak, equity);
+    for (let index = 0; index < equity.length; index += 1) {
+        const value = equity[index]!;
 
-        const drawdown = (peak - equity) / peak;
-
-        if (drawdown > worst) {
-            worst = drawdown;
+        if (value > peak) {
+            peak = value;
+            peakIndex = index;
+            troughIndex = index;
         }
+
+        const fall = peak === 0 ? 0 : (peak - value) / peak;
+
+        if (fall > worst) {
+            worst = fall;
+            troughIndex = index;
+        }
+
+        worstBars = Math.max(worstBars, troughIndex - peakIndex);
     }
 
-    return worst;
+    return { depth: worst, bars: worstBars };
 }
 
 /**
- * Sharpe over per-bar trade returns.
+ * Sharpe over per-bar returns of the equity curve.
  *
- * Reported with the usual caveats made explicit: a handful of trades is not a
- * distribution, and a ratio computed from two data points is noise with a
- * decimal point. `samplesPerYear` converts the scale to a figure that can be
- * compared with published ones, at the cost of assuming trades are evenly
- * spread through the year.
+ * The observations are bars, which is what `samplesPerYear` counts, so the
+ * annualisation is the right one: scaling trade returns by the number of bars
+ * in a year reports a ratio several times larger than the same strategy's
+ * per-bar volatility supports.
+ *
+ * No risk-free rate is subtracted — none is modelled anywhere in this layer,
+ * and subtracting an assumed one would be a number nobody can trace.
  */
-function sharpeRatio(returns: number[], samplesPerYear: number): number {
+function sharpeRatio(equity: readonly number[], samplesPerYear: number): number {
+    if (equity.length < 3) {
+        return 0;
+    }
+
+    const returns: number[] = [];
+
+    for (let index = 1; index < equity.length; index += 1) {
+        const previous = equity[index - 1]!;
+
+        if (previous === 0) {
+            continue;
+        }
+
+        returns.push(equity[index]! / previous - 1);
+    }
+
     if (returns.length < 2) {
         return 0;
     }
@@ -115,7 +149,7 @@ function sharpeRatio(returns: number[], samplesPerYear: number): number {
     const deviation = Math.sqrt(variance);
 
     if (deviation === 0) {
-        // Every trade returned exactly the same amount: a ratio against zero
+        // Every bar returned exactly the same amount: a ratio against zero
         // deviation is not a number, it is a division by nothing.
         return 0;
     }
@@ -125,7 +159,14 @@ function sharpeRatio(returns: number[], samplesPerYear: number): number {
 
 export function calculateMetrics(
     trades: Trade[],
-    sampleBars: number,
+    /**
+     * Account value at the close of every evaluated bar, starting at 1.
+     *
+     * Supplied by the caller rather than reconstructed here: only the caller
+     * knows the candles, and a curve rebuilt from closed trades is exactly the
+     * thing that hides intra-position losses.
+     */
+    equity: readonly number[],
     signalMix: BacktestMetrics['signalMix'],
     samplesPerYear: number,
 ): BacktestMetrics {
@@ -133,6 +174,7 @@ export function calculateMetrics(
         return { ...EMPTY_METRICS, signalMix: { ...signalMix } };
     }
 
+    const sampleBars = equity.length;
     const returns = trades.map((trade) => trade.netReturn);
     const wins = returns.filter((value) => value > 0);
     const losses = returns.filter((value) => value < 0);
@@ -151,15 +193,16 @@ export function calculateMetrics(
         }
     }
 
+    const worst = drawdown(equity);
+
     return {
         trades: trades.length,
         // Held bars can run past the evaluated window, because the last
         // signal in a fold still gets its full holding period. Exposure is a
         // fraction of the window and cannot exceed it.
-        exposure:
-            sampleBars > 0 ? Math.min(1, heldBars.size / sampleBars) : 0,
+        exposure: sampleBars > 0 ? Math.min(1, heldBars.size / sampleBars) : 0,
         winRate: wins.length / returns.length,
-        totalReturn: equityCurve(returns).at(-1)! - 1,
+        totalReturn: equity.length === 0 ? 0 : equity.at(-1)! - 1,
         averageTrade,
         // No losses means profit factor is genuinely undefined, not infinite.
         // Reporting a large finite number would imply a risk that never
@@ -167,12 +210,31 @@ export function calculateMetrics(
         // should not produce.
         profitFactor: grossLoss === 0 ? null : grossProfit / grossLoss,
         expectancy: averageTrade,
-        maxDrawdown: maxDrawdown(returns),
-        sharpeRatio: sharpeRatio(returns, samplesPerYear),
+        maxDrawdown: worst.depth,
+        maxDrawdownBars: worst.bars,
+        sharpeRatio: sharpeRatio(equity, samplesPerYear),
         averageWin: wins.length === 0 ? 0 : grossProfit / wins.length,
         averageLoss: losses.length === 0 ? 0 : grossLoss / losses.length,
         largestWin: wins.length === 0 ? 0 : Math.max(...wins),
         largestLoss: losses.length === 0 ? 0 : Math.min(...losses),
         signalMix: { ...signalMix },
+    };
+}
+
+/** Formats the same shape for a rule that never reads a signal. */
+export function benchmarkMetrics(
+    label: string,
+    trades: Trade[],
+    equity: readonly number[],
+    samplesPerYear: number,
+): BenchmarkMetrics {
+    const worst = drawdown(equity);
+
+    return {
+        label,
+        trades: trades.length,
+        totalReturn: equity.length === 0 ? 0 : equity.at(-1)! - 1,
+        maxDrawdown: worst.depth,
+        sharpeRatio: sharpeRatio(equity, samplesPerYear),
     };
 }
