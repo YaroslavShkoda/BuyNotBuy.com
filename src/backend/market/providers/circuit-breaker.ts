@@ -107,6 +107,17 @@ export class CircuitBreaker {
             this.#failureThreshold,
         );
         this.#openUntil = Math.max(this.#openUntil, this.#now() + ms);
+
+        // Releases the probe reservation, and this is load-bearing rather than
+        // tidiness. A rate limit can arrive on the probe request itself, and
+        // that call is over — it got a definitive answer. Leaving the flag set
+        // would strand it: the state is 'open' while the window runs, so nothing
+        // consults the flag, and the moment the window expires the state is
+        // 'probing' again with the flag still held. Every later probe is then
+        // refused forever and the venue is never asked again for the life of the
+        // process — a rate limit that expired ten minutes ago permanently silences
+        // a provider that is now perfectly healthy.
+        this.#probeInFlight = false;
     }
 
     reset(): void {

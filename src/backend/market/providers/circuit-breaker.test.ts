@@ -105,4 +105,67 @@ describe('CircuitBreaker', () => {
         expect(breaker.state).toBe('closed');
         expect(breaker.tryAcquire()).toBe(true);
     });
+
+    it('admits exactly one probe out of a hundred arriving after the cooldown', () => {
+        let now = 0;
+        const breaker = breakerWith(1, 1000, () => now);
+
+        breaker.recordFailure();
+        now = 1001;
+
+        // The hazard this guards: all hundred callers see 'probing' at the same
+        // instant, and if the reservation were a read rather than a claim they
+        // would all become probes and hammer a provider that had just started
+        // failing again.
+        let admitted = 0;
+
+        for (let index = 0; index < 100; index += 1) {
+            if (breaker.tryAcquire()) admitted += 1;
+        }
+
+        expect(admitted).toBe(1);
+    });
+
+    it('a rate limit landing on the probe does not silence the provider forever', () => {
+        let now = 0;
+        const breaker = breakerWith(1, 1000, () => now);
+
+        breaker.recordFailure();
+        now = 1001;
+
+        // The probe goes upstream and is answered with a rate limit, which is
+        // what sendProviderRequest does: openFor, then give up on the call.
+        expect(breaker.tryAcquire()).toBe(true);
+        breaker.openFor(60_000);
+
+        expect(breaker.state).toBe('open');
+        expect(breaker.retryAfterMs).toBe(60_000);
+        expect(breaker.tryAcquire()).toBe(false);
+
+        // The window the provider asked for is honoured...
+        now += breaker.retryAfterMs + 1;
+
+        // ...and then the provider is actually tried again. Without the flag
+        // being released this is where it wedges: the state is 'probing' but the
+        // reservation is still held, so the venue is never asked again.
+        expect(breaker.state).toBe('probing');
+        expect(breaker.tryAcquire()).toBe(true);
+        expect(breaker.tryAcquire()).toBe(false);
+    });
+
+    it('a rate limit on an ordinary request leaves the next probe reachable', () => {
+        let now = 0;
+        const breaker = breakerWith(3, 1000, () => now);
+
+        // Closed, so tryAcquire() never set the reservation — openFor must not
+        // leave the breaker in a state where a later probe is impossible.
+        expect(breaker.tryAcquire()).toBe(true);
+        breaker.openFor(30_000);
+
+        expect(breaker.state).toBe('open');
+        expect(breaker.tryAcquire()).toBe(false);
+
+        now += breaker.retryAfterMs + 1;
+        expect(breaker.tryAcquire()).toBe(true);
+    });
 });
