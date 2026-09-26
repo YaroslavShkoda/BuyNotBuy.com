@@ -1,5 +1,6 @@
-﻿import { Hero } from './components/hero';
+import { Hero } from './components/hero';
 import { Topbar } from './components/topbar';
+import { AutoRefresh } from './components/auto-refresh';
 import { getAnalysis } from './lib/analysis';
 import { getMarket } from './lib/market';
 import { getSignalHistory } from './lib/history';
@@ -16,6 +17,11 @@ export default async function Home() {
 
     return (
         <main className="app-shell">
+            {/* The page is server-rendered, so without this the price on screen
+                is whatever it was at the moment the tab was opened, and stays
+                there. */}
+            <AutoRefresh />
+
             <Topbar
                 symbol={market.price.symbol}
                 price={market.price.price}
