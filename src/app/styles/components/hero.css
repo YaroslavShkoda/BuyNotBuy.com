@@ -104,23 +104,30 @@
 .hero-heading-row {
     display: flex;
     /* If the name and the price stop fitting side by side, the price drops to
-       its own line (still flush right) instead of pushing past the panel edge. */
+       its own line instead of pushing past the panel edge. */
     flex-wrap: wrap;
     /* Centred, so the price block and the asset name share one line box. The
-       price is 48px and the name 67px, and centring puts the top of the price
-       level with the top of the name without either being offset — which is
-       what a baseline relationship would have to do, through a flex row and a
-       heading deep enough that the baseline has to be synthesised from a box
-       rather than read off the text. */
+       price is larger than the name's cap height, and centring puts the top
+       of the price level with the top of the name without either being
+       offset — which is what a baseline relationship would have to do, through
+       a flex row and a heading deep enough that the baseline has to be
+       synthesised from a box rather than read off the text. */
     align-items: center;
-    justify-content: space-between;
-    column-gap: 24px;
+    /* Left, not space-between: pushed to the far edge the price reads as a
+       statistic belonging to the panel, not as the number for the asset named
+       next to it. The name and the price are one fact, and they sit together
+       with a gap between them. */
+    justify-content: flex-start;
+    column-gap: clamp(24px, 3vw, 44px);
 }
 
-/* min-width stays `auto` on purpose: the asset name keeps its intrinsic width,
-   so the price block is what gives up its line. */
+/* No grow: a growing asset row would absorb the free space and push the price
+   back to the far edge, which is the gap this layout exists to close. It still
+   shrinks, so the price — which cannot be squeezed, its digits are nowrap —
+   wins the argument when the two stop fitting. */
 .hero-asset-line {
-    flex: 1 1 280px;
+    flex: 0 1 auto;
+    min-width: 0;
 }
 
 .eyebrow {
@@ -147,24 +154,22 @@
 .hero-price-block {
     display: flex;
     flex-direction: column;
-    align-items: flex-end;
+    /* Left, with the name and the price forming one unit in the row above. */
+    align-items: flex-start;
     gap: 7px;
     /* Never compress: the price is nowrap, so a squeezed block would let the
-       digits spill out of it and collide with the panel frame. margin-left:auto
-       keeps it flush right once flex-wrap moves it to a line of its own. */
+       digits spill out of it and collide with the panel frame. */
     flex: 0 0 auto;
-    margin-left: auto;
 }
 
 .hero-price {
     white-space: nowrap;
     max-width: 100%;
 
-    /* Big enough to be the first thing the eye lands on, and tracked off the
-       same viewport curve as the h1 so the two never look like they were
-       sized independently. Still a step below the asset name on purpose: the
-       name says which market, the price says what it costs. */
-    font-size: clamp(30px, 3.6vw, 48px);
+    /* Big enough to read as the price of the asset named beside it rather than
+       as a caption, and tracked off the same viewport curve as the h1 so the
+       two never look like they were sized independently. */
+    font-size: clamp(34px, 4.2vw, 58px);
     line-height: 1;
     font-weight: 275;
     letter-spacing: -0.045em;

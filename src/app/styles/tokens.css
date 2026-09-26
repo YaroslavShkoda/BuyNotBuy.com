@@ -5,9 +5,15 @@
     --color-surface-floating: #15191d;
 
     --color-text: #f5f7f8;
-    --color-text-secondary: #a6adb4;
-    --color-text-muted: #7d858d;
-    --color-text-dim: #5b636b;
+    /* The three steps below are the same ramp as before, each moved halfway
+       to white. They read as grey next to a near-white primary, and on a dark
+       panel the dimmer two were the first thing to disappear — the label on a
+       chart axis, the ticker under the price. The gaps between the steps are
+       kept, only narrowed: a flat ramp would make every caption equally loud
+       and leave the eye nothing to rank them by. */
+    --color-text-secondary: #d2d6d9;
+    --color-text-muted: #bec2c6;
+    --color-text-dim: #adb1b5;
 
     --color-border: rgba(255, 255, 255, 0.08);
     --color-border-strong: rgba(255, 255, 255, 0.14);
