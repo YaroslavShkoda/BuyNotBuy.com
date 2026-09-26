@@ -34,7 +34,12 @@ export type HistoryConfig = z.infer<typeof HistoryConfigSchema>;
 
 export const historyConfig: HistoryConfig = HistoryConfigSchema.parse({
     databasePath:
-        process.env.HISTORY_DB_PATH ??
+        // `||` and not `??`: `node --env-file` hands an assigned-but-empty
+        // variable over as an empty string, and `.env.example` ships
+        // `HISTORY_DB_PATH=` to mean "use the default". `??` only catches
+        // undefined, so the empty string reached `min(1)` and the service
+        // refused to start on the documented quick start.
+        process.env.HISTORY_DB_PATH ||
         // Anchored to the project root, not the working directory: a systemd
         // unit or a container entrypoint starts the process from `/`, and a
         // relative path would put the database somewhere nobody looks for it.

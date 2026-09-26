@@ -47,6 +47,23 @@ describe('historyConfig', () => {
         clearHistoryEnv();
     });
 
+    it('treats an assigned but empty path as unset', async () => {
+        vi.resetModules();
+        clearHistoryEnv();
+
+        // `.env.example` ships `HISTORY_DB_PATH=` to mean "use the default",
+        // and `node --env-file` hands that over as an empty string rather than
+        // an absent variable. Reading it with `??` let the empty string reach
+        // the schema and the service refused to start.
+        process.env.HISTORY_DB_PATH = '';
+
+        const { historyConfig } = await import('./history.config');
+
+        expect(historyConfig.databasePath.endsWith(`${sep}data${sep}signal-history.db`)).toBe(true);
+
+        clearHistoryEnv();
+    });
+
     it('runs the poller once a minute by default', async () => {
         vi.resetModules();
         clearHistoryEnv();
