@@ -142,6 +142,77 @@ describe('findCandleSeriesIssues', () => {
     });
 });
 
+describe('gaps and staleness', () => {
+    /** A series that stops at `newest`, every bar one hour apart. */
+    function hourlyEndingAt(newest: number, count = 5): Candle[] {
+        return Array.from({ length: count }, (_unused, index) => candle({
+            timestamp: newest - (count - 1 - index) * HOUR_MS,
+        }));
+    }
+
+    it('reports a hole in the middle of the series', () => {
+        const series = [
+            candle({ timestamp: NOW - 4 * HOUR_MS }),
+            candle({ timestamp: NOW - 3 * HOUR_MS }),
+            // The 2-hour-ago bar never arrived.
+            candle({ timestamp: NOW - HOUR_MS }),
+            candle({ timestamp: NOW }),
+        ];
+
+        // Every other check passes: sorted, unique, finite, consistent ranges.
+        // The indicators do not care — the EMA's decay and momentum's lookback
+        // are both functions of the distance between bars, so a missing bar is
+        // a discontinuity they step over in silence.
+        expect(findCandleSeriesIssues(series, NOW, MAX_CANDLE_LIMIT)).toBeNull();
+        expect(
+            findCandleSeriesIssues(series, NOW, MAX_CANDLE_LIMIT, HOUR_MS),
+        ).toBe('has_gap');
+    });
+
+    it('accepts a series with a still-forming newest bar', () => {
+        // The newest bar opened an hour ago and has not closed yet. That is
+        // normal, not a gap.
+        expect(
+            findCandleSeriesIssues(
+                hourlyEndingAt(NOW - HOUR_MS + 60_000),
+                NOW,
+                MAX_CANDLE_LIMIT,
+                HOUR_MS,
+            ),
+        ).toBeNull();
+    });
+
+    it('reports a series that stopped updating', () => {
+        const stopped = hourlyEndingAt(NOW - 5 * HOUR_MS);
+
+        // Internally perfect, five hours out of date. Signals from it are
+        // well-formed answers to a question about a market that has moved on.
+        expect(
+            findCandleSeriesIssues(stopped, NOW, MAX_CANDLE_LIMIT, HOUR_MS),
+        ).toBe('stale');
+    });
+
+    it('does not judge gaps or staleness without an interval', () => {
+        // A backtest sample is multi-page and may legitimately be sparse; the
+        // caller that knows the interval is the one that asks the question.
+        const series = [candle({ timestamp: NOW - 40 * HOUR_MS }), candle({ timestamp: NOW })];
+
+        expect(findCandleSeriesIssues(series, NOW)).toBeNull();
+    });
+
+    it('rejects a gapped series as a provider failure', () => {
+        expect(() =>
+            assertCandleSeries(
+                [candle({ timestamp: NOW - 4 * HOUR_MS }), candle({ timestamp: NOW })],
+                NOW,
+                'binance',
+                MAX_CANDLE_LIMIT,
+                HOUR_MS,
+            ),
+        ).toThrow(MarketDataError);
+    });
+});
+
 describe('assertCandleSeries', () => {
     it('passes a well-formed series through', () => {
         expect(() => assertCandleSeries(series(3), NOW, 'binance')).not.toThrow();

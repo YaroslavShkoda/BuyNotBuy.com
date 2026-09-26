@@ -1,3 +1,5 @@
+import { currentCandles } from '../test-support/candles.js';
+
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { requiredCandleCount } from '../config/indicator.config.js';
@@ -20,14 +22,7 @@ const { mockMarketDataProvider } = vi.hoisted(() => ({
         // needs and the still-forming bar is dropped before anything else
         // sees the response, so this stub emulates that too.
         getCandles: vi.fn(async (limit = 300) =>
-            Array.from({ length: Math.max(0, limit - 1) }, (_, index) => ({
-                timestamp: index,
-                open: 100 + index,
-                high: 102 + index,
-                low: 98 + index,
-                close: 100 + index,
-                volume: 1000,
-            })),
+            currentCandles(Math.max(0, limit - 1)),
         ),
     },
 }));
@@ -37,14 +32,7 @@ vi.mock('../market/market.provider.js', () => ({
 }));
 
 function risingCandles(length: number) {
-    return Array.from({ length }, (_, index) => ({
-        timestamp: index,
-        open: 100 + index,
-        high: 102 + index,
-        low: 98 + index,
-        close: 100 + index,
-        volume: 1000,
-    }));
+    return currentCandles(length);
 }
 
 describe('integration boundaries (task 6)', () => {

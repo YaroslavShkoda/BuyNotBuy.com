@@ -106,7 +106,19 @@ async function fetchMarketData(): Promise<MarketData> {
     // Every provider funnels through here, so the invariants the indicators
     // rely on are checked exactly once. An unsorted or impossible series would
     // otherwise produce a confident signal from wrong numbers.
-    assertCandleSeries(candles, Date.now(), marketConfig.provider);
+    //
+    // The interval is passed so the check can also see a hole in the middle of
+    // the series and a series that simply stopped updating. Both produce a
+    // well-formed signal from a market that is not the one being displayed,
+    // and neither is visible to any other check: the bars are sorted, unique,
+    // finite, and have consistent ranges.
+    assertCandleSeries(
+        candles,
+        Date.now(),
+        marketConfig.provider,
+        MAX_CANDLE_LIMIT,
+        marketConfig.candleIntervalMs,
+    );
 
     const lastCandle = candles.at(-1);
 

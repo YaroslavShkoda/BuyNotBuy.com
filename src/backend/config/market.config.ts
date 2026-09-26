@@ -64,6 +64,29 @@ const primaryProvider = MarketProviderSchema.parse(
 );
 
 /**
+ * Turns a candle interval label into milliseconds.
+ *
+ * Called on the same string the schema validates, and the schema rejects an
+ * unparseable one a few lines later, so by the time this is wrong the process
+ * is already refusing to start. `NaN` is the honest answer for a label this
+ * cannot read, and it fails the `positive()` integer check rather than
+ * silently becoming zero.
+ */
+function intervalMs(label: string): number {
+    const multipliers: Record<string, number> = {
+        m: 60_000,
+        h: 3_600_000,
+        d: 86_400_000,
+        w: 604_800_000,
+    };
+
+    const unit = label.slice(-1);
+    const amount = Number.parseInt(label.slice(0, -1), 10);
+
+    return amount * (multipliers[unit] ?? Number.NaN);
+}
+
+/**
  * Whether this process is allowed to serve invented prices.
  *
  * The guard on the backup list already refuses a mock there, and for the same
@@ -94,8 +117,7 @@ if (primaryProvider === 'mock' && !mockProviderAllowed()) {
     );
 }
 
-const MarketConfigSchema = z.object({
-    provider: MarketProviderSchema,
+const MarketConfigSchema = z.object({    provider: MarketProviderSchema,
     /**
      * Where to go when the primary will not answer.
      *
@@ -159,6 +181,20 @@ const MarketConfigSchema = z.object({
         .regex(/^[0-9]+[mhdw]$/, {
             message: 'Candle interval must look like 1m, 4h, 1d or 1w',
         }),
+    /**
+     * The same interval in milliseconds, derived from the same setting.
+     *
+     * The series validator needs a duration to tell a still-forming bar from a
+     * provider that stopped updating, and from a hole in the middle of the
+     * series. Parsing the label at each call site would mean several places
+     * each re-implementing the same format; here it is computed once, or the
+     * process refuses to start.
+     *
+     * A field rather than a transform on `candleInterval`, because the string
+     * is what goes to the venue and `3600000` is not an interval any of them
+     * accept.
+     */
+    candleIntervalMs: z.coerce.number().int().positive(),
     defaultCandleLimit: z.coerce
         .number()
         .int()
@@ -241,6 +277,10 @@ export const marketConfig: MarketConfig = MarketConfigSchema.parse({
     candleInterval:
         process.env.MARKET_CANDLE_INTERVAL ??
         '1h',
+
+    candleIntervalMs: intervalMs(
+        process.env.MARKET_CANDLE_INTERVAL ?? '1h',
+    ),
 
     defaultCandleLimit:
         process.env.MARKET_DEFAULT_CANDLE_LIMIT ??

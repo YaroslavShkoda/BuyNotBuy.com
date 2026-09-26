@@ -3,6 +3,7 @@ import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { MarketDataError } from './errors/market-data.error.js';
 import { marketConfig } from './config/market.config.js';
 import { requiredCandleCount } from './config/indicator.config.js';
+import { currentCandles } from './test-support/candles.js';
 
 const { mockMarketDataProvider } = vi.hoisted(() => ({
     mockMarketDataProvider: {
@@ -13,17 +14,7 @@ const { mockMarketDataProvider } = vi.hoisted(() => ({
 
         getCandles: vi.fn(
             async (limit = marketConfig.defaultCandleLimit) =>
-                Array.from(
-                    { length: limit },
-                    (_, index) => ({
-                        timestamp: index,
-                        open: 100,
-                        high: 101,
-                        low: 99,
-                        close: 100,
-                        volume: 1000,
-                    }),
-                ),
+                currentCandles(limit, 100, 0),
         ),
     },
 }));

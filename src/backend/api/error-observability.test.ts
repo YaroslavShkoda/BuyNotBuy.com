@@ -1,3 +1,5 @@
+import { currentCandles } from '../test-support/candles.js';
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { MarketDataError } from '../errors/market-data.error.js';
@@ -10,14 +12,7 @@ const { mockMarketDataProvider } = vi.hoisted(() => ({
             price: 80000,
         })),
         getCandles: vi.fn(async (limit = 900) =>
-            Array.from({ length: limit }, (_, index) => ({
-                timestamp: index,
-                open: 100 + index,
-                high: 102 + index,
-                low: 98 + index,
-                close: 100 + index,
-                volume: 1000,
-            })),
+            currentCandles(limit),
         ),
     },
 }));
@@ -46,14 +41,7 @@ import * as divergenceService from '../indicators/divergence.service.js';
 import * as signalService from '../signals/signal.service.js';
 
 function risingCandles(length: number) {
-    return Array.from({ length }, (_, index) => ({
-        timestamp: index,
-        open: 100 + index,
-        high: 102 + index,
-        low: 98 + index,
-        close: 100 + index,
-        volume: 1000,
-    }));
+    return currentCandles(length);
 }
 
 function createMarketData() {

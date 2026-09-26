@@ -1,4 +1,6 @@
 import Fastify from 'fastify';
+import { currentCandles } from '../test-support/candles.js';
+
 import { describe, expect, it, vi } from 'vitest';
 
 import { requiredCandleCount } from '../config/indicator.config.js';
@@ -10,14 +12,7 @@ const { mockMarketDataProvider } = vi.hoisted(() => ({
             price: 80000,
         })),
         getCandles: vi.fn(async (limit = 900) =>
-            Array.from({ length: limit }, (_, index) => ({
-                timestamp: index,
-                open: 100 + index,
-                high: 102 + index,
-                low: 98 + index,
-                close: 100 + index,
-                volume: 1000,
-            })),
+            currentCandles(limit),
         ),
     },
 }));

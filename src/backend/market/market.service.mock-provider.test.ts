@@ -21,8 +21,12 @@ describe('market.service with MockProvider', () => {
 
         expect(data.candles).toHaveLength(900);
 
+        // The mock is anchored to the current hour, so the labels move with the
+        // clock. What is fixed is the shape and the walk: a straight line of
+        // hourly bars, one dollar a bar, which is what makes an assertion
+        // against a metric meaningful in the first place.
         expect(data.candles[0]).toEqual({
-            timestamp: 1_700_000_000_000,
+            timestamp: expect.any(Number),
             open: 99990,
             high: 100010,
             low: 99980,
@@ -30,16 +34,25 @@ describe('market.service with MockProvider', () => {
             volume: 1000,
         });
 
+        expect(data.candles[899]?.timestamp).toBe(
+            (data.candles[0]?.timestamp ?? 0) + 899 * 60 * 60 * 1000,
+        );
+
         expect(data.candles[899]).toEqual({
-            timestamp:
-                1_700_000_000_000 +
-                899 * 60 * 60 * 1000,
+            timestamp: expect.any(Number),
             open: 100889,
             high: 100909,
             low: 100879,
             close: 100899,
             volume: 1000,
         });
+
+        // The whole point of re-anchoring: a mock that answers with a series
+        // ending in November 2023 is a mock the staleness check rejects, and
+        // every test that leans on it would be leaning on a bypass.
+        expect(data.candles[899]?.timestamp).toBeGreaterThan(
+            Date.now() - 2 * 60 * 60 * 1000,
+        );
 
         vi.unstubAllEnvs();
     });

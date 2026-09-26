@@ -27,7 +27,9 @@ import { MarketDataError } from '../errors/market-data.error.js';
 
 import type { Candle } from '../types/market.js';
 
-function candle(close: number, timestamp = 1): Candle {
+const HOUR_MS = 3_600_000;
+
+function candle(close: number, timestamp: number): Candle {
     return {
         timestamp,
         open: close,
@@ -36,6 +38,25 @@ function candle(close: number, timestamp = 1): Candle {
         close,
         volume: 100,
     };
+}
+
+/**
+ * Builds an oldest-first series whose newest bar is the last closed hour.
+ *
+ * The timestamps have to be real. The series validator now checks the spacing
+ * between bars and how recent the newest one is, because a provider that has
+ * stopped updating produces a well-formed signal about a market that moved on
+ * — and a fixture that answered with bars labelled 1, 2 and 3 would fail those
+ * checks for reasons that have nothing to do with what each test is about.
+ *
+ * Anchored to the clock rather than to a constant, so the fixture stays a
+ * stand-in for a venue that answers now.
+ */
+function series(closes: number[]): Candle[] {
+    const newestOpen = Math.floor(Date.now() / HOUR_MS) * HOUR_MS;
+    const start = newestOpen - Math.max(0, closes.length - 1) * HOUR_MS;
+
+    return closes.map((close, index) => candle(close, start + index * HOUR_MS));
 }
 
 function expectedMarketData(candles: Candle[], price: number) {
@@ -78,7 +99,7 @@ describe('market.service', () => {
     });
 
     it('getMarketData() returns the last closed close as the price', async () => {
-        const candles = [candle(80000, 1), candle(81500, 2)];
+        const candles = series([80000, 81500]);
 
         mockMarketDataProvider.getCandles.mockResolvedValueOnce(candles);
 
@@ -95,7 +116,7 @@ describe('market.service', () => {
     });
 
     it('getMarketData() asks the provider for a warm-up window plus the forming bar', async () => {
-        mockMarketDataProvider.getCandles.mockResolvedValueOnce([candle(80000)]);
+        mockMarketDataProvider.getCandles.mockResolvedValueOnce(series([80000]));
 
         await getMarketData();
 
@@ -111,9 +132,8 @@ describe('market.service', () => {
     });
 
     it('getMarketData() survives a response whose last bar is still forming', async () => {
-        const closed = Array.from(
-            { length: requiredCandleCount() },
-            (_, index) => candle(80_000, index),
+        const closed = series(
+            Array.from({ length: requiredCandleCount() }, () => 80_000),
         );
 
         mockMarketDataProvider.getCandles.mockResolvedValueOnce(closed);
@@ -125,7 +145,7 @@ describe('market.service', () => {
     });
 
     it('getMarketData() deduplicates concurrent calls into one provider request', async () => {
-        const candles = [candle(80000)];
+        const candles = series([80000]);
 
         let release: () => void = () => {};
         const gate = new Promise<void>((resolve) => {
@@ -153,7 +173,7 @@ describe('market.service', () => {
     });
 
     it('getMarketData() does not share a failed request with the next call', async () => {
-        const candles = [candle(80000)];
+        const candles = series([80000]);
 
         mockMarketDataProvider.getCandles.mockRejectedValueOnce(
             new MarketDataError('upstream failed'),
@@ -184,7 +204,7 @@ describe('market.service', () => {
 
     describe('snapshot cache', () => {
         it('serves a second call inside the TTL without touching the provider', async () => {
-            const candles = [candle(80000)];
+            const candles = series([80000]);
 
             mockMarketDataProvider.getCandles.mockResolvedValueOnce(candles);
 
@@ -204,8 +224,8 @@ describe('market.service', () => {
 
             try {
                 mockMarketDataProvider.getCandles
-                    .mockResolvedValueOnce([candle(80000)])
-                    .mockResolvedValueOnce([candle(81000)]);
+                    .mockResolvedValueOnce(series([80000]))
+                    .mockResolvedValueOnce(series([81000]));
 
                 await getMarketData();
 
@@ -229,7 +249,7 @@ describe('market.service', () => {
             });
 
             try {
-                const candles = [candle(80000)];
+                const candles = series([80000]);
 
                 mockMarketDataProvider.getCandles.mockResolvedValueOnce(candles);
 
@@ -261,9 +281,9 @@ describe('market.service', () => {
             });
 
             try {
-                mockMarketDataProvider.getCandles.mockResolvedValueOnce([
-                    candle(80000),
-                ]);
+                mockMarketDataProvider.getCandles.mockResolvedValueOnce(
+                    series([80000]),
+                );
 
                 await getMarketData();
 
@@ -292,7 +312,7 @@ describe('market.service', () => {
             });
 
             try {
-                const candles = [candle(80000)];
+                const candles = series([80000]);
 
                 mockMarketDataProvider.getCandles.mockResolvedValueOnce(candles);
 
@@ -310,7 +330,7 @@ describe('market.service', () => {
         });
 
         it('serves exactly one snapshot for a concurrent burst', async () => {
-            const candles = [candle(80000)];
+            const candles = series([80000]);
 
             mockMarketDataProvider.getCandles.mockResolvedValue(candles);
 

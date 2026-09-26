@@ -73,6 +73,7 @@ describe('configuration boundary hardening (task 7)', () => {
             symbol: 'BTCUSDT',
             fallbackSymbol: 'BTCUSDT',
             candleInterval: '1h',
+            candleIntervalMs: 3_600_000,
             defaultCandleLimit: 900,
             requestTimeoutMs: 5000,
             cacheTtlMs: 60000,
@@ -104,6 +105,9 @@ describe('configuration boundary hardening (task 7)', () => {
         expect(marketConfig.provider).toBe('mock');
         expect(marketConfig.symbol).toBe('ETHUSDT');
         expect(marketConfig.candleInterval).toBe('15m');
+        // The series validator needs a duration, not a label. Derived once here
+        // rather than parsed at each of the call sites that need it.
+        expect(marketConfig.candleIntervalMs).toBe(900_000);
         expect(marketConfig.defaultCandleLimit).toBe(500);
         expect(marketConfig.requestTimeoutMs).toBe(2500);
     });

@@ -33,14 +33,24 @@ export class MockProvider implements MarketDataProvider {
     private buildCandles(limit: number): Candle[] {
         const candles: Candle[] = [];
 
-        const startTimestamp = 1_700_000_000_000;
         const intervalMs = 60 * 60 * 1000;
+        const count = Math.max(0, limit - 1);
+
+        // Anchored to the current hour rather than to a fixed date, because a
+        // provider that stopped updating in November 2023 is not a stand-in for
+        // one that answers now — and the series validator, correctly, refuses
+        // to build a signal from one. The *values* stay exactly as
+        // deterministic as they were: a straight line, one bar per hour, with
+        // the same spacing. Only the labels move, and they move to where a
+        // real venue's would be.
+        const newestOpen = Math.floor(Date.now() / intervalMs) * intervalMs;
+        const startTimestamp = newestOpen - count * intervalMs;
 
         // Binance always ends a klines response with the bar that is still
         // forming, and the provider layer drops it. The mock used to hand back
         // a full `limit` of closed bars, which quietly hid the fact that the
         // warm-up window was one bar short of what the caller had asked for.
-        for (let i = 0; i < Math.max(0, limit - 1); i += 1) {
+        for (let i = 0; i < count; i += 1) {
             const close = 100000 + i;
 
             candles.push({

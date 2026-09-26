@@ -1,3 +1,5 @@
+import { currentCandles } from '../test-support/candles.js';
+
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { MarketDataError } from '../errors/market-data.error.js';
@@ -14,16 +16,7 @@ const { mockMarketDataProvider } = vi.hoisted(() => ({
             symbol: 'BTCUSDT',
             price: 80000,
         })),
-        getCandles: vi.fn(async (limit = 900) =>
-            Array.from({ length: limit }, (_, index) => ({
-                timestamp: index,
-                open: 100 + index,
-                high: 102 + index,
-                low: 98 + index,
-                close: 100 + index,
-                volume: 1000,
-            })),
-        ),
+        getCandles: vi.fn(async (limit = 900) => currentCandles(limit)),
     },
 }));
 
@@ -151,14 +144,7 @@ describe('runtime reliability & lifecycle (task 8)', () => {
                 throw new MarketDataError('injected provider failure');
             }
 
-            return Array.from({ length: 900 }, (_, index) => ({
-                timestamp: index,
-                open: 100 + index,
-                high: 102 + index,
-                low: 98 + index,
-                close: 100 + index,
-                volume: 1000,
-            }));
+            return currentCandles(900);
         });
 
         try {
@@ -185,14 +171,7 @@ describe('runtime reliability & lifecycle (task 8)', () => {
         } finally {
             mockMarketDataProvider.getCandles.mockReset();
             mockMarketDataProvider.getCandles.mockImplementation(
-                async (limit = 900) => Array.from({ length: limit }, (_, index) => ({
-                    timestamp: index,
-                    open: 100 + index,
-                    high: 102 + index,
-                    low: 98 + index,
-                    close: 100 + index,
-                    volume: 1000,
-                })),
+                async (limit = 900) => currentCandles(limit),
             );
             await app.close();
         }
@@ -276,14 +255,7 @@ describe('runtime reliability & lifecycle (task 8)', () => {
 
         const marketData = {
             price: { symbol: 'BTCUSDT', price: 200 },
-            candles: Array.from({ length: 900 }, (_, index) => ({
-                timestamp: index,
-                open: 100 + index,
-                high: 102 + index,
-                low: 98 + index,
-                close: 100 + index,
-                volume: 1000,
-            })),
+            candles: currentCandles(900),
         };
 
         const spy = vi.spyOn(marketService, 'getMarketData').mockResolvedValue(freshMarketData(marketData));

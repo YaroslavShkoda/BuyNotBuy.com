@@ -1,6 +1,7 @@
-﻿import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
-import { marketConfig } from '../../config/market.config.js';
+import { marketConfig, MAX_CANDLE_LIMIT } from '../../config/market.config.js';
+import { assertCandleSeries } from '../candle-validation.js';
 import { MockProvider } from './mock.provider.js';
 
 describe('MockProvider', () => {
@@ -54,8 +55,12 @@ describe('MockProvider', () => {
 
         const result = await provider.getCandles(2);
 
+        // The absolute label moves with the clock — the mock is anchored to the
+        // current hour, so that a series it produces is not rejected as stale by
+        // the same validation every real provider's output goes through. The
+        // shape is what is fixed.
         expect(result[0]).toEqual({
-            timestamp: 1_700_000_000_000,
+            timestamp: expect.any(Number),
             open: 99990,
             high: 100010,
             low: 99980,
@@ -71,20 +76,47 @@ describe('MockProvider', () => {
 
         expect(result).toHaveLength(3);
 
-        expect(result[0]?.timestamp).toBe(
-            1_700_000_000_000,
-        );
-
+        // Relative, not absolute: what matters is that the bars are one hour
+        // apart, not which hour they are labelled with.
         expect(result[1]?.timestamp).toBe(
-            1_700_000_000_000 + 60 * 60 * 1000,
+            (result[0]?.timestamp ?? 0) + 60 * 60 * 1000,
         );
 
         expect(result[2]?.timestamp).toBe(
-            1_700_000_000_000 + 2 * 60 * 60 * 1000,
+            (result[1]?.timestamp ?? 0) + 60 * 60 * 1000,
         );
 
         expect(result[0]?.close).toBe(100000);
         expect(result[1]?.close).toBe(100001);
         expect(result[2]?.close).toBe(100002);
+    });
+
+    it('produces a series that is current, not frozen in the past', async () => {
+        const provider = new MockProvider();
+
+        const result = await provider.getCandles(10);
+        const newest = result.at(-1);
+
+        // The defect this fixes: the mock used to answer with a series ending
+        // in November 2023, so a dashboard running on it showed a signal for
+        // a market that stopped trading years ago, with no staleness flag.
+        expect(newest?.timestamp).toBeGreaterThan(Date.now() - 2 * 3_600_000);
+    });
+
+    it('passes the same validation that a real provider must pass', async () => {
+        const provider = new MockProvider();
+        const candles = await provider.getCandles(10);
+
+        // A test double that cannot survive the checks the real thing is held
+        // to is a test double that quietly lets those checks rot.
+        expect(() =>
+            assertCandleSeries(
+                candles,
+                Date.now(),
+                'mock',
+                MAX_CANDLE_LIMIT,
+                marketConfig.candleIntervalMs,
+            ),
+        ).not.toThrow();
     });
 });
