@@ -123,7 +123,7 @@ describe('readiness', () => {
         });
     });
 
-    it('says what failed rather than only that something did', async () => {
+    it('reports a reason to the caller and keeps the detail in the log', async () => {
         historyRepository.schemaVersion.mockRejectedValue(
             new Error('password authentication failed for user "buynotbuy"'),
         );
@@ -136,12 +136,15 @@ describe('readiness', () => {
         expect(response.statusCode).toBe(503);
         expect(response.json().status).toBe('not_ready');
         expect(response.json().checks.database.ok).toBe(false);
-        expect(typeof response.json().checks.database.detail).toBe('string');
-        // The server's own words: "the database is unusable" is not enough to
-        // tell a wrong password from a wrong host.
-        expect(response.json().checks.database.detail).toContain(
-            'password authentication failed',
-        );
+        expect(response.json().checks.database.reason).toBe('database_unusable');
+
+        // The message is what tells a wrong password from a wrong host, and the
+        // server still writes it — but the endpoint is unauthenticated and
+        // exempt from the rate limiter, so the message goes to the log and not
+        // to whoever asked. It names the user and the host it could not reach.
+        expect(response.json().checks.database.reason).not.toContain('password');
+        expect(response.body).not.toContain('buynotbuy');
+        expect(response.body).not.toContain('password authentication failed');
     });
 
     it('refuses a database written by a newer build', async () => {
@@ -155,11 +158,11 @@ describe('readiness', () => {
         });
 
         // Serving it would mean writing rows into a schema this build reads
-        // wrongly, which is not something a probe can recover from.
+        // wrongly, which is not something a probe can recover from. The
+        // versions are the caller's to know — the schema name is not.
         expect(response.statusCode).toBe(503);
-        expect(response.json().checks.database.detail).toContain(
-            `v${LATEST_SCHEMA_VERSION + 1}`,
-        );
+        expect(response.json().checks.database.reason).toBe('schema_too_new');
+        expect(response.body).not.toContain(`v${LATEST_SCHEMA_VERSION + 1}`);
     });
 
     it('reports an unreadable vote table as not ready', async () => {
@@ -174,12 +177,12 @@ describe('readiness', () => {
 
         // The vote store is a second table in the same database, and the
         // readiness check reads it for exactly this reason: otherwise a
-        // missing table surfaces as a silent no-op on the first write.
+        // missing table surfaces as a silent no-op on the first write. The
+        // table's name stays out of the answer, the same as its host and user.
         expect(response.statusCode).toBe(503);
         expect(response.json().checks.database.ok).toBe(false);
-        expect(response.json().checks.database.detail).toContain(
-            'indicator_vote',
-        );
+        expect(response.json().checks.database.reason).toBe('database_unusable');
+        expect(response.body).not.toContain('indicator_vote');
     });
 });
 

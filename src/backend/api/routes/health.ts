@@ -10,8 +10,26 @@ import { observabilityConfig } from '../../config/observability.config.js';
 /** Schema version this build can read. Anything higher is not ours to serve. */
 const SUPPORTED_SCHEMA_VERSION = LATEST_SCHEMA_VERSION;
 
+/**
+ * Stable reasons a check can fail, safe to hand to any caller.
+ *
+ * The reason and the detail are deliberately two different things. A PostgreSQL
+ * message carries the user name, the host and the port it failed to reach, and
+ * `/readyz` needs no credential to reach — it is unauthenticated and exempt from
+ * the rate limiter. An operator gets the full message from the log, correlated
+ * by the request id that is already echoed in the response header; a caller gets
+ * a code it can branch on and nothing to learn about the network from.
+ */
+const READINESS_REASON = {
+    schemaTooNew: 'schema_too_new',
+    databaseUnusable: 'database_unusable',
+} as const;
+
 interface CheckResult {
     ok: boolean;
+    /** Stable code. Safe to return to the caller. */
+    reason?: (typeof READINESS_REASON)[keyof typeof READINESS_REASON];
+    /** Operator-only. Written to the log, never to a response body. */
     detail?: string;
 }
 
@@ -30,6 +48,7 @@ async function databaseIsUsable(): Promise<CheckResult> {
         if (version > SUPPORTED_SCHEMA_VERSION) {
             return {
                 ok: false,
+                reason: READINESS_REASON.schemaTooNew,
                 detail:
                     `database schema v${version} is newer than this build understands ` +
                     `(v${SUPPORTED_SCHEMA_VERSION})`,
@@ -45,6 +64,7 @@ async function databaseIsUsable(): Promise<CheckResult> {
     } catch (error) {
         return {
             ok: false,
+            reason: READINESS_REASON.databaseUnusable,
             detail: error instanceof Error ? error.message : 'unknown database failure',
         };
     }
@@ -98,7 +118,11 @@ export function registerHealthRoutes(app: FastifyInstance): void {
 
             return reply.status(503).send({
                 status: 'not_ready',
-                checks: { database: { ok: false, detail: database.detail } },
+                // The reason, never the detail: the detail names the user and
+                // the host it could not reach, and this endpoint is open.
+                // `requestId` above correlates the two — the operator reads the
+                // message out of the log, the caller reads the code.
+                checks: { database: { ok: false, reason: database.reason } },
             });
         }
 
