@@ -1,9 +1,16 @@
 import type { Candle, DivergenceAnalysis, MarketAnalysis } from '../types/analysis';
 import { formatMomentumPercent, formatPercent, formatSignedPercent } from '../lib/format-momentum';
+import { quoteAssetOf } from '../lib/quote-asset';
 
 interface MarketDetailsProps {
     candles: Candle[];
     analysis: MarketAnalysis;
+    /**
+     * Needed to name the currency the volume column is counted in. The analysis
+     * payload carries only a price, because nothing else in it has an opinion
+     * about which pair is being shown.
+     */
+    symbol: string;
 }
 
 function compactNumber(value: number) {
@@ -88,7 +95,7 @@ export function describeDivergence(divergence: DivergenceAnalysis): DivergencePr
     };
 }
 
-export function MarketDetails({ candles, analysis }: MarketDetailsProps) {
+export function MarketDetails({ candles, analysis, symbol }: MarketDetailsProps) {
     // The grid stretches both cards to the same height, so the activity table
     // has to carry the difference: the left card is tall because its captions
     // wrap, and this one used to stop after five rows with dead space under it.
@@ -203,7 +210,7 @@ export function MarketDetails({ candles, analysis }: MarketDetailsProps) {
                     </header>
                     <div className="candle-table-wrap">
                         <table className="candle-table">
-                            <thead><tr><th>ВРЕМЯ</th><th>ЗАКРЫТИЕ</th><th>ДИАПАЗОН</th><th>ОБЪЁМ</th></tr></thead>
+                            <thead><tr><th>ВРЕМЯ</th><th>ЗАКРЫТИЕ</th><th>ДИАПАЗОН</th><th>ОБЪЁМ, {quoteAssetOf(symbol)}</th></tr></thead>
                             <tbody>{recent.map((candle) => (
                                 <tr key={candle.timestamp}>
                                     <td>{new Date(candle.timestamp).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</td>

@@ -1,5 +1,8 @@
-import type { Candle } from '../types/analysis';
 import { VolumePlot } from './volume-plot';
+import { buildVolumeScale } from '../lib/volume-scale';
+import { quoteAssetOf } from '../lib/quote-asset';
+
+import type { Candle } from '../types/analysis';
 
 interface MarketChartProps {
     candles: Candle[];
@@ -110,7 +113,7 @@ export function MarketChart({ candles, symbol, ema300 }: MarketChartProps) {
     }));
     const line = points.map(({ x, y }, index) => `${index ? 'L' : 'M'} ${x} ${y}`).join(' ');
     const area = `${line} L ${chartWidth} ${chartHeight} L 0 ${chartHeight} Z`;
-    const maxVolume = Math.max(...visibleCandles.map((candle) => candle.volume), 1);
+    const volumeScale = buildVolumeScale(visibleCandles);
     const barStep = chartWidth / Math.max(visibleCandles.length, 1);
     const last = visibleCandles.at(-1);
     const first = visibleCandles[0];
@@ -194,10 +197,14 @@ export function MarketChart({ candles, symbol, ema300 }: MarketChartProps) {
         <span>{first !== undefined ? formatAxisTime(first.timestamp, windowMs) : '—'}</span>
         <span>Сейчас</span>
     </div>
-    <div className="volume-heading"><span>ОБЪЁМ ТОРГОВ</span><span>VOLUME</span></div>
+    <div className="volume-heading">
+        <span>ОБЪЁМ ТОРГОВ</span>
+        <span>{quoteAssetOf(symbol)}</span>
+    </div>
         <VolumePlot
             candles={visibleCandles}
-            maxVolume={maxVolume}
+            scale={volumeScale}
+            symbol={symbol}
             barStep={barStep}
             chartWidth={chartWidth}
         />

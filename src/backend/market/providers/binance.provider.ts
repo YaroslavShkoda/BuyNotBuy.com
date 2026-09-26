@@ -58,13 +58,23 @@ const BinancePriceSchema = z.object({
 });
 
 /**
+ * `/api/v3/klines` is a fixed-width row: openTime, open, high, low, close,
+ * base volume, closeTime, quote volume, trades, then two taker-buy figures and an
+ * unused field.
+ *
  * Bounded on purpose: a response larger than the provider could ever produce
  * is malformed, and materialising it first would let a bad upstream exhaust
  * memory before anything could notice.
+ *
+ * Eight positions are validated rather than the six that are read, because the
+ * quote volume sits behind the close time — validating a prefix would leave the
+ * field the panel shows as an untyped `unknown` that becomes NaN the first time
+ * the venue sends something unexpected.
  */
 const BinanceCandleSchema = z.array(
     z.tuple(
         [
+            BinanceNonNegativeSchema,
             BinanceNonNegativeSchema,
             BinanceNonNegativeSchema,
             BinanceNonNegativeSchema,
@@ -247,6 +257,7 @@ function dropStillFormingCandles(
             number,
             number,
             number,
+            number,
             ...unknown[],
         ]
     >,
@@ -255,7 +266,11 @@ function dropStillFormingCandles(
     const candles: Candle[] = [];
 
     for (const row of rows) {
-        const [timestamp, open, high, low, close, volume, closeTime] = row;
+        // Index 5 is the base-asset volume and is deliberately skipped: the panel
+        // shows notional volume, which is index 7. Taking index 5 instead would
+        // understate every figure by the price — around 84,000x on BTCUSDT —
+        // while still looking like a plausible number.
+        const [timestamp, open, high, low, close, , closeTime, quoteVolume] = row;
 
         if (closeTime > now) {
             continue;
@@ -267,7 +282,7 @@ function dropStillFormingCandles(
             high,
             low,
             close,
-            volume,
+            volume: quoteVolume,
         });
     }
 

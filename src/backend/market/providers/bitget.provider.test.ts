@@ -86,6 +86,9 @@ describe('Bitget candles', () => {
     const closed = now - 2 * HOUR;
 
     function row(timestamp: number, close: string) {
+        // The base and notional volumes are different numbers on purpose: a
+        // fixture that made them equal would pass whichever of the two the
+        // provider read.
         return [String(timestamp), '84000', '85000', '83000', close, '12.5', '1050000', '1050000'];
     }
 
@@ -116,7 +119,8 @@ describe('Bitget candles', () => {
                 high: 85000,
                 low: 83000,
                 close: 84120,
-                volume: 12.5,
+                // The notional figure, not the 12.5 BTC base one.
+                volume: 1050000,
             },
         ]);
     });

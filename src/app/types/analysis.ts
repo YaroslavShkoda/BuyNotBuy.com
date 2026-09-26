@@ -6,6 +6,7 @@ export interface Candle {
     high: number;
     low: number;
     close: number;
+    /** Notional volume, in the pair's quote currency. See backend Candle. */
     volume: number;
 }
 

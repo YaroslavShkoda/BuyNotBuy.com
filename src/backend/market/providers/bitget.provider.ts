@@ -118,14 +118,23 @@ const BitgetNonNegativeSchema = BitgetNumberSchema.refine(
 /**
  * `[timestamp, open, high, low, close, baseVolume, quoteVolume, usdtVolume]`.
  *
- * The trailing `unknown` matters: the row is a fixed-width array, so a schema
- * without it insists the venue send exactly six fields, and a venue that
- * appends a quote-volume pair to the row it already shipped would be read as a
- * contract violation rather than as the data it is. Only the leading fields are
- * read, and only those are constrained.
+ * Seven positions are validated, not the six that are read: the notional volume
+ * the panel shows is index 6, and validating a six-long prefix would leave it an
+ * untyped `unknown` that becomes NaN the first time the venue sends something
+ * unexpected.
+ *
+ * The trailing `unknown` matters as well — the row is a fixed-width array, so a
+ * schema without it insists the venue send exactly seven fields, and a venue
+ * that appends a figure to the row it already shipped would be read as a
+ * contract violation rather than as the data it is.
+ *
+ * `quoteVolume` and not `usdtVolume`, deliberately: Binance publishes no
+ * USDT-denominated volume to match against, so the honest common denominator is
+ * volume in the pair's own quote currency, which is what the panel labels.
  */
 const BitgetCandleRowSchema = z.tuple(
     [
+        BitgetNonNegativeSchema,
         BitgetNonNegativeSchema,
         BitgetNonNegativeSchema,
         BitgetNonNegativeSchema,
@@ -407,14 +416,28 @@ function firstItem(data: unknown, endpoint: string): unknown {
  * has nothing to do with the market.
  */
 function toCandles(
-    rows: Array<[number, number, number, number, number, number, ...unknown[]]>,
+    rows: Array<
+        [
+            number,
+            number,
+            number,
+            number,
+            number,
+            number,
+            number,
+            ...unknown[],
+        ]
+    >,
     durationMs: number,
     now: number,
 ): Candle[] {
     const candles: Candle[] = [];
 
     for (const row of rows) {
-        const [timestamp, open, high, low, close, volume] = row;
+        // Index 5 is the base-asset volume and is skipped for the same reason
+        // the primary skips it: the panel shows notional volume, which here is
+        // index 6.
+        const [timestamp, open, high, low, close, , quoteVolume] = row;
 
         if (timestamp + durationMs > now) {
             continue;
@@ -426,7 +449,7 @@ function toCandles(
             high,
             low,
             close,
-            volume,
+            volume: quoteVolume,
         });
     }
 

@@ -1,4 +1,4 @@
-﻿import {
+import {
     afterEach,
     describe,
     expect,
@@ -128,6 +128,51 @@ describe('BinanceProvider', () => {
         const CLOSED_1 = 1700003599999;
         const CLOSED_2 = 1700007199999;
 
+        /**
+         * A real `/api/v3/klines` row: openTime, open, high, low, close, base
+         * volume, closeTime, quote volume, trades, two taker-buy figures and an
+         * unused field.
+         *
+         * Built here rather than written as a literal so the two volume
+         * positions cannot be confused again. The base and notional figures are
+         * deliberately different numbers, because a fixture that made them equal
+         * would pass whichever of the two the provider read.
+         */
+        function kline({
+            openTime,
+            closeTime,
+            open = '80000.00',
+            high = '81000.00',
+            low = '79000.00',
+            close = '80500.00',
+            baseVolume = '123.45',
+            quoteVolume = '10371100.00',
+        }: {
+            openTime: number;
+            closeTime: number;
+            open?: string;
+            high?: string;
+            low?: string;
+            close?: string;
+            baseVolume?: string;
+            quoteVolume?: string;
+        }) {
+            return [
+                openTime,
+                open,
+                high,
+                low,
+                close,
+                baseVolume,
+                closeTime,
+                quoteVolume,
+                '31817',
+                '60.00',
+                '5000000.00',
+                '0',
+            ];
+        }
+
         it('uses configured symbol, interval, and default limit', async () => {
             const fetchMock = vi.fn().mockResolvedValue({
                 ok: true,
@@ -153,24 +198,22 @@ describe('BinanceProvider', () => {
             const fetchMock = vi.fn().mockResolvedValue({
                 ok: true,
                 json: async () => [
-                    [
-                        1700000000000,
-                        '80000.00',
-                        '81000.00',
-                        '79000.00',
-                        '80500.00',
-                        '123.45',
-                        CLOSED_1,
-                    ],
-                    [
-                        1700003600000,
-                        '80500.00',
-                        '82000.00',
-                        '80000.00',
-                        '81500.00',
-                        '150.25',
-                        CLOSED_2,
-                    ],
+                    kline({
+                        openTime: 1700000000000,
+                        closeTime: CLOSED_1,
+                        baseVolume: '123.45',
+                        quoteVolume: '10371100.00',
+                    }),
+                    kline({
+                        openTime: 1700003600000,
+                        closeTime: CLOSED_2,
+                        open: '80500.00',
+                        high: '82000.00',
+                        low: '80000.00',
+                        close: '81500.00',
+                        baseVolume: '150.25',
+                        quoteVolume: '12953100.00',
+                    }),
                 ],
             });
 
@@ -187,7 +230,8 @@ describe('BinanceProvider', () => {
                     high: 81000,
                     low: 79000,
                     close: 80500,
-                    volume: 123.45,
+                    // The notional figure, not the 123.45 BTC base one.
+                    volume: 10371100,
                 },
                 {
                     timestamp: 1700003600000,
@@ -195,7 +239,7 @@ describe('BinanceProvider', () => {
                     high: 82000,
                     low: 80000,
                     close: 81500,
-                    volume: 150.25,
+                    volume: 12953100,
                 },
             ]);
 
@@ -218,24 +262,8 @@ describe('BinanceProvider', () => {
             vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
                 ok: true,
                 json: async () => [
-                    [
-                        openTime - hourMs,
-                        '80000.00',
-                        '81000.00',
-                        '79000.00',
-                        '80500.00',
-                        '123.45',
-                        openTime - 1,
-                    ],
-                    [
-                        openTime,
-                        '80500.00',
-                        '82000.00',
-                        '80000.00',
-                        '81000.00',
-                        '150.25',
-                        now + 60_000,
-                    ],
+                    kline({ openTime: openTime - hourMs, closeTime: openTime - 1 }),
+                    kline({ openTime, closeTime: now + 60_000, close: '81000.00' }),
                 ],
             }));
 
@@ -262,16 +290,11 @@ describe('BinanceProvider', () => {
                     const openTime = oldest + index * hourMs;
                     const isLast = index === requiredCandleCount();
 
-                    return [
+                    return kline({
                         openTime,
-                        '80000.00',
-                        '81000.00',
-                        '79000.00',
-                        '80500.00',
-                        '123.45',
                         // Everything but the final bar has closed.
-                        isLast ? now + 60_000 : openTime + hourMs - 1,
-                    ];
+                        closeTime: isLast ? now + 60_000 : openTime + hourMs - 1,
+                    });
                 },
             );
 
@@ -297,17 +320,7 @@ describe('BinanceProvider', () => {
 
             vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
                 ok: true,
-                json: async () => [
-                    [
-                        now,
-                        '80000.00',
-                        '81000.00',
-                        '79000.00',
-                        '80500.00',
-                        '123.45',
-                        now + 3_600_000,
-                    ],
-                ],
+                json: async () => [kline({ openTime: now, closeTime: now + 3_600_000 })],
             }));
 
             const provider = new BinanceProvider();
@@ -319,14 +332,7 @@ describe('BinanceProvider', () => {
             vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
                 ok: true,
                 json: async () => [
-                    [
-                        1700000000000,
-                        '80000.00',
-                        '81000.00',
-                        '79000.00',
-                        '80500.00',
-                        '123.45',
-                    ],
+                    [1700000000000, '80000.00', '81000.00', '79000.00', '80500.00', '123.45'],
                 ],
             }));
 
@@ -344,34 +350,22 @@ describe('BinanceProvider', () => {
             const fetchMock = vi.fn().mockResolvedValue({
                 ok: true,
                 json: async () => [
-                    [
-                        1700000000000,
-                        '80000.00',
-                        '81000.00',
-                        '79000.00',
-                        '80500.00',
-                        '123.45',
-                        1700003599999,
-                        '999999.00',
-                        100,
-                        '1.00',
-                        '80000.00',
-                        '0',
-                    ],
-                    [
-                        1700003600000,
-                        '80500.00',
-                        '82000.00',
-                        '80000.00',
-                        '81500.00',
-                        '150.25',
-                        1700007199999,
-                        '888888.00',
-                        120,
-                        '1.20',
-                        '80500.00',
-                        '0',
-                    ],
+                    kline({
+                        openTime: 1700000000000,
+                        closeTime: 1700003599999,
+                        baseVolume: '123.45',
+                        quoteVolume: '999999.00',
+                    }),
+                    kline({
+                        openTime: 1700003600000,
+                        closeTime: 1700007199999,
+                        open: '80500.00',
+                        high: '82000.00',
+                        low: '80000.00',
+                        close: '81500.00',
+                        baseVolume: '150.25',
+                        quoteVolume: '888888.00',
+                    }),
                 ],
             });
 
@@ -388,7 +382,7 @@ describe('BinanceProvider', () => {
                     high: 81000,
                     low: 79000,
                     close: 80500,
-                    volume: 123.45,
+                    volume: 999999,
                 },
                 {
                     timestamp: 1700003600000,
@@ -396,7 +390,7 @@ describe('BinanceProvider', () => {
                     high: 82000,
                     low: 80000,
                     close: 81500,
-                    volume: 150.25,
+                    volume: 888888,
                 },
             ]);
         });
@@ -405,24 +399,15 @@ describe('BinanceProvider', () => {
             const fetchMock = vi.fn().mockResolvedValue({
                 ok: true,
                 json: async () => [
-                    [
-                        1700000000000,
-                        '80000.00',
-                        '81000.00',
-                        '79000.00',
-                        '80500.00',
-                        '123.45',
-                        CLOSED_1,
-                    ],
-                    [
-                        1700003600000,
-                        '80500.00',
-                        '82000.00',
-                        '80000.00',
-                        '81500.00',
-                        '150.25',
-                        CLOSED_2,
-                    ],
+                    kline({ openTime: 1700000000000, closeTime: CLOSED_1 }),
+                    kline({
+                        openTime: 1700003600000,
+                        closeTime: CLOSED_2,
+                        open: '80500.00',
+                        high: '82000.00',
+                        low: '80000.00',
+                        close: '81500.00',
+                    }),
                 ],
             });
 
@@ -441,15 +426,7 @@ describe('BinanceProvider', () => {
             const fetchMock = vi.fn().mockResolvedValue({
                 ok: true,
                 json: async () => [
-                    [
-                        1700000000000,
-                        '80000.00',
-                        'Infinity',
-                        '79000.00',
-                        '80500.00',
-                        '123.45',
-                        CLOSED_1,
-                    ],
+                    [1700000000000, '80000.00', 'Infinity', '79000.00', '80500.00', '123.45', CLOSED_1],
                 ],
             });
 

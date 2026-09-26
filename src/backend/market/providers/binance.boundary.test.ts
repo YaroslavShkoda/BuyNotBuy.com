@@ -85,7 +85,7 @@ describe('BinanceProvider numeric boundary', () => {
         const now = Date.now();
 
         const fetchMock = vi.fn().mockResolvedValue(okWith([
-            [now - 7_200_000, '1', '2', '0.5', '1.5', '-1', now - 3_600_000],
+            [now - 7_200_000, '1', '2', '0.5', '1.5', '-1', now - 3_600_000, '1500'],
         ]));
         vi.stubGlobal('fetch', fetchMock);
 
@@ -97,7 +97,7 @@ describe('BinanceProvider numeric boundary', () => {
     it('rejects a candle series larger than the provider could ever return', async () => {
         const oversized = Array.from(
             { length: MAX_CANDLE_LIMIT + 1 },
-            (_, index) => [index, '1', '2', '0.5', '1.5', '1', index + 1],
+            (_, index) => [index, '1', '2', '0.5', '1.5', '1', index + 1, '1500'],
         );
 
         const fetchMock = vi.fn().mockResolvedValue(okWith(oversized));
@@ -115,18 +115,16 @@ describe('BinanceProvider numeric boundary', () => {
 
     it('accepts a series exactly at the cap', async () => {
         const now = Date.now();
-        const atCap = Array.from(
-            { length: MAX_CANDLE_LIMIT },
-            (_, index) => [
-                now - (MAX_CANDLE_LIMIT - index) * 3_600_000,
-                '1',
-                '2',
-                '0.5',
-                '1.5',
-                '1',
-                now - (MAX_CANDLE_LIMIT - index) * 3_600_000 + 3_599_999,
-            ],
-        );
+        const atCap = Array.from({ length: MAX_CANDLE_LIMIT }, (_, index) => [
+            now - (MAX_CANDLE_LIMIT - index) * 3_600_000,
+            '1',
+            '2',
+            '0.5',
+            '1.5',
+            '1',
+            now - (MAX_CANDLE_LIMIT - index) * 3_600_000 + 3_599_999,
+            '1500',
+        ]);
 
         const fetchMock = vi.fn().mockResolvedValue(okWith(atCap));
         vi.stubGlobal('fetch', fetchMock);

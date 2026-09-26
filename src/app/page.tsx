@@ -32,7 +32,7 @@ export default async function Home() {
                                 symbol={market.price.symbol}
                                 ema300={analysis.indicators.ema300}
                             />
-                            <MarketDetails candles={market.candles} analysis={analysis} />
+                            <MarketDetails candles={market.candles} analysis={analysis} symbol={market.price.symbol} />
                         </div>
         </main>
     );
