@@ -257,11 +257,25 @@
    Median sits next to average on purpose. When they pull apart, that is the
    finding: a mean well above the median means a few loud hours carried the
    window rather than the window being busy throughout. */
+/* Framed like the cards in the right-hand column — same border, radius, fill and
+   inner highlights — so the figures read as a panel of the dashboard rather than
+   as loose text under a chart. The frame spans the card's full width instead of
+   starting at the axis gutter: a boxed thing that began halfway across looked
+   like a fragment of one, and the bar strip above it has no frame to match. */
 .volume-stats {
     display: grid;
     grid-template-columns: repeat(6, minmax(0, 1fr));
-    gap: 12px;
-    margin: 14px 0 0 var(--chart-gutter);
+    gap: 14px;
+
+    margin: 16px 0 0;
+    padding: 15px 18px;
+
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    background: rgba(10, 12, 14, 0.85);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, .05),
+        inset 0 -1px 0 rgba(0, 0, 0, .4);
 }
 
 .volume-stat { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
@@ -269,22 +283,25 @@
 .volume-stat-label {
     color: var(--color-text-dim);
     font-size: 8px;
-    font-weight: 700;
-    letter-spacing: .12em;
+    font-weight: 600;
+    letter-spacing: .13em;
     white-space: nowrap;
 }
 
+/* Light, because six figures in a row are read as a scale and not as six
+   headlines: at the old weight the block pulled more attention than the chart
+   it is annotating. */
 .volume-stat strong {
-    color: var(--color-text);
+    color: var(--color-text-secondary);
     font-size: 14px;
-    font-weight: 500;
-    letter-spacing: -.02em;
+    font-weight: 400;
+    letter-spacing: -.015em;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
 }
 
 .volume-stat small {
-    color: var(--color-text-muted);
+    color: var(--color-text-dim);
     font-size: 9px;
     line-height: 1.35;
     white-space: nowrap;
@@ -297,7 +314,7 @@
 }
 
 @media (max-width: 900px) {
-    .volume-stats { gap: 10px; }
+    .volume-stats { gap: 12px 10px; padding: 14px 16px; }
 }
 
 @media (max-width: 560px) {
