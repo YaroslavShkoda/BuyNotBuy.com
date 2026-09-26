@@ -64,14 +64,17 @@
 .chart-change.negative { color: var(--color-short); }
 
 /* Grows into the space the hero column has left over; the clamp keeps it from
-   getting cramped on short viewports and the cap keeps it from towering. */
+   getting cramped on short viewports and the cap keeps it from towering.
+   The cap is what actually binds on a desktop: the left column is the taller of
+   the two (the right one has about 16px of slack), so the row takes its height
+   from here and every pixel off the plot comes straight off the page. */
 .chart-plot {
     position: relative;
     flex: 1 1 auto;
-    min-height: clamp(170px, 28vw, 270px);
-    max-height: 440px;
+    min-height: clamp(150px, 20vw, 210px);
+    max-height: clamp(260px, 24vw, 340px);
 
-    margin-top: 28px;
+    margin-top: 22px;
     padding-left: var(--chart-gutter);
 }
 
@@ -213,14 +216,33 @@
 
 /* Not clipped: the tooltip rises above the bars, over the price plot, and the
    card would otherwise cut it off at the top of the panel. Horizontally it
-   still fits, because .volume-tooltip clamps its own centre. */
+   still fits, because .volume-tooltip clamps its own centre.
+   The strip grows to take whatever the shortened price plot hands back. Without
+   that, capping the plot would not shorten the page — the hero row is sized by
+   the right-hand column and the left one merely stretches — it would only open
+   a hole under the bars, which is what the first attempt did: 71px of slack
+   became 247px. */
 .volume-plot {
     position: relative;
+    flex: 1 1 auto;
     height: 58px;
+    min-height: 58px;
+    max-height: 170px;
     margin: 10px 0 0 var(--chart-gutter);
 }
 
-.volume-plot svg { display: block; width: 100%; height: 100%; }
+/* Pinned to the padding box rather than sized with `height: 100%`. A percentage
+   height needs a definite parent, and this parent gets its height from flex
+   growth, which is not definite for percentage resolution — the SVG fell back
+   to the 150px default for replaced elements and left the lower half of the
+   strip empty. */
+.volume-plot svg {
+    position: absolute;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+}
 .volume-bar { opacity: .78; }
 .volume-bar.rising { fill: #78d5a8; }
 .volume-bar.falling { fill: #d48089; }
