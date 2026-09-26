@@ -1,7 +1,12 @@
 import { getIndicatorVoteRepository } from './indicator-vote.repository.js';
 import { FORWARD_HORIZONS } from './indicator-performance.types.js';
 import { historyConfig } from '../../config/history.config.js';
+import {
+    createBoundedWriteBuffer,
+    createFlushGuard,
+} from '../../history/bounded-write-buffer.js';
 
+import type { BacklogState } from '../../history/signal-history.service.js';
 import type { IndicatorVoteRepository } from './indicator-vote.repository.js';
 import type { Candle } from '../../types/market.js';
 import type { MarketAnalysis } from '../../types/analysis.js';
@@ -14,6 +19,22 @@ import type {
 } from './indicator-performance.types.js';
 
 const HOUR_MS = 3_600_000;
+
+/**
+ * Votes that could not be written, held for a retry.
+ *
+ * The signal history has had a buffer since it was found losing whole hours on
+ * shutdown. Votes did not, and they are the records the per-indicator hit rate
+ * is computed from: a vote lost to a full connection pool is not a neutral
+ * vote, it is a missing observation, and a hit rate over a sample with silent
+ * holes is a number nobody can defend.
+ */
+const voteBacklog = createBoundedWriteBuffer<IndicatorVote[]>({
+    maxSize: historyConfig.maxBufferedEntries,
+    label: 'indicator_vote',
+});
+
+const runVoteFlush = createFlushGuard();
 
 /**
  * Round-trip cost charged against every settled vote.
@@ -53,35 +74,100 @@ export async function recordIndicatorVotes(
     logger?: IndicatorLogger,
     repository: IndicatorVoteRepository = getIndicatorVoteRepository(),
 ): Promise<void> {
-    try {
-        const votes: IndicatorVote[] = analysis.signal.indicators.map(
-            (indicator) => ({
-                timestamp: analysis.timestamp,
-                symbol,
-                // The key, not the name. The row is keyed on the indicator, so
-                // storing the label would split the series in two the first time
-                // the label changed — and "Momentum 100" changes the moment the
-                // period becomes configurable. Everything already recorded
-                // under a display name stays where it is, readable but
-                // no longer written to; migrating it would rewrite history
-                // that is already recorded and already settled.
-                indicator: indicator.key,
-                signal: indicator.signal,
-                weight: indicator.weight,
-                price: analysis.price,
-                // Left null: the future has not happened yet, and storing a
-                // zero would make an unresolved vote look like a flat one.
-                fwdReturns: {},
-            }),
-        );
+    const votes: IndicatorVote[] = analysis.signal.indicators.map(
+        (indicator) => ({
+            timestamp: analysis.timestamp,
+            symbol,
+            // The key, not the name. The row is keyed on the indicator, so
+            // storing the label would split the series in two the first time
+            // the label changed — and "Momentum 100" changes the moment the
+            // period becomes configurable. Everything already recorded
+            // under a display name stays where it is, readable but
+            // no longer written to; migrating it would rewrite history
+            // that is already recorded and already settled.
+            indicator: indicator.key,
+            signal: indicator.signal,
+            weight: indicator.weight,
+            price: analysis.price,
+            // Left null: the future has not happened yet, and storing a
+            // zero would make an unresolved vote look like a flat one.
+            fwdReturns: {},
+        }),
+    );
 
+    try {
         await repository.record(votes);
     } catch (error) {
+        voteBacklog.push(votes);
+
         logger?.warn(
-            { event: 'indicator_vote_record_failed', err: error },
+            {
+                event: 'indicator_vote_record_failed',
+                buffered: voteBacklog.size,
+                dropped: voteBacklog.droppedCount,
+                err: error,
+            },
             'indicator_vote_record_failed',
         );
+
+        // Without this, a deployment with the poller off would fill the
+        // backlog and silently overwrite its oldest hours.
+        if (voteBacklog.size >= historyConfig.maxBufferedEntries) {
+            await flushIndicatorVoteBacklog(logger, repository);
+        }
     }
+}
+
+async function writeVoteBacklog(
+    logger?: IndicatorLogger,
+    repository: IndicatorVoteRepository = getIndicatorVoteRepository(),
+): Promise<number> {
+    if (voteBacklog.size === 0) {
+        return 0;
+    }
+
+    const pending = voteBacklog.drain();
+
+    let written = 0;
+
+    for (const [index, batch] of pending.entries()) {
+        try {
+            await repository.record(batch);
+            written += batch.length;
+        } catch (error) {
+            // Re-queue the whole tail, not just the batch that failed: the
+            // rest is unwritten too, and a hole here is a missing observation
+            // in the sample the hit rate is computed from.
+            for (const unprocessed of pending.slice(index)) {
+                voteBacklog.push(unprocessed);
+            }
+
+            logger?.warn(
+                {
+                    event: 'indicator_vote_flush_failed',
+                    buffered: voteBacklog.size,
+                    err: error,
+                },
+                'indicator_vote_flush_failed',
+            );
+
+            break;
+        }
+    }
+
+    return written;
+}
+
+/** Retries every batch of votes that failed to write earlier. */
+export function flushIndicatorVoteBacklog(
+    logger?: IndicatorLogger,
+    repository?: IndicatorVoteRepository,
+): Promise<number> {
+    return runVoteFlush(() => writeVoteBacklog(logger, repository));
+}
+
+export function indicatorVoteBacklog(): BacklogState {
+    return { buffered: voteBacklog.size, dropped: voteBacklog.droppedCount };
 }
 
 type CandleLookup =

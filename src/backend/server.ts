@@ -4,8 +4,15 @@ import { historyConfig } from './config/history.config.js';
 import { marketConfig } from './config/market.config.js';
 import { assertSignalHistorySchemaReady } from './history/signal-history.repository.js';
 import { closePool } from './db/pool.js';
-import { flushSignalHistoryBacklog } from './history/signal-history.service.js';
-import { settleForwardReturns } from './indicators/performance/indicator-performance.service.js';
+import {
+    flushSignalHistoryBacklog,
+    signalHistoryBacklog,
+} from './history/signal-history.service.js';
+import {
+    flushIndicatorVoteBacklog,
+    indicatorVoteBacklog,
+    settleForwardReturns,
+} from './indicators/performance/indicator-performance.service.js';
 import { getMarketData } from './market/market.service.js';
 import { createVenueWatcher } from './market/market.provider.js';
 import { analyzeMarket } from './services/analysis.service.js';
@@ -41,6 +48,55 @@ async function getMarketSeries(): Promise<Candle[]> {
     return (await getMarketData()).data.candles;
 }
 
+/**
+ * Drains both write backlogs and reports what could not be saved.
+ *
+ * Runs before the pool closes, and never throws: a failure to flush must not
+ * stop the shutdown, because the next step is to close the pool and exit, and
+ * arriving there with a warm backlog still loses those records. The counts go
+ * to the log so a deploy that cannot save its backlog says so on the way out.
+ */
+async function drainWriteBacklogs(): Promise<void> {
+    const history = signalHistoryBacklog();
+    const votes = indicatorVoteBacklog();
+
+    app.log.info(
+        {
+            event: 'shutdown_backlog',
+            historyBuffered: history.buffered,
+            historyDropped: history.dropped,
+            voteBuffered: votes.buffered,
+            voteDropped: votes.dropped,
+        },
+        'shutdown_backlog',
+    );
+
+    try {
+        const [writtenHistory, writtenVotes] = await Promise.all([
+            flushSignalHistoryBacklog(app.log),
+            flushIndicatorVoteBacklog(app.log),
+        ]);
+
+        if (writtenHistory > 0 || writtenVotes > 0) {
+            app.log.info(
+                {
+                    event: 'shutdown_backlog_flushed',
+                    historyWritten: writtenHistory,
+                    votesWritten: writtenVotes,
+                    historyStillBuffered: signalHistoryBacklog().buffered,
+                    votesStillBuffered: indicatorVoteBacklog().buffered,
+                },
+                'shutdown_backlog_flushed',
+            );
+        }
+    } catch (error) {
+        app.log.error(
+            { event: 'shutdown_backlog_flush_failed', err: error },
+            'shutdown_backlog_flush_failed',
+        );
+    }
+}
+
 async function shutdown(): Promise<void> {
     if (isShuttingDown) {
         return;
@@ -52,6 +108,13 @@ async function shutdown(): Promise<void> {
         await poller.stop();
         poller = null;
     }
+
+    // Before the pool closes, and before the socket closes: a write still in
+    // flight is a record the history exists to keep, and SIGTERM is exactly
+    // how every rolling deploy and every `docker stop` arrives. The backlogs
+    // live in this process and nowhere else, so not draining them here is not
+    // a delayed write — it is the record going away.
+    await drainWriteBacklogs();
 
     try {
         await app.close();

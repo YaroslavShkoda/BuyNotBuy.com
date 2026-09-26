@@ -1,4 +1,6 @@
 import { observabilityConfig } from '../../config/observability.config.js';
+import { signalHistoryBacklog } from '../../history/signal-history.service.js';
+import { indicatorVoteBacklog } from '../../indicators/performance/indicator-performance.service.js';
 
 import type { FastifyReply, FastifyRequest } from 'fastify';
 
@@ -141,6 +143,27 @@ export function renderMetrics(): string {
     for (const [statusClass, count] of snapshot.byStatusClass) {
         lines.push(
             `buynotbuy_requests_by_status_class_total{status="${escapeLabel(statusClass)}"} ${count}`,
+        );
+    }
+
+    // The write backlogs, because an unwritten record is invisible everywhere
+    // else. A drop counter that only ever appears in the log line emitted by
+    // the next failure is not a metric: once writes recover, a service that
+    // lost a hundred hours looks exactly as healthy as one that lost none,
+    // and the stability summary it serves reads as a long unbroken run.
+    for (const [name, state] of [
+        ['signal_history', signalHistoryBacklog()],
+        ['indicator_vote', indicatorVoteBacklog()],
+    ] as const) {
+        lines.push(
+            '',
+            `# HELP buynotbuy_write_backlog_${name}_buffered Records held for a retry.`,
+            `# TYPE buynotbuy_write_backlog_${name}_buffered gauge`,
+            `buynotbuy_write_backlog_${name}_buffered ${state.buffered}`,
+            '',
+            `# HELP buynotbuy_write_backlog_${name}_dropped_total Records lost to a full buffer.`,
+            `# TYPE buynotbuy_write_backlog_${name}_dropped_total counter`,
+            `buynotbuy_write_backlog_${name}_dropped_total ${state.dropped}`,
         );
     }
 

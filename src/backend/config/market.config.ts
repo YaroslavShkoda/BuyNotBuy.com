@@ -63,6 +63,37 @@ const primaryProvider = MarketProviderSchema.parse(
     process.env.MARKET_PROVIDER ?? 'binance',
 );
 
+/**
+ * Whether this process is allowed to serve invented prices.
+ *
+ * The guard on the backup list already refuses a mock there, and for the same
+ * reason it has to refuse one here: `MARKET_PROVIDER=mock` is a documented
+ * setting, and a mock as the primary puts 900 synthetic candles on the
+ * dashboard — passing every integrity check, since they are increasing, finite
+ * and internally consistent — and reports them as a live signal with
+ * `X-Data-Stale: false`. Nothing on the page would look wrong.
+ *
+ * The escape hatch is explicit and narrow: a test double is a legitimate thing
+ * to run, so the setting that allows one exists, and it is named for what it
+ * does rather than inferred from the environment.
+ */
+function mockProviderAllowed(): boolean {
+    if (process.env.MARKET_ALLOW_MOCK === '1') {
+        return true;
+    }
+
+    return process.env.NODE_ENV === 'test' || process.env.VITEST === 'true';
+}
+
+if (primaryProvider === 'mock' && !mockProviderAllowed()) {
+    throw new Error(
+        'MARKET_PROVIDER=mock is not allowed outside the test suite: a mock ' +
+            'primary serves invented prices as if they were live, and reports ' +
+            'them with no staleness flag. Set MARKET_ALLOW_MOCK=1 if this is ' +
+            'really what you want.',
+    );
+}
+
 const MarketConfigSchema = z.object({
     provider: MarketProviderSchema,
     /**

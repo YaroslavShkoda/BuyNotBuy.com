@@ -1,3 +1,6 @@
+import { createBoundedWriteBuffer } from './bounded-write-buffer.js';
+
+import type { BoundedWriteBuffer } from './bounded-write-buffer.js';
 import type { SignalHistoryEntry } from './signal-history.types.js';
 
 export interface SignalHistoryWriteBufferOptions {
@@ -25,40 +28,14 @@ export interface SignalHistoryWriteBuffer {
  * "the signal was stable", which is exactly the wrong thing to conclude from
  * missing data.
  *
- * The buffer is bounded: a long outage must not turn into unbounded memory
- * growth, and the oldest entries are the least useful to keep.
+ * The mechanism is the shared bounded buffer: the indicator vote store needs
+ * exactly this and was, until now, losing records instead of holding them.
  */
 export function createSignalHistoryWriteBuffer(
     options: SignalHistoryWriteBufferOptions,
 ): SignalHistoryWriteBuffer {
-    const entries: SignalHistoryEntry[] = [];
-
-    let dropped = 0;
-
-    return {
-        push(entry: SignalHistoryEntry): void {
-            entries.push(entry);
-
-            while (entries.length > options.maxSize) {
-                entries.shift();
-                dropped += 1;
-            }
-        },
-
-        drain(): SignalHistoryEntry[] {
-            return entries.splice(0, entries.length);
-        },
-
-        get size(): number {
-            return entries.length;
-        },
-
-        get droppedCount(): number {
-            return dropped;
-        },
-
-        clear(): void {
-            entries.length = 0;
-        },
-    };
+    return createBoundedWriteBuffer<SignalHistoryEntry>({
+        maxSize: options.maxSize,
+        label: 'signal_history',
+    }) as BoundedWriteBuffer<SignalHistoryEntry>;
 }

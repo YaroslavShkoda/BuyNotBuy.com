@@ -3,6 +3,7 @@ import { historyConfig } from '../config/history.config.js';
 
 import { getSignalHistoryRepository } from './signal-history.repository.js';
 import { createSignalHistoryWriteBuffer } from './signal-history.write-buffer.js';
+import { createFlushGuard } from './bounded-write-buffer.js';
 
 import type {
     SignalHistoryEntry,
@@ -14,6 +15,22 @@ import type {
 const writeBuffer = createSignalHistoryWriteBuffer({
     maxSize: historyConfig.maxBufferedEntries,
 });
+
+/**
+ * At most one flush at a time.
+ *
+ * The backlog is drained into a local array, so two concurrent flushes would
+ * both be writing while a third push lands in the array one of them is about
+ * to re-queue. A single guard turns three interleavings into one.
+ */
+const runFlush = createFlushGuard();
+
+export interface BacklogState {
+    /** Entries held for a retry. */
+    buffered: number;
+    /** Entries lost to an overfull buffer since the process started. */
+    dropped: number;
+}
 
 // History is a non-critical subsystem: a persistence failure must never
 // propagate into the market analysis path, so this wrapper is fail-open
@@ -42,20 +59,18 @@ export async function recordSignalHistory(
             },
             'signal_history_record_failed',
         );
+
+        // A retry on the next failure, or on the next poll, is enough when
+        // something is ticking. Nothing ticks when the poller is off, and the
+        // buffer would then fill and silently overwrite its own oldest hours
+        // — turning a "retry later" mechanism into a lossy ring buffer.
+        if (writeBuffer.size >= historyConfig.maxBufferedEntries) {
+            await flushSignalHistoryBacklog(logger);
+        }
     }
 }
 
-/**
- * Retries everything that failed to write earlier.
- *
- * Entries are removed from the buffer as they are handed to the repository, so
- * a failure part-way through leaves the remaining ones queued for the next
- * attempt instead of replaying the same prefix forever. The signal is recorded
- * once per hour, so a duplicate write is idempotent anyway.
- */
-export async function flushSignalHistoryBacklog(
-    logger?: SignalHistoryLogger,
-): Promise<number> {
+async function writeBacklog(logger?: SignalHistoryLogger): Promise<number> {
     if (writeBuffer.size === 0) {
         return 0;
     }
@@ -97,8 +112,29 @@ export async function flushSignalHistoryBacklog(
     return written;
 }
 
+/**
+ * Retries everything that failed to write earlier.
+ *
+ * Entries are removed from the buffer as they are handed to the repository, so
+ * a failure part-way through leaves the remaining ones queued for the next
+ * attempt instead of replaying the same prefix forever. The signal is recorded
+ * once per hour, so a duplicate write is idempotent anyway.
+ *
+ * Runs at most once at a time; a concurrent caller joins the run in progress
+ * rather than starting a second one over the same array.
+ */
+export function flushSignalHistoryBacklog(
+    logger?: SignalHistoryLogger,
+): Promise<number> {
+    return runFlush(() => writeBacklog(logger));
+}
+
 export function getSignalHistoryBacklogSize(): number {
     return writeBuffer.size;
+}
+
+export function signalHistoryBacklog(): BacklogState {
+    return { buffered: writeBuffer.size, dropped: writeBuffer.droppedCount };
 }
 
 export async function getSignalHistory(
