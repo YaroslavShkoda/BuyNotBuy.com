@@ -1,6 +1,7 @@
 import { benchmarkMetrics, calculateMetrics } from './metrics.js';
 import { computeSignalSeries, reapplyThresholds } from './point-in-time.js';
 import { EXECUTION_CONFIG, fillPrice, roundTripCost } from './execution.js';
+import { DEFAULT_VALIDATION_RATIO, judgeFold } from './walk-forward.plan.js';
 
 import {
     INDICATOR_SIGNAL_CONFIG,
@@ -56,6 +57,21 @@ export interface WalkForwardFold {
     parameters: { longThreshold: number; shortThreshold: number };
     /** True when the fitted pair differs from the shipped configuration. */
     fitted: boolean;
+    /**
+     * Whether the fitted pair survived being checked on the bars immediately
+     * after the ones it was chosen on.
+     *
+     * Reported whether it passed or not. Dropping the failed folds would
+     * remove the worst ones from the average, and the average would then
+     * describe a strategy nobody trades; keeping them unlabelled would hide
+     * that they were ever in doubt.
+     */
+    validation: {
+        accepted: boolean;
+        reason: string;
+        trainingScore: number | null;
+        validationScore: number | null;
+    };
     metrics: BacktestMetrics;
 }
 
@@ -327,8 +343,30 @@ function fitThresholds(
     trainingStart: number,
     trainingEnd: number,
     options: WalkForwardOptions,
-): { thresholds: { longThreshold: number; shortThreshold: number }; trainedTrades: number } {
+): {
+    thresholds: { longThreshold: number; shortThreshold: number };
+    trainedTrades: number;
+    /**
+     * The same pair's expectancy on a window it was not chosen on.
+     *
+     * Measured rather than assumed because "it did badly on validation" and "it
+     * was never measured on validation" are different sentences, and a fold
+     * report that cannot tell them apart will quietly claim the first.
+     */
+    trainingScore: number | null;
+    validationScore: number | null;
+} {
     const points = computeSignalSeries(candles, trainingStart, trainingEnd);
+
+    // The tail of the training span, kept out of the fit and scored
+    // separately. Taken from inside the span because those are the only bars
+    // this fold was given; the bar after them belongs to the test window.
+    const span = trainingEnd - trainingStart + 1;
+    const validationLength = Math.max(
+        1,
+        Math.floor(span * DEFAULT_VALIDATION_RATIO),
+    );
+    const validationStart = trainingEnd - validationLength + 1;
 
     let best = STOCHASTIC_THRESHOLD_GRID[0]!;
     let bestScore = Number.NEGATIVE_INFINITY;
@@ -339,7 +377,7 @@ function fitThresholds(
             candles,
             fitted,
             trainingStart,
-            trainingEnd,
+            validationStart - 1,
             options,
         );
 
@@ -369,10 +407,36 @@ function fitThresholds(
                 shortThreshold: INDICATOR_SIGNAL_CONFIG.stochastic.shortThreshold,
             },
             trainedTrades: 0,
+            trainingScore: null,
+            validationScore: null,
         };
     }
 
-    return { thresholds: best, trainedTrades: points.length };
+    const validationPoints = computeSignalSeries(
+        candles,
+        validationStart,
+        trainingEnd,
+    );
+    const validationTrades = simulateRange(
+        candles,
+        reapplyThresholds(validationPoints, toOverrides(best)),
+        validationStart,
+        trainingEnd,
+        options,
+    ).trades;
+
+    return {
+        thresholds: best,
+        trainedTrades: points.length,
+        trainingScore: bestScore,
+        validationScore:
+            validationTrades.length === 0
+                ? null
+                : validationTrades.reduce(
+                      (sum, trade) => sum + trade.netReturn,
+                      0,
+                  ) / validationTrades.length,
+    };
 }
 
 function isShippedPair(thresholds: {
@@ -621,11 +685,43 @@ export function runWalkForward(
                           INDICATOR_SIGNAL_CONFIG.stochastic.shortThreshold,
                   },
                   trainedTrades: 0,
+                  trainingScore: null,
+                  validationScore: null,
+              };
+
+        const judgement = judgeFold(
+            {
+                fold: foldCount - offset,
+                train: {
+                    startIndex: trainingStart,
+                    endIndex: trainingEnd,
+                },
+                validate: {
+                    startIndex: trainingStart,
+                    endIndex: trainingEnd,
+                },
+                test: { startIndex: foldStart, endIndex: foldEnd },
+            },
+            fitted.trainingScore,
+            fitted.validationScore,
+        );
+
+        // A rejected fold keeps the shipped configuration rather than the pair
+        // that failed. The rejected pair is still reported, and still measured
+        // on its test window, because a fold that was in doubt and then traded
+        // anyway is a fact about the strategy that is worth having.
+        const thresholds = judgement.accepted
+            ? fitted.thresholds
+            : {
+                  longThreshold:
+                      INDICATOR_SIGNAL_CONFIG.stochastic.longThreshold,
+                  shortThreshold:
+                      INDICATOR_SIGNAL_CONFIG.stochastic.shortThreshold,
               };
 
         const foldPoints = reapplyThresholds(
             testPoints,
-            toOverrides(fitted.thresholds),
+            toOverrides(thresholds),
         );
 
         const result = simulateRange(
@@ -656,8 +752,18 @@ export function runWalkForward(
             fold: foldCount - offset,
             startIndex: foldStart,
             endIndex: foldEnd,
-            parameters: fitted.thresholds,
-            fitted: !isShippedPair(fitted.thresholds),
+            // The pair actually traded with, which is the shipped one when
+            // validation rejected the fit. Reporting the rejected pair here
+            // would describe a strategy the run did not evaluate.
+            parameters: thresholds,
+            fitted:
+                !isShippedPair(thresholds) && judgement.accepted,
+            validation: {
+                accepted: judgement.accepted,
+                reason: judgement.reason,
+                trainingScore: fitted.trainingScore,
+                validationScore: fitted.validationScore,
+            },
             metrics: calculateMetrics(
                 result.trades,
                 result.equity,
