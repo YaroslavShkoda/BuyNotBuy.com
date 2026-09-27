@@ -19,9 +19,11 @@ import { z } from 'zod';
  * answers are not variations on one question. Filling at the next open assumes
  * you got out at a price nobody was trading. Filling at the next close assumes
  * you waited for a bar you could not have predicted the end of. Filling at the
- * intrabar extreme assumes you were wrong about the order in which the bar
- * happened. Only the third is pessimistic on purpose, and a backtest that does
- * not offer it is offering the other two silently.
+ * intrabar extremes charges you the adverse end of every bar you touch, on
+ * every leg — which is a bound on how bad it could go, not a description of how
+ * it goes, and is the reason `next_open` is the default. A backtest that offers
+ * only the flattering two is offering the other one silently, which is what
+ * happened here for as long as `intrabar` was the default.
  */
 
 const ExecutionConfigSchema = z
@@ -91,7 +93,31 @@ export const EXECUTION_CONFIG: ExecutionConfig = ExecutionConfigSchema.parse({
     slippageRate: process.env.BACKTEST_SLIPPAGE ?? '0.0005',
     spreadRate: process.env.BACKTEST_SPREAD ?? '0.0002',
     liquidity: process.env.BACKTEST_LIQUIDITY ?? 'taker',
-    model: process.env.BACKTEST_EXECUTION_MODEL ?? 'intrabar',
+    /**
+     * `next_open` is the default, and it is the default because it is the only
+     * one of the three that makes no claim it cannot support.
+     *
+     * `intrabar` used to be the default, described as pessimistic. It was
+     * neither pessimistic nor optimistic — it keyed off the side rather than off
+     * what the fill did, booking the favourable extreme on the entry of both
+     * sides and only the unfavourable one on the exit. On a long-only book that
+     * handed out the better half of every bar, and it was worth 43 points on
+     * donchian-20 over the full Binance history: +15.29% that way, -27.57% under
+     * `next_open`, same 144 trades.
+     *
+     * Made symmetric it becomes useless instead. A long entering at the high and
+     * exiting at the low pays two full bar ranges a trade, and a daily bar's
+     * range averages 3.05% against a 0.56% hourly one — so it returns -99.96% on
+     * BTCUSDT. That is not a pessimistic fill, it is a trader who is filled at
+     * the single worst tick of every bar they touch, twice. No one is that
+     * unlucky on every trade, and a model that assumes it is not pessimistic
+     * either. It is a stress bound, and it is kept under its own name for that.
+     *
+     * `next_open` assumes the signal lands at a close and the order fills at the
+     * next open, which is the ordinary convention and asserts nothing about the
+     * order of the high and the low.
+     */
+    model: process.env.BACKTEST_EXECUTION_MODEL ?? 'next_open',
 });
 
 export const ExecutionConfigParser = ExecutionConfigSchema;
@@ -151,23 +177,33 @@ export function fillPrice(
     config: ExecutionConfig,
     isEntry: boolean,
 ): number {
+    // Whether this fill is a purchase. True for a long entry and a short exit,
+    // which is the only place the two decisions meet.
+    const isBuying = (side === 1) === isEntry;
+
     const base =
         config.model === 'next_open'
             ? candle.open
             : config.model === 'next_close'
               ? candle.close
-              : // The extreme against the side. A long is assumed to have been
-                // filled at the bar's low and a short at its high, because the
-                // only thing OHLC says about the order of events is that both
-                // happened — and the one that assumes the good one is not an
-                // assumption, it is a wish.
-                side === 1
-                ? candle.low
-                : candle.high;
+              : // The extreme that is worse for whoever is filling. Buying at
+                // the high and selling at the low is the pessimistic assumption
+                // about the order of events, and the word is doing the work:
+                // the only thing OHLC says is that the high and the low both
+                // happened, so assuming the bad one arrived first is a choice,
+                // while assuming the good one is a wish.
+                //
+                // This used to key off `side` alone — a long filled at the low,
+                // a short at the high — which books the favourable extreme on
+                // the *entry* of both sides and only the unfavourable one on
+                // the exit. On a long-only book that is a systematic gift: the
+                // same donchian-20 run over 2096 Binance bars returned +15.29%
+                // that way and -27.57% once it is pessimistic on both legs, and
+                // the first number is the one this project quoted for a step.
+                isBuying
+                ? candle.high
+                : candle.low;
 
-    // Whether this fill is a purchase. True for a long entry and a short exit,
-    // which is the only place the two decisions meet.
-    const isBuying = (side === 1) === isEntry;
     const cost = fillCost(config);
 
     return base * (isBuying ? 1 + cost : 1 - cost);

@@ -13,6 +13,31 @@ import type { ExecutionConfig } from './execution.js';
 
 const BAR = { open: 100, high: 110, low: 90, close: 105 };
 
+/** A well-formed bar: low ≤ open,close ≤ high, and the four strictly ordered. */
+const candleArbitrary: fc.Arbitrary<{
+    open: number;
+    high: number;
+    low: number;
+    close: number;
+}> = fc
+    .tuple(
+        fc.integer({ min: 50, max: 100_000 }),
+        fc.integer({ min: 0, max: 200 }),
+        fc.integer({ min: 0, max: 200 }),
+    )
+    .map(([base, upper, lower]) => {
+        const open = base + upper / 2;
+        const low = base - lower / 2;
+
+        return {
+            open,
+            high: base + upper,
+            low,
+            close: base + (lower - upper) / 4,
+        };
+    })
+    .filter((candle) => candle.low <= candle.close && candle.close <= candle.high);
+
 function config(overrides: Partial<ExecutionConfig> = {}): ExecutionConfig {
     return ExecutionConfigParser.parse({
         makerFeeRate: 0.00075,
@@ -202,30 +227,93 @@ describe('the three execution models are three different claims', () => {
     });
 
     it('intrabar assumes the bar went the wrong way first', () => {
-        const long = fillPrice(BAR, 1, config({ model: 'intrabar' }), true);
-        const short = fillPrice(BAR, -1, config({ model: 'intrabar' }), true);
+        const longEntry = fillPrice(BAR, 1, config({ model: 'intrabar' }), true);
+        const longExit = fillPrice(BAR, 1, config({ model: 'intrabar' }), false);
+        const shortEntry = fillPrice(BAR, -1, config({ model: 'intrabar' }), true);
+        const shortExit = fillPrice(BAR, -1, config({ model: 'intrabar' }), false);
 
         // The only thing OHLC says about the order of events is that both
-        // happened. The assumption that picks the good one is not an
-        // assumption, it is a wish.
-        expect(long).toBeCloseTo(90 * 1.0017, 10);
-        expect(short).toBeCloseTo(110 * 0.9983, 10);
+        // happened. Being wrong about the order is the assumption, and wrong
+        // means the worse price *for whoever is filling* — not for the side.
+        //
+        // Buying at the low and selling at the low is neither: it books the
+        // long's entry at the best price on the bar and the long's exit at the
+        // worst, and on this project — which is long-only, on every rule in it
+        // — that asymmetry is worth more than the rule. It was worth 43 points
+        // on donchian-20 over the full Binance history: +15.29% as it stood,
+        // -27.57% under the same model done honestly. The "pessimistic" label
+        // was doing work the arithmetic was not.
+        expect(longEntry).toBeCloseTo(BAR.high * 1.0017, 10);
+        expect(longExit).toBeCloseTo(BAR.low * 0.9983, 10);
+        expect(shortEntry).toBeCloseTo(BAR.low * 0.9983, 10);
+        expect(shortExit).toBeCloseTo(BAR.high * 1.0017, 10);
+    });
+
+    it('never fills a pessimistic model better than the close, on either leg', () => {
+        // The invariant the previous test used to leave out, written now that
+        // it holds. A model described as pessimistic that hands out a better
+        // price than a neutral one is not pessimistic, whatever it is called,
+        // and the previous version of this file proved it could be violated
+        // by checking only that no single side was favoured.
+        for (const candle of fc.sample(candleArbitrary, { numRuns: 200 })) {
+            for (const side of [1, -1] as const) {
+                for (const isEntry of [true, false]) {
+                    const pessimistic = fillPrice(
+                        candle,
+                        side,
+                        config({ model: 'intrabar' }),
+                        isEntry,
+                    );
+                    const neutral = fillPrice(
+                        candle,
+                        side,
+                        config({ model: 'next_close' }),
+                        isEntry,
+                    );
+
+                    // Pessimistic means worse *for the trader*, and which end
+                    // of the number that is depends on what the fill does:
+                    // a buyer is made worse by a higher price and a seller by a
+                    // lower one. Comparing the two raw numbers without asking
+                    // which is which would make a correct fill look wrong.
+                    // Equality is allowed — a bar with no wick has no worse
+                    // price to be given, and demanding strictness would be
+                    // demanding a bar that cannot exist.
+                    const isBuying = (side === 1) === isEntry;
+
+                    if (isBuying) {
+                        expect(pessimistic).toBeGreaterThanOrEqual(neutral);
+                    } else {
+                        expect(pessimistic).toBeLessThanOrEqual(neutral);
+                    }
+                }
+            }
+        }
     });
 
     it('orders the three by how much each one can flatter a result', () => {
-        // Any ordering between two of these is possible for a particular
-        // market; the only claim worth making is that the pessimistic one is
-        // never the *most* favourable for both sides at once.
-        const long = ['next_open', 'next_close', 'intrabar'].map((model) =>
-            fillPrice(BAR, 1, config({ model: model as ExecutionConfig['model'] }), true),
-        );
-        const short = ['next_open', 'next_close', 'intrabar'].map((model) =>
-            fillPrice(BAR, -1, config({ model: model as ExecutionConfig['model'] }), true),
-        );
+        // The claim is now the strong one, because the strong one is true: the
+        // pessimistic model is never the best price available on either side,
+        // in either direction, on any leg. It was previously weakened to "not
+        // the most favourable for both sides at once" because that was the
+        // most the old implementation could carry, and a weakened assertion is
+        // how a model kept the word "pessimistic" while handing out the better
+        // half of every bar.
+        const models = ['next_open', 'next_close', 'intrabar'] as const;
 
-        expect(long.indexOf(Math.max(...long))).not.toBe(
-            short.indexOf(Math.max(...short)),
-        );
+        for (const side of [1, -1] as const) {
+            for (const isEntry of [true, false]) {
+                const fills = models.map((model) =>
+                    fillPrice(BAR, side, config({ model }), isEntry),
+                );
+                const isBuying = (side === 1) === isEntry;
+                // A buyer is best off at the lowest fill available, a seller at
+                // the highest.
+                const best = isBuying ? Math.min(...fills) : Math.max(...fills);
+
+                expect(fills[2]).not.toBe(best);
+            }
+        }
     });
 });
 
@@ -285,11 +373,18 @@ describe('what survives the costs is the finding', () => {
 });
 
 describe('the shipped defaults', () => {
-    it('assume the pessimistic model and the full fee', () => {
-        // A backtest that assumed a maker discount it did not get would report
-        // a strategy that does not work; a backtest that assumed the good
-        // intrabar order would report one that does.
-        expect(EXECUTION_CONFIG.model).toBe('intrabar');
+    it('assume the fill nobody has to defend and the full fee', () => {
+        // `next_open` rather than `intrabar`. The third model is kept and is
+        // still the harshest of the three, but it is a bound rather than a
+        // description: it charges the adverse end of both bars on both legs,
+        // which is two full bar ranges a trade and returns -99.96% on daily
+        // BTCUSDT. A default has to be a claim somebody could defend in
+        // daylight, and nobody fills at the worst tick of every bar they touch.
+        //
+        // The fee side is unchanged and for the same reason: a backtest that
+        // assumed a maker discount it did not get would report a strategy that
+        // does not work.
+        expect(EXECUTION_CONFIG.model).toBe('next_open');
         expect(EXECUTION_CONFIG.liquidity).toBe('taker');
         expect(EXECUTION_CONFIG.makerFeeRate).toBeGreaterThanOrEqual(
             EXECUTION_CONFIG.takerFeeRate,

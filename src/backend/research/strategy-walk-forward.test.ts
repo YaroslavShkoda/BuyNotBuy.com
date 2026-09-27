@@ -15,15 +15,26 @@ import type { Candle } from '../types/market.js';
  * seven has not been validated no matter what its total says.
  */
 
-function candles(count: number, step: (index: number) => number): Candle[] {
+/**
+ * A synthetic series.
+ *
+ * `spread` is the half-width of every bar's high-low range. It is a parameter
+ * because it is not a detail: under a genuinely pessimistic execution model a
+ * long enters at the high and exits at the low, so a 1% half-width costs 2% a
+ * trade, and a series whose drift is smaller than that cannot be profitable at
+ * any threshold. The default is left at 1% because the other tests in this file
+ * were written against it; anything testing a premise about profitability has
+ * to say what width it is assuming, or it is measuring its own fixture.
+ */
+function candles(count: number, step: (index: number) => number, spread = 0.01): Candle[] {
     return Array.from({ length: count }, (_, index) => {
         const close = step(index);
 
         return {
             timestamp: 1_500_000_000_000 + index * 86_400_000,
             open: close,
-            high: close * 1.01,
-            low: close * 0.99,
+            high: close * (1 + spread),
+            low: close * (1 - spread),
             close,
             volume: 1,
         };
@@ -64,13 +75,24 @@ describe('walk-forward judges windows, not totals', () => {
         // Rises gently except in one window, where it collapses. The full
         // sample is strongly positive, which is the number a plain backtest
         // would have printed.
-        const series = candles(1000, (index) => {
-            if (index >= 300 && index < 360) {
-                return 100 * 0.7 ** ((index - 300) / 10);
-            }
+        //
+        // The 0.1% half-width is stated rather than defaulted because it
+        // matters: the intrabar model is fixed to be pessimistic on both legs —
+        // a long now enters at the bar's high and exits at its low — so the
+        // fixture's own width is a round-trip cost. At the 1% this file uses by
+        // default, no plausible drift survives it, and the test would have
+        // stopped testing its premise and started testing its fixture.
+        const series = candles(
+            1000,
+            (index) => {
+                if (index >= 300 && index < 360) {
+                    return 100 * 0.7 ** ((index - 300) / 10);
+                }
 
-            return 100 * 1.002 ** index;
-        });
+                return 100 * 1.002 ** index;
+            },
+            0.001,
+        );
 
         const strategy = stepRule(20);
         const verdict = walkForwardStrategy(strategy, series, {
