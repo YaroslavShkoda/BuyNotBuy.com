@@ -152,6 +152,14 @@ export interface ResolvedSignal {
     readonly published: StrategyDecision;
     /** Which module the published answer came from. */
     readonly publishedBy: StrategyKey;
+    /**
+     * What the primary said, always, even when it was overruled.
+     *
+     * Not derivable from `published`. A caller that wanted to record both
+     * answers and only had these would write the fallback's direction into both
+     * fields, and the row would then show an agreement that never happened.
+     */
+    readonly primaryDecision: StrategyDecision;
     /** The fallback's answer, always, whether or not it was used. */
     readonly fallbackDecision: StrategyDecision | null;
     /**
@@ -256,12 +264,13 @@ export function resolveSignal(
     registry: Registry,
     context: StrategyContext,
 ): ResolvedSignal {
-    const published = registry.primary.evaluate(context);
+    const primaryDecision = registry.primary.evaluate(context);
 
     if (registry.fallback === null) {
         return {
-            published,
+            published: primaryDecision,
             publishedBy: registry.primary.key,
+            primaryDecision,
             fallbackDecision: null,
             suppressed: false,
         };
@@ -269,19 +278,24 @@ export function resolveSignal(
 
     const fallbackDecision = registry.fallback.evaluate(context);
 
-    if (published.direction !== 'NEUTRAL') {
+    if (primaryDecision.direction !== 'NEUTRAL') {
         return {
-            published,
+            published: primaryDecision,
             publishedBy: registry.primary.key,
+            primaryDecision,
             fallbackDecision,
             suppressed: false,
         };
     }
 
-    if (fallbackDecision.direction === 'NEUTRAL' || registry.config.mode === 'shadow') {
+    if (
+        fallbackDecision.direction === 'NEUTRAL' ||
+        registry.config.mode === 'shadow'
+    ) {
         return {
-            published,
+            published: primaryDecision,
             publishedBy: registry.primary.key,
+            primaryDecision,
             fallbackDecision,
             suppressed: fallbackDecision.direction !== 'NEUTRAL',
         };
@@ -290,6 +304,11 @@ export function resolveSignal(
     return {
         published: fallbackDecision,
         publishedBy: registry.fallback.key,
+        // Carried explicitly, because "the primary said one thing and the
+        // fallback another" is the fact the decision log exists to record, and
+        // inferring it from `published` would write the fallback's answer over
+        // the primary's and turn a disagreement into an agreement.
+        primaryDecision,
         fallbackDecision,
         suppressed: false,
     };

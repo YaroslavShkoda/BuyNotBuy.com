@@ -43,6 +43,22 @@ export type AnalysisTelemetry = AnalysisStageDurations & {
     freshness: MarketFreshness;
     signal: IndicatorSignal;
     confidence: number;
+    /**
+     * Which rule produced the published signal.
+     *
+     * Present because a log line saying "NEUTRAL" no longer says everything
+     * about how that NEUTRAL was reached: a fallback may have spoken, or may
+     * have been overruled, or may not have been consulted at all.
+     */
+    signalRule: string;
+    /**
+     * True when a fallback had an opinion and was not allowed to publish it.
+     *
+     * The number the shadow period is read by. A fallback that is always
+     * silent is a configuration nobody can tell from one that is not installed,
+     * and this is what distinguishes them in the logs without a query.
+     */
+    fallbackSuppressed: boolean;
     requestId?: string;
 };
 
@@ -128,6 +144,8 @@ export function buildAnalysisTelemetry(
         candleInterval: string;
         marketTimestamp: number;
         freshness: MarketFreshness;
+        signalRule: string;
+        fallbackSuppressed: boolean;
         requestId?: string;
     },
 ): AnalysisTelemetry {
@@ -146,6 +164,8 @@ export function buildAnalysisTelemetry(
         totalDurationMs: durations.totalDurationMs,
         signal: analysis.signal.signal,
         confidence: analysis.signal.confidence,
+        signalRule: context.signalRule,
+        fallbackSuppressed: context.fallbackSuppressed,
         ...(context.requestId !== undefined
             ? { requestId: context.requestId }
             : {}),

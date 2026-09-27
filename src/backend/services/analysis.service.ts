@@ -16,6 +16,7 @@ import { recordIndicatorVotes } from '../indicators/performance/indicator-perfor
 import { getSignalSnapshotRepository } from '../analysis/signal-snapshot.repository.js';
 import { getStrategyVersionRepository } from '../analysis/strategy-version.repository.js';
 import { createRegistry, readFallbackConfig, resolveSignal } from '../strategies/registry.js';
+import { getDecisionLogRepository } from '../strategies/decision-log.repository.js';
 import { marketConfig } from '../config/market.config.js';
 import { assessDataQuality } from '../history/data-quality.js';
 import { assessRegime } from '../indicators/regime.js';
@@ -142,6 +143,56 @@ export async function analyzeMarketWithStatus(
 const analysisFlight = createSingleFlight<AnalysisComputation>();
 
 /**
+ * Persists what both strategies said, and never fails the analysis over it.
+ *
+ * Fire and forget, like the three history writes this file already does, and
+ * for the same reason: the analysis is correct the moment the signal exists,
+ * and a database that is briefly unavailable should not turn a trading
+ * decision into a 500. The cost of that choice is that a lost row is a lost
+ * row — which is why the table is the evidence base and not a cache, and why
+ * the report below is read as "what the shadow period saw", not as a
+ * guaranteed-complete ledger.
+ */
+async function recordStrategyDecisions(input: {
+    symbol: string;
+    published: ReturnType<typeof resolveSignal>;
+}): Promise<void> {
+    try {
+        const strategyVersion = await getStrategyVersionRepository().resolveActive();
+        const { published } = input;
+        const fallback = published.fallbackDecision;
+
+        await getDecisionLogRepository().record({
+            symbol: input.symbol,
+            strategyVersionId: strategyVersion.id,
+            at: Date.now(),
+            primary: {
+                rule: 'consensus-primary',
+                // The primary's own answer, not the published one. When the
+                // fallback is active and the primary had an opinion, those are
+                // different, and storing the published direction here would
+                // record an agreement that never happened.
+                direction: published.primaryDecision.direction,
+                confidence: published.primaryDecision.confidence,
+            },
+            fallback: fallback === null
+                ? null
+                : {
+                      rule: published.publishedBy,
+                      direction: fallback.direction,
+                      confidence: fallback.confidence,
+                  },
+            publishedRule: published.publishedBy,
+            publishedDirection: published.published.direction,
+            suppressed: published.suppressed,
+        });
+    } catch {
+        // See the note above. Deliberately silent: the caller is a hot path and
+        // has already published a correct answer.
+    }
+}
+
+/**
  * What one analysis costs and what it produced.
  *
  * The telemetry builders and the history writes travel with the result rather
@@ -249,6 +300,7 @@ async function computeAnalysis(): Promise<AnalysisComputation> {
 
     let signal: SignalResult;
     let fallbackSuppressed = false;
+    let publishedBy: string = 'consensus-primary';
     try {
         const signalMeasured = measureSync(() => calculateSignal(
             marketData.price.price,
@@ -300,6 +352,20 @@ async function computeAnalysis(): Promise<AnalysisComputation> {
         });
 
         fallbackSuppressed = resolved.suppressed;
+        publishedBy = resolved.publishedBy;
+
+        // Written down before anything else uses the answer, and best effort.
+        // A shadow period that does not leave a record is not a shadow period,
+        // it is a guess — and the decision to promote a rule rests on what this
+        // table eventually holds.
+        //
+        // Both answers go in, not just the published one: the disagreements are
+        // the only rows worth having, and they are exactly the ones a published
+        // answer cannot reconstruct.
+        void recordStrategyDecisions({
+            symbol: marketData.price.symbol,
+            published: resolved,
+        });
 
         if (resolved.publishedBy !== 'consensus-primary') {
             signal = {
@@ -322,8 +388,7 @@ async function computeAnalysis(): Promise<AnalysisComputation> {
         }
     }
 
-    const marketDataDurationMs = completedDurations.marketDataDurationMs ?? 0;
-    const indicatorsDurationMs = completedDurations.indicatorsDurationMs ?? 0;
+    const marketDataDurationMs = completedDurations.marketDataDurationMs ?? 0;    const indicatorsDurationMs = completedDurations.indicatorsDurationMs ?? 0;
     const divergenceDurationMs = completedDurations.divergenceDurationMs ?? 0;
     const signalDurationMs = completedDurations.signalDurationMs ?? 0;
 
@@ -385,6 +450,8 @@ async function computeAnalysis(): Promise<AnalysisComputation> {
                     // current while the feed is dead, and those two call for
                     // different responses.
                     freshness: marketFreshness,
+                    signalRule: publishedBy,
+                    fallbackSuppressed,
                     ...(marketDataStale
                         ? { dataStale: true, dataAgeMs: marketDataAgeMs }
                         : {}),

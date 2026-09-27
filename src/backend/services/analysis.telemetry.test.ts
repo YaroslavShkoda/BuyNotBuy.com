@@ -94,6 +94,8 @@ describe('analysis.telemetry', () => {
                 candleInterval: '1h',
                 marketTimestamp: 1_700_000_000_000,
                 freshness: 'fresh',
+                signalRule: 'consensus-primary',
+                fallbackSuppressed: false,
                 requestId: 'req-1',
             },
         );
@@ -113,6 +115,8 @@ describe('analysis.telemetry', () => {
             totalDurationMs: 10,
             signal: 'LONG',
             confidence: 67,
+            signalRule: 'consensus-primary',
+            fallbackSuppressed: false,
             requestId: 'req-1',
         });
         expect(JSON.stringify(telemetry)).not.toContain('series');
