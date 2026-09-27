@@ -11,30 +11,28 @@
 
 ---
 
-## ГДЕ ПРОДОЛЖАТЬ (обновлено после блока 29)
+## ГДЕ ПРОДОЛЖАТЬ (роадмап пройден полностью, 32 из 32)
 
-**Сделано: блоки 1–29.** Осталось: **30–32** (3 блока).
+**Сделано: блоки 1–32. Роадмап пройден целиком.** Единственный отчёт —
+финальный ответ в чате; в этом файле остаётся состояние на конец прохода.
 
-- **30** — поллер + кэш снапшотов (`B35` / `A3` / `B37`)
-- **31** — feature extraction + ML dataset + research lab (`B48`–`B50`)
-- **32** — финальная сквозная проверка и **единственный отчёт**
+Финальное измеренное состояние: **1732 теста, 137 файлов,
+`npm run verify` зелёный, `npm run build` собирается, lint чист, typecheck
+чист.** 41 коммит впереди `origin/main`, **не запушены**.
 
-Измеренное состояние на момент блока 29: **1654 теста, 129 файлов,
-`npm run verify` зелёный, lint чист, typecheck чист.** 39 коммитов впереди
-`origin/main`, **не запушены**.
-
-Ключевое из уже сделанного, на что опираются оставшиеся блоки:
+Ключевое из сделанного, на что опирался финальный блок:
 `outcome.ts` · `performance.ts` / `calibration.ts` / `regime-performance.ts` ·
-`lifecycle.ts` + `lifecycle.repository.ts` · `signal_history` с полной серией
-(миграция 8) · `signal_outcome` (миграция 9) ·
-`execution.ts` · `walk-forward.plan.ts` · `optimizer.ts` +
-`parameter.config.ts` · `dataset.ts` / `experiment.ts` / `manifest.ts` ·
-`statistics.ts` · `promotion.config.ts` + `rule-registry.ts` ·
-**`db/retention.ts` + `db/retention.store.ts` (миграции 10–12)** ·
-**`observability/health.ts` + `metrics.ts` + `registry.ts` + `health.registry.ts`** ·
-**`signals/signal-publication.ts`**.
+`lifecycle.ts` + `lifecycle.repository.ts` · `signal_history` (миграция 8) ·
+`signal_outcome` (миграция 9) · `execution.ts` · `walk-forward.plan.ts` ·
+`optimizer.ts` + `parameter.config.ts` · `dataset.ts` / `experiment.ts` /
+`manifest.ts` · `statistics.ts` · `promotion.config.ts` + `rule-registry.ts` ·
+`db/retention.ts` + `db/retention.store.ts` (миграции 10–12) ·
+`observability/health.ts` + `metrics.ts` + `registry.ts` +
+`health.registry.ts` · `signals/signal-publication.ts` ·
+**`observability/single-flight.ts`** ·
+**`research/features.ts` + `research/dataset.ts` + `research/lab.ts`**.
 
-Приёмы, которые уже сработали и должны повторяться:
+Приёмы, которые сработали и должны повторяться:
 - `beforeEach` в `test-support/test-database.ts` чистит **все** служебные
   таблицы; новую таблицу добавлять в `truncateSignalTables()`.
 - Рендерить `candles` **старыми первыми** (новые последние).
@@ -47,11 +45,12 @@
   `-Encoding UTF8` и портит кириллицу. В `docs/ROADMAP-EXECUTION.md` смешались
   LF и CRLF — заменять через Node, одноразовый `.mjs` писать через `write`.
 - **Модуль с тестами может быть мёртвым.** Блок 22 доказал это для моделей
-  исполнения, блок 28 — для журнала `retention_run` (создан миграцией, покрыт
-  типами, но прунер в него не писал и считал удаления по нему же).
-- **Называть экспортируемую функцию `runMigrations`/`applyMigrations` нельзя по
-  памяти** — в `db/migrations.ts` это `applyMigrations`, в `db/pool.ts` —
-  `closePool`. Проверять `export function` через `grep` перед импортом.
+  исполнения, блок 28 — для журнала `retention_run`, блок 29 — для объявленных,
+  но не проверяемых компонентов здоровья.
+- **Называть экспортируемую функцию по памяти нельзя** — в `db/migrations.ts`
+  это `applyMigrations`, в `db/pool.ts` — `closePool`, у `WalkForwardResult`
+  метрики лежат в `overall`, а не в `metrics`. Проверять `export function`
+  через `grep` перед импортом.
 - Фикстуры для БД: у `signal_history` нет `created_at`/`updated_at`, обязательны
   `consensus` (целое) и `timestamp`; у `market_candles` обязательны
   `ingested_at` и `is_closed`.
@@ -60,8 +59,11 @@
 - Фикстуры провайдера: `vi.mock('./market.provider.js')` + `vi.hoisted`, свечи с
   реальными таймстампами, `vi.useFakeTimers({ toFake: ['Date'] })` для старения
   снимка. Образец — `market/market.service.test.ts`.
-
-### Что уже измерено и не изменится без новой правки
+- `z.record` в этой версии Zod **требует схему ключа**: `z.record(z.string(), …)`.
+- `fc.assert` не принимает **async**-свойства (TS2345) — брать `fc.sample` и
+  гонять обычным циклом.
+- Тест, который **проходит на простоте машины и падает на CI**, — это не тест.
+  Лаборатория делает настоящий walk-forward: 2934 бара дали 19 с при лимите 5 с.
 
 ### Что уже измерено и не изменится без новой правки
 
