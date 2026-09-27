@@ -62,5 +62,28 @@ describe('migrations', () => {
         } finally {
             await query('DELETE FROM schema_migrations WHERE version = $1', [future]);
         }
+
+        // Not part of the original test and worth keeping: that the cleanup
+        // actually ran. The row that lies to the migration logic is written to
+        // the one table the migration logic reads, so "the test passed" and "the
+        // database is honest" are not the same claim.
+        await expect(currentSchemaVersion()).resolves.toBe(LATEST_SCHEMA_VERSION);
     });
+
+    // A note on the flake this file was reported to have.
+    //
+    // The obvious hardening — wrap the insert above in a transaction and roll it
+    // back — was tried and does not work, for an instructive reason: under READ
+    // COMMITTED the uncommitted row is invisible to `applyMigrations`, so it
+    // resolves happily and the test fails in the other direction. The row has to
+    // be committed for the assertion to mean anything, and committed it must be.
+    //
+    // What remains is that the window is closed by test sequencing rather than
+    // by the database: vitest runs the tests in a file one at a time, and the
+    // schema is randomised per file, so a run killed mid-test leaves nothing for
+    // the next one to trip over. Whether that is sufficient is not known —
+    // twenty consecutive runs did not reproduce the failure, and neither did the
+    // four checks before this. It is recorded here as unexplained rather than
+    // fixed, because a test that has been given a plausible story is worse than
+    // one that is still open.
 });
