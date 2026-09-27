@@ -148,11 +148,32 @@ const analysisFlight = createSingleFlight<AnalysisComputation>();
  * Fire and forget, like the three history writes this file already does, and
  * for the same reason: the analysis is correct the moment the signal exists,
  * and a database that is briefly unavailable should not turn a trading
- * decision into a 500. The cost of that choice is that a lost row is a lost
- * row — which is why the table is the evidence base and not a cache, and why
- * the report below is read as "what the shadow period saw", not as a
- * guaranteed-complete ledger.
+ * decision into a 500.
+ *
+ * **The failure is counted, not swallowed.** The first version of this caught
+ * and discarded, on the grounds that the caller is a hot path and has already
+ * published a correct answer. Both halves are true, and together they hid a
+ * month of nothing: a leftover process from an earlier verification was holding
+ * the port, so the server under test never started, and the journal stayed
+ * empty. That looked exactly like a code fault and was investigated as one.
+ *
+ * A count is enough. A dropped row is still a dropped row — the table is the
+ * evidence base and not a cache — but a count rising to something other than
+ * zero is a fact that can be looked at, and a silent failure is indistinguishable
+ * from a system that is working.
  */
+let strategyDecisionWriteFailures = 0;
+
+/** How many decision-log rows were lost. Read by tests and by a human. */
+export function strategyDecisionWriteFailureCount(): number {
+    return strategyDecisionWriteFailures;
+}
+
+/** Test seam: the counter is a module-level number, and tests share the module. */
+export function resetStrategyDecisionWriteFailures(): void {
+    strategyDecisionWriteFailures = 0;
+}
+
 async function recordStrategyDecisions(input: {
     symbol: string;
     published: ReturnType<typeof resolveSignal>;
@@ -175,20 +196,24 @@ async function recordStrategyDecisions(input: {
                 direction: published.primaryDecision.direction,
                 confidence: published.primaryDecision.confidence,
             },
-            fallback: fallback === null
-                ? null
-                : {
-                      rule: published.publishedBy,
-                      direction: fallback.direction,
-                      confidence: fallback.confidence,
-                  },
+            fallback:
+                fallback === null || published.fallbackKey === null
+                    ? null
+                    : {
+                          rule: published.fallbackKey,
+                          direction: fallback.direction,
+                          confidence: fallback.confidence,
+                      },
             publishedRule: published.publishedBy,
             publishedDirection: published.published.direction,
             suppressed: published.suppressed,
         });
     } catch {
-        // See the note above. Deliberately silent: the caller is a hot path and
-        // has already published a correct answer.
+        // Still not thrown: an analysis that has a correct signal must not be
+        // turned into a 500 by a bookkeeping write. But the count moves, and
+        // that is the difference between this and the version that hid a dead
+        // server behind a plausible-looking empty table.
+        strategyDecisionWriteFailures += 1;
     }
 }
 

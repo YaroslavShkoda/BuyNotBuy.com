@@ -209,6 +209,55 @@ describe('a fallback fills a gap and nothing else', () => {
         expect(resolved.fallbackDecision?.direction).toBe('SHORT');
     });
 
+    it('names the fallback even when the primary is the one that was heard', () => {
+        // The decision log stored `publishedBy` as the fallback's rule. Whenever
+        // the primary had an opinion — which is most cycles — that wrote
+        // "consensus-primary" into the fallback column, so the table attributed
+        // every observation to the wrong module and grouped the shadow report
+        // by a rule that was never the fallback. Nothing about it looked wrong:
+        // the value was a real rule, the insert succeeded, and the type checked.
+        const registry = registryWith(LONG, {
+            ...NEUTRAL,
+            direction: 'SHORT',
+        }, 'shadow');
+
+        const resolved = resolveSignal(registry, {
+            candles: series(300),
+            price: 50_000,
+        });
+
+        expect(resolved.publishedBy).toBe('consensus-primary');
+        expect(resolved.fallbackKey).not.toBe('consensus-primary');
+        expect(resolved.fallbackKey).toBe(registry.fallback?.key);
+    });
+
+    it('names the fallback the same way whichever one published', () => {
+        // The symmetry the previous test exists to check from the other side:
+        // reading the fallback's name off `publishedBy` is only wrong in one
+        // direction, and a single-direction bug survives a test that only looks
+        // at the interesting case.
+        const registry = registryWith(NEUTRAL, {
+            ...NEUTRAL,
+            direction: 'SHORT',
+        }, 'active');
+
+        const resolved = resolveSignal(registry, {
+            candles: series(300),
+            price: 50_000,
+        });
+
+        expect(resolved.publishedBy).toBe(registry.fallback?.key);
+        expect(resolved.fallbackKey).toBe(registry.fallback?.key);
+    });
+
+    // There is deliberately no test here for "no fallback is installed".
+    // `resolveSignal` handles a null fallback and the type allows it, but
+    // `FallbackConfig.key` cannot be null and nothing produces that shape, so
+    // the branch cannot be reached through `createRegistry`. Writing a test
+    // would need a cast, and a test that casts to reach a branch is a test
+    // about the cast. Until running the consensus alone is a configuration
+    // somebody can actually write, the branch is aspiration.
+
     it('reports no suppression when there was nothing to suppress', () => {
         const registry = registryWith(NEUTRAL, NEUTRAL, 'shadow');
 
