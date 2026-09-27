@@ -78,7 +78,7 @@ export function getTestPool(): Pool {
 export async function truncateSignalTables(): Promise<void> {
     await query(
         `TRUNCATE signal_history, indicator_vote, market_candles,
-                  signal_transition, signal_state`,
+                  signal_transition, signal_state, signal_outcome`,
     );
 }
 
