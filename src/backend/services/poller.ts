@@ -80,8 +80,21 @@ export function startPoller(options: PollerOptions): Poller {
             handle = null;
 
             if (inFlight !== null) {
-                // Still working through the previous cycle. Skip this tick
-                // rather than queueing another one behind it.
+                // Unreachable today, and kept on purpose.
+                //
+                // A tick is scheduled in exactly one place — the `.finally` of
+                // a cycle, which has already set `inFlight = null` — so no
+                // timer exists while work is in flight, and the condition can
+                // never be true. Overlap is prevented by that structure, not by
+                // this branch.
+                //
+                // It stays because the structure is one edit away from changing:
+                // scheduling the tick on a fixed interval instead of N ms after
+                // the last cycle would make this branch load bearing, and the
+                // symptom would be a duplicated analysis cycle rather than
+                // anything that names this line. `poller.timers.test.ts` pins
+                // the invariant that makes it unreachable, so the day the
+                // structure changes, that test fails here first.
                 options.logger.warn?.(
                     { event: 'poller_cycle_skipped' },
                     'poller_cycle_skipped',

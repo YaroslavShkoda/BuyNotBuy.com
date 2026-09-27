@@ -4,6 +4,7 @@ import type { MarketIndicators } from '../indicators/indicator.service.js';
 import type { DivergenceAnalysis } from '../indicators/divergence.service.js';
 import type { SignalResult } from '../signals/signal.types.js';
 import { recordPublishedSignal } from '../signals/signal-publication.js';
+import { createSingleFlight } from '../observability/single-flight.js';
 
 import { getMarketData } from '../market/market.service.js';
 import { calculateMarketIndicators, toWireIndicators } from '../indicators/indicator.service.js';
@@ -23,12 +24,13 @@ import {
 } from '../config/indicator.config.js';
 import {
     attachAnalysisErrorContext,
+    readAnalysisErrorContext,
     buildAnalysisTelemetry,
     measureAsync,
     measureSync,
 } from './analysis.telemetry.js';
 
-import type { AnalysisFailedStage, AnalysisTelemetryLogger } from './analysis.telemetry.js';
+import type { AnalysisFailedStage, AnalysisTelemetry, AnalysisTelemetryLogger } from './analysis.telemetry.js';
 import type { MarketFreshness } from '../market/market-freshness.js';
 import type { SignalHistoryLogger } from '../history/signal-history.types.js';
 import type { SignalContext } from '../history/signal-history.types.js';
@@ -65,12 +67,96 @@ export async function analyzeMarket(
  * from. The analysis itself is never cached: indicators, signal and divergence
  * are pure functions of the candles and cost fractions of a millisecond, so
  * only the network fetch is worth holding on to.
+ *
+ * Concurrent callers are still collapsed into one computation, and that is a
+ * correctness measure rather than a performance one. Every successful analysis
+ * writes a history row, so N page loads arriving together would record the
+ * same decision N times for the same hour — and a history that says the market
+ * held still N times teaches the calibration code something false about how
+ * often this system changes its mind.
+ *
+ * The consequence is worth stating because it cuts both ways. The expensive
+ * part — the fetch and the seven indicators — is computed once. The telemetry
+ * line is still written once per caller, each carrying its own request id,
+ * because ten requests are ten requests and a reader tracing one of them has to
+ * find a line of its own. The history row is written once per computation,
+ * because that is the one write that must not repeat.
  */
 export async function analyzeMarketWithStatus(
     logger?: AnalysisTelemetryLogger,
     requestId?: string,
     historyLogger?: SignalHistoryLogger,
 ): Promise<AnalysisWithStatus> {
+    let result: AnalysisComputation;
+    let leader: boolean;
+
+    try {
+        ({ result, leader } = await analysisFlight.run(() => computeAnalysis()));
+    } catch (error) {
+        // The request id is stamped here, per caller, rather than inside the
+        // computation. It is safe to mutate the error because a caller that
+        // failed owns it: a follower that was handed somebody else's failure
+        // has already thrown that one away and run its own attempt.
+        const shared = readAnalysisErrorContext(error);
+
+        if (shared !== undefined) {
+            attachAnalysisErrorContext(error, {
+                ...shared,
+                ...(requestId !== undefined ? { requestId } : {}),
+            });
+        }
+
+        throw error;
+    }
+
+    // Telemetry is per caller, not per computation. Ten requests coalesced into
+    // one analysis are still ten requests, and a reader tracing a request id
+    // has to find a line of its own. The work those lines describe was shared;
+    // the fact that ten callers asked for it is what each line is for.
+    const telemetry = result.telemetry(requestId);
+
+    logger?.info(telemetry, 'market_analysis_completed');
+
+    // Publication is per caller too: a signal handed to somebody is a signal
+    // the system produced, and N callers received N answers.
+    recordPublishedSignal(result.analysis.signal.signal);
+
+    // The history is per computation. This is the write that must not repeat:
+    // N rows for one hour would tell the calibration code that the market held
+    // still N times, and that number is then measured against outcomes as if
+    // it were true.
+    if (leader) {
+        result.record(historyLogger);
+    }
+
+    return {
+        analysis: result.analysis,
+        stale: result.status.stale,
+        ageMs: result.status.ageMs,
+        freshness: result.status.freshness,
+        provider: result.status.provider,
+    };
+}
+
+const analysisFlight = createSingleFlight<AnalysisComputation>();
+
+/**
+ * What one analysis costs and what it produced.
+ *
+ * The telemetry builders and the history writes travel with the result rather
+ * than being called from inside the computation, because those are per-caller
+ * and the computation is shared. Bundling them here keeps the split in one
+ * place instead of in the reader's head.
+ */
+interface AnalysisComputation {
+    readonly analysis: MarketAnalysis;
+    readonly status: Omit<AnalysisWithStatus, 'analysis'>;
+    /** One context per caller, differing only in the request id. */
+    telemetry(requestId?: string): AnalysisTelemetry;    /** Writes the history rows for this computation, once. */
+    record(historyLogger?: SignalHistoryLogger): void;
+}
+
+async function computeAnalysis(): Promise<AnalysisComputation> {
     const totalStart = performance.now();
     const completedDurations: {
         marketDataDurationMs?: number;
@@ -83,11 +169,13 @@ export async function analyzeMarketWithStatus(
         error: unknown,
         failedStage: AnalysisFailedStage,
     ): never => {
+        // No request id here. The computation is shared, so this context
+        // belongs to the run rather than to whoever asked for it; each caller
+        // stamps its own on the way out.
         attachAnalysisErrorContext(error, {
             totalDurationMs: performance.now() - totalStart,
             failedStage,
             ...completedDurations,
-            ...(requestId !== undefined ? { requestId } : {}),
         });
 
         throw error;
@@ -196,51 +284,68 @@ export async function analyzeMarketWithStatus(
     // Counted where the signal is *published*, not inside `calculateSignal`.
     // That function is pure arithmetic called by hundreds of tests with
     // invented prices, and a counter it moved would measure the test suite
-    // rather than the system. Here, one counter tick is one signal a caller
-    // was actually given.
-    recordPublishedSignal(signal.signal);
+    // rather than the system. The tick happens per caller, above.
 
-    logger?.info(
-        buildAnalysisTelemetry(
-            analysis,
-            {
-                marketDataDurationMs,
-                indicatorsDurationMs,
-                divergenceDurationMs,
-                signalDurationMs,
-                totalDurationMs: performance.now() - totalStart,
-            },
-            {
-                provider: marketProvider,
-                symbol: marketData.price.symbol,
-                candleCount: marketData.candles.length,
-                candleInterval: marketConfig.candleInterval,
-                marketTimestamp: marketData.timestamp,
-                // The state, not just the boolean. "Stale" covers a snapshot
-                // behind the market and a snapshot that is current while the
-                // feed is dead, and those two call for different responses.
-                freshness: marketFreshness,
-                ...(marketDataStale
-                    ? { dataStale: true, dataAgeMs: marketDataAgeMs }
-                    : {}),
-                ...(requestId !== undefined ? { requestId } : {}),
-            },
-        ),
-        'market_analysis_completed',
-    );
+    return {
+        analysis,
+        status: {
+            stale: marketDataStale,
+            ageMs: marketDataAgeMs,
+            freshness: marketFreshness,
+            provider: marketProvider,
+        },
+        telemetry(requestId) {
+            return buildAnalysisTelemetry(
+                analysis,
+                {
+                    marketDataDurationMs,
+                    indicatorsDurationMs,
+                    divergenceDurationMs,
+                    signalDurationMs,
+                    totalDurationMs: performance.now() - totalStart,
+                },
+                {
+                    provider: marketProvider,
+                    symbol: marketData.price.symbol,
+                    candleCount: marketData.candles.length,
+                    candleInterval: marketConfig.candleInterval,
+                    marketTimestamp: marketData.timestamp,
+                    // The state, not just the boolean. "Stale" covers a
+                    // snapshot behind the market and a snapshot that is
+                    // current while the feed is dead, and those two call for
+                    // different responses.
+                    freshness: marketFreshness,
+                    ...(marketDataStale
+                        ? { dataStale: true, dataAgeMs: marketDataAgeMs }
+                        : {}),
+                    ...(requestId !== undefined ? { requestId } : {}),
+                },
+            );
+        },
+        record(historyLogger) {
+            writeHistory(analysis, marketData, historyLogger);
+        },
+    };
+}
 
-    // Non-critical side effect: every successful analysis is recorded into
-    // signal history, but a persistence failure must never fail the analysis
-    // response (recordSignalHistory is fail-open by contract).
-    //
-    // Deliberately not awaited. Against a file that cost was invisible; against
-    // a database on the network it is a round trip, and awaiting it would turn
-    // "fail open" into "fail slow" — a database that is down would add its
-    // connect timeout to every page load instead of only to the history. Both
-    // calls swallow their own errors, so the discarded promise cannot reject
-    // into an unhandled rejection.
-    // The market these numbers were produced in. A performance table grouped by
-    // regime is the whole reason this column exists, and without it every
+/**
+ * The writes that must happen once per computation, not once per caller.
+ *
+ * Non-critical by contract: a persistence failure must never fail the analysis
+ * response. Deliberately not awaited — against a file that cost was invisible;
+ * against a database on the network it is a round trip, and awaiting it would
+ * turn "fail open" into "fail slow", so a database that is down would add its
+ * connect timeout to every page load instead of only to the history. The three
+ * calls swallow their own errors, so the discarded promises cannot reject into
+ * an unhandled rejection.
+ */
+function writeHistory(
+    analysis: MarketAnalysis,
+    marketData: MarketData,
+    historyLogger?: SignalHistoryLogger,
+): void {
+    // The market these numbers were produced in. A performance table grouped
+    // by regime is the whole reason this column exists, and without it every
     // signal looks like it came from the same market.
     const context = analysisContext(marketData, analysis.timestamp);
 
@@ -251,8 +356,8 @@ export async function analyzeMarketWithStatus(
             signal: analysis.signal.signal,
             consensus: analysis.signal.confidence,
             price: analysis.price,
-            // Conditional rather than assigned undefined: an absent context is a
-            // fact, and writing one is how a table ends up full of nulls that
+            // Conditional rather than assigned undefined: an absent context is
+            // a fact, and writing one is how a table ends up full of nulls that
             // look like a failed write.
             ...(context === undefined ? {} : { context }),
         },
@@ -275,18 +380,8 @@ export async function analyzeMarketWithStatus(
     // measured today cannot be re-derived tomorrow, and the chain from
     // signal to outcome to statistics has nothing to be attached to.
     //
-    // Fire-and-forget for the same reason as the two calls above: a
-    // persistence failure must not become a slow page load. It is idempotent
-    // on the input hash, so a retry cannot produce a second copy.
+    // Idempotent on the input hash, so a retry cannot produce a second copy.
     void storeSnapshot(analysis, marketData, historyLogger).catch(() => undefined);
-
-    return {
-        analysis,
-        stale: marketDataStale,
-        ageMs: marketDataAgeMs,
-        freshness: marketFreshness,
-        provider: marketProvider,
-    };
 }
 
 /**

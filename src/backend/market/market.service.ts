@@ -11,6 +11,7 @@ import { MAX_CANDLE_LIMIT, marketConfig } from '../config/market.config.js';
 import { requiredCandleCount } from '../config/indicator.config.js';
 import { MarketDataError } from '../errors/market-data.error.js';
 import { currentRegistry } from '../observability/registry.js';
+import { createSingleFlight } from '../observability/single-flight.js';
 
 import type { MarketFreshness } from './market-freshness.js';
 import type { AssetPrice, MarketData } from '../types/market.js';
@@ -45,8 +46,17 @@ interface CacheEntry {
 let cache: CacheEntry | null = null;
 let inFlight: Promise<MarketDataResult> | null = null;
 
+const priceFlight = createSingleFlight<AssetPrice>();
+
 export async function getPrice(): Promise<AssetPrice> {
-    return marketDataProvider.getPrice();
+    // Coalesced, not cached. A price is a reading of a moment, and handing back
+    // the previous one under this name would be publishing a stale number as a
+    // live one — but N callers arriving together should still cost the
+    // provider one request, and every one of them should see the same reading
+    // rather than N different ones microseconds apart.
+    const { result } = await priceFlight.run(() => marketDataProvider.getPrice());
+
+    return result;
 }
 
 /**
