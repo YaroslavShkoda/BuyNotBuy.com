@@ -50,11 +50,25 @@ export interface WalkForwardVerdict {
     /**
      * Whether the rule is worth taking past shadow.
      *
-     * A deliberately strict bar, and the thresholds are the point rather than
-     * the mechanism: most folds positive, a positive worst fold, and a median
-     * fold that is not one lucky window. A rule that clears this has earned the
-     * right to keep being watched. It has not earned the right to trade, which
-     * is what the shadow period and a held-out window are for.
+     * **This bar does not work, and the way it does not work is measured.**
+     * Run four hundred random long-only rules through this same walk-forward on
+     * Binance BTCUSDT — 2096 daily bars, folds of 250, 40% exposure, the same
+     * costs — and not one has a positive worst fold. The best reaches 75% of
+     * folds profitable, so the 60% share clause is nearly free and
+     * `volatility-trend`'s 62.5% is inside what a coin gets. The clause
+     * filtering everything is `worstFold > 0`, and no long-only rule paying
+     * costs can clear it: fees plus non-zero exposure guarantee one losing
+     * window by construction.
+     *
+     * So "nothing has ever passed walk-forward" in this project has been a
+     * statement about commission arithmetic, not about any rule. `consistent`
+     * is left as it is because changing the bar without a real replacement
+     * would be worse — a clause that coins pass is not a pass condition. What
+     * replaces it has to be a significance test against the same coins, which
+     * `signal-power.ts` knows how to run.
+     *
+     * See `threshold-null.ts`, which is where the number comes from and is
+     * tested.
      */
     readonly consistent: boolean;
     readonly reason: string;
