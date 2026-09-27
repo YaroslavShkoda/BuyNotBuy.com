@@ -77,7 +77,7 @@ beforeAll(async () => {
  * stop at the test boundary too.
  */
 beforeEach(async () => {
-    await query('TRUNCATE signal_history, indicator_vote');
+    await query('TRUNCATE signal_history, indicator_vote, market_candles');
 });
 
 afterAll(async () => {
