@@ -2,6 +2,8 @@ import { createHash } from 'node:crypto';
 
 import { indicatorConfig, INDICATOR_SIGNAL_CONFIG } from './indicator.config.js';
 
+import { strategySetFingerprint } from '../strategies/strategy-fingerprint.js';
+
 /**
  * A stable fingerprint of everything that can change a signal.
  *
@@ -41,6 +43,16 @@ export function fingerprintStrategy(): StrategyFingerprint {
             emaConvictionScalePercent:
                 INDICATOR_SIGNAL_CONFIG.ema.convictionScalePercent,
         },
+        // Which rules are installed, which one is the fallback, and whether it
+        // is allowed to publish. Part of the configuration for the same reason
+        // a period is: it changes what a measurement means.
+        //
+        // Without this, a measurement produced by the consensus alone and one
+        // produced by the consensus plus a fallback would share a version, the
+        // performance tables would blend them, and the blend would be a series
+        // that no rule ever produced. The individual numbers would be right and
+        // the question they answered would be unaskable.
+        strategies: strategySetFingerprint(),
     };
 
     return { hash: hashValue(config), config };

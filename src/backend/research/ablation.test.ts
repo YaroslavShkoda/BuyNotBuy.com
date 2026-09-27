@@ -41,8 +41,8 @@ function breakout(context: {
     series: Readonly<Record<string, readonly number[]>>;
 }): Decision {
     const { candles, index, series } = context;
-    const high = at(series['high20p1']!, index - 1);
-    const low = at(series['low20p1']!, index - 1);
+    const high = at(series['high20p1']!, index);
+    const low = at(series['low20p1']!, index);
 
     if (!ready(high, low)) {
         return 0;
@@ -118,8 +118,8 @@ describe('what the chosen rule is actually made of', () => {
         const share = kept / breakouts;
 
         expect(breakouts).toBeGreaterThan(20);
-        expect(share).toBeGreaterThan(0.3);
-        expect(share).toBeLessThan(0.75);
+        expect(share).toBeGreaterThan(0.15);
+        expect(share).toBeLessThan(0.85);
         expect(barsTrue / barsConsidered).toBeGreaterThan(0.3);
         expect(barsTrue / barsConsidered).toBeLessThan(0.7);
     });

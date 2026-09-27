@@ -15,6 +15,7 @@ import { recordSignalHistory } from '../history/signal-history.service.js';
 import { recordIndicatorVotes } from '../indicators/performance/indicator-performance.service.js';
 import { getSignalSnapshotRepository } from '../analysis/signal-snapshot.repository.js';
 import { getStrategyVersionRepository } from '../analysis/strategy-version.repository.js';
+import { createRegistry, readFallbackConfig, resolveSignal } from '../strategies/registry.js';
 import { marketConfig } from '../config/market.config.js';
 import { assessDataQuality } from '../history/data-quality.js';
 import { assessRegime } from '../indicators/regime.js';
@@ -151,8 +152,19 @@ const analysisFlight = createSingleFlight<AnalysisComputation>();
 interface AnalysisComputation {
     readonly analysis: MarketAnalysis;
     readonly status: Omit<AnalysisWithStatus, 'analysis'>;
+    /**
+     * True when the fallback would have changed the published signal and was
+     * held back by shadow mode.
+     *
+     * Backend-only, and deliberately outside `MarketAnalysis`: the dashboard
+     * contract is frozen, and this is a number about the system's own
+     * confidence in its configuration rather than about the market. It is the
+     * evidence the shadow period exists to collect.
+     */
+    readonly fallbackSuppressed: boolean;
     /** One context per caller, differing only in the request id. */
-    telemetry(requestId?: string): AnalysisTelemetry;    /** Writes the history rows for this computation, once. */
+    telemetry(requestId?: string): AnalysisTelemetry;
+    /** Writes the history rows for this computation, once. */
     record(historyLogger?: SignalHistoryLogger): void;
 }
 
@@ -236,6 +248,7 @@ async function computeAnalysis(): Promise<AnalysisComputation> {
     }
 
     let signal: SignalResult;
+    let fallbackSuppressed = false;
     try {
         const signalMeasured = measureSync(() => calculateSignal(
             marketData.price.price,
@@ -251,6 +264,62 @@ async function computeAnalysis(): Promise<AnalysisComputation> {
     } catch (error) {
         fail(error, 'signal');
         throw error;
+    }
+
+    // The fallback may only speak where the primary was silent, and by default
+    // does not speak at all — it is evaluated, and the disagreement it would
+    // have caused is counted. Turning that off is a deliberate act made after
+    // watching, not the state a strategy arrives in.
+    //
+    // `indicators` is deliberately not touched. The dashboard renders that
+    // array, and a fallback that appended a row would change what a frozen
+    // client draws.
+    try {
+        // Built per computation rather than held in a singleton: the primary
+        // is the existing consensus, which is defined over this run's
+        // indicator readings, and those only exist here. A shared registry
+        // would need them passed in from outside, which is a second route to
+        // the indicators and therefore eventually two answers.
+        const registry = createRegistry({
+            consensus: (price, emaCloses) => {
+                const consensus = calculateSignal(price, indicators, emaCloses);
+
+                return {
+                    direction: consensus.signal,
+                    confidence: consensus.confidence,
+                    reason: consensus.reason,
+                    warm: false,
+                };
+            },
+            emaConfirmBars: INDICATOR_SIGNAL_CONFIG.ema.confirmBars,
+        });
+
+        const resolved = resolveSignal(registry, {
+            candles: marketData.candles,
+            price: marketData.price.price,
+        });
+
+        fallbackSuppressed = resolved.suppressed;
+
+        if (resolved.publishedBy !== 'consensus-primary') {
+            signal = {
+                signal: resolved.published.direction,
+                confidence: resolved.published.confidence,
+                reason: resolved.published.reason,
+                // The panel still shows the indicators consulted before the
+                // primary fell silent. A fallback verdict has no panel, and
+                // inventing one would be a lie about where the answer came from.
+                indicators: signal.indicators,
+            };
+        }
+    } catch (error) {
+        // Fatal only when the fallback was actually going to change the
+        // answer. In shadow it is not authoritative, so its failure is not the
+        // analysis's failure, and discarding a valid primary answer because an
+        // optional strategy threw would turn an enhancement into a dependency.
+        if (readFallbackConfig().mode === 'active') {
+            fail(error, 'signal');
+        }
     }
 
     const marketDataDurationMs = completedDurations.marketDataDurationMs ?? 0;
@@ -288,6 +357,7 @@ async function computeAnalysis(): Promise<AnalysisComputation> {
 
     return {
         analysis,
+        fallbackSuppressed,
         status: {
             stale: marketDataStale,
             ageMs: marketDataAgeMs,

@@ -1,6 +1,14 @@
 import { z } from 'zod';
 
 import { EXECUTION_CONFIG, fillPrice, pricedTrade } from '../backtest/execution.js';
+import {
+    atrSeries,
+    emaSeries,
+    isReady,
+    priorRolling,
+    rsiSeries,
+    smaSeries,
+} from '../strategies/series.js';
 import { calculateMetrics, benchmarkMetrics } from '../backtest/metrics.js';
 
 import type { ExecutionConfig } from '../backtest/execution.js';
@@ -65,168 +73,7 @@ export interface DecisionContext {
 // Causal series. Each of these reads only backwards from the index it fills.
 // ---------------------------------------------------------------------------
 
-function rollingMax(values: readonly number[], period: number): number[] {
-    const out = new Array<number>(values.length).fill(NaN);
-
-    for (let i = 0; i < values.length; i += 1) {
-        const from = Math.max(0, i - period + 1);
-        let best = -Infinity;
-
-        for (let j = from; j <= i; j += 1) {
-            best = Math.max(best, values[j]!);
-        }
-
-        out[i] = best;
-    }
-
-    return out;
-}
-
-function rollingMin(values: readonly number[], period: number): number[] {
-    const out = new Array<number>(values.length).fill(NaN);
-
-    for (let i = 0; i < values.length; i += 1) {
-        const from = Math.max(0, i - period + 1);
-        let best = Infinity;
-
-        for (let j = from; j <= i; j += 1) {
-            best = Math.min(best, values[j]!);
-        }
-
-        out[i] = best;
-    }
-
-    return out;
-}
-
-function emaSeries(values: readonly number[], period: number): number[] {
-    const out = new Array<number>(values.length).fill(NaN);
-
-    if (values.length < period) {
-        return out;
-    }
-
-    const k = 2 / (period + 1);
-    let ema = 0;
-
-    for (let i = 0; i < period; i += 1) {
-        ema += values[i]!;
-    }
-
-    ema /= period;
-    out[period - 1] = ema;
-
-    for (let i = period; i < values.length; i += 1) {
-        ema = values[i]! * k + ema * (1 - k);
-        out[i] = ema;
-    }
-
-    return out;
-}
-
-function rsiSeries(closes: readonly number[], period: number): number[] {
-    const out = new Array<number>(closes.length).fill(NaN);
-
-    if (closes.length <= period) {
-        return out;
-    }
-
-    let gain = 0;
-    let loss = 0;
-
-    for (let i = 1; i <= period; i += 1) {
-        const change = closes[i]! - closes[i - 1]!;
-        gain += Math.max(0, change);
-        loss += Math.max(0, -change);
-    }
-
-    let avgGain = gain / period;
-    let avgLoss = loss / period;
-    out[period] = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
-
-    for (let i = period + 1; i < closes.length; i += 1) {
-        const change = closes[i]! - closes[i - 1]!;
-        avgGain = (avgGain * (period - 1) + Math.max(0, change)) / period;
-        avgLoss = (avgLoss * (period - 1) + Math.max(0, -change)) / period;
-        out[i] = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
-    }
-
-    return out;
-}
-
-function atrSeries(candles: readonly Candle[], period: number): number[] {
-    const out = new Array<number>(candles.length).fill(NaN);
-    const tr: number[] = candles.map((candle, index) => {
-        if (index === 0) {
-            return candle.high - candle.low;
-        }
-
-        const previous = candles[index - 1]!.close;
-
-        return Math.max(
-            candle.high - candle.low,
-            Math.abs(candle.high - previous),
-            Math.abs(candle.low - previous),
-        );
-    });
-
-    if (tr.length < period) {
-        return out;
-    }
-
-    let value = 0;
-
-    for (let i = 0; i < period; i += 1) {
-        value += tr[i]!;
-    }
-
-    value /= period;
-    out[period - 1] = value;
-
-    for (let i = period; i < tr.length; i += 1) {
-        value = (value * (period - 1) + tr[i]!) / period;
-        out[i] = value;
-    }
-
-    return out;
-}
-
-/**
- * NaN-aware on purpose.
- *
- * A plain running sum takes the first NaN and stays NaN for every later bar,
- * because NaN + anything is NaN. Chained behind another indicator whose warmup
- * is longer — an average of an average true range — that produces a series that
- * is undefined everywhere, silently, and every rule gated on it simply never
- * fires. A strategy with no trades reports zero return, which looks like a
- * result rather than a bug.
- */
-function smaSeries(values: readonly number[], period: number): number[] {
-    const out = new Array<number>(values.length).fill(NaN);
-    const window: number[] = [];
-
-    for (let i = 0; i < values.length; i += 1) {
-        if (!Number.isFinite(values[i]!)) {
-            continue;
-        }
-
-        window.push(values[i]!);
-
-        if (window.length > period) {
-            window.shift();
-        }
-
-        if (window.length === period) {
-            out[i] = window.reduce((sum, value) => sum + value, 0) / period;
-        }
-    }
-
-    return out;
-}
-
 const at = (series: readonly number[], index: number): number => series[index] ?? NaN;
-
-const isReady = (...values: number[]): boolean => values.every((v) => Number.isFinite(v));
 
 // ---------------------------------------------------------------------------
 // The candidates. Each says why it should work before it is run.
@@ -261,11 +108,11 @@ export const CANDIDATE_STRATEGIES: readonly Strategy[] = [
 
             // Strictly greater: equal is not a breakout, and counting it as one
             // doubles the trade count on a flat tape for nothing.
-            if (candles[index]!.close > at(series.high20p1!, index - 1)) {
+            if (candles[index]!.close > at(series.high20p1!, index)) {
                 return 1;
             }
 
-            return candles[index]!.close < at(series.low20p1!, index - 1) ? -1 : 0;
+            return candles[index]!.close < at(series.low20p1!, index) ? -1 : 0;
         },
     },
     {
@@ -279,15 +126,15 @@ export const CANDIDATE_STRATEGIES: readonly Strategy[] = [
         decide: (context) => {
             const { candles, index, series } = context;
 
-            if (!isReady(at(series.high55!, index), at(series.high55p1!, index - 1))) {
+            if (!isReady(at(series.high55!, index), at(series.high55p1!, index))) {
                 return 0;
             }
 
-            if (candles[index]!.close > at(series.high55p1!, index - 1)) {
+            if (candles[index]!.close > at(series.high55p1!, index)) {
                 return 1;
             }
 
-            if (candles[index]!.close < at(series.low55p1!, index - 1)) {
+            if (candles[index]!.close < at(series.low55p1!, index)) {
                 return 0;
             }
 
@@ -383,17 +230,17 @@ export const CANDIDATE_STRATEGIES: readonly Strategy[] = [
             const atr = at(series.atr!, index);
             const atrSlow = at(series.atrSlow!, index);
 
-            if (!isReady(atr, atrSlow, at(series.high20p1!, index - 1))) {
+            if (!isReady(atr, atrSlow, at(series.high20p1!, index))) {
                 return 0;
             }
 
             const trending = atr > atrSlow;
 
-            if (candles[index]!.close > at(series.high20p1!, index - 1)) {
+            if (candles[index]!.close > at(series.high20p1!, index)) {
                 return trending ? 1 : 0;
             }
 
-            if (candles[index]!.close < at(series.low20p1!, index - 1)) {
+            if (candles[index]!.close < at(series.low20p1!, index)) {
                 return trending ? -1 : 0;
             }
 
@@ -434,23 +281,16 @@ export function buildSeries(candles: readonly Candle[]): Record<string, number[]
 
     return {
         close: closes,
-        high20: rollingMax(highs, 20),
-        low20: rollingMin(lows, 20),
-        // The channel as of the previous bar: a breakout has to clear a level
-        // that existed before this bar, or every bar is its own high.
-        high20p1: rollingMax(highs, 20).map((_, i) =>
-            i === 0 ? NaN : Math.max(...highs.slice(Math.max(0, i - 20), i)),
-        ),
-        low20p1: rollingMin(lows, 20).map((_, i) =>
-            i === 0 ? NaN : Math.min(...lows.slice(Math.max(0, i - 20), i)),
-        ),
-        high55: rollingMax(highs, 55),
-        high55p1: rollingMax(highs, 55).map((_, i) =>
-            i === 0 ? NaN : Math.max(...highs.slice(Math.max(0, i - 54), i)),
-        ),
-        low55p1: rollingMin(lows, 55).map((_, i) =>
-            i === 0 ? NaN : Math.min(...lows.slice(Math.max(0, i - 54), i)),
-        ),
+        high20: priorRolling(highs, 20, 'max'),
+        low20: priorRolling(lows, 20, 'min'),
+        // As of the previous bar. A breakout measured against a window that
+        // contains the bar being measured is trivially inside its own channel,
+        // and the earlier version of this file did exactly that.
+        high20p1: priorRolling(highs, 20, 'max'),
+        low20p1: priorRolling(lows, 20, 'min'),
+        high55: priorRolling(highs, 55, 'max'),
+        high55p1: priorRolling(highs, 55, 'max'),
+        low55p1: priorRolling(lows, 55, 'min'),
         ema20: emaSeries(closes, 20),
         ema50: emaSeries(closes, 50),
         rsi: rsiSeries(closes, 14),

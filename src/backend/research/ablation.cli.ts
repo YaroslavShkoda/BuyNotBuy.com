@@ -72,8 +72,8 @@ function breakout(context: {
     series: Readonly<Record<string, readonly number[]>>;
 }): Decision {
     const { candles, index, series } = context;
-    const previousHigh = at(series['high20p1']!, index - 1);
-    const previousLow = at(series['low20p1']!, index - 1);
+    const previousHigh = at(series['high20p1']!, index);
+    const previousLow = at(series['low20p1']!, index);
 
     if (!ready(previousHigh, previousLow)) {
         return 0;
