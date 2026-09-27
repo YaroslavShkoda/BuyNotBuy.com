@@ -1,4 +1,4 @@
-import { ProviderError, statusForKind } from '../../errors/provider.error.js';
+import { ProviderError, isSelfInflicted, statusForKind } from '../../errors/provider.error.js';
 import { marketConfig } from '../../config/market.config.js';
 
 import { CircuitBreaker } from './circuit-breaker.js';
@@ -148,77 +148,114 @@ export async function sendProviderRequest(
     const breaker = breakerFor(options.provider);
     const maxRetries = marketConfig.maxRetries;
 
+    // Read before the attempt, because `tryAcquire` only says yes. Whether the
+    // yes was an ordinary slot or the single probe the cooldown was holding
+    // decides who has to release it if the caller walks away.
+    const wasProbing = breaker.state !== 'closed';
+
     if (!breaker.tryAcquire()) {
         telemetry.recordProviderCircuitOpen(options.provider);
-        health.recordProviderFailure(options.provider);
 
-        throw circuitOpenError(options.provider, options.endpoint, breaker);
+        const refusal = circuitOpenError(
+            options.provider,
+            options.endpoint,
+            breaker,
+        );
+
+        health.recordProviderFailure(options.provider, {
+            // Our own decision, not the venue's answer. Asked of the error
+            // rather than restated here so that "what counts as evidence
+            // against a venue" has exactly one answer in the codebase.
+            definitive: !isSelfInflicted(refusal),
+        });
+
+        throw refusal;
     }
 
-    for (let attempt = 0; ; attempt += 1) {
-        let response: Response;
-        const startedAt = performance.now();
+    // If the slot was not closed, the only way `tryAcquire` says yes is by
+    // taking the cooldown's single probe, so the state does not need reading a
+    // second time — and this caller is now the one who has to release it.
+    const admittedAsProbe = wasProbing;
 
-        try {
-            response = await fetch(options.url, {
-                signal: buildRequestSignal(options.signal),
-                headers: {
-                    // Some venues block unidentified clients outright.
-                    'User-Agent': marketConfig.userAgent,
-                    Accept: 'application/json',
-                },
-            });
-        } catch (error) {
-            const elapsedMs = performance.now() - startedAt;
-            const callerGaveUp = options.signal?.aborted === true;
+    // The reservation covers the whole request, not one attempt.
+    //
+    // This is the burst case, and it is the reason the flag lives outside the
+    // per-attempt bookkeeping. A request retries with a backoff, and during
+    // that sleep the venue is still the one request that was admitted to test.
+    // Releasing between attempts left the venue unprotected for the length of
+    // every backoff, and a hundred callers arriving together walked in one per
+    // gap — the exact thundering herd the breaker exists to prevent, arriving
+    // at a venue that had just refused.
+    //
+    // So the transport owns the reservation and hands it back on every exit,
+    // unless the breaker has already taken it back itself.
+    let probeHeld = admittedAsProbe;
 
-            // A caller who has already given up is not a provider failure to
-            // paper over with more attempts. It is also not a failure of the
-            // venue, and recording it as one would let a shutdown — or a client
-            // that simply navigated away — trip the breaker and take the venue
-            // out for the next half minute of real traffic.
-            //
-            // The check has to come *before* the recording, and it is here
-            // because a shutdown aborts every in-flight request at once: a
-            // rolling deploy would otherwise produce exactly the consecutive
-            // failures that open the breaker, and the first request after the
-            // restart would be refused by a circuit this process opened against
-            // venues that were never actually unwell.
-            //
-            // The request still counts. It was made, it consumed a socket and it
-            // took the time it took; leaving it out of the request count would
-            // make the latency numbers describe a different set of calls than
-            // the ones that happened.
-            if (callerGaveUp) {
+    try {
+        for (let attempt = 0; ; attempt += 1) {
+            let response: Response;
+            const startedAt = performance.now();
+
+            try {
+                response = await fetch(options.url, {
+                    signal: buildRequestSignal(options.signal),
+                    headers: {
+                        // Some venues block unidentified clients outright.
+                        'User-Agent': marketConfig.userAgent,
+                        Accept: 'application/json',
+                    },
+                });
+            } catch (error) {
+                const elapsedMs = performance.now() - startedAt;
+                const callerGaveUp = options.signal?.aborted === true;
+
+                // A caller who has already given up is not a provider failure to
+                // paper over with more attempts. It is also not a failure of the
+                // venue, and recording it as one would let a shutdown — or a
+                // client that simply navigated away — trip the breaker and take
+                // the venue out for the next half minute of real traffic.
+                //
+                // The check has to come *before* the recording, and it is here
+                // because a shutdown aborts every in-flight request at once: a
+                // rolling deploy would otherwise produce exactly the consecutive
+                // failures that open the breaker, and the first request after
+                // the restart would be refused by a circuit this process opened
+                // against venues that were never actually unwell.
+                //
+                // The request still counts. It was made, it consumed a socket
+                // and it took the time it took; leaving it out of the request
+                // count would make the latency numbers describe a different set
+                // of calls than the ones that happened.
+                if (callerGaveUp) {
+                    telemetry.recordProviderRequest(
+                        options.provider,
+                        options.endpoint,
+                        elapsedMs,
+                        null,
+                    );
+
+                    throw error;
+                }
+
+                breaker.recordAttemptFailure();
                 telemetry.recordProviderRequest(
                     options.provider,
                     options.endpoint,
                     elapsedMs,
                     null,
                 );
+                telemetry.recordProviderError(options.provider, options.endpoint);
+                health.recordProviderFailure(options.provider);
 
-                throw error;
+                if (attempt >= maxRetries) {
+                    throw transportError(options, error);
+                }
+
+                telemetry.recordProviderRetry(options.provider);
+                await delay(backoffDelayMs(attempt), options.signal);
+
+                continue;
             }
-
-            breaker.recordFailure();
-            telemetry.recordProviderRequest(
-                options.provider,
-                options.endpoint,
-                elapsedMs,
-                null,
-            );
-            telemetry.recordProviderError(options.provider, options.endpoint);
-            health.recordProviderFailure(options.provider);
-
-            if (attempt >= maxRetries) {
-                throw transportError(options, error);
-            }
-
-            telemetry.recordProviderRetry(options.provider);
-            await delay(backoffDelayMs(attempt), options.signal);
-
-            continue;
-        }
 
         const elapsedMs = performance.now() - startedAt;
 
@@ -233,6 +270,7 @@ export async function sendProviderRequest(
             const retryAfterMs = resolveRetryAfterMs(response);
 
             breaker.openFor(retryAfterMs);
+            probeHeld = false;
             telemetry.recordProviderRateLimited(options.provider);
             telemetry.recordProviderError(options.provider, options.endpoint);
             health.recordProviderRateLimit(options.provider, {
@@ -259,6 +297,7 @@ export async function sendProviderRequest(
 
         if (response.ok) {
             breaker.recordSuccess();
+            probeHeld = false;
             health.recordProviderSuccess(options.provider, {
                 latencyMs: elapsedMs,
                 httpStatus: response.status,
@@ -277,7 +316,7 @@ export async function sendProviderRequest(
             // failed would eventually open its breaker and take a healthy venue
             // off the roster because of a bad parameter.
             if (response.status >= 500) {
-                breaker.recordFailure();
+                breaker.recordAttemptFailure();
                 telemetry.recordProviderError(
                     options.provider,
                     options.endpoint,
@@ -287,6 +326,7 @@ export async function sendProviderRequest(
                 });
             } else {
                 breaker.recordSuccess();
+                probeHeld = false;
                 health.recordProviderSuccess(options.provider, {
                     latencyMs: elapsedMs,
                     httpStatus: response.status,
@@ -302,7 +342,7 @@ export async function sendProviderRequest(
             throw httpStatusError(options, response.status);
         }
 
-        breaker.recordFailure();
+        breaker.recordAttemptFailure();
         telemetry.recordProviderError(options.provider, options.endpoint);
         health.recordProviderFailure(options.provider, {
             httpStatus: response.status,
@@ -313,6 +353,16 @@ export async function sendProviderRequest(
         }
 
         await delay(backoffDelayMs(attempt), options.signal);
+        }
+    } finally {
+        // Every exit hands the reservation back, and the ones that already did
+        // (`recordSuccess`, `openFor`) have cleared the local flag first. What
+        // is left is a request that died without the breaker ever hearing
+        // about it, which is the only way a venue can end up silent for the
+        // life of the process.
+        if (probeHeld) {
+            breaker.releaseProbe();
+        }
     }
 }
 

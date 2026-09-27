@@ -137,11 +137,25 @@ export function recordProviderFailure(
     const record = recordFor(provider);
 
     record.lastFailureAt = Date.now();
-    record.consecutiveFailures += 1;
     record.lastLatencyMs = null;
 
     if (details.httpStatus !== undefined) {
         record.lastHttpStatus = details.httpStatus;
+    }
+
+    // `definitive: false` is this process refusing on purpose — the breaker is
+    // open, so no request was ever made. The venue is not evidence of anything
+    // and must not be counted.
+    //
+    // Leaving this out is worse than it sounds. Every refused request arrives
+    // here, and during a real outage that is every request the application
+    // serves. The streak then grows for the entire outage, so by the time the
+    // cooldown expires and the probe finally succeeds, the record already reads
+    // as a venue with a long history of failure — and the one success that
+    // would clear it is one call against many. The model would then keep a
+    // recovered venue off the roster on the strength of our own policy.
+    if (details.definitive !== false) {
+        record.consecutiveFailures += 1;
     }
 }
 

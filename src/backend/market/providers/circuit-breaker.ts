@@ -77,15 +77,47 @@ export class CircuitBreaker {
         return true;
     }
 
+    /**
+     * Gives up a probe reservation without reporting an outcome.
+     *
+     * Needed for a probe whose caller walked away — a shutdown, a client that
+     * navigated away mid-request. Nothing in the venue's control will ever
+     * release that reservation, and because the state is `probing` for as long
+     * as it is held, every later probe is refused and the venue is never asked
+     * again for the life of the process. A healthy backup, silenced by a
+     * deploy.
+     *
+     * The reservation is a single boolean, so "ownership" is not something
+     * this can check: a caller that was refused may still call this, and would
+     * clear a reservation it does not hold. So it is deliberately *not* safe to
+     * call unless you were told you were admitted — which is why the transport
+     * calls it only on the branch where `tryAcquire` returned true.
+     */
+    releaseProbe(): void {
+        this.#probeInFlight = false;
+    }
+
     recordSuccess(): void {
         this.#consecutiveFailures = 0;
         this.#openUntil = 0;
         this.#probeInFlight = false;
     }
 
-    recordFailure(): void {
+    /**
+     * Records one failed attempt of a request that is still running.
+     *
+     * Separate from `recordFailure` because a request may retry, and the two
+     * things a failure does are not the same thing. Counting and opening are
+     * about the venue; releasing the probe reservation is about *this request
+     * being over*, and it happens on the last attempt only.
+     *
+     * Conflating them reopens the venue between two attempts of the same
+     * request. The probe is sleeping out a backoff, the flag has been cleared,
+     * and the next caller in the burst walks straight in — which is a burst
+     * arriving at a venue that just refused, one request per backoff gap.
+     */
+    recordAttemptFailure(): void {
         this.#consecutiveFailures += 1;
-        this.#probeInFlight = false;
 
         if (
             this.#consecutiveFailures >= this.#failureThreshold &&
@@ -93,6 +125,11 @@ export class CircuitBreaker {
         ) {
             this.#openUntil = this.#now() + this.#cooldownMs;
         }
+    }
+
+    recordFailure(): void {
+        this.recordAttemptFailure();
+        this.#probeInFlight = false;
     }
 
     /**

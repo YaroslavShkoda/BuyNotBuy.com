@@ -452,7 +452,7 @@ describe('BinanceProvider', () => {
             expect(error.code).toBe('MARKET_PROVIDER_ERROR');
         });
 
-        it('throws MarketDataError when Binance returns an HTTP error', async () => {
+        it('throws a typed provider error when Binance returns an HTTP error', async () => {
             const fetchMock = vi.fn().mockResolvedValue({
                 ok: false,
                 status: 503,
