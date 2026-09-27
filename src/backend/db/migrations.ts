@@ -426,6 +426,105 @@ export const MIGRATIONS: readonly Migration[] = [
             WHERE verdict IN ('unknown', 'expired');
         `,
     },
+    {
+        version: 10,
+        name: 'retention_policy',
+        sql: `
+            -- What the system is willing to forget, recorded rather than
+            -- configured in code.
+            --
+            -- A retention rule that lives in a constant cannot be inspected
+            -- from outside, and "how long do we keep this" is a question whose
+            -- answer changes what a person may ask the database. The rows here
+            -- are the rules; the pruner reads them, and a reader can read them
+            -- too.
+            --
+            -- What gets deleted is the evidence every calibration figure was
+            -- computed from. That is not a storage decision, it is deleting the
+            -- measurements, and once the candles behind them are gone there is
+            -- no getting it back.
+            CREATE TABLE IF NOT EXISTS retention_policy (
+                table_name TEXT PRIMARY KEY,
+                keep_days INTEGER NOT NULL CHECK (keep_days > 0),
+                -- Why this number, in the author's words. A retention rule
+                -- without a reason is a number somebody typed once.
+                rationale TEXT NOT NULL,
+                updated_at BIGINT NOT NULL
+            );
+
+            -- What the pruner actually did, and when.
+            CREATE TABLE IF NOT EXISTS retention_run (
+                id BIGSERIAL PRIMARY KEY,
+                table_name TEXT NOT NULL,
+                started_at BIGINT NOT NULL,
+                finished_at BIGINT NOT NULL,
+                cutoff BIGINT NOT NULL,
+                deleted_rows BIGINT NOT NULL,
+                duration_ms BIGINT NOT NULL,
+                -- Rows that could not be deleted and why. Deleting the parent
+                -- of a row somebody still references is not a pruning
+                -- decision, it is data loss, and it is counted rather than
+                -- attempted.
+                skipped BIGINT NOT NULL DEFAULT 0
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_retention_run_table
+                ON retention_run (table_name, finished_at DESC);
+        `,
+    },
+    {
+        version: 11,
+        name: 'index_audit',
+        sql: `
+            -- What each table is actually read for.
+            --
+            -- Declared rather than discovered, and the difference matters. An
+            -- index that exists because a query needed it is evidence; one that
+            -- exists because somebody guessed is a cost with no justification
+            -- attached. A system that hunts for unused indexes on its own will
+            -- eventually drop the one that was never counted as used, because
+            -- production traffic is small and that is not evidence of anything.
+            CREATE TABLE IF NOT EXISTS index_audit (
+                table_name TEXT NOT NULL,
+                index_name TEXT NOT NULL,
+                -- The query shape the index exists for, in words.
+                purpose TEXT NOT NULL,
+                -- Which repository method needs it. A named caller can be
+                -- checked; "something" cannot.
+                required_by TEXT NOT NULL,
+                created_at BIGINT NOT NULL,
+                PRIMARY KEY (table_name, index_name)
+            );
+        `,
+    },
+    {
+        version: 12,
+        name: 'signal_strategy_version',
+        sql: `
+            -- Which rule produced which signal, recorded at the time.
+            --
+            -- Attributing these afterwards from the current configuration
+            -- would be worthless: every signal would be attributed to whatever
+            -- is running now, which is exactly the confusion the table exists
+            -- to prevent. A signal that cannot name the rule that produced it
+            -- cannot be excluded from a calibration when that rule is retired,
+            -- and excluding it later is guesswork.
+            CREATE TABLE IF NOT EXISTS signal_strategy_version (
+                id BIGSERIAL PRIMARY KEY,
+                rule_id TEXT NOT NULL,
+                stage TEXT NOT NULL,
+                parameters JSONB NOT NULL,
+                promoted_at BIGINT NOT NULL,
+                retired_at BIGINT,
+                created_at BIGINT NOT NULL,
+                CHECK (retired_at IS NULL OR retired_at >= promoted_at)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_signal_strategy_version_live
+                ON signal_strategy_version (retired_at)
+                WHERE retired_at IS NULL;
+        `,
+    },
 ];
 
 /** Newest schema version this build knows how to produce. */
