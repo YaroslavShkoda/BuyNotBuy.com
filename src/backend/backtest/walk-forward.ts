@@ -214,7 +214,7 @@ function buildEquityCurve(
  *   skipped rather than stacked, because stacking is leverage nobody sized
  *   and no account has.
  */
-function simulateRange(
+export function simulateRange(
     candles: Candle[],
     points: ReadonlyArray<{
         index: number;
