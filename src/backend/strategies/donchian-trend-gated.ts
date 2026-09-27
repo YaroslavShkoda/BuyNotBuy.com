@@ -10,33 +10,46 @@ import { NEUTRAL_DECISION } from './types.js';
 import type { StrategyContext, StrategyDecision, StrategyModule } from './types.js';
 
 /**
- * The rule the backtest actually chose.
+ * The rule the backtest chose, and then stopped supporting.
  *
- * Two ideas welded together, and it is worth being precise about which of them
- * is carrying the result, because an ablation of this exact rule on the exact
- * same data said the second one is doing almost all of the work:
+ * Two ideas welded together: a twenty-bar breakout says *when to enter*, and a
+ * volatility test says *whether that entry counts*. The version of this comment
+ * written before the bench and the running system were made to share one
+ * implementation of the indicators claimed the rule made 23.96% and that the
+ * gate was carrying it. Both claims were artefacts of measuring the breakout
+ * channel against a level two bars stale, and the corrected numbers are below.
  *
- *   - a twenty-bar breakout says *when to enter*;
- *   - a volatility test says *whether that entry counts*.
+ * **The rule as written loses money.** Over 2018—2026 on daily BTCUSDT with
+ * costs: −13.31%, profit factor 0.965, 127 trades, 10.51% exposure. In the
+ * first half of that sample, −20.86%.
  *
- * Measured over 2018—2026 on daily BTCUSDT with costs: the full rule makes
- * 23.96%, and the volatility test on its own — long whenever the average true
- * range is above its own forty-bar mean, with no breakout at all — makes
- * 1354.60%. The breakout is not a contributor. It cuts exposure from 50% to
- * 13% and gives up most of the return.
+ * **The gate runs backwards.** An ablation with the gate inverted — the same
+ * breakout, entered precisely when the volatility test forbids it — makes
+ * +33.58% where this rule makes −13.31%, and wins in both halves of the sample
+ * too. So whatever the volatility test is doing here, it is not "keep the
+ * breakouts taken while the market is moving". Breakouts in a quiet market are
+ * the ones worth taking, which is a plausible mechanism: a calm drift to a new
+ * high is accumulation, while a high-volatility break is more often a spike
+ * that comes back. That reading is a hypothesis and nothing more — it was
+ * derived by looking at the result, on the data that will be used to test it,
+ * and it is worth exactly nothing until it survives data it has not seen.
  *
- * The breakout is kept anyway, and the reason is not that it helps. It is the
- * only part of the rule that is out of the market during a collapse: the gate
- * alone loses 11.63% in the worst year found by scanning the history, and the
- * full rule is positive in all four slices, while the stripped version is not.
- * Four trades is not evidence, so this is a reason to keep testing it, not a
- * reason to trust it.
+ * **The gate is barely a gate.** Volatility is above its own forty-bar mean in
+ * 47.22% of bars, and the gate passes 53.52% of the 327 breakouts it is
+ * offered. A filter that lets slightly more than half through is a coin flip
+ * with an indicator attached, which is the most likely reason its direction
+ * could flip without anyone noticing.
  *
- * The honest summary of the whole rule is therefore: **be long about half the
- * time, filtered by volatility, with a breakout bolted on that costs two thirds
- * of the return and buys a bear-market behaviour nobody has yet seen often
- * enough to believe.** That sentence is the one to carry to the next held-out
- * period.
+ * **What does survive is the bare breakout.** With the gate removed entirely,
+ * the same twenty-bar rule makes +21.80%, and +27.36% in the second half. It
+ * is the part of this strategy worth keeping, and `donchian.ts` is a module
+ * holding exactly that.
+ *
+ * This module is nevertheless still here, and still the default fallback,
+ * because a user asked for this rule by name and because shipping a losing
+ * candidate in shadow mode is how a candidate is supposed to arrive. It is in
+ * shadow: it is evaluated every cycle and cannot change a published signal.
+ * The number to watch is how often it would have disagreed.
  */
 
 export interface DonchianTrendGatedConfig {

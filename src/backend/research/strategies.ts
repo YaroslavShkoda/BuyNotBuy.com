@@ -10,10 +10,13 @@ import {
     smaSeries,
 } from '../strategies/series.js';
 import { calculateMetrics, benchmarkMetrics } from '../backtest/metrics.js';
+import { createDonchian } from '../strategies/donchian.js';
+import { createDonchianTrendGated } from '../strategies/donchian-trend-gated.js';
 
 import type { ExecutionConfig } from '../backtest/execution.js';
 import type { BacktestMetrics, Trade } from '../backtest/metrics.js';
 import type { Candle } from '../types/market.js';
+import type { StrategyModule } from '../strategies/types.js';
 
 /**
  * Candidate strategies, and the only honest way to compare them.
@@ -79,6 +82,50 @@ const at = (series: readonly number[], index: number): number => series[index] ?
 // The candidates. Each says why it should work before it is run.
 // ---------------------------------------------------------------------------
 
+/**
+ * Runs a production module as a bench candidate.
+ *
+ * The bench used to carry its own copy of every rule — its own `decide` for
+ * donchian, its own for the gated variant — and the copies drifted. They
+ * drifted by exactly one bar, and when the two were made to share one
+ * implementation of the indicator series the drift became visible and
+ * corrected every number the bench had produced: the rule recommended in the
+ * two commits before went from +23.96% to -13.31%. Two copies of a rule is the
+ * ordinary way that a backtest ends up describing a strategy nobody is trading.
+ *
+ * So the bench no longer describes any rule. It calls the same module the
+ * server calls, and the price is paid in speed: the module's contract is
+ * index-free, so a backtest that wants bar `i` has to hand it
+ * `candles.slice(0, i + 1)` and let it recompute. That is quadratic, and for a
+ * research command run a handful of times over a few thousand bars it is a
+ * price worth paying. What it buys is that a number in the bench and a signal
+ * in production cannot be about different rules.
+ *
+ * `label` is separate from `module.name` because the module's name is a
+ * Russian phrase meant for a person, and the bench's tables are keyed on a
+ * stable identifier that a rename must not silently change.
+ */
+export function fromModule(label: string, module: StrategyModule): Strategy {
+    return {
+        name: label,
+        mechanism: module.mechanism,
+        warmup: module.warmup,
+        decide({ candles, index }) {
+            const visible = candles.slice(0, index + 1);
+            const decision = module.evaluate({
+                candles: visible,
+                price: visible[visible.length - 1]!.close,
+            });
+
+            if (decision.direction === 'LONG') {
+                return 1;
+            }
+
+            return decision.direction === 'SHORT' ? -1 : 0;
+        },
+    };
+}
+
 export const CANDIDATE_STRATEGIES: readonly Strategy[] = [
     {
         name: 'buy-and-hold',
@@ -89,32 +136,9 @@ export const CANDIDATE_STRATEGIES: readonly Strategy[] = [
         warmup: 1,
         decide: (context) => (context.index >= 1 ? 1 : 0),
     },
-    {
-        name: 'donchian-20',
-        mechanism:
-            'Trends persist. A 20-bar high is a level that took twenty bars to ' +
-            'set; price clearing it is evidence of demand, and the exit is a ' +
-            '20-bar low, so a winner is held and a loser is cut at the same ' +
-            'distance. Mechanism: long-horizon momentum.',
-        warmup: 20,
-        decide: (context) => {
-            const { candles, index, series } = context;
-            const high = at(series.high20!, index);
-            const low = at(series.low20!, index);
+    // The rule itself lives in strategies/donchian.ts. See fromModule.
+    fromModule('donchian-20', createDonchian()),
 
-            if (!isReady(high, low)) {
-                return 0;
-            }
-
-            // Strictly greater: equal is not a breakout, and counting it as one
-            // doubles the trade count on a flat tape for nothing.
-            if (candles[index]!.close > at(series.high20p1!, index)) {
-                return 1;
-            }
-
-            return candles[index]!.close < at(series.low20p1!, index) ? -1 : 0;
-        },
-    },
     {
         name: 'donchian-55-long-only',
         mechanism:
@@ -216,37 +240,8 @@ export const CANDIDATE_STRATEGIES: readonly Strategy[] = [
             return 0;
         },
     },
-    {
-        name: 'donchian-trend-gated',
-        mechanism:
-            'A breakout only means something when the market is trending. ' +
-            'Gating the 20-bar rule on the average true range being above its ' +
-            'own long average keeps the trades taken when there is room to move ' +
-            'and drops them in the chop where breakouts fail. Mechanism: ' +
-            'momentum, restricted to the conditions it works in.',
-        warmup: 60,
-        decide: (context) => {
-            const { candles, index, series } = context;
-            const atr = at(series.atr!, index);
-            const atrSlow = at(series.atrSlow!, index);
-
-            if (!isReady(atr, atrSlow, at(series.high20p1!, index))) {
-                return 0;
-            }
-
-            const trending = atr > atrSlow;
-
-            if (candles[index]!.close > at(series.high20p1!, index)) {
-                return trending ? 1 : 0;
-            }
-
-            if (candles[index]!.close < at(series.low20p1!, index)) {
-                return trending ? -1 : 0;
-            }
-
-            return 0;
-        },
-    },
+    // And this one in strategies/donchian-trend-gated.ts, for the same reason.
+    fromModule('donchian-trend-gated', createDonchianTrendGated()),
 ];
 
 /**

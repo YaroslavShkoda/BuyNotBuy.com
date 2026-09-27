@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { CANDIDATE_STRATEGIES, runStrategy, buildSeries } from './strategies.js';
+import { CANDIDATE_STRATEGIES, runStrategy, buildSeries, fromModule } from './strategies.js';
+import { createDonchian } from '../strategies/donchian.js';
+import { createDonchianTrendGated } from '../strategies/donchian-trend-gated.js';
 
+import type { StrategyModule } from '../strategies/types.js';
 import type { Candle } from '../types/market.js';
 
 const DAY = 86_400_000;
@@ -124,6 +127,59 @@ describe('a decision cannot see the bar that will produce it', () => {
         // A benchmark that changes down the column is measuring the start date,
         // and cannot be used to compare two rules in it.
         expect(new Set(benchmarks).size).toBe(1);
+    });
+});
+
+describe('the bench and the running system are the same rule', () => {
+    const modules: [string, StrategyModule][] = [
+        ['donchian-20', createDonchian()],
+        ['donchian-trend-gated', createDonchianTrendGated()],
+    ];
+
+    it('agrees with the production module on every bar', () => {
+        // The invariant that would have caught the one-bar channel drift before
+        // it changed a recommendation. The bench used to carry its own copy of
+        // each rule, and the copies were one bar apart — which moved the
+        // recommended strategy from +23.96% to -13.31% when the drift was found
+        // by making both sides share one implementation.
+        const candles = series(300);
+        const indicators = buildSeries(candles);
+
+        for (const [label, module] of modules) {
+            const candidate = CANDIDATE_STRATEGIES.find(
+                (entry) => entry.name === label,
+            )!;
+
+            for (let index = module.warmup; index < candles.length; index += 1) {
+                const visible = candles.slice(0, index + 1);
+                const expected = module.evaluate({
+                    candles: visible,
+                    price: visible[visible.length - 1]!.close,
+                }).direction;
+                const actual = candidate.decide({
+                    candles,
+                    index,
+                    series: indicators,
+                });
+
+                expect(
+                    actual === 1 ? 'LONG' : actual === -1 ? 'SHORT' : 'NEUTRAL',
+                    `${label} at bar ${index}`,
+                ).toBe(expected);
+            }
+        }
+    });
+
+    it('runs the module rather than restating it', () => {
+        // A structural check rather than a behavioural one, because the failure
+        // it guards against is reintroducing a hand-written copy. A candidate
+        // built by the adapter has to be indistinguishable from the module it
+        // wraps, down to the mechanism it publishes.
+        const module = createDonchian();
+        const adapted = fromModule('donchian-20', module);
+
+        expect(adapted.mechanism).toBe(module.mechanism);
+        expect(adapted.warmup).toBe(module.warmup);
     });
 });
 

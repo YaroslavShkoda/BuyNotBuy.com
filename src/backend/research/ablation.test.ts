@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildSeries, CANDIDATE_STRATEGIES, runStrategy } from './strategies.js';
+import { buildSeries, CANDIDATE_STRATEGIES, runStrategy, fromModule } from './strategies.js';
+import { createDonchianTrendGated } from '../strategies/donchian-trend-gated.js';
 
 import type { Decision, Strategy } from './strategies.js';
 import type { Candle } from '../types/market.js';
@@ -163,15 +164,27 @@ describe('what the chosen rule is actually made of', () => {
 });
 
 describe('the recommended rule is the one this project ships', () => {
-    it('matches the candidate that was chosen', () => {
+    it('matches the module the server actually runs', () => {
+        // The ablation variants are local reimplementations, written to take
+        // the rule apart. They exist to disagree with each other, not to stand
+        // in for production — and this is what stops that from becoming a
+        // silent second copy of the rule.
+        //
+        // Warmup is taken from each side rather than hardcoded, because the
+        // number that made this pass by accident was a literal 60 in the test
+        // against the module's own 55.
         const chosen = CANDIDATE_STRATEGIES.find(
             (candidate) => candidate.name === 'donchian-trend-gated',
         )!;
+        const module = createDonchianTrendGated();
         const candles = series(900);
 
-        expect(chosen.warmup).toBe(GATED.warmup);
-        expect(runStrategy(chosen, candles).metrics.trades).toBe(
-            runStrategy(GATED, candles).metrics.trades,
-        );
+        expect(chosen.mechanism).toBe(module.mechanism);
+
+        // Re-adapting the real module and running it must reproduce the bench
+        // candidate exactly, because that is now the only way the bench obtains
+        // a rule that has a module.
+        expect(runStrategy(fromModule('donchian-trend-gated', module), candles)
+            .metrics.trades).toBe(runStrategy(chosen, candles).metrics.trades);
     });
 });
