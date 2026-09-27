@@ -1,6 +1,6 @@
 import { consensusConfig } from '../config/consensus.config.js';
 
-import type { IndicatorAnalysis, SignalResult } from './signal.types.js';
+import type { IndicatorAnalysis, IndicatorSignal, SignalResult } from './signal.types.js';
 import type {
     ConfidenceModel,
     ConsensusConfig,
@@ -94,7 +94,71 @@ function confidenceOf(
     }
 }
 
-function joinRussian(names: string[]): string {
+/**
+ * The panel, split by what each indicator did relative to the verdict.
+ *
+ * This is the structure the published reason and the published explanation are
+ * both generated from, which is what makes them incapable of disagreeing: there
+ * is one partition, and two renderings of it.
+ */
+export interface SignalPanel {
+    readonly supporting: readonly IndicatorAnalysis[];
+    readonly opposing: readonly IndicatorAnalysis[];
+    readonly abstaining: readonly IndicatorAnalysis[];
+}
+
+export function partitionPanel(
+    analyses: readonly IndicatorAnalysis[],
+    direction: IndicatorSignal,
+): SignalPanel {
+    return {
+        supporting:
+            direction === 'NEUTRAL'
+                ? []
+                : analyses.filter((analysis) => analysis.signal === direction),
+        opposing:
+            direction === 'NEUTRAL'
+                ? []
+                : analyses.filter(
+                      (analysis) =>
+                          analysis.signal !== direction &&
+                          analysis.signal !== 'NEUTRAL',
+                  ),
+        abstaining: analyses.filter(
+            (analysis) => analysis.signal === 'NEUTRAL',
+        ),
+    };
+}
+
+/**
+ * The Russian sentence the dashboard shows.
+ *
+ * Generated from the panel rather than assembled next to it. Two strings
+ * describing the same verdict, built in two places, disagree the first time
+ * either is edited — and the disagreement would be between the sentence a
+ * person reads and the arithmetic behind it, which is the one thing that must
+ * never differ.
+ */
+export function describeSignal(
+    panel: SignalPanel,
+    direction: IndicatorSignal,
+    reason: string,
+): string {
+    if (direction === 'NEUTRAL' || panel.supporting.length === 0) {
+        return reason;
+    }
+
+    const names = panel.supporting.map((analysis) => analysis.name);
+    const verb = names.length === 1 ? 'подтверждает' : 'подтверждают';
+    const only =
+        panel.abstaining.length > 0 && panel.opposing.length === 0
+            ? 'Только '
+            : '';
+
+    return `${only}${joinRussian(names)} ${verb} ${direction}`;
+}
+
+function joinRussian(names: readonly string[]): string {
     if (names.length === 0) {
         return '';
     }
@@ -142,9 +206,6 @@ export function calculateConsensus(
 ): Omit<SignalResult, 'indicators'> {
     const long = tally(analyses, 'LONG', config.weightModel);
     const short = tally(analyses, 'SHORT', config.weightModel);
-    const neutralCount = analyses.filter(
-        (analysis) => analysis.signal === 'NEUTRAL',
-    ).length;
 
     // An abstaining indicator is excluded from the trial count rather than
     // counted as a vote against: NEUTRAL means "no opinion", and letting a
@@ -162,9 +223,8 @@ export function calculateConsensus(
     const winningSignal = long.count > short.count ? 'LONG' : 'SHORT';
     const winning = winningSignal === 'LONG' ? long : short;
     const losing = winningSignal === 'LONG' ? short : long;
-    const winningNames = analyses
-        .filter((analysis) => analysis.signal === winningSignal)
-        .map((analysis) => analysis.name);
+    const panel = partitionPanel(analyses, winningSignal);
+    const winningNames = panel.supporting.map((analysis) => analysis.name);
 
     // A single indicator is an opinion, not a consensus.
     if (winning.count < config.minimumAgreeing) {
@@ -193,8 +253,10 @@ export function calculateConsensus(
         };
     }
 
-    const verb = winning.count === 1 ? 'подтверждает' : 'подтверждают';
-    const only = neutralCount > 0 && losing.count === 0 ? 'Только ' : '';
+    // The fallback for the floors: "barely confirms", "no majority". Those
+    // describe a verdict that was not published rather than a panel that did,
+    // and the published path renders its sentence from the panel instead.
+    const floorReason = `${joinRussian(winningNames)} едва подтверждают ${winningSignal}`;
 
     return {
         signal: winningSignal,
@@ -204,6 +266,6 @@ export function calculateConsensus(
             meanConviction,
             config.confidenceModel,
         ),
-        reason: `${only}${joinRussian(winningNames)} ${verb} ${winningSignal}`,
+        reason: describeSignal(panel, winningSignal, floorReason),
     };
 }
