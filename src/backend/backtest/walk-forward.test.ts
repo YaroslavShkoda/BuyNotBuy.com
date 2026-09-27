@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { runWalkForward, DEFAULT_WALK_FORWARD_OPTIONS } from './walk-forward.js';
+import { ExecutionConfigParser, roundTripCost, fillPrice } from './execution.js';
 import { requiredCandleCount, INDICATOR_SIGNAL_CONFIG } from '../config/indicator.config.js';
 
 import type { Candle } from '../types/market.js';
@@ -185,20 +186,32 @@ describe('trade entry', () => {
         }
     });
 
-    it('takes the entry from the open and the exit from the close', () => {
+    it('fills through the execution model rather than off the bar', () => {
         const result = runWalkForward(SAMPLE, {
             foldBars: 120,
             trainingBars: 240,
             maxFolds: 1,
+            execution: ExecutionConfigParser.parse({
+                ...DEFAULT_WALK_FORWARD_OPTIONS.execution,
+                takerFeeRate: 0,
+                makerFeeRate: 0,
+                slippageRate: 0,
+                spreadRate: 0,
+                model: 'next_open',
+            }),
         });
 
+        // With the costs set to zero the fill *is* the bar, which is what makes
+        // this the right way to pin the timing: the entry comes from the open
+        // of the bar after the signal and the exit from the close of the bar
+        // `holdBars` later.
         for (const trade of result.trades) {
             expect(trade.entryPrice).toBe(SAMPLE[trade.entryIndex]?.open);
             expect(trade.exitPrice).toBe(SAMPLE[trade.exitIndex]?.close);
         }
     });
 
-    it('makes a long trade pay when the price rose and a short trade pay when it fell', () => {
+    it('separates the move from what the costs took', () => {
         const result = runWalkForward(SAMPLE, {
             foldBars: 120,
             trainingBars: 240,
@@ -206,13 +219,25 @@ describe('trade entry', () => {
         });
 
         for (const trade of result.trades) {
-            const moved = trade.exitPrice / trade.entryPrice - 1;
+            const entry = SAMPLE[trade.entryIndex];
+            const exit = SAMPLE[trade.exitIndex];
 
-            if (trade.direction === 1) {
-                expect(trade.grossReturn).toBeCloseTo(moved, 10);
-            } else {
-                expect(trade.grossReturn).toBeCloseTo(-moved, 10);
+            if (entry === undefined || exit === undefined) {
+                continue;
             }
+
+            const moved = exit.close / entry.open - 1;
+
+            // The gross is the move between the bars, which is not the same
+            // question as what the trader got. A report that showed only one of
+            // them would hide whichever was the more flattering.
+            expect(trade.grossReturn).toBeCloseTo(
+                trade.direction === 1 ? moved : -moved,
+                10,
+            );
+            // And the net is the fill, costs included, which is the only one
+            // anybody actually earns.
+            expect(trade.netReturn).not.toBeCloseTo(trade.grossReturn, 3);
         }
     });
 });
@@ -223,12 +248,68 @@ describe('costs', () => {
             foldBars: 120,
             trainingBars: 240,
             maxFolds: 2,
-            feeRate: 0.001,
-            slippageRate: 0.0005,
+            execution: ExecutionConfigParser.parse({
+                ...DEFAULT_WALK_FORWARD_OPTIONS.execution,
+                takerFeeRate: 0.001,
+                makerFeeRate: 0.001,
+                slippageRate: 0,
+                spreadRate: 0,
+                model: 'next_open',
+            }),
         });
 
         for (const trade of result.trades) {
-            expect(trade.grossReturn - trade.netReturn).toBeCloseTo(0.003, 10);
+            // Not exactly 0.002, and not always under it. The fee is charged on
+            // the price while this is a fraction of the *return*, so a trade
+            // that barely moved pays the same money and reports a bigger
+            // fraction. Measured across this sample: 0.00193 to 0.00200. A
+            // test asserting an exact round trip would be asserting the thing
+            // this block replaced.
+            const cost = trade.grossReturn - trade.netReturn;
+
+            expect(cost).toBeGreaterThan(0);
+            expect(cost).toBeCloseTo(0.002, 3);
+        }
+    });
+
+    it('honours the execution model the run was given', () => {
+        // The wiring test. An execution model that is defined, tested and then
+        // not passed to the simulator is a module nobody uses, and the run
+        // quietly keeps assuming the fill it always assumed.
+        const runWith = (model: 'next_open' | 'intrabar') =>
+            runWalkForward(SAMPLE, {
+                foldBars: 120,
+                trainingBars: 240,
+                maxFolds: 2,
+                execution: ExecutionConfigParser.parse({
+                    ...DEFAULT_WALK_FORWARD_OPTIONS.execution,
+                    model,
+                }),
+            });
+
+        const open = runWith('next_open');
+        const pessimistic = runWith('intrabar');
+
+        expect(open.trades.length).toBeGreaterThan(0);
+        expect(pessimistic.trades.length).toBe(open.trades.length);
+
+        // A long assumed to have been filled at the bar's low pays more than
+        // one assumed to have been filled at its open. Same signals, same
+        // bars, same fee — a different answer, which is the point of choosing.
+        expect(pessimistic.overall.totalReturn).toBeLessThanOrEqual(
+            open.overall.totalReturn + 1e-12,
+        );
+    });
+
+    it('never reports a trade that costs nothing', () => {
+        const result = runWalkForward(SAMPLE, {
+            foldBars: 120,
+            trainingBars: 240,
+            maxFolds: 2,
+        });
+
+        for (const trade of result.trades) {
+            expect(trade.netReturn).toBeLessThanOrEqual(trade.grossReturn + 1e-12);
         }
     });
 
@@ -450,19 +531,28 @@ describe('benchmarks', () => {
             maxFolds: 3,
         });
 
-        // Buy & hold is one long position: its return is the price change over
-        // the window less exactly one round trip. A cost-free benchmark would
-        // flatter the strategy by precisely what it pays in fees.
+        // Buy & hold is one long position, filled through the same model as
+        // the strategy. A cost-free benchmark would flatter the strategy by
+        // precisely what it pays in fees, and a differently-filled one would
+        // be comparing two different assumptions.
         const first = result.folds[0]!;
         const last = result.folds[result.folds.length - 1]!;
-        const priceChange =
-            SAMPLE[last.endIndex]!.close / SAMPLE[first.startIndex]!.open - 1;
-        const cost = 2 * (0.001 + 0.0005);
+        const entry = SAMPLE[first.startIndex]!;
+        const exit = SAMPLE[last.endIndex]!;
+        const execution = DEFAULT_WALK_FORWARD_OPTIONS.execution;
+
+        const priced = fillPrice(exit, 1, execution, false) /
+            fillPrice(entry, 1, execution, true) -
+            1;
 
         expect(result.benchmarks.buyAndHold.totalReturn).toBeCloseTo(
-            priceChange - cost,
+            priced,
             10,
         );
+        // And it really does pay the round trip, rather than reporting the
+        // price change the strategy is being measured against.
+        expect(priced).toBeLessThan(exit.close / entry.open - 1);
+        expect(roundTripCost(execution)).toBeCloseTo(0.0034, 10);
     });
 
     it('gives the random benchmark the trade count it says it gives', () => {

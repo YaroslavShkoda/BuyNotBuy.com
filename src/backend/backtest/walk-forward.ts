@@ -1,5 +1,6 @@
 import { benchmarkMetrics, calculateMetrics } from './metrics.js';
 import { computeSignalSeries, reapplyThresholds } from './point-in-time.js';
+import { EXECUTION_CONFIG, fillPrice, roundTripCost } from './execution.js';
 
 import {
     INDICATOR_SIGNAL_CONFIG,
@@ -7,6 +8,7 @@ import {
     requiredCandleCount,
 } from '../config/indicator.config.js';
 
+import type { ExecutionConfig } from './execution.js';
 import type { Candle } from '../types/market.js';
 import type { BacktestMetrics, BenchmarkMetrics, Trade } from './metrics.js';
 import type { IndicatorSignalOverrides } from '../config/indicator.config.js';
@@ -18,10 +20,16 @@ export interface WalkForwardOptions {
      * actually recommends.
      */
     holdBars: number;
-    /** Taker fee per side, as a fraction: 0.001 is 0.1%. */
-    feeRate: number;
-    /** Slippage per side, as a fraction. */
-    slippageRate: number;
+    /**
+     * Costs and fill assumptions.
+     *
+     * A single object rather than three scalars because a rate on its own is
+     * not a cost model: `feeRate` and `slippageRate` are still here, they are
+     * simply the one-figure shorthand for the default `ExecutionConfig`, and
+     * a backtest that reports them without saying which fill it assumed has
+     * quietly answered a question nobody asked it.
+     */
+    execution: ExecutionConfig;
     /** Length of each evaluation window. */
     foldBars: number;
     /** Length of the window that precedes it and is used for fitting. */
@@ -87,10 +95,11 @@ export interface WalkForwardResult {
 
 export const DEFAULT_WALK_FORWARD_OPTIONS: WalkForwardOptions = {
     holdBars: 1,
-    // Binance taker fee is 0.1% per side, so a round trip costs 0.2% before
-    // slippage. Leaving it out would flatter every metric here.
-    feeRate: 0.001,
-    slippageRate: 0.0005,
+    // The pessimistic fill and the full taker fee, both of which are the point
+    // of living in `execution.ts`. A backtest that assumed a maker discount it
+    // did not get, or that assumed the good intrabar order, would report a
+    // strategy that does not work as one that does.
+    execution: EXECUTION_CONFIG,
     foldBars: 120,
     trainingBars: 240,
     maxFolds: 10,
@@ -98,8 +107,8 @@ export const DEFAULT_WALK_FORWARD_OPTIONS: WalkForwardOptions = {
     barsPerYear: 365 * 24,
 };
 
-function roundTripCost(options: WalkForwardOptions): number {
-    return 2 * (options.feeRate + options.slippageRate);
+function roundTripCostFor(options: WalkForwardOptions): number {
+    return roundTripCost(options.execution);
 }
 
 type SignalMix = { long: number; short: number; neutral: number };
@@ -201,7 +210,7 @@ function simulateRange(
 ): SimulatedRange {
     const trades: Trade[] = [];
     const mix: SignalMix = { long: 0, short: 0, neutral: 0 };
-    const cost = roundTripCost(options);
+    const cost = roundTripCostFor(options);
     const lastEntryIndex = endIndex - 1 - options.holdBars;
 
     // Bar at which the current position closes; -1 while flat.
@@ -253,9 +262,32 @@ function simulateRange(
             continue;
         }
 
-        const entryPrice = entryCandle.open;
-        const exitPrice = exitCandle.close;
-        const grossReturn = direction * (exitPrice / entryPrice - 1);
+        // Filled through the execution model rather than read off the bar.
+        // Every price a trade is booked at is a price somebody has to be
+        // assumed able to get, and the model is where that assumption is
+        // written down. Reading `open` and `close` here would leave the module
+        // defined, tested and unused, which is worse than not having it: the
+        // report would name a fill it never applied.
+        const entryPrice = fillPrice(
+            entryCandle,
+            direction,
+            options.execution,
+            true,
+        );
+        const exitPrice = fillPrice(
+            exitCandle,
+            direction,
+            options.execution,
+            false,
+        );
+
+        // Gross is the move with nothing paid for anything, kept beside the
+        // net so a report can say what the costs took rather than only what
+        // survived them. A strategy whose edge is smaller than its fees has a
+        // positive gross and a negative net, and that pair is the finding.
+        const grossReturn =
+            direction * (exitCandle.close / entryCandle.open - 1);
+        const netReturn = direction * (exitPrice / entryPrice - 1);
 
         trades.push({
             entryIndex: index + 1,
@@ -263,7 +295,7 @@ function simulateRange(
             direction,
             entryPrice,
             exitPrice,
-            netReturn: grossReturn - cost,
+            netReturn,
             grossReturn,
         });
 
@@ -379,6 +411,7 @@ function buyAndHoldBenchmark(
     endBar: number,
     cost: number,
     samplesPerYear: number,
+    execution: ExecutionConfig,
 ): BenchmarkMetrics {
     const entry = candles[startBar];
     const exit = candles[endBar];
@@ -395,13 +428,19 @@ function buyAndHoldBenchmark(
 
     const grossReturn = exit.close / entry.open - 1;
 
+    // Priced through the same model as the strategy, or the benchmark is
+    // holding to an assumption the strategy is not.
+    const entryPrice = fillPrice(entry, 1, execution, true);
+    const exitPrice = fillPrice(exit, 1, execution, false);
+    const netReturn = exitPrice / entryPrice - 1;
+
     const trade: Trade = {
         entryIndex: startBar,
         exitIndex: endBar,
         direction: 1,
-        entryPrice: entry.open,
-        exitPrice: exit.close,
-        netReturn: grossReturn - cost,
+        entryPrice,
+        exitPrice,
+        netReturn,
         grossReturn,
     };
 
@@ -430,6 +469,7 @@ function randomEntryBenchmark(
     tradeCount: number,
     holdBars: number,
     samplesPerYear: number,
+    execution: ExecutionConfig,
 ): BenchmarkMetrics {
     const TRIALS = 200;
     const random = seededRandom(0x5eed);
@@ -471,13 +511,30 @@ function randomEntryBenchmark(
             const grossReturn =
                 direction * (exitCandle.close / entryCandle.open - 1);
 
+            // The same fills the strategy got. A random benchmark paying a
+            // different cost from the strategy it is meant to bound is not a
+            // benchmark, it is a second opinion with a bias.
+            const entryPrice = fillPrice(
+                entryCandle,
+                direction,
+                execution,
+                true,
+            );
+            const exitPrice = fillPrice(
+                exitCandle,
+                direction,
+                execution,
+                false,
+            );
+            const netReturn = direction * (exitPrice / entryPrice - 1);
+
             trades.push({
                 entryIndex: index + 1,
                 exitIndex: index + 1 + holdBars,
                 direction,
-                entryPrice: entryCandle.open,
-                exitPrice: exitCandle.close,
-                netReturn: grossReturn - cost,
+                entryPrice,
+                exitPrice,
+                netReturn,
                 grossReturn,
             });
 
@@ -619,7 +676,7 @@ export function runWalkForward(
     allTrades.sort(byEntryIndex);
     baselineTrades.sort(byEntryIndex);
 
-    const cost = roundTripCost(resolved);
+    const cost = roundTripCostFor(resolved);
     const overallEquity = buildEquityCurve(
         candles,
         allTrades,
@@ -642,6 +699,7 @@ export function runWalkForward(
             evaluatedEnd,
             cost,
             resolved.barsPerYear,
+            resolved.execution,
         ),
         randomEntry: randomEntryBenchmark(
             candles,
@@ -651,6 +709,7 @@ export function runWalkForward(
             allTrades.length,
             resolved.holdBars,
             resolved.barsPerYear,
+            resolved.execution,
         ),
     };
 

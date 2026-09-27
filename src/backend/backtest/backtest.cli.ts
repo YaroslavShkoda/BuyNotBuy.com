@@ -15,9 +15,25 @@
  *   BACKTEST_FEE_RATE=0 BACKTEST_SLIPPAGE_RATE=0 npm run backtest
  */
 import { runBacktest } from './backtest.service.js';
+import { DEFAULT_WALK_FORWARD_OPTIONS } from './walk-forward.js';
+import { ExecutionConfigParser } from './execution.js';
 
+import type { ExecutionConfig } from './execution.js';
 import type { BacktestReport } from './backtest.service.js';
 import type { WalkForwardOptions } from './walk-forward.js';
+
+/**
+ * The three fills, named in the output.
+ *
+ * Printed because a cost figure with no fill assumption beside it is half a
+ * claim: "0.17% per side" is a different statement with `intrabar` behind it
+ * than with `next_open`, and only one of the two is what the run assumed.
+ */
+const EXECUTION_MODEL_LABELS: Record<ExecutionConfig['model'], string> = {
+    next_open: 'исполнение по открытию следующей свечи',
+    next_close: 'исполнение по закрытию следующей свечи',
+    intrabar: 'исполнение по худшему краю бара (пессимистично)',
+};
 
 function numericEnv(name: string): number | undefined {
     const raw = process.env[name];
@@ -41,12 +57,26 @@ function overridesFromEnv(): Partial<WalkForwardOptions> {
     const trainingBars = numericEnv('BACKTEST_TRAINING_BARS');
     const maxFolds = numericEnv('BACKTEST_MAX_FOLDS');
 
-    if (feeRate !== undefined) {
-        overrides.feeRate = feeRate;
-    }
-
-    if (slippageRate !== undefined) {
-        overrides.slippageRate = slippageRate;
+    // The two legacy settings are folded into the execution model rather than
+    // replaced by it, so an operator who has been overriding a fee for a year
+    // keeps overriding it — and gets the fill assumption stated at the same
+    // time, which the two scalars could never do on their own.
+    if (feeRate !== undefined || slippageRate !== undefined) {
+        overrides.execution = ExecutionConfigParser.parse({
+            ...DEFAULT_WALK_FORWARD_OPTIONS.execution,
+            ...(feeRate === undefined
+                ? {}
+                : {
+                      takerFeeRate: feeRate,
+                      makerFeeRate: Math.min(
+                          DEFAULT_WALK_FORWARD_OPTIONS.execution.makerFeeRate,
+                          feeRate,
+                      ),
+                  }),
+            ...(slippageRate === undefined
+                ? {}
+                : { slippageRate }),
+        });
     }
 
     if (holdBars !== undefined) {
@@ -107,11 +137,22 @@ function describe(report: BacktestReport): string {
         );
     }
 
+    const execution = report.options.execution;
+    const fee =
+        execution.liquidity === 'maker'
+            ? execution.makerFeeRate
+            : execution.takerFeeRate;
+
     lines.push(
-        `Удержание позиции: ${report.options.holdBars} свеч, издержки ${number(
-            report.options.feeRate * 10_000,
+        `Удержание позиции: ${report.options.holdBars} свеч. Исполнение: ${
+            EXECUTION_MODEL_LABELS[execution.model]
+        }, ${execution.liquidity === 'maker' ? 'maker' : 'taker'}.`,
+    );
+    lines.push(
+        `Издержки за сторону: ${number(fee * 10_000, 1)} бп комиссия + ${number(
+            execution.spreadRate * 10_000,
             1,
-        )} бп + ${number(report.options.slippageRate * 10_000, 1)} бп проскальзывание за сторону`,
+        )} бп спред + ${number(execution.slippageRate * 10_000, 1)} бп проскальзывание`,
     );
     lines.push(
         `Окно проверки: ${report.options.foldBars} свечей, обучение ${report.options.trainingBars}, подбор порогов ${
