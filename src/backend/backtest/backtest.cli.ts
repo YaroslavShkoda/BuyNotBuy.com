@@ -19,6 +19,7 @@ import { DEFAULT_WALK_FORWARD_OPTIONS } from './walk-forward.js';
 import { ExecutionConfigParser } from './execution.js';
 
 import type { ExecutionConfig } from './execution.js';
+import { checkReplayable } from './experiment.js';
 import type { BacktestReport } from './backtest.service.js';
 import type { WalkForwardOptions } from './walk-forward.js';
 
@@ -257,10 +258,65 @@ function describe(report: BacktestReport): string {
     return lines.join('\n');
 }
 
+/**
+ * What this number was measured on, printed under it.
+ *
+ * A backtest figure on its own is a claim with nothing to check it against.
+ * The dataset's checksum, the execution assumptions and the commit are what
+ * make it falsifiable, and a run whose folds failed validation says so here
+ * rather than in a report nobody reads.
+ */
+function describeProvenance(report: BacktestReport): string {
+    const lines: string[] = ['', 'Происхождение результата'];
+
+    const checksum = report.manifest.dataset.checksum;
+
+    lines.push(
+        `  Данные:     ${report.manifest.dataset.symbol} ${report.manifest.dataset.interval} ` +
+            `(${report.manifest.dataset.provider}), ${report.manifest.dataset.bars} баров ` +
+            `с ${new Date(report.manifest.dataset.from).toISOString().slice(0, 10)}`,
+    );
+    lines.push(`  Контрольная сумма: ${checksum.slice(0, 16)}…`);
+
+    const execution = report.manifest.execution;
+
+    lines.push(
+        `  Исполнение: ${execution.model}, ${execution.liquidity}, ` +
+            `комиссия ${execution.takerFeeRate}, проскальзывание ${execution.slippageRate}, спред ${execution.spreadRate}`,
+    );
+
+    if (report.manifest.commit !== null) {
+        lines.push(`  Код:        ${report.manifest.commit.slice(0, 7)}`);
+    }
+
+    const rejected = report.manifest.folds.filter(
+        (fold) => !fold.validationAccepted,
+    );
+
+    if (rejected.length > 0) {
+        lines.push(
+            `  Валидация:  ${rejected.length} из ${report.manifest.folds.length} складок отвергнуты ` +
+                `(номера: ${rejected.map((fold) => fold.fold).join(', ')})`,
+        );
+    }
+
+    const readiness = checkReplayable(report.manifest, report.manifest.commit);
+
+    if (!readiness.replayable) {
+        lines.push('  Повторяемость: НЕТ');
+        for (const problem of readiness.problems) {
+            lines.push(`    - ${problem}`);
+        }
+    }
+
+    return lines.join('\n');
+}
+
 async function main(): Promise<void> {
     const report = await runBacktest(overridesFromEnv());
 
     console.log(describe(report));
+    console.log(describeProvenance(report));
 }
 
 main().catch((error: unknown) => {

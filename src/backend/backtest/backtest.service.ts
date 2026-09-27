@@ -5,8 +5,20 @@ import { INDICATOR_SIGNAL_CONFIG, requiredCandleCount } from '../config/indicato
 import { assertCandleSeries } from '../market/candle-validation.js';
 
 import { runWalkForward, DEFAULT_WALK_FORWARD_OPTIONS } from './walk-forward.js';
+import { manifestFor } from './manifest.js';
 
 import type { WalkForwardOptions, WalkForwardResult } from './walk-forward.js';
+import type { ExperimentManifest } from './experiment.js';
+
+/**
+ * Which code produced the run, when there is any.
+ *
+ * Read from the environment rather than by shelling out to git: a backtest
+ * should not depend on a VCS being present, and a packaged deployment has
+ * none. Absent, the manifest records null and says so, which is honest — the
+ * alternative is a fabricated hash.
+ */
+const BACKTEST_COMMIT = process.env['BACKTEST_COMMIT'] ?? null;
 
 export interface BacktestReport extends WalkForwardResult {
     symbol: string;
@@ -27,6 +39,14 @@ export interface BacktestReport extends WalkForwardResult {
         shortThreshold: number;
     };
     options: WalkForwardOptions;
+    /**
+     * Everything needed to repeat this exact run.
+     *
+     * Built from the result object rather than from the inputs, so what is
+     * stored is what was produced. A number on its own is a claim with nothing
+     * to check it against; this is what makes it falsifiable.
+     */
+    manifest: ExperimentManifest;
 }
 
 function requiredCandles(options: WalkForwardOptions): number {
@@ -85,5 +105,33 @@ export async function runBacktest(
             shortThreshold: INDICATOR_SIGNAL_CONFIG.stochastic.shortThreshold,
         },
         options: resolved,
+        manifest: manifestFor(
+            result,
+            candles,
+            resolved,
+            {
+                id: `${marketConfig.symbol}-${marketConfig.candleInterval}-${candles.length}`,
+                name: `${marketConfig.symbol} ${marketConfig.candleInterval}`,
+                // From the first bar's own timestamp rather than the clock, so
+                // a run repeated on the same data produces the same manifest
+                // and a diff between them shows a real change instead of the
+                // time of day it was run.
+                recordedAt: candles[0]?.timestamp ?? 0,
+                // A working tree has no commit, and refusing to record that
+                // would mean the least trustworthy runs — the ones being
+                // developed — are the ones that get no manifest at all.
+                commit: BACKTEST_COMMIT,
+            },
+            {
+                name: `${marketConfig.symbol}-${marketConfig.candleInterval}`,
+                symbol: marketConfig.symbol,
+                provider: marketConfig.provider,
+                interval: marketConfig.candleInterval,
+            },
+            {
+                longThreshold: INDICATOR_SIGNAL_CONFIG.stochastic.longThreshold,
+                shortThreshold: INDICATOR_SIGNAL_CONFIG.stochastic.shortThreshold,
+            },
+        ),
     };
 }
