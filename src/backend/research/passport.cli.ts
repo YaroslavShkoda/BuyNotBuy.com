@@ -31,7 +31,7 @@ import type { StrategyModule } from '../strategies/types.js';
  */
 
 const CSV = fileURLToPath(
-    new URL('../backtest/fixtures/btcusdt-1d.csv', import.meta.url),
+    new URL('../backtest/fixtures/btcusdt-1d-binance.csv', import.meta.url),
 );
 
 function loadDaily(): Candle[] {

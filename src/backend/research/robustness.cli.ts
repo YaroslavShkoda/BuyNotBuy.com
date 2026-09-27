@@ -27,7 +27,7 @@ import type { ExecutionConfig } from '../backtest/execution.js';
  */
 
 const CSV = fileURLToPath(
-    new URL('../backtest/fixtures/btcusdt-1d.csv', import.meta.url),
+    new URL('../backtest/fixtures/btcusdt-1d-binance.csv', import.meta.url),
 );
 
 function loadDaily(): Candle[] {
@@ -60,6 +60,11 @@ console.log(
 );
 console.log(
     'разваливаются, то 20 — это результат перебора, а не свойство рынка.\n',
+);
+console.log(
+    'Binance BTCUSDT, 2096 дневных баров с 2021-01-01. На старой фикстуре ' +
+        'Yahoo поверх\nбыл плато с 20 у края; здесь он острый пик — а это ' +
+        'заметно хуже.\n',
 );
 
 const periods = [14, 16, 18, 20, 22, 24, 28, 35, 55];

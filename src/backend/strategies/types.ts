@@ -31,7 +31,8 @@ export type StrategyKey =
     | 'consensus-primary'
     | 'donchian-20'
     | 'donchian-trend-gated'
-    | 'donchian-calm-gated';
+    | 'donchian-calm-gated'
+    | 'volatility-trend';
 
 export interface StrategyContext {
     /**

@@ -4,6 +4,7 @@ import { createConsensusPrimary } from './consensus-primary.js';
 import { createDonchian } from './donchian.js';
 import { createDonchianTrendGated } from './donchian-trend-gated.js';
 import { createDonchianCalmGated } from './donchian-calm-gated.js';
+import { createVolatilityTrend } from './volatility-trend.js';
 import {
     DONCHIAN_TREND_GATED_CONFIG,
 } from './donchian-trend-gated.js';
@@ -131,6 +132,12 @@ export const STRATEGY_FACTORIES: Readonly<
     // and the walk-forward likes most, which is exactly why it must not be
     // installed by having someone read a table and act on it.
     'donchian-calm-gated': () => createDonchianCalmGated(),
+    // The strongest thing measured anywhere in this project, and the least
+    // trustworthy: it was found by taking a rule apart, so it is exactly the
+    // shape of finding that is usually noise. Registered so it can be pointed
+    // at, not chosen. Installing it would be reading a table and acting on it,
+    // which is the mistake this project has already made twice.
+    'volatility-trend': () => createVolatilityTrend(),
 };
 
 export interface RegistryOptions {

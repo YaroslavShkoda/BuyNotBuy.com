@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { CANDIDATE_STRATEGIES, fromModule } from './strategies.js';
 import { createDonchian } from '../strategies/donchian.js';
 import { createDonchianCalmGated } from '../strategies/donchian-calm-gated.js';
+import { createVolatilityTrend } from '../strategies/volatility-trend.js';
 import { walkForwardStrategy } from './strategy-walk-forward.js';
 import { holdoutStatus, registerForEvaluation, HOLDOUT_COMMITTED_AT } from './holdout.js';
 import { createStrategyRuleRepository } from '../strategies/candidate.repository.js';
@@ -23,7 +24,7 @@ import type { Strategy } from './strategies.js';
  */
 
 const CSV = fileURLToPath(
-    new URL('../backtest/fixtures/btcusdt-1d.csv', import.meta.url),
+    new URL('../backtest/fixtures/btcusdt-1d-binance.csv', import.meta.url),
 );
 
 function loadDaily(): Candle[] {
@@ -54,12 +55,14 @@ const benchCandidates: Strategy[] = [
     fromModule('donchian-18', createDonchian({ channelPeriod: 18 })),
     fromModule('donchian-22', createDonchian({ channelPeriod: 22 })),
     fromModule('donchian-calm-gated', createDonchianCalmGated()),
+    fromModule('volatility-trend', createVolatilityTrend()),
 ];
 
 console.log('='.repeat(110));
 console.log(
-    `WALK-FORWARD — ${FOLD_BARS} баров на складку, 2018—2026, с издержками. ` +
-    'Правила без подгоняемых параметров, поэтому это чистый out-of-sample.',
+    `WALK-FORWARD — ${FOLD_BARS} баров на складку, Binance BTCUSDT с 2021-01-01, ` +
+    'с издержками. Правила без подгоняемых параметров, поэтому это чистый ' +
+    'out-of-sample.',
 );
 console.log('='.repeat(110));
 
@@ -125,8 +128,18 @@ const registered = [
     registerForEvaluation(
         'donchian-calm-gated',
         hashValue({ channel: 20, atr: [14, 40], gate: 'low' }),
-        'Инверсия фильтра по результату абляции: +33.58% на всей истории. ' +
-            'Гипотеза, выведенная из результата, — именно поэтому и под held-out.',
+        'Инверсия фильтра: основание оказалось ошибкой источника данных. ' +
+            'На Binance +2.13% против +9.28% у оригинала — гипотеза опровергнута, ' +
+            'не «подтверждена наоборот».',
+        HOLDOUT_COMMITTED_AT,
+    ),
+    registerForEvaluation(
+        'volatility-trend',
+        hashValue({ atr: [14, 40] }),
+        'Вариант D абляции: только фильтр волатильности, без пробоя. ' +
+            '+222.99%, PF 1.994, 67 сделок против 9.28% у полного правила. ' +
+            'Найдено разбором чужого правила — самый ненадёжный способ найти ' +
+            'правило, поэтому сначала на окно, а не в бой.',
         HOLDOUT_COMMITTED_AT,
     ),
 ];

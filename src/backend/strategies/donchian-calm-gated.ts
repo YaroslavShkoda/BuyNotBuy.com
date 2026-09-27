@@ -13,33 +13,45 @@ import type { StrategyContext, StrategyDecision, StrategyModule } from './types.
 /**
  * The gate, pointed the other way.
  *
- * This module exists because the ablation of `donchian-trend-gated` measured
- * that its volatility test runs backwards. Over the same 2018—2026 daily
- * history, with the same costs and the same fills:
+ * **The premise this file was built on turned out to be an artifact.**
+ *
+ * It was written after the ablation of `donchian-trend-gated` measured that
+ * its volatility test ran backwards, on the fixture then called
+ * `btcusdt-1d.csv`:
  *
  *   breakout + high-volatility gate     -13.31%,  PF 0.965
  *   breakout, no gate                    +21.80%
  *   breakout + LOW volatility gate       +33.58%
  *   calendar, no logic                   -43.81%
  *
- * The fourth line matters: the bare breakout beats the calendar, so there is a
- * rule in here, and the third line says the gate as written removes it. A calm
- * drift to a new high reads as accumulation; a high-volatility break is more
- * often a spike that comes back.
+ * That fixture was later found to be Yahoo Finance's BTC-USD, and this system
+ * trades Binance's BTCUSDT. On the right series, over 2096 daily bars from
+ * 2021-01-01, the same ablation says:
  *
- * **What this is not.** It is not a better strategy. It is a hypothesis, formed
- * by looking at the result on the data that will be used to test it, and every
- * number above is in-sample. The price of writing it as a real module rather
- * than as a line in the ablation script is that it can be run on the held-out
- * window without anyone rebuilding it, and the cost is the temptation to treat
- * its name as a recommendation. It has never been traded, it has not been
- * through walk-forward on data it has not seen, and it is not installed in the
- * registry.
+ *   A. breakout + high-volatility gate     +9.28%,  PF 1.164
+ *   B. breakout, no gate                   +15.14%,  PF 1.150
+ *   C. breakout + LOW volatility gate       +2.13%,  PF 1.087
+ *
+ * The gate is not running backwards. It was never running backwards. The
+ * inverted version is *worse* than the original once both are measured on the
+ * instrument the system trades, and every sentence of the original argument —
+ * the calm drift, the accumulation, the spike that comes back — was a story
+ * fitted to a data-source error.
+ *
+ * The module is kept rather than deleted for the same reason the old fixture
+ * is kept: it is the evidence for how that mistake was made, and deleting it
+ * would leave the next person to make it. It is registered as selectable and is
+ * **not** the default. If it is ever used for anything, the first sentence above
+ * is the thing to read.
+ *
+ * What the corrected ablation does support is a different and much simpler
+ * claim, in `volatility-trend.ts`: that the volatility test is carrying the
+ * rule and the channel is in the way of it.
  *
  * Kept separate from `donchian-trend-gated` rather than parameterised by a
  * boolean, because the two are different claims about the world. A flag would
- * make them look like the same rule with a switch, and the switch is precisely
- * the thing that is in doubt.
+ * make them look like one rule with a switch, and the switch is precisely the
+ * thing that is in doubt.
  */
 
 export interface DonchianCalmGatedConfig {
@@ -116,10 +128,10 @@ export function createDonchianCalmGated(
                 );
             }
 
-            // The inversion, and the whole content of this module. Inverted
-            // relative to `donchian-trend-gated`, which waits for atr to exceed
-            // its baseline and measures -13.31% while this one measures
-            // +33.58% on the same bars.
+            // The inversion. Measured once, on the wrong instrument, and
+            // reported as a finding. On the right one it makes +2.13% against
+            // the original's +9.28%, so the useful thing this line does now is
+            // document that the direction was tested rather than assumed.
             if (atr >= atrBaseline) {
                 return NEUTRAL_DECISION(
                     'Волатильность выше своей средней — правило ждёт',
