@@ -3,15 +3,25 @@ import { MarketDataError } from '../errors/market-data.error.js';
 import { calculateATR } from './atr.js';
 import { calculateADX } from './adx.js';
 import { calculateBollingerBands } from './bollinger.js';
-import { calculateEMA } from './ema.js';
 import { calculateMACD } from './macd.js';
 import { calculateMomentum } from './momentum.js';
 import { calculateRSI } from './rsi.js';
 import { calculateStochastic } from './stochastic.js';
 import { createIndicatorRegistry, indicatorContext } from './indicator.registry.js';
+import { createSeriesGraph, emaSeries } from './series.graph.js';
 
 import type { IndicatorDefinition, IndicatorRegistry, IndicatorValue } from './indicator.registry.js';
 import type { MarketData } from '../types/market.js';
+import type { Candle } from '../types/market.js';
+
+/**
+ * The name the EMA series is resolved under, and the node itself.
+ *
+ * Built from the configured period, so a period change moves the node with it
+ * and two processes on different settings cannot be sharing a cache entry that
+ * means different things.
+ */
+export const emaSeriesKey = `ema:${indicatorConfig.emaPeriod}`;
 
 /**
  * Everything this system knows how to compute, in one list.
@@ -41,9 +51,21 @@ export const EMA_INDICATOR: IndicatorDefinition = {
     // one-period warm-up "EMA 300" is arithmetically SMA-300, which tracks the
     // window rather than price and looks like a working indicator.
     warmup: indicatorConfig.emaPeriod * indicatorConfig.emaWarmupMultiplier,
-    calculate: (context) => ({
-        value: calculateEMA(context.closes, indicatorConfig.emaPeriod),
-    }),
+    // Declared, not computed inline: the graph resolves it once for the whole
+    // run, so an indicator added next month that also wants the EMA-300 gets
+    // this one rather than paying for it again inside a request.
+    series: [emaSeriesKey],
+    calculate: (context) => {
+        const fromGraph = context.series.get(emaSeriesKey);
+
+        if (typeof fromGraph !== 'number') {
+            throw new Error(
+                `Indicator "ema" needs the series "${emaSeriesKey}" and it was not resolved`,
+            );
+        }
+
+        return { value: fromGraph };
+    },
 };
 
 export const STOCHASTIC_INDICATOR: IndicatorDefinition = {
@@ -231,14 +253,57 @@ export interface MarketIndicatorsWire extends Omit<MarketIndicators, 'ema'> {
     ema300: number;
 }
 
+/**
+ * The graph the process runs on.
+ *
+ * Registered here rather than in the module that defines it, because the set
+ * of series is a property of the indicator set — and an indicator set is the
+ * thing this file owns.
+ */
+export const seriesGraph = (() => {
+    const graph = createSeriesGraph();
+
+    graph.register(emaSeries(indicatorConfig.emaPeriod));
+
+    return graph;
+})();
+
+/**
+ * Resolves everything the registered indicators declared they need.
+ *
+ * The union is taken from the registry rather than from a hand-written list,
+ * which is the entire point: a list written here would be a list to forget to
+ * update, and an indicator whose series silently resolved to nothing is
+ * precisely the failure the graph is meant to make impossible.
+ */
+function resolveRequiredSeries(
+    candles: readonly Candle[],
+    closes: readonly number[],
+): ReadonlyMap<string, unknown> {
+    const required = indicatorRegistry
+        .list()
+        .flatMap((definition) => definition.series ?? []);
+
+    if (required.length === 0) {
+        return new Map();
+    }
+
+    return seriesGraph.resolve(required, { candles, closes }).values;
+}
+
 export function calculateMarketIndicators(
     marketData: MarketData,
 ): MarketIndicators {
     assertWarmupCandles(marketData.candles.length);
 
-    const values = indicatorRegistry.calculate(
-        indicatorContext(marketData.candles, marketData.timestamp),
+    const context = indicatorContext(
+        marketData.candles,
+        marketData.timestamp,
     );
+    const values = indicatorRegistry.calculate({
+        ...context,
+        series: resolveRequiredSeries(marketData.candles, context.closes),
+    });
 
     const ema = requireValue(values, EMA_INDICATOR.key).value;
     const macd = requireValue(values, MACD_INDICATOR.key);

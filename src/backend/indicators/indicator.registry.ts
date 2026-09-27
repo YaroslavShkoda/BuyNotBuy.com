@@ -34,6 +34,16 @@ export interface IndicatorContext {
     /** The close of the bar in progress, or null when there is none. */
     readonly price: number | null;
     readonly now: number;
+    /**
+     * Named intermediate series this indicator declared it needs, already
+     * resolved.
+     *
+     * Resolved once for the whole run rather than per indicator, because two
+     * indicators wanting the same series is the normal case and not the
+     * exception — see `series.graph.ts` for what that saves and what it does
+     * not.
+     */
+    readonly series: ReadonlyMap<string, unknown>;
 }
 
 /**
@@ -71,6 +81,14 @@ export interface IndicatorDefinition {
     readonly role: IndicatorRole;
     /** Bars this indicator needs before it will produce anything. */
     readonly warmup: number;
+    /**
+     * Named series this indicator needs, resolved for it.
+     *
+     * Declared rather than computed inline, so that the graph knows what to
+     * work out before anything runs, and so a missing series is a registration
+     * error rather than an undefined at request time.
+     */
+    readonly series?: readonly string[];
     readonly calculate: (context: IndicatorContext) => IndicatorValue;
 }
 
@@ -163,11 +181,13 @@ export function indicatorContext(
     candles: readonly Candle[],
     now: number,
     price: number | null = null,
+    series: ReadonlyMap<string, unknown> = new Map(),
 ): IndicatorContext {
     return {
         candles: [...candles],
         closes: candles.map((candle) => candle.close),
         price,
         now,
+        series,
     };
 }

@@ -9,6 +9,7 @@ import {
 import {
     EMA_INDICATOR,
     indicatorRegistry,
+    seriesGraph,
     toWireIndicators,
     calculateMarketIndicators,
 } from './indicator.service.js';
@@ -93,16 +94,45 @@ describe('indicator registry', () => {
     });
 
     it('computes everything registered, keyed by key', () => {
-        const values = indicatorRegistry.calculate(
-            indicatorContext(
+        const series = seriesGraph.resolve(
+            indicatorRegistry
+                .list()
+                .flatMap((definition) => definition.series ?? []),
+            {
+                candles: candles(indicatorConfig.emaPeriod * 4),
+                closes: candles(indicatorConfig.emaPeriod * 4).map(
+                    (candle) => candle.close,
+                ),
+            },
+        ).values;
+
+        const values = indicatorRegistry.calculate({
+            ...indicatorContext(
                 candles(indicatorConfig.emaPeriod * 4),
                 BASE,
             ),
-        );
+            series,
+        });
 
         for (const definition of indicatorRegistry.list()) {
             expect(values[definition.key]?.value).toBeTypeOf('number');
         }
+    });
+
+    it('says which series is missing rather than producing a wrong number', () => {
+        // The registry deliberately does not know about the process's graph —
+        // that is what lets a test run its own. So an unresolved series has to
+        // be an error naming the key, not a zero and not an exception from
+        // inside a calculator.
+        const definition = EMA_INDICATOR;
+        const context = indicatorContext(
+            candles(indicatorConfig.emaPeriod * 4),
+            BASE,
+        );
+
+        expect(() => definition.calculate(context)).toThrow(
+            /needs the series "ema:300"/,
+        );
     });
 
     it('skips an indicator the series is too short for, rather than guessing', () => {
