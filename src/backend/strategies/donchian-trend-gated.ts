@@ -1,5 +1,6 @@
 import {
     atrSeries,
+    breakoutStrength,
     isReady,
     latest,
     priorRolling,
@@ -132,7 +133,7 @@ export function createDonchianTrendGated(
             if (last.close > channelHigh) {
                 return {
                     direction: 'LONG',
-                    confidence: breakoutConfidence(last.close, channelHigh, atr),
+                    confidence: breakoutStrength(last.close, channelHigh, atr),
                     reason:
                         `Пробой максимума за ${config.channelPeriod} баров ` +
                         `при повышенной волатильности`,
@@ -143,7 +144,7 @@ export function createDonchianTrendGated(
             if (last.close < channelLow) {
                 return {
                     direction: 'SHORT',
-                    confidence: breakoutConfidence(channelLow, last.close, atr),
+                    confidence: breakoutStrength(channelLow, last.close, atr),
                     reason:
                         `Пробой минимума за ${config.channelPeriod} баров ` +
                         `при повышенной волатильности`,
@@ -156,30 +157,4 @@ export function createDonchianTrendGated(
             );
         },
     };
-}
-
-/**
- * How far past the level the close sits, as a share of the bar's own range.
- *
- * A one-tick break and a break that clears the level by a third of the daily
- * range are not the same event, and publishing them at the same confidence
- * would tell a reader that the panel is equally sure about both. Capped, so a
- * gap cannot produce a number above certainty.
- */
-function breakoutConfidence(
-    distance: number,
-    level: number,
-    atr: number,
-): number {
-    if (!Number.isFinite(distance) || !Number.isFinite(level) || level <= 0) {
-        return 0;
-    }
-
-    if (!Number.isFinite(atr) || atr <= 0) {
-        return 0;
-    }
-
-    const width = Math.abs(distance - level);
-
-    return Math.max(0, Math.min(0.95, width / (atr * 2)));
 }

@@ -251,3 +251,34 @@ export function atrSeries(candles: readonly Candle[], period: number): number[] 
 
     return out;
 }
+
+/**
+ * How far past a level a close sits, as a share of the bar's own range.
+ *
+ * A one-tick break and a break that clears the level by a third of the daily
+ * range are not the same event, and publishing them at the same confidence
+ * tells a reader the panel is equally sure about both. Measured against ATR
+ * because "two dollars" means nothing while "two dollars when the average bar
+ * is three" means very little.
+ *
+ * Returns 0 rather than throwing on a degenerate input, and is capped below one:
+ * no breakout is certain, and a confidence of 100 on a rule that is wrong a
+ * third of the time is a lie with a number attached.
+ */
+export function breakoutStrength(
+    distance: number,
+    level: number,
+    atr: number,
+): number {
+    if (!Number.isFinite(distance) || !Number.isFinite(level) || level <= 0) {
+        return 0;
+    }
+
+    if (!Number.isFinite(atr) || atr <= 0) {
+        return 0;
+    }
+
+    const width = Math.abs(distance - level);
+
+    return Math.max(0, Math.min(0.95, width / (atr * 2)));
+}

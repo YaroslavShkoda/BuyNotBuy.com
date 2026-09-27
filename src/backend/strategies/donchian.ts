@@ -1,4 +1,4 @@
-import { isReady, latest, priorRolling } from './series.js';
+import { atrSeries, breakoutStrength, isReady, latest, priorRolling } from './series.js';
 import { NEUTRAL_DECISION } from './types.js';
 
 import type { StrategyContext, StrategyDecision, StrategyModule } from './types.js';
@@ -78,10 +78,17 @@ export function createDonchian(
                 return NEUTRAL_DECISION('Канал ещё не прогрелся', true);
             }
 
+            // Measured, not asserted. A fixed 0.6 told a reader the panel was
+            // moderately sure about a one-tick break and about a break that
+            // cleared the level by a third of the bar's range, and those are
+            // not the same event. Capped below one inside the helper, because
+            // no breakout is certain.
+            const atr = latest(atrSeries(candles, 14));
+
             if (last.close > channelHigh) {
                 return {
                     direction: 'LONG',
-                    confidence: 0.6,
+                    confidence: breakoutStrength(last.close, channelHigh, atr),
                     reason: `Пробой максимума за ${config.channelPeriod} баров`,
                     warm: false,
                 };
@@ -90,7 +97,10 @@ export function createDonchian(
             if (last.close < channelLow) {
                 return {
                     direction: 'SHORT',
-                    confidence: 0.6,
+                    // The gap is measured from the *lower* level. Passing the
+                    // upper one here was a copy-and-paste slip that scored every
+                    // short break against a level it had nothing to do with.
+                    confidence: breakoutStrength(channelLow, last.close, atr),
                     reason: `Пробой минимума за ${config.channelPeriod} баров`,
                     warm: false,
                 };
