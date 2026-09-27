@@ -20,7 +20,33 @@ import { ExecutionConfigParser } from './execution.js';
 
 import type { ExecutionConfig } from './execution.js';
 import { checkReplayable } from './experiment.js';
+import {
+    permutationTest,
+    bootstrapStatistic,
+    monteCarlo,
+    totalReturn,
+} from './statistics.js';
 import type { BacktestReport } from './backtest.service.js';
+
+/**
+ * The longest run of consecutive winning trades.
+ *
+ * A permutation test shuffles the returns, and the total return of a sequence
+ * is a product: it does not move when you reorder the factors. The statistic
+ * therefore has to be one that depends on arrangement, or the test is
+ * measuring floating-point noise and calling it a result.
+ */
+function longestWinningRun(returns: readonly number[]): number {
+    let best = 0;
+    let current = 0;
+
+    for (const value of returns) {
+        current = value > 0 ? current + 1 : 0;
+        best = Math.max(best, current);
+    }
+
+    return best;
+}
 import type { WalkForwardOptions } from './walk-forward.js';
 
 /**
@@ -312,11 +338,65 @@ function describeProvenance(report: BacktestReport): string {
     return lines.join('\n');
 }
 
+/**
+ * What of the result is the sample and what is the order it happened in.
+ *
+ * Printed because a backtest figure describes one draw. The bootstrap says
+ * what the same trades would have produced on other samples of themselves, the
+ * permutation says whether a coin would have looked this good, and the Monte
+ * Carlo says what a holder would have sat through. A figure that is only read
+ * without these is a number with no scale.
+ */
+function describeSignificance(report: BacktestReport): string | null {
+    const sample = report.trades;
+
+    if (sample.length === 0) {
+        return null;
+    }
+
+    const boot = bootstrapStatistic(sample, totalReturn);
+    const path = monteCarlo(sample);
+    const perm = permutationTest(sample, longestWinningRun);
+
+    if (boot === null || path === null || perm === null) {
+        return null;
+    }
+
+    const lines: string[] = ['', 'Насколько это устойчиво'];
+
+    lines.push(
+        `  Bootstrap:  95% ДИ [${percent(boot.interval.low)}, ${percent(boot.interval.high)}], ` +
+            `доля выборок в минусе ${(boot.interval.belowZero * 100).toFixed(1)}%`,
+    );
+    lines.push(
+        `  Перестановка: p = ${perm.pValue.toFixed(4)} для серии из ${perm.observed} побед подряд — ` +
+            `${perm.significant ? 'значимо' : 'не отличимо от случайного порядка'}`,
+    );
+    lines.push(
+        `  Monte Carlo: просадка медиана ${percent(path.median.maxDrawdown)}, ` +
+            `худшая из ${path.runs} путей ${percent(Math.max(...path.outcomes.map((outcome) => outcome.maxDrawdown)))}, ` +
+            `худшая серия убытков: фактически ${path.observed.worstStreak}, медиана ${path.median.worstStreak}, ` +
+            `максимум ${Math.max(...path.outcomes.map((outcome) => outcome.worstStreak))}`,
+    );
+    lines.push(
+        `  Порядок сделок: ${(path.orderIsLuck * 100).toFixed(1)}% перетасованных путей закончились хуже, ` +
+            `то есть результат на ${(path.orderIsLuck * 100).toFixed(0)}% держится на том, в каком порядке сделки шли`,
+    );
+
+    return lines.join('\n');
+}
+
 async function main(): Promise<void> {
     const report = await runBacktest(overridesFromEnv());
 
     console.log(describe(report));
     console.log(describeProvenance(report));
+
+    const significance = describeSignificance(report);
+
+    if (significance !== null) {
+        console.log(significance);
+    }
 }
 
 main().catch((error: unknown) => {
