@@ -190,7 +190,12 @@ describe('the search only ever sees the bars it was given', () => {
         expect(withNoiseAfter.ranked.map((row) => row.label)).toEqual(
             withTail.ranked.map((row) => row.label),
         );
-    });
+        // Two full grid searches over the whole sample. The five second default
+        // is enough on an idle machine and not enough when a hundred and seventy
+        // files are running beside it, which makes a correct test report a
+        // failure that depends on how busy the disk was. The work is real, so
+        // the budget is stated.
+    }, 30_000);
 
     it('changes its scores when the window changes', () => {
         const first = runSearch();
