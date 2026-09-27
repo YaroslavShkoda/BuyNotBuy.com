@@ -111,6 +111,34 @@ export function fromModule(label: string, module: StrategyModule): Strategy {
         mechanism: module.mechanism,
         warmup: module.warmup,
         decide({ candles, index }) {
+            // Bars the module has not warmed up on cannot produce a decision,
+            // and it is already required to say so. Calling it anyway to be
+            // told is avoidable work: the call is over the whole visible
+            // history, so a 900-bar warmup on a 2096-bar series is 43% of the
+            // *calls* spent asking a question whose answer is already written
+            // in `module.warmup`.
+            //
+            // `index + 1 < warmup`, not `index < warmup`. A module declaring
+            // `warmup: 900` needs 900 bars and is ready on the bar where it
+            // has them — which is index 899, not 900. The first version of this
+            // skipped one bar too many, so a 900-bar rule started a bar late
+            // and every number downstream of it was quietly wrong. A test that
+            // compared this path against a module that honours its own warmup
+            // found it; nothing else would have.
+            //
+            // Exact, not an approximation — a module that returned a direction
+            // during its own warmup would be violating its contract, and
+            // `warm` is in the return type so that it cannot do so silently.
+            //
+            // It is also worth only 4% of the runtime, and the reason is worth
+            // keeping: cost sits almost entirely in the last bars, where the
+            // visible history is longest, and the bars being skipped are the
+            // early ones where a call is cheap. See `bench-cost.ts`, which is
+            // the measurement rather than an assertion that this helped.
+            if (index + 1 < module.warmup) {
+                return 0;
+            }
+
             const visible = candles.slice(0, index + 1);
             const decision = module.evaluate({
                 candles: visible,
