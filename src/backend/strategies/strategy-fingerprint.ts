@@ -1,4 +1,4 @@
-import { readFallbackConfig } from './registry.js';
+import { readFallbackConfig, STRATEGY_FACTORIES } from './registry.js';
 
 import type { StrategyKey } from './types.js';
 
@@ -20,7 +20,16 @@ export function strategySetFingerprint(): {
     const config = readFallbackConfig();
 
     return {
-        installed: ['consensus-primary', 'donchian-20', 'donchian-trend-gated'],
+        // Read off the registry rather than written out here. A hand-kept list
+        // is wrong the moment a rule is added, and wrong silently: the
+        // configuration hash would not change, no new `strategy_version` row
+        // would appear, and every signal from that point on would be filed
+        // under a configuration in which the new rule does not exist. That is
+        // the precise failure this hash was added to prevent, reintroduced by
+        // the list that feeds it.
+        installed: ['consensus-primary', ...Object.keys(STRATEGY_FACTORIES)].sort(
+            (a, b) => a.localeCompare(b),
+        ) as readonly StrategyKey[],
         fallback: config.key,
         mode: config.mode,
     };
