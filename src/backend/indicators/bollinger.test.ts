@@ -8,15 +8,28 @@ import type { Candle } from '../types/market.js';
 const HOUR = 3_600_000;
 const BASE = 1_699_999_200_000;
 
+/**
+ * Bars built from a series of closes, oldest first, newest last.
+ *
+ * The order matters and is the one the whole pipeline uses: a venue answers
+ * with the oldest bar first, and every calculator here reads the last element
+ * as the current one. A fixture built the other way round is not a stricter
+ * test, it is a test of a market running backwards.
+ */
 function candlesFrom(closes: readonly number[]): Candle[] {
-    return closes.map((close, index) => ({
-        timestamp: BASE - index * HOUR,
-        open: close - 0.5,
-        high: close + 1,
-        low: close - 1.5,
-        close,
-        volume: 10,
-    }));
+    return closes.map((close, index) => {
+        const open = index === 0 ? close : (closes[index - 1] ?? close);
+        const wick = close * 0.0005;
+
+        return {
+            timestamp: BASE - (closes.length - 1 - index) * HOUR,
+            open,
+            high: Math.max(open, close) + wick,
+            low: Math.min(open, close) - wick,
+            close,
+            volume: 10,
+        };
+    });
 }
 
 /** A series that rises by a fixed step, so a band is predictable. */
@@ -83,7 +96,9 @@ describe('Bollinger Bands', () => {
 
     it('reports bandwidth as a fraction, so two instruments are comparable', () => {
         const base = ramp(20);
-        const scaled = base.map((candle) => ({ ...candle, close: candle.close * 10 }));
+        const scaled = candlesFrom(
+            base.map((candle) => candle.close * 10),
+        );
 
         // Scaling every price by ten scales the band width by ten and the
         // middle by ten, so the fraction between them is unchanged. That is
