@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { FailoverProvider } from './failover.provider.js';
 import { MarketDataError } from '../errors/market-data.error.js';
+import { ProviderError } from '../errors/provider.error.js';
 
 import type { MarketDataProvider } from './providers/market-data.provider.js';
 
@@ -209,11 +210,11 @@ describe('failing over between venues', () => {
 
         expect(error).toBeInstanceOf(MarketDataError);
         expect((error as MarketDataError).code).toBe('MARKET_DATA_UNAVAILABLE');
-        const cause = (error as MarketDataError).cause as {
+        const details = (error as ProviderError).details as {
             attempted: Array<{ venue: string; reason: string }>;
         };
-        expect(cause.attempted.map((entry) => entry.venue)).toEqual(['binance', 'bitget']);
-        expect(cause.attempted[0]?.reason).toMatch(/unreachable from this region/);
+        expect(details.attempted.map((entry) => entry.venue)).toEqual(['binance', 'bitget']);
+        expect(details.attempted[0]?.reason).toMatch(/unreachable from this region/);
     });
 
     it('fails over for candles and history too, not only for the price', async () => {

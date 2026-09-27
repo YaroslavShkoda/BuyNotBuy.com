@@ -1,6 +1,8 @@
 import { MarketDataError } from '../errors/market-data.error.js';
+import { ProviderError, statusForKind } from '../errors/provider.error.js';
 
 import type { MarketDataProvider, ProviderCandles } from './providers/market-data.provider.js';
+import type { ProviderFailureKind } from '../errors/provider.error.js';
 
 import type {
     AssetPrice,
@@ -185,11 +187,7 @@ export class FailoverProvider implements MarketDataProvider {
         call: (provider: MarketDataProvider) => Promise<T>,
     ): Promise<{ venue: string; value: T }> {
         const venues = this.ordered();
-        const failures: Array<{
-            venue: string;
-            reason: string;
-            code: string | null;
-        }> = [];
+        const failures: VenueFailure[] = [];
 
         // Start at the venue that last worked, and wrap around, so a healthy
         // backup is never made to wait behind a primary that is known to be down.
@@ -208,11 +206,7 @@ export class FailoverProvider implements MarketDataProvider {
 
                 return { venue: venue.name, value };
             } catch (error) {
-                failures.push({
-                    venue: venue.name,
-                    reason: toReason(error),
-                    code: errorCodeOf(error),
-                });
+                failures.push(toVenueFailure(venue.name, error));
 
                 // Only a failure of the primary breaks the recovery run. The
                 // backup failing is what starts the run in the first place, so
@@ -224,18 +218,33 @@ export class FailoverProvider implements MarketDataProvider {
             }
         }
 
-        throw new MarketDataError(
+        // The chain's own failure is typed too, and it is the venue's failure
+        // rather than a new one: the caller asked a wrapper, the wrapper asked
+        // everyone, and the honest answer describes the answers it got.
+        //
+        // Which of those answers matters. "Every venue throttled" and "every
+        // venue unreachable" both reach a client as 503, and they call for
+        // opposite responses — the first will clear on its own, the second is a
+        // network or a deploy. Carrying each venue's `kind` and status is what
+        // separates them without anyone reading an English sentence about it.
+        const kind = aggregateKind(failures);
+
+        throw new ProviderError(
+            kind,
             `No market data provider could answer for ${operation}`,
             {
-                code: 'MARKET_DATA_UNAVAILABLE',
-                cause: {
-                    operation,
-                    // The venue list travels with the failure so a log line says
-                    // "binance 429, bitget timeout" rather than "no provider
-                    // could answer" — the difference between knowing which one
-                    // to fix and having to reproduce it.
-                    venues: venues.map((entry) => entry.name),
-                    attempted: failures,
+                statusCode: aggregateStatus(failures, kind),
+                context: {
+                    provider: this.name,
+                    details: {
+                        operation,
+                        // The venue list travels with the failure so a log line
+                        // says "binance 429, bitget timeout" rather than "no
+                        // provider could answer" — the difference between
+                        // knowing which one to fix and having to reproduce it.
+                        venues: venues.map((entry) => entry.name),
+                        attempted: failures,
+                    },
                 },
             },
         );
@@ -269,26 +278,83 @@ export class FailoverProvider implements MarketDataProvider {
     }
 }
 
+/**
+ * One venue's answer to one call.
+ *
+ * `reason` is for a human reading a log. `kind` and `code` are for a program,
+ * and they are the reason this object exists rather than a bare string: a chain
+ * that fails on two venues has to be able to say what kind of failure each one
+ * produced without a reader reconstructing it from prose.
+ */
+interface VenueFailure {
+    venue: string;
+    reason: string;
+    kind: ProviderFailureKind | null;
+    code: string | null;
+    httpStatus: number | null;
+}
+
+function toVenueFailure(venue: string, error: unknown): VenueFailure {
+    return {
+        venue,
+        reason: toReason(error),
+        kind: error instanceof ProviderError ? error.kind : null,
+        code: error instanceof MarketDataError ? error.code : null,
+        httpStatus: error instanceof ProviderError ? error.httpStatus ?? null : null,
+    };
+}
+
+/**
+ * The kind that describes the chain as a whole.
+ *
+ * A throttle wins over an outage, and it is the more urgent answer: if every
+ * venue is rate limited the cause is a caller of ours, and saying "unavailable"
+ * would point an operator at the network instead of at the request rate that
+ * provoked it. A single unclassified failure leaves the chain looking like a
+ * timeout rather than like the impossible thing — an error this code has never
+ * seen — because "we do not know" should not read as "we know it was slow".
+ */
+function aggregateKind(failures: readonly VenueFailure[]): ProviderFailureKind {
+    const kinds = new Set(failures.map((entry) => entry.kind));
+
+    if (kinds.has('rate_limited')) {
+        return 'rate_limited';
+    }
+
+    if (kinds.has('timeout') && kinds.has('unavailable')) {
+        return 'unavailable';
+    }
+
+    if (kinds.has('timeout')) {
+        return 'timeout';
+    }
+
+    return 'unavailable';
+}
+
+/**
+ * The status a client sees.
+ *
+ * 504 only when every venue said so. A timeout on the primary and a refusal on
+ * the backup is not a gateway timeout — there is nothing to wait for, and
+ * telling a client to retry in a second while the backup is still refusing is
+ * how a rate limit gets earned.
+ */
+function aggregateStatus(
+    failures: readonly VenueFailure[],
+    kind: ProviderFailureKind,
+): number {
+    if (kind === 'timeout' && failures.length > 0 && failures.every((entry) => entry.kind === 'timeout')) {
+        return statusForKind('timeout');
+    }
+
+    return statusForKind(kind);
+}
+
 function toReason(error: unknown): string {
     if (error instanceof Error) {
         return `${error.name}: ${error.message}`;
     }
 
     return String(error);
-}
-
-/**
- * The machine-readable code, when the failure carries one.
- *
- * Read from the error rather than parsed out of its message, which is the
- * difference between "binance rate limited" and a log line that says the word
- * rate in English. A fallback that produces no code at all is honest; one that
- * guesses from the text is not.
- */
-function errorCodeOf(error: unknown): string | null {
-    if (error instanceof MarketDataError) {
-        return error.code;
-    }
-
-    return null;
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { MarketDataError } from '../errors/market-data.error.js';
+import { ProviderError } from '../errors/provider.error.js';
 import { FailoverProvider } from './failover.provider.js';
 
 import type { MarketDataProvider } from './providers/market-data.provider.js';
@@ -15,33 +16,25 @@ import type { MarketDataProvider } from './providers/market-data.provider.js';
  * that the failover still gets its turn.
  */
 function refusing(venue: string, reason: string): MarketDataProvider {
+    // The typed refusal the transport now throws, rather than a bare
+    // `MarketDataError` with the fact buried in a `cause` bag. A fixture that
+    // described the old shape would keep the old shape working by accident and
+    // prove nothing about the one under test.
+    const refuse = (): never => {
+        throw new ProviderError('circuit_open', reason, {
+            statusCode: 503,
+            retryAfterSeconds: 30,
+            context: { provider: venue },
+        });
+    };
+
     return {
         name: venue,
         symbol: 'BTCUSDT',
-        getPrice: async () => {
-            throw new MarketDataError(reason, {
-                code: 'MARKET_DATA_UNAVAILABLE',
-                retryAfterSeconds: 30,
-                cause: { provider: venue, circuit: 'open' },
-            });
-        },
-        getCandles: async () => {
-            throw new MarketDataError(reason, {
-                code: 'MARKET_DATA_UNAVAILABLE',
-                retryAfterSeconds: 30,
-                cause: { provider: venue, circuit: 'open' },
-            });
-        },
-        getHistoricalCandles: async () => {
-            throw new MarketDataError(reason, { code: 'MARKET_DATA_UNAVAILABLE' });
-        },
-        getAttributedCandles: async () => {
-            throw new MarketDataError(reason, {
-                code: 'MARKET_DATA_UNAVAILABLE',
-                retryAfterSeconds: 30,
-                cause: { provider: venue, circuit: 'open' },
-            });
-        },
+        getPrice: async () => refuse(),
+        getCandles: async () => refuse(),
+        getHistoricalCandles: async () => refuse(),
+        getAttributedCandles: async () => refuse(),
     };
 }
 
@@ -146,10 +139,21 @@ describe('failover across an open circuit', () => {
 
         const error = await provider.getCandles().catch((e: unknown) => e);
 
-        expect(error).toBeInstanceOf(MarketDataError);
-        expect(
-            (error as MarketDataError & { cause: { attempted: unknown[] } }).cause
-                .attempted,
-        ).toHaveLength(2);
+        expect(error).toBeInstanceOf(ProviderError);
+
+        const details = (error as ProviderError).details as {
+            attempted: Array<{ venue: string; kind: string | null }>;
+        };
+
+        // A refusal of the chain's own making, from both venues. The kinds are
+        // what say so — the message is the same whichever venue refused, which
+        // is exactly why it cannot be the thing anyone reads.
+        expect(details.attempted).toHaveLength(2);
+        expect(details.attempted.map((entry) => entry.venue)).toEqual([
+            'binance',
+            'bitget',
+        ]);
+        expect(details.attempted.every((entry) => entry.kind === 'circuit_open'))
+            .toBe(true);
     });
 });

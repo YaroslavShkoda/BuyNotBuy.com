@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import { FailoverProvider } from './failover.provider.js';
 import { MarketDataError } from '../errors/market-data.error.js';
+import { ProviderError } from '../errors/provider.error.js';
 import { currentCandles } from '../test-support/candles.js';
 import { marketConfig } from '../config/market.config.js';
 import { resetMarketDataCache } from './market.service.js';
@@ -166,15 +167,37 @@ describe('failover attribution', () => {
 
         expect(error).toBeInstanceOf(MarketDataError);
 
-        const cause = (error as MarketDataError).cause as {
+        const details = (error as ProviderError).details as {
             venues: string[];
-            attempted: Array<{ venue: string; code: string | null }>;
+            attempted: Array<{
+                venue: string;
+                kind: string | null;
+                code: string | null;
+                httpStatus: number | null;
+            }>;
         };
 
-        expect(cause.venues).toEqual(['binance', 'bitget']);
-        expect(cause.attempted).toEqual([
-            { venue: 'binance', reason: expect.any(String), code: 'MARKET_DATA_UNAVAILABLE' },
-            { venue: 'bitget', reason: expect.any(String), code: 'MARKET_DATA_UNAVAILABLE' },
+        expect(details.venues).toEqual(['binance', 'bitget']);
+
+        // The code comes from the error and the kind does not, because these
+        // venues fail with a plain `MarketDataError` rather than a typed one.
+        // Half an answer is the right amount: a code a caller can match, and a
+        // null where a classification would have been a guess.
+        expect(details.attempted).toEqual([
+            {
+                venue: 'binance',
+                reason: expect.any(String),
+                kind: null,
+                code: 'MARKET_DATA_UNAVAILABLE',
+                httpStatus: null,
+            },
+            {
+                venue: 'bitget',
+                reason: expect.any(String),
+                kind: null,
+                code: 'MARKET_DATA_UNAVAILABLE',
+                httpStatus: null,
+            },
         ]);
     });
 
@@ -199,12 +222,17 @@ describe('failover attribution', () => {
         );
 
         const error = await provider.getAttributedCandles().catch((caught) => caught);
-        const cause = (error as MarketDataError).cause as {
-            attempted: Array<{ venue: string; code: string | null }>;
+        const details = (error as ProviderError).details as {
+            attempted: Array<{
+                venue: string;
+                kind: string | null;
+                code: string | null;
+                httpStatus: number | null;
+            }>;
         };
 
         // A code is read from the error, never inferred from its text, so a
         // plain `TypeError` produces null rather than a guess.
-        expect(cause.attempted[0]?.code).toBeNull();
+        expect(details.attempted[0]?.code).toBeNull();
     });
 });
