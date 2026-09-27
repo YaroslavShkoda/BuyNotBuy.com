@@ -1,8 +1,9 @@
 import { historyConfig } from '../config/history.config.js';
+import { marketConfig } from '../config/market.config.js';
 import { applyMigrations, currentSchemaVersion } from '../db/migrations.js';
 import { query } from '../db/pool.js';
 
-import type { SignalHistoryEntry } from './signal-history.types.js';
+import type { SignalHistoryEntry, SignalHistorySeries } from './signal-history.types.js';
 
 // Signal snapshots are hourly by design, so a one-record-per-hour bucket keeps
 // the history meaningful in hours instead of duplicating the same state for
@@ -15,9 +16,20 @@ export interface SignalHistoryRepositoryOptions {
 
 export interface SignalHistoryRepository {
     record(entry: SignalHistoryEntry): Promise<void>;
-    list(symbol: string, limit: number, before?: number): Promise<SignalHistoryEntry[]>;
-    /** Drops entries past the retention limit for one symbol. Returns how many. */
-    trimRetention(symbol: string): Promise<number>;
+    list(
+        symbol: string,
+        limit: number,
+        before?: number,
+        series?: Partial<SignalHistorySeries>,
+    ): Promise<SignalHistoryEntry[]>;
+    /**
+     * Drops entries past the retention limit for one series. Returns how many.
+     *
+     * Scoped to a series, not to a symbol: a symbol analysed at two intervals
+     * has one limit shared by two histories, and whichever wrote last would
+     * quietly cut the other's retention.
+     */
+    trimRetention(symbol: string, series?: Partial<SignalHistorySeries>): Promise<number>;
     /** Schema version currently stored in the database. */
     schemaVersion(): Promise<number>;
     /**
@@ -34,21 +46,34 @@ export interface SignalHistoryRepository {
 interface SignalHistoryRow {
     timestamp: number;
     symbol: string;
+    provider: string;
+    interval: string;
     signal: string;
     consensus: number;
     price: number;
+    regime: string | null;
+    data_quality: number | null;
+    data_quality_usable: boolean | null;
+    data_quality_worst: string | null;
 }
 
 /** Newest analysis of the hour wins; a late-arriving older snapshot
  *  must not overwrite a fresher one. */
 const UPSERT_SQL = `
-    INSERT INTO signal_history (symbol, hour_bucket, timestamp, signal, consensus, price)
-    VALUES ($1, $2, $3, $4, $5, $6)
-    ON CONFLICT (symbol, hour_bucket) DO UPDATE SET
+    INSERT INTO signal_history (
+        symbol, provider, interval, hour_bucket, timestamp, signal, consensus, price,
+        regime, data_quality, data_quality_usable, data_quality_worst
+    )
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+    ON CONFLICT (symbol, provider, interval, hour_bucket) DO UPDATE SET
         timestamp = EXCLUDED.timestamp,
         signal = EXCLUDED.signal,
         consensus = EXCLUDED.consensus,
-        price = EXCLUDED.price
+        price = EXCLUDED.price,
+        regime = EXCLUDED.regime,
+        data_quality = EXCLUDED.data_quality,
+        data_quality_usable = EXCLUDED.data_quality_usable,
+        data_quality_worst = EXCLUDED.data_quality_worst
     WHERE EXCLUDED.timestamp > signal_history.timestamp
 `;
 
@@ -79,25 +104,32 @@ const UPSERT_SQL = `
 const TRIM_SQL = `
     DELETE FROM signal_history
     WHERE symbol = $1
+      AND provider = $2
+      AND interval = $3
       AND hour_bucket < COALESCE(
           (
               SELECT hour_bucket
               FROM signal_history
-              WHERE symbol = $1
+              WHERE symbol = $1 AND provider = $2 AND interval = $3
               ORDER BY hour_bucket DESC
-              LIMIT 1 OFFSET $2 - 1
+              LIMIT 1 OFFSET $4 - 1
           ),
           hour_bucket
       )
     RETURNING 1
 `;
 
+const COLUMNS = `
+    timestamp, symbol, provider, interval, signal, consensus, price,
+    regime, data_quality, data_quality_usable, data_quality_worst
+`;
+
 const SELECT_SQL = `
-    SELECT timestamp, symbol, signal, consensus, price
+    SELECT ${COLUMNS}
     FROM signal_history
-    WHERE symbol = $1
+    WHERE symbol = $1 AND provider = $2 AND interval = $3
     ORDER BY hour_bucket DESC
-    LIMIT $2
+    LIMIT $4
 `;
 
 /**
@@ -107,40 +139,75 @@ const SELECT_SQL = `
  * scan that throws most of it away.
  */
 const SELECT_BEFORE_SQL = `
-    SELECT timestamp, symbol, signal, consensus, price
+    SELECT ${COLUMNS}
     FROM signal_history
-    WHERE symbol = $1
-      AND hour_bucket < $2
+    WHERE symbol = $1 AND provider = $2 AND interval = $3
+      AND hour_bucket < $4
     ORDER BY hour_bucket DESC
-    LIMIT $3
+    LIMIT $5
 `;
 
 export function createSignalHistoryRepository(
     options: SignalHistoryRepositoryOptions,
 ): SignalHistoryRepository {
+    /**
+     * Fills in the series a caller did not name.
+     *
+     * Defaulting rather than requiring keeps every existing call site correct:
+     * a symbol analysed at one interval is a series, and a caller that has
+     * never heard of a second one should not have to say so on every write.
+     */
+    const seriesOf = (
+        symbol: string,
+        series: Partial<SignalHistorySeries> | undefined,
+    ): SignalHistorySeries => ({
+        symbol,
+        provider: series?.provider ?? marketConfig.provider,
+        interval: series?.interval ?? marketConfig.candleInterval,
+    });
+
     return {
         async record(entry: SignalHistoryEntry): Promise<void> {
             // Not a transaction any more. It held a paired trim, and the trim
             // was the reason: retention now runs on its own cadence, and a
             // single upsert does not need an explicit transaction to be atomic.
+            const series = seriesOf(entry.symbol, entry);
+            const context = entry.context;
+
             await query(UPSERT_SQL, [
-                entry.symbol,
+                series.symbol,
+                series.provider,
+                series.interval,
                 Math.floor(entry.timestamp / HOUR_MS),
                 entry.timestamp,
                 entry.signal,
                 Math.round(entry.consensus),
                 entry.price,
+                context?.regime ?? null,
+                context?.dataQuality ?? null,
+                context?.dataQualityUsable ?? null,
+                context?.dataQualityWorst ?? null,
             ]);
         },
 
-        async trimRetention(symbol: string): Promise<number> {
+        async trimRetention(
+            symbol: string,
+            series?: Partial<SignalHistorySeries>,
+        ): Promise<number> {
+            const resolved = seriesOf(symbol, series);
+
             // `RETURNING` is what lets a data-modifying statement sit in a CTE
             // and still be counted; without it PostgreSQL rejects the query
             // rather than silently running the delete and discarding it.
             const result = await query<{ count: number }>(
                 `WITH deleted AS (${TRIM_SQL})
                  SELECT COUNT(*)::int AS count FROM deleted`,
-                [symbol, options.maxEntries],
+                [
+                    resolved.symbol,
+                    resolved.provider,
+                    resolved.interval,
+                    options.maxEntries,
+                ],
             );
 
             return result.rows[0]?.count ?? 0;
@@ -150,12 +217,14 @@ export function createSignalHistoryRepository(
             symbol: string,
             limit: number,
             before?: number,
+            series?: Partial<SignalHistorySeries>,
         ): Promise<SignalHistoryEntry[]> {
+            const resolved = seriesOf(symbol, series);
             const result = await query<SignalHistoryRow>(
                 before === undefined ? SELECT_SQL : SELECT_BEFORE_SQL,
                 before === undefined
-                    ? [symbol, limit]
-                    : [symbol, before, limit],
+                    ? [resolved.symbol, resolved.provider, resolved.interval, limit]
+                    : [resolved.symbol, resolved.provider, resolved.interval, before, limit],
             );
 
             // The signal column is guarded by a CHECK constraint at the
@@ -163,9 +232,17 @@ export function createSignalHistoryRepository(
             return result.rows.map((row) => ({
                 timestamp: row.timestamp,
                 symbol: row.symbol,
+                provider: row.provider,
+                interval: row.interval,
                 signal: row.signal as SignalHistoryEntry['signal'],
                 consensus: row.consensus,
                 price: row.price,
+                context: {
+                    regime: row.regime,
+                    dataQuality: row.data_quality,
+                    dataQualityUsable: row.data_quality_usable,
+                    dataQualityWorst: row.data_quality_worst,
+                },
             }));
         },
 

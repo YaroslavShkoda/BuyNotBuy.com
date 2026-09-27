@@ -1,3 +1,4 @@
+import { marketConfig } from '../config/market.config.js';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 const { mockGetSignalHistory } = vi.hoisted(() => ({
@@ -28,6 +29,14 @@ function makeEntry(overrides: Partial<SignalHistoryEntry> = {}): SignalHistoryEn
         signal: 'SHORT',
         consensus: 67,
         price: 100_000,
+        provider: marketConfig.provider,
+        interval: marketConfig.candleInterval,
+        context: {
+            regime: null,
+            dataQuality: null,
+            dataQualityUsable: null,
+            dataQualityWorst: null,
+        },
         ...overrides,
     };
 }
@@ -49,8 +58,21 @@ describe('GET /api/signal-history', () => {
         });
 
         expect(response.statusCode).toBe(200);
+        // The stored entry carries the series and the market context; the
+        // published response does not. The schema strips what the contract has
+        // never declared, so a client that started receiving `regime` here
+        // would be a change to the API rather than an addition to the storage,
+        // and the dashboard is not ours to move underneath.
         expect(response.json()).toEqual({
-            entries: [entry],
+            entries: [
+                {
+                    timestamp: entry.timestamp,
+                    symbol: entry.symbol,
+                    signal: entry.signal,
+                    consensus: entry.consensus,
+                    price: entry.price,
+                },
+            ],
             summary: {
                 currentSignal: 'SHORT',
                 // A single record proves the signal is current but not how

@@ -27,6 +27,14 @@ function makeEntry(overrides: Partial<SignalHistoryEntry> = {}): SignalHistoryEn
         signal: 'SHORT',
         consensus: 67,
         price: 100_000,
+        provider: marketConfig.provider,
+        interval: marketConfig.candleInterval,
+        context: {
+            regime: null,
+            dataQuality: null,
+            dataQualityUsable: null,
+            dataQualityWorst: null,
+        },
         ...overrides,
     };
 }

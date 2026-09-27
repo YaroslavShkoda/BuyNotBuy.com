@@ -1,11 +1,54 @@
 import type { IndicatorSignal } from '../signals/signal.types.js';
 
+/**
+ * The series a history row belongs to.
+ *
+ * Part of the identity rather than a column that happens to be there. The
+ * original primary key was the symbol and the hour, which is uniqueness over
+ * too little: the moment a second interval is analysed for the same symbol,
+ * every write for it collides with the first one's row and overwrites it, and
+ * the history silently becomes whichever series wrote last.
+ */
+export interface SignalHistorySeries {
+    symbol: string;
+    provider: string;
+    interval: string;
+}
+
+/**
+ * What was true when a signal was published.
+ *
+ * Nullable throughout, and that is the point rather than a shortfall. A row
+ * recorded before any of this existed has no regime and no quality
+ * assessment, and saying so is honest where reconstructing a value would be a
+ * guess dressed as a measurement. The performance engine filters on these
+ * columns and counts what it could not group, rather than grouping everything
+ * into "unknown" and reporting a number that means nothing.
+ */
+export interface SignalContext {
+    regime: string | null;
+    dataQuality: number | null;
+    dataQualityUsable: boolean | null;
+    dataQualityWorst: string | null;
+}
+
 export interface SignalHistoryEntry {
     timestamp: number;
     symbol: string;
+    /**
+     * Optional, and defaulted by the repository to the configured series.
+     *
+     * A caller that has never heard of a second interval should not have to
+     * say so on every write, and a series that is not named is the configured
+     * one. What the field may not be is *ambiguous* — hence the default rather
+     * than an open nullable.
+     */
+    provider?: string;
+    interval?: string;
     signal: IndicatorSignal;
     consensus: number;
     price: number;
+    context?: SignalContext;
 }
 
 export interface SignalHistoryLogger {

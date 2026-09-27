@@ -14,6 +14,8 @@ import { recordIndicatorVotes } from '../indicators/performance/indicator-perfor
 import { getSignalSnapshotRepository } from '../analysis/signal-snapshot.repository.js';
 import { getStrategyVersionRepository } from '../analysis/strategy-version.repository.js';
 import { marketConfig } from '../config/market.config.js';
+import { assessDataQuality } from '../history/data-quality.js';
+import { assessRegime } from '../indicators/regime.js';
 import {
     indicatorConfig,
     INDICATOR_SIGNAL_CONFIG,
@@ -28,6 +30,7 @@ import {
 import type { AnalysisFailedStage, AnalysisTelemetryLogger } from './analysis.telemetry.js';
 import type { MarketFreshness } from '../market/market-freshness.js';
 import type { SignalHistoryLogger } from '../history/signal-history.types.js';
+import type { SignalContext } from '../history/signal-history.types.js';
 
 const MOMENTUM_PERIOD = indicatorConfig.momentumPeriod;
 
@@ -228,6 +231,11 @@ export async function analyzeMarketWithStatus(
     // connect timeout to every page load instead of only to the history. Both
     // calls swallow their own errors, so the discarded promise cannot reject
     // into an unhandled rejection.
+    // The market these numbers were produced in. A performance table grouped by
+    // regime is the whole reason this column exists, and without it every
+    // signal looks like it came from the same market.
+    const context = analysisContext(marketData, analysis.timestamp);
+
     void recordSignalHistory(
         {
             timestamp: analysis.timestamp,
@@ -235,6 +243,10 @@ export async function analyzeMarketWithStatus(
             signal: analysis.signal.signal,
             consensus: analysis.signal.confidence,
             price: analysis.price,
+            // Conditional rather than assigned undefined: an absent context is a
+            // fact, and writing one is how a table ends up full of nulls that
+            // look like a failed write.
+            ...(context === undefined ? {} : { context }),
         },
         historyLogger,
     );
@@ -276,6 +288,41 @@ export async function analyzeMarketWithStatus(
  * detached promise as the insert, and so a failure to resolve a version is
  * logged rather than lost in a discarded rejection.
  */
+/**
+ * The market the signal was produced in, for the history.
+ *
+ * Both assessments are wrapped: a signal that was published is a signal the
+ * system stands behind, and a regime or a quality score is context, not a gate.
+ * Losing the context on a series too short to assess it is correct; failing to
+ * record a signal that was correctly produced is not. The whole thing is
+ * therefore best-effort and returns null rather than propagating.
+ */
+function analysisContext(
+    marketData: MarketData,
+    now: number,
+): SignalContext | undefined {
+    try {
+        const quality = assessDataQuality({
+            candles: marketData.candles,
+            now,
+            intervalMs: marketConfig.candleIntervalMs,
+            provider: marketData.provider,
+        });
+        const regime = assessRegime({ candles: marketData.candles });
+
+        return {
+            regime: regime.unreliable === null
+                ? `${regime.volatility}/${regime.trend}`
+                : `${regime.volatility}/${regime.trend} (${regime.unreliable})`,
+            dataQuality: quality.score,
+            dataQualityUsable: quality.usable,
+            dataQualityWorst: quality.worst,
+        };
+    } catch {
+        return undefined;
+    }
+}
+
 async function storeSnapshot(
     analysis: MarketAnalysis,
     marketData: MarketData,
