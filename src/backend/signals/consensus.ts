@@ -1,4 +1,11 @@
+import { consensusConfig } from '../config/consensus.config.js';
+
 import type { IndicatorAnalysis, SignalResult } from './signal.types.js';
+import type {
+    ConfidenceModel,
+    ConsensusConfig,
+    WeightModel,
+} from '../config/consensus.config.js';
 
 /** Two-sided 95% quantile of the standard normal distribution. */
 const Z_95 = 1.959963985;
@@ -9,21 +16,6 @@ const Z_95 = 1.959963985;
  * an indicator's strength is in play.
  */
 const WEIGHT_SCALE = 100;
-
-/** A direction needs more than half of the indicators to agree. */
-const MINIMUM_AGREEING_INDICATORS = 2;
-
-/**
- * Mean conviction of the agreeing indicators below which the direction is not
- * published at all.
- *
- * The Wilson bound compares ratios, so scaling every weight down leaves it
- * untouched: three indicators that cleared their thresholds by a hair would
- * otherwise report the same 99% as three decisive ones. The floor closes that
- * gap, and it only fires on readings no sane configuration produces for a real
- * signal.
- */
-const MINIMUM_MEAN_CONVICTION = 0.25;
 
 export function clampWeight(value: number): number {
     if (!Number.isFinite(value)) {
@@ -51,10 +43,55 @@ export function wilsonLowerBound(
     const denominator = 1 + z * z / trials;
     const centre = p + z * z / (2 * trials);
     const margin = z * Math.sqrt(
-        p * (1 - p) / trials + (z * z) / (4 * trials * trials),
+        (p * (1 - p)) / trials + (z * z) / (4 * trials * trials),
     );
 
     return Math.max(0, Math.min(1, (centre - margin) / denominator));
+}
+
+/**
+ * What one agreeing indicator contributes under the configured weight model.
+ *
+ * Every model is monotonic in strength — a stronger vote is never worth less —
+ * because the one property that must hold regardless of configuration is that
+ * the panel can tell a decisive indicator from a marginal one.
+ */
+function weightOf(raw: number, model: WeightModel): number {
+    const weight = clampWeight(raw);
+
+    switch (model) {
+        case 'continuous':
+            return weight;
+        case 'binary':
+            // A vote that made it past its own threshold counts once. Zero stays
+            // zero, so an abstaining indicator is still excluded.
+            return weight > 0 ? 1 : 0;
+        case 'sqrt':
+            return Math.sqrt(weight);
+    }
+}
+
+function confidenceOf(
+    winningWeight: number,
+    losingWeight: number,
+    meanConviction: number,
+    model: ConfidenceModel,
+): number {
+    const totalWeight = winningWeight + losingWeight;
+
+    switch (model) {
+        case 'wilson':
+            return Math.round(
+                wilsonLowerBound(
+                    winningWeight * WEIGHT_SCALE,
+                    totalWeight * WEIGHT_SCALE,
+                ) * 100,
+            );
+        case 'share':
+            return Math.round((winningWeight / totalWeight) * 100);
+        case 'mean_conviction':
+            return Math.round(meanConviction * 100);
+    }
 }
 
 function joinRussian(names: string[]): string {
@@ -70,8 +107,9 @@ function joinRussian(names: string[]): string {
 }
 
 function tally(
-    analyses: IndicatorAnalysis[],
+    analyses: readonly IndicatorAnalysis[],
     signal: 'LONG' | 'SHORT',
+    model: WeightModel,
 ): { count: number; weight: number } {
     let count = 0;
     let weight = 0;
@@ -82,17 +120,28 @@ function tally(
         }
 
         count += 1;
-        weight += clampWeight(analysis.weight);
+        weight += weightOf(analysis.weight, model);
     }
 
     return { count, weight };
 }
 
+/**
+ * Turns a panel of opinions into one published signal, under a configuration.
+ *
+ * The three floors are checked in the order a reader would apply them: is
+ * there a disagreement, is there agreement, is that agreement worth anything.
+ * Each one that fails reports which, because "NEUTRAL, confidence 0" on its own
+ * does not tell anybody whether the panel split, did not agree, or agreed
+ * feebly — and those are three different situations with three different
+ * things to do next.
+ */
 export function calculateConsensus(
-    analyses: IndicatorAnalysis[],
+    analyses: readonly IndicatorAnalysis[],
+    config: ConsensusConfig = consensusConfig,
 ): Omit<SignalResult, 'indicators'> {
-    const long = tally(analyses, 'LONG');
-    const short = tally(analyses, 'SHORT');
+    const long = tally(analyses, 'LONG', config.weightModel);
+    const short = tally(analyses, 'SHORT', config.weightModel);
     const neutralCount = analyses.filter(
         (analysis) => analysis.signal === 'NEUTRAL',
     ).length;
@@ -100,8 +149,6 @@ export function calculateConsensus(
     // An abstaining indicator is excluded from the trial count rather than
     // counted as a vote against: NEUTRAL means "no opinion", and letting a
     // stray weight leak in would silently dilute a real consensus.
-    const totalWeight = long.weight + short.weight;
-
     if (long.count === short.count) {
         return {
             signal: 'NEUTRAL',
@@ -116,17 +163,11 @@ export function calculateConsensus(
     const winning = winningSignal === 'LONG' ? long : short;
     const losing = winningSignal === 'LONG' ? short : long;
     const winningNames = analyses
-        .filter(
-            (analysis) =>
-                analysis.signal === winningSignal,
-        )
-        .map(
-            (analysis) => analysis.name,
-        );
+        .filter((analysis) => analysis.signal === winningSignal)
+        .map((analysis) => analysis.name);
 
-    // A single indicator is an opinion, not a consensus. Reporting it as a
-    // 33% LONG used to be the most common state of the dashboard.
-    if (winning.count < MINIMUM_AGREEING_INDICATORS) {
+    // A single indicator is an opinion, not a consensus.
+    if (winning.count < config.minimumAgreeing) {
         return {
             signal: 'NEUTRAL',
             confidence: 0,
@@ -134,7 +175,7 @@ export function calculateConsensus(
         };
     }
 
-    if (totalWeight <= 0) {
+    if (winning.weight + losing.weight <= 0) {
         return {
             signal: 'NEUTRAL',
             confidence: 0,
@@ -144,7 +185,7 @@ export function calculateConsensus(
 
     const meanConviction = winning.weight / winning.count;
 
-    if (meanConviction < MINIMUM_MEAN_CONVICTION) {
+    if (meanConviction < config.minimumMeanConviction) {
         return {
             signal: 'NEUTRAL',
             confidence: 0,
@@ -152,24 +193,17 @@ export function calculateConsensus(
         };
     }
 
-    const confidence = Math.round(
-        wilsonLowerBound(
-            winning.weight * WEIGHT_SCALE,
-            totalWeight * WEIGHT_SCALE,
-        ) * 100,
-    );
-
-    const verb = winning.count === 1
-        ? 'подтверждает'
-        : 'подтверждают';
-
-    const only = neutralCount > 0 && losing.count === 0
-        ? 'Только '
-        : '';
+    const verb = winning.count === 1 ? 'подтверждает' : 'подтверждают';
+    const only = neutralCount > 0 && losing.count === 0 ? 'Только ' : '';
 
     return {
         signal: winningSignal,
-        confidence,
+        confidence: confidenceOf(
+            winning.weight,
+            losing.weight,
+            meanConviction,
+            config.confidenceModel,
+        ),
         reason: `${only}${joinRussian(winningNames)} ${verb} ${winningSignal}`,
     };
 }
