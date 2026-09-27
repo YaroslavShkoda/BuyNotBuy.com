@@ -286,21 +286,31 @@ export class BitgetProvider implements MarketDataProvider {
      * a time this endpoint does not serve, an empty page is the expected
      * answer and the loop would otherwise keep asking.
      */
-    async getHistoricalCandles(limit: number): Promise<Candle[]> {
+    async getHistoricalCandles(
+        limit: number,
+        before?: number,
+    ): Promise<Candle[]> {
         if (limit <= MAX_CANDLE_LIMIT) {
-            return this.fetchCandles(limit);
+            const page = await this.fetchCandles(limit, endTimeBefore(before));
+
+            return before === undefined
+                ? page
+                : page.filter((candle) => candle.timestamp < before);
         }
 
         const pageSize = PAGED_LIMIT;
         const collected: Candle[] = [];
         const horizon = Date.now() - REACH_MS;
 
-        let oldestSeen = Number.POSITIVE_INFINITY;
+        // Seeded from the caller's cursor: a backfill that re-reads from the
+        // present on every page never reaches anything older than its own first
+        // page, and reports progress while doing it.
+        let oldestSeen = before ?? Number.POSITIVE_INFINITY;
 
         while (collected.length < limit) {
             const page = await this.fetchCandles(
                 pageSize,
-                oldestSeen === Number.POSITIVE_INFINITY ? undefined : oldestSeen - 1,
+                endTimeBefore(oldestSeen),
             );
 
             if (page.length === 0) {
@@ -315,7 +325,12 @@ export class BitgetProvider implements MarketDataProvider {
                 break;
             }
 
-            collected.push(...page);
+            for (const candle of page) {
+                if (candle.timestamp < oldestSeen) {
+                    collected.push(candle);
+                }
+            }
+
             oldestSeen = oldest;
 
             if (oldest <= horizon) {
@@ -439,6 +454,19 @@ function firstItem(data: unknown, endpoint: string): unknown {
  * indicators were computed from and the signal would move for a reason that
  * has nothing to do with the market.
  */
+/**
+ * Bitget's `endTime` is inclusive and this contract's cursor is exclusive.
+ *
+ * Passed through unadjusted, the bar at the cursor comes back on the next page
+ * too, and the walk spends a request per bar re-reading the boundary instead of
+ * making progress.
+ */
+function endTimeBefore(timestamp: number | undefined): number | undefined {
+    return timestamp === undefined || !Number.isFinite(timestamp)
+        ? undefined
+        : timestamp - 1;
+}
+
 function toCandles(
     rows: Array<
         [

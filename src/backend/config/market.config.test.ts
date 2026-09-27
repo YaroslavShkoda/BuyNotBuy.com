@@ -39,6 +39,9 @@ describe('marketConfig', () => {
             maxRetryAfterMs: 120000,
             providerDegradedAfterMs: 300000,
             providerLatencySampleSize: 512,
+            backfillFrom: 1509600000000,
+            backfillPageSize: 1000,
+            backfillPageDelayMs: 1000,
             userAgent: 'BuyNotBuy.com/1.0 (+https://buynotbuy.com)',
         });
     });
@@ -66,6 +69,9 @@ describe('marketConfig', () => {
         process.env.MARKET_FALLBACK_SYMBOL = 'ETHUSDT';
         process.env.MARKET_PROVIDER_DEGRADED_AFTER_MS = '45000';
         process.env.MARKET_PROVIDER_LATENCY_SAMPLE_SIZE = '64';
+        process.env.MARKET_BACKFILL_FROM = '1600000000000';
+        process.env.MARKET_BACKFILL_PAGE_SIZE = '500';
+        process.env.MARKET_BACKFILL_PAGE_DELAY_MS = '250';
 
         const { marketConfig } = await import('./market.config');
 
@@ -90,6 +96,9 @@ describe('marketConfig', () => {
             maxRetryAfterMs: 90000,
             providerDegradedAfterMs: 45000,
             providerLatencySampleSize: 64,
+            backfillFrom: 1600000000000,
+            backfillPageSize: 500,
+            backfillPageDelayMs: 250,
             userAgent: 'Custom/9.9',
         });
     });

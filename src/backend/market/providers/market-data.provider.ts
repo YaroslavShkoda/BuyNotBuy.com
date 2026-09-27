@@ -49,8 +49,19 @@ export interface MarketDataProvider {
      * indicator warm-up, and a backtest needs far more history than that to
      * have anything to evaluate out of sample. Binance caps a single request
      * at 1000 candles, so a provider that can serve more has to page.
+     *
+     * `before` is the cursor a backfill walks with, and it is part of the
+     * contract rather than an implementation detail. Without it every page is
+     * fetched from the present, so a backfill re-reads the same thousand bars
+     * for every thousand it manages to store and never reaches anything older —
+     * a job that looks like it is running, reports progress, and is incapable
+     * of finishing. The returned series is ordered oldest first and holds only
+     * bars strictly older than `before`.
      */
-    getHistoricalCandles(limit: number): Promise<Candle[]>;
+    getHistoricalCandles(
+        limit: number,
+        before?: number,
+    ): Promise<Candle[]>;
 
     /**
      * The live window, attributed.

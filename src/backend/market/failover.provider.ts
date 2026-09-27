@@ -151,10 +151,13 @@ export class FailoverProvider implements MarketDataProvider {
         return { ...value, venue: value.venue === '' ? venue : value.venue };
     }
 
-    async getHistoricalCandles(limit: number): Promise<Candle[]> {
+    async getHistoricalCandles(
+        limit: number,
+        before?: number,
+    ): Promise<Candle[]> {
         return this.run(
             'historical candles',
-            (provider) => provider.getHistoricalCandles(limit),
+            (provider) => provider.getHistoricalCandles(limit, before),
         );
     }
 

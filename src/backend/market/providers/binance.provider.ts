@@ -155,20 +155,32 @@ export class BinanceProvider implements MarketDataProvider {
      * consume its whole sample on the indicator warm-up and have nothing left
      * to evaluate.
      */
-    async getHistoricalCandles(limit: number): Promise<Candle[]> {
+    async getHistoricalCandles(
+        limit: number,
+        before?: number,
+    ): Promise<Candle[]> {
         if (limit <= MAX_CANDLE_LIMIT) {
-            return this.fetchKlines(limit);
+            const page = await this.fetchKlines(limit, endTimeBefore(before));
+
+            return before === undefined
+                ? page
+                : page.filter((candle) => candle.timestamp < before);
         }
 
         const pageSize = MAX_CANDLE_LIMIT;
         const collected: Candle[] = [];
 
-        let oldestSeen = Number.POSITIVE_INFINITY;
+        // Seeded from the caller's cursor, not from infinity. Seeding from
+        // infinity would make a backfill page every one of its requests from
+        // the present, so it would re-read the same thousand bars a hundred
+        // times and never reach anything older than them.
+        let oldestSeen =
+            before ?? Number.POSITIVE_INFINITY;
 
         while (collected.length < limit) {
             const page = await this.fetchKlines(
                 pageSize,
-                oldestSeen === Number.POSITIVE_INFINITY ? undefined : oldestSeen - 1,
+                endTimeBefore(oldestSeen),
             );
 
             if (page.length === 0) {
@@ -183,7 +195,12 @@ export class BinanceProvider implements MarketDataProvider {
                 break;
             }
 
-            collected.push(...page);
+            for (const candle of page) {
+                if (candle.timestamp < oldestSeen) {
+                    collected.push(candle);
+                }
+            }
+
             oldestSeen = oldest;
         }
 
@@ -255,6 +272,19 @@ function httpStatusErrorOf(status: number): ProviderError {
             context: { provider: 'binance', httpStatus: status },
         },
     );
+}
+
+/**
+ * Binance's `endTime` is inclusive, and this contract's cursor is exclusive.
+ *
+ * A cursor passed through unadjusted re-fetches the bar at that exact
+ * timestamp on the next page, so the walk spends a request per bar re-reading
+ * the boundary instead of making progress.
+ */
+function endTimeBefore(timestamp: number | undefined): number | undefined {
+    return timestamp === undefined || !Number.isFinite(timestamp)
+        ? undefined
+        : timestamp - 1;
 }
 
 /**

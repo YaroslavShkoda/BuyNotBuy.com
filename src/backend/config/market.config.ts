@@ -258,6 +258,33 @@ const MarketConfigSchema = z.object({    provider: MarketProviderSchema,
         .min(1)
         .max(100_000),
     /**
+     * Where a backfill starts when it is asked for "everything".
+     *
+     * A timestamp rather than a count, because a count is a different request
+     * every time the interval or the symbol changes, and a backfill whose
+     * starting point depends on what it is filling is not resumable. A date is
+     * the one thing both the caller and the run can name.
+     */
+    backfillFrom: z.coerce.number().int().min(0),
+    /**
+     * How many bars one backfill page asks the venue for.
+     *
+     * The venue's own maximum, by default. Asking for more is answered by the
+     * venue with a page of its own size and no error, so a too-large request is
+     * silently a short backfill — and the short part is the oldest part, which
+     * is the part nobody notices is missing.
+     */
+    backfillPageSize: z.coerce.number().int().positive().max(1000),
+    /**
+     * Pause between backfill pages.
+     *
+     * Not a retry delay — the transport already has one. This is the gap
+     * between pages, so a backfill of ten thousand bars is ten thousand calls
+     * made over hours rather than in a burst, which is the difference between
+     * filling a table and getting the address banned.
+     */
+    backfillPageDelayMs: z.coerce.number().int().min(0),
+    /**
      * Binance blocks unidentified clients; naming the caller keeps the traffic
      * attributable and polite.
      */
@@ -351,6 +378,20 @@ export const marketConfig: MarketConfig = MarketConfigSchema.parse({
     providerLatencySampleSize:
         process.env.MARKET_PROVIDER_LATENCY_SAMPLE_SIZE ??
         '512',
+
+    // 2017-11-01. BTCUSDT hourly bars start around then, so this asks for the
+    // whole history by default rather than a plausible-looking subset.
+    backfillFrom:
+        process.env.MARKET_BACKFILL_FROM ??
+        '1509600000000',
+
+    backfillPageSize:
+        process.env.MARKET_BACKFILL_PAGE_SIZE ??
+        String(MAX_CANDLE_LIMIT),
+
+    backfillPageDelayMs:
+        process.env.MARKET_BACKFILL_PAGE_DELAY_MS ??
+        '1000',
 
     userAgent:
         process.env.MARKET_USER_AGENT ??
