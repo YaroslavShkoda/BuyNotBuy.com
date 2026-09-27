@@ -6,6 +6,8 @@ import { LATEST_SCHEMA_VERSION } from '../../db/migrations.js';
 import { renderMetrics } from '../lib/metrics.js';
 import { readRequestId } from '../lib/redaction.js';
 import { observabilityConfig } from '../../config/observability.config.js';
+import { configuredMarketVenues } from '../../market/market.provider.js';
+import { venueHealth } from '../../market/providers/provider-http.js';
 
 /** Schema version this build can read. Anything higher is not ours to serve. */
 const SUPPORTED_SCHEMA_VERSION = LATEST_SCHEMA_VERSION;
@@ -81,6 +83,43 @@ function withRequestId(
     }
 }
 
+/**
+ * Whether a live price is obtainable, and from where.
+ *
+ * A no-op on the network on purpose: it reads the breakers and the health
+ * records this process already keeps, so the probe costs nothing and cannot be
+ * the thing that provokes the rate limit it is checking for.
+ */
+function marketDataReport(): {
+    ok: boolean;
+    detail?: string;
+    venues: Array<{
+        provider: string;
+        state: string;
+        circuit: string;
+        available: boolean;
+    }>;
+} {
+    const venues = configuredMarketVenues().map((provider) => {
+        const health = venueHealth(provider);
+
+        return {
+            provider,
+            state: health.state,
+            circuit: health.circuit,
+            available: health.available,
+        };
+    });
+
+    return {
+        ok: venues.some((venue) => venue.available),
+        ...(venues.every((venue) => !venue.available)
+            ? { detail: 'no configured market data venue is currently available' }
+            : {}),
+        venues,
+    };
+}
+
 export function registerHealthRoutes(app: FastifyInstance): void {
     /**
      * Liveness: is the process running?
@@ -99,16 +138,22 @@ export function registerHealthRoutes(app: FastifyInstance): void {
     /**
      * Readiness: should this instance receive traffic?
      *
-     * The upstream provider is not checked, on purpose. Its state changes every
-     * few seconds, and a probe that failed on a blip would pull a working
-     * instance out of rotation for something the service already handles — it
-     * serves the last good snapshot and says so in a header. Only state the
-     * process cannot recover from belongs here.
+     * The upstream provider is reported but not gating, on purpose. Its state
+     * changes every few seconds, and a probe that failed on a blip would pull a
+     * working instance out of rotation for something the service already handles
+     * — it serves the last good snapshot and says so in a header. Only state the
+     * process cannot recover from belongs in the decision.
+     *
+     * Reported anyway, because the opposite failure is just as bad: an instance
+     * serving nothing but expired cache for an hour looks identical to a healthy
+     * one from the outside, and this is the one place a load balancer operator is
+     * guaranteed to look.
      */
     app.get('/readyz', async (request, reply) => {
         withRequestId(reply, request);
 
         const database = await databaseIsUsable();
+        const marketData = marketDataReport();
 
         if (!database.ok) {
             request.log.warn(
@@ -122,13 +167,26 @@ export function registerHealthRoutes(app: FastifyInstance): void {
                 // the host it could not reach, and this endpoint is open.
                 // `requestId` above correlates the two — the operator reads the
                 // message out of the log, the caller reads the code.
-                checks: { database: { ok: false, reason: database.reason } },
+                checks: {
+                    database: { ok: false, reason: database.reason },
+                    marketData,
+                },
             });
+        }
+
+        if (!marketData.ok) {
+            request.log.warn(
+                { event: 'market_data_degraded', detail: marketData.detail },
+                'market_data_degraded',
+            );
         }
 
         return reply.status(200).send({
             status: 'ready',
-            checks: { database: { ok: true } },
+            checks: {
+                database: { ok: true },
+                marketData,
+            },
         });
     });
 

@@ -11,7 +11,7 @@ import { marketConfig } from '../../config/market.config.js';
 import { MAX_CANDLE_LIMIT } from '../../config/market.config.js';
 import { sendBinanceRequest } from './binance-http.js';
 
-import type { MarketDataProvider } from './market-data.provider.js';
+import type { MarketDataProvider, ProviderCandles } from './market-data.provider.js';
 
 const PRICE_ENDPOINT = '/api/v3/ticker/price';
 const KLINES_ENDPOINT = '/api/v3/klines';
@@ -88,6 +88,14 @@ const BinanceCandleSchema = z.array(
 ).max(MAX_CANDLE_LIMIT);
 
 export class BinanceProvider implements MarketDataProvider {
+    readonly name = 'binance';
+
+    readonly symbol: string;
+
+    constructor(symbol: string = marketConfig.symbol) {
+        this.symbol = symbol;
+    }
+
     async getPrice(): Promise<AssetPrice> {        const url =
             `${marketConfig.baseUrl}` +
             PRICE_ENDPOINT +
@@ -139,6 +147,16 @@ export class BinanceProvider implements MarketDataProvider {
         limit: number = marketConfig.defaultCandleLimit,
     ): Promise<Candle[]> {
         return this.fetchKlines(limit);
+    }
+
+    async getAttributedCandles(
+        limit: number = marketConfig.defaultCandleLimit,
+    ): Promise<ProviderCandles> {
+        return {
+            venue: this.name,
+            symbol: this.symbol,
+            candles: await this.fetchKlines(limit),
+        };
     }
 
     /**

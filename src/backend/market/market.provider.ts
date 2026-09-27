@@ -4,6 +4,7 @@ import { BinanceProvider } from './providers/binance.provider.js';
 import { BitgetProvider } from './providers/bitget.provider.js';
 import { MockProvider } from './providers/mock.provider.js';
 import { FailoverProvider } from './failover.provider.js';
+import { isVenueAvailable } from './providers/provider-http.js';
 
 import type { MarketProviderName } from '../config/market.config.js';
 import type { MarketDataProvider } from './providers/market-data.provider.js';
@@ -24,7 +25,7 @@ function createVenue(name: MarketProviderName): {
         case 'binance':
             return {
                 name,
-                provider: new BinanceProvider(),
+                provider: new BinanceProvider(marketConfig.symbol),
             };
 
         case 'bitget':
@@ -39,7 +40,7 @@ function createVenue(name: MarketProviderName): {
         case 'mock':
             return {
                 name,
-                provider: new MockProvider(),
+                provider: new MockProvider(marketConfig.symbol),
             };
 
         default:
@@ -73,7 +74,39 @@ export const marketDataProvider =
 export function activeMarketVenue(): string | null {
     return marketDataProvider instanceof FailoverProvider
         ? marketDataProvider.activeVenue
-        : null;
+        : marketDataProvider.name;
+}
+
+/**
+ * Every venue this deployment is allowed to ask, in preference order.
+ *
+ * Null when failover is off is *not* returned here: a deployment with one venue
+ * still has a venue, and "which ones are configured" is a different question
+ * from "did a switch happen".
+ */
+export function configuredMarketVenues(): string[] {
+    return [
+        marketConfig.provider,
+        ...marketConfig.fallbackProviders,
+    ];
+}
+
+/**
+ * Whether any configured venue is currently able to answer.
+ *
+ * The answer the freshness model needs, and the reason it cannot be derived
+ * from the snapshot cache: a cache hit means nobody asked anybody, so "the
+ * market feed is dead" is invisible to a request that served a perfectly good
+ * snapshot from memory. Looking it up here is what lets a cached-but-current
+ * response say `provider_failed` instead of `fresh`.
+ */
+export function anyMarketProviderAvailable(): boolean {
+    return configuredMarketVenues().some((venue) => isVenueAvailable(venue));
+}
+
+/** The symbol the chain was asked for, regardless of which venue answers. */
+export function requestedMarketSymbol(): string {
+    return marketConfig.symbol;
 }
 
 export interface VenueWatcherLogger {

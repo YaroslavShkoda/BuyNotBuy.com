@@ -236,6 +236,28 @@ const MarketConfigSchema = z.object({    provider: MarketProviderSchema,
      */
     maxRetryAfterMs: z.coerce.number().int().min(0),
     /**
+     * How long a venue may go without a single success before it is reported as
+     * degraded rather than healthy.
+     *
+     * Silence is not health. A provider that is never called looks exactly like
+     * one that answers instantly, and the only difference between the two is how
+     * long ago the last answer was — which is why "is it up" cannot be answered
+     * from the counters alone.
+     */
+    providerDegradedAfterMs: z.coerce.number().int().min(0),
+    /**
+     * Recent provider latencies kept for the percentiles.
+     *
+     * Bounded on purpose. A process that survives for months must not grow a
+     * sample list for the life of the process, and the percentiles only ever
+     * describe recent behaviour anyway.
+     */
+    providerLatencySampleSize: z.coerce
+        .number()
+        .int()
+        .min(1)
+        .max(100_000),
+    /**
      * Binance blocks unidentified clients; naming the caller keeps the traffic
      * attributable and polite.
      */
@@ -321,6 +343,14 @@ export const marketConfig: MarketConfig = MarketConfigSchema.parse({
     maxRetryAfterMs:
         process.env.MARKET_MAX_RETRY_AFTER_MS ??
         '120000',
+
+    providerDegradedAfterMs:
+        process.env.MARKET_PROVIDER_DEGRADED_AFTER_MS ??
+        '300000',
+
+    providerLatencySampleSize:
+        process.env.MARKET_PROVIDER_LATENCY_SAMPLE_SIZE ??
+        '512',
 
     userAgent:
         process.env.MARKET_USER_AGENT ??

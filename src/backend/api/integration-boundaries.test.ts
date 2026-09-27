@@ -1,4 +1,5 @@
 import { currentCandles } from '../test-support/candles.js';
+import { marketData } from '../test-support/market-data.js';
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -12,8 +13,8 @@ import {
     PriceResponseSchema,
 } from './schemas.js';
 
-const { mockMarketDataProvider } = vi.hoisted(() => ({
-    mockMarketDataProvider: {
+const { mockMarketDataProvider, mockAnyProviderAvailable } = vi.hoisted(() => {
+    const base = {
         getPrice: vi.fn(async () => ({
             symbol: 'BTCUSDT',
             price: 80000,
@@ -24,11 +25,26 @@ const { mockMarketDataProvider } = vi.hoisted(() => ({
         getCandles: vi.fn(async (limit = 300) =>
             currentCandles(Math.max(0, limit - 1)),
         ),
-    },
-}));
+    };
+
+    return {
+        mockAnyProviderAvailable: vi.fn(() => true),
+        mockMarketDataProvider: {
+            ...base,
+            getAttributedCandles: vi.fn(async (limit?: number) => ({
+                venue: 'binance',
+                symbol: 'BTCUSDT',
+                candles: await base.getCandles(limit),
+            })),
+        },
+    };
+});
 
 vi.mock('../market/market.provider.js', () => ({
     marketDataProvider: mockMarketDataProvider,
+    anyMarketProviderAvailable: mockAnyProviderAvailable,
+    activeMarketVenue: vi.fn(() => 'binance'),
+    requestedMarketSymbol: vi.fn(() => 'BTCUSDT'),
 }));
 
 function risingCandles(length: number) {
@@ -47,10 +63,9 @@ describe('integration boundaries (task 6)', () => {
             '../indicators/indicator.service'
         );
 
-        const base = {
+        const base = marketData(risingCandles(requiredCandleCount()), {
             price: { symbol: 'BTCUSDT', price: 400 },
-            candles: risingCandles(requiredCandleCount()),
-        };
+        });
 
         const baseline = calculateMarketIndicators(base);
 
@@ -80,10 +95,11 @@ describe('integration boundaries (task 6)', () => {
             '../signals/consensus'
         );
 
-        const indicators = calculateMarketIndicators({
-            price: { symbol: 'BTCUSDT', price: 400 },
-            candles: risingCandles(requiredCandleCount()),
-        });
+        const indicators = calculateMarketIndicators(
+            marketData(risingCandles(requiredCandleCount()), {
+                price: { symbol: 'BTCUSDT', price: 400 },
+            }),
+        );
 
         const result = calculateSignal(400, indicators);
 
@@ -104,14 +120,13 @@ describe('integration boundaries (task 6)', () => {
         const marketService = await import('../market/market.service');
         const divergenceService = await import('../indicators/divergence.service');
 
-        const marketData = {
+        const snapshot = marketData(risingCandles(requiredCandleCount()), {
             price: { symbol: 'BTCUSDT', price: 200 },
-            candles: risingCandles(requiredCandleCount()),
-        };
+        });
 
         const spy = vi
             .spyOn(marketService, 'getMarketData')
-            .mockResolvedValue(freshMarketData(marketData));
+            .mockResolvedValue(freshMarketData(snapshot));
         const divergenceSpy = vi.spyOn(
             divergenceService,
             'analyzeDivergence',
@@ -129,7 +144,7 @@ describe('integration boundaries (task 6)', () => {
 
             expect(options?.momentumSeries).toBe(result.momentum.series);
             expect(result.momentum.series).toHaveLength(
-                marketData.candles.length,
+                snapshot.candles.length,
             );
             expect(result.divergence).toEqual(
                 divergenceSpy.mock.results[0]?.value,
@@ -144,22 +159,21 @@ describe('integration boundaries (task 6)', () => {
         const analysisService = await import('../services/analysis.service');
         const marketService = await import('../market/market.service');
 
-        const marketData = {
+        const snapshot = marketData(risingCandles(requiredCandleCount()), {
             price: { symbol: 'BTCUSDT', price: 200 },
-            candles: risingCandles(requiredCandleCount()),
-        };
+        });
 
         const spy = vi
             .spyOn(marketService, 'getMarketData')
-            .mockResolvedValue(freshMarketData(marketData));
+            .mockResolvedValue(freshMarketData(snapshot));
 
         try {
             const result = await analysisService.analyzeMarket();
 
-            expect(result.price).toBe(marketData.price.price);
+            expect(result.price).toBe(snapshot.price.price);
             expect(result.momentum.period).toBe(100);
             expect(result.momentum.series).toHaveLength(
-                marketData.candles.length,
+                snapshot.candles.length,
             );
             expect(result.indicators.momentum).toBe(result.momentum.current);
             expect(result.momentum.current).toBe(
@@ -301,14 +315,13 @@ describe('integration boundaries (task 6)', () => {
         const analysisService = await import('../services/analysis.service');
         const marketService = await import('../market/market.service');
 
-        const marketData = {
+        const snapshot = marketData(risingCandles(requiredCandleCount()), {
             price: { symbol: 'BTCUSDT', price: 200 },
-            candles: risingCandles(requiredCandleCount()),
-        };
+        });
 
         const spy = vi
             .spyOn(marketService, 'getMarketData')
-            .mockResolvedValue(freshMarketData(marketData));
+            .mockResolvedValue(freshMarketData(snapshot));
 
         try {
             const baseline = await analysisService.analyzeMarket();

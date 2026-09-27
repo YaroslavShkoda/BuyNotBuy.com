@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-const { mockMarketDataProvider } = vi.hoisted(() => ({
-    mockMarketDataProvider: {
+const { mockMarketDataProvider, mockAnyProviderAvailable } = vi.hoisted(() => {
+    const base = {
         getPrice: vi.fn(async () => ({ symbol: 'BTCUSDT', price: 80000 })),
         getCandles: vi.fn(async (limit = 900) =>
             Array.from({ length: Math.max(0, limit - 1) }, (_, index) => ({
@@ -13,11 +13,26 @@ const { mockMarketDataProvider } = vi.hoisted(() => ({
                 volume: 1000,
             })),
         ),
-    },
-}));
+    };
+
+    return {
+        mockAnyProviderAvailable: vi.fn(() => true),
+        mockMarketDataProvider: {
+            ...base,
+            getAttributedCandles: vi.fn(async (limit?: number) => ({
+                venue: 'binance',
+                symbol: 'BTCUSDT',
+                candles: await base.getCandles(limit),
+            })),
+        },
+    };
+});
 
 vi.mock('./market.provider.js', () => ({
     marketDataProvider: mockMarketDataProvider,
+    anyMarketProviderAvailable: mockAnyProviderAvailable,
+    activeMarketVenue: vi.fn(() => 'binance'),
+    requestedMarketSymbol: vi.fn(() => 'BTCUSDT'),
 }));
 
 import { assertCandleSeries } from './candle-validation.js';

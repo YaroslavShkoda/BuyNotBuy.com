@@ -25,4 +25,30 @@ export interface Candle {
 export interface MarketData {
     price: AssetPrice;
     candles: Candle[];
+    /**
+     * The venue that actually produced these candles.
+     *
+     * Not the configured primary. When the primary is unreachable the backup
+     * answers, and the two venues print different numbers for the same hour: the
+     * backup's last trade is not the primary's. Anything downstream that mixes
+     * snapshots from different venues — a chart, a signal series, a stored
+     * snapshot — produces a jump that looks exactly like a market move, so the
+     * venue travels with the data instead of being a property of the
+     * deployment.
+     */
+    provider: string;
+    /** The symbol this snapshot was requested for. */
+    symbol: string;
+    /** Candle interval as configured, e.g. `1h`. */
+    interval: string;
+    /**
+     * Market time: the close of the newest closed candle, in epoch
+     * milliseconds.
+     *
+     * Not `Date.now()`. The distinction is the difference between "when we
+     * looked" and "what the market did", and only the second one belongs in a
+     * record that is meant to be replayable.
+     */
+    timestamp: number;
 }
+

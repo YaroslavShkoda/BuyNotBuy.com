@@ -77,14 +77,21 @@ describe('marketDataProvider', () => {
 });
 
 describe('reporting which venue is answering', () => {
-    it('says nothing about a venue when there is nothing to switch', async () => {
+    it('names the single venue when there is no backup to switch to', async () => {
         vi.resetModules();
 
         vi.stubEnv('MARKET_PROVIDER', 'mock');
 
-        const { activeMarketVenue } = await import('./market.provider');
+        const { activeMarketVenue, configuredMarketVenues } = await import(
+            './market.provider'
+        );
 
-        expect(activeMarketVenue()).toBeNull();
+        // A snapshot with no venue on it is a record that cannot answer "which
+        // exchange published this", and the one-venue deployment is the common
+        // case, not an edge case. "Was there a switch?" is the separate
+        // question, and it has its own answer.
+        expect(activeMarketVenue()).toBe('mock');
+        expect(configuredMarketVenues()).toEqual(['mock']);
 
         vi.unstubAllEnvs();
     });
@@ -94,9 +101,12 @@ describe('reporting which venue is answering', () => {
 
         vi.stubEnv('MARKET_PROVIDER', 'binance');
 
-        const { activeMarketVenue } = await import('./market.provider');
+        const { activeMarketVenue, configuredMarketVenues } = await import(
+            './market.provider'
+        );
 
         expect(activeMarketVenue()).toBe('binance');
+        expect(configuredMarketVenues()).toEqual(['binance', 'bitget']);
 
         vi.unstubAllEnvs();
     });

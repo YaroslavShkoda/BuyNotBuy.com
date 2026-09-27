@@ -1,12 +1,13 @@
 import { currentCandles } from '../test-support/candles.js';
+import { marketData } from '../test-support/market-data.js';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { MarketDataError } from '../errors/market-data.error.js';
 import { marketConfig } from '../config/market.config.js';
 
-const { mockMarketDataProvider } = vi.hoisted(() => ({
-    mockMarketDataProvider: {
+const { mockMarketDataProvider, mockAnyProviderAvailable } = vi.hoisted(() => {
+    const base = {
         getPrice: vi.fn(async () => ({
             symbol: 'BTCUSDT',
             price: 80000,
@@ -14,11 +15,26 @@ const { mockMarketDataProvider } = vi.hoisted(() => ({
         getCandles: vi.fn(async (limit = 900) =>
             currentCandles(limit),
         ),
-    },
-}));
+    };
+
+    return {
+        mockAnyProviderAvailable: vi.fn(() => true),
+        mockMarketDataProvider: {
+            ...base,
+            getAttributedCandles: vi.fn(async (limit?: number) => ({
+                venue: 'binance',
+                symbol: 'BTCUSDT',
+                candles: await base.getCandles(limit),
+            })),
+        },
+    };
+});
 
 vi.mock('../market/market.provider.js', () => ({
     marketDataProvider: mockMarketDataProvider,
+    anyMarketProviderAvailable: mockAnyProviderAvailable,
+    activeMarketVenue: vi.fn(() => 'binance'),
+    requestedMarketSymbol: vi.fn(() => 'BTCUSDT'),
 }));
 
 vi.mock('../history/signal-history.service.js', () => ({
@@ -45,10 +61,9 @@ function risingCandles(length: number) {
 }
 
 function createMarketData() {
-    return {
+    return marketData(risingCandles(900), {
         price: { symbol: 'BTCUSDT', price: 200 },
-        candles: risingCandles(900),
-    };
+    });
 }
 
 function catchAnalysisError(promise: Promise<unknown>): Promise<unknown> {

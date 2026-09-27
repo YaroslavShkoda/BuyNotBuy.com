@@ -3,11 +3,17 @@ import type { FastifyBaseLogger } from 'fastify';
 import { analyzeMarketWithStatus } from '../../services/analysis.service.js';
 import { MarketAnalysisSchema } from '../schemas.js';
 
+import type { MarketFreshness } from '../../market/market-freshness.js';
+
 export interface ControllerResult<T> {
     payload: T;
     /** The market snapshot was reused after a provider failure. */
     stale: boolean;
     ageMs: number;
+    /** Which of the six freshness states the snapshot behind this payload is. */
+    freshness: MarketFreshness;
+    /** Which venue actually answered. */
+    provider: string;
 }
 
 export async function getAnalysis(
@@ -25,15 +31,18 @@ export async function getAnalysis(
             },
         };
 
-    const { analysis, stale, ageMs } = await analyzeMarketWithStatus(
-        adapter,
-        requestId,
-        logger,
-    );
+    const { analysis, stale, ageMs, freshness, provider } =
+        await analyzeMarketWithStatus(
+            adapter,
+            requestId,
+            logger,
+        );
 
     return {
         payload: MarketAnalysisSchema.parse(analysis),
         stale,
         ageMs,
+        freshness,
+        provider,
     };
 }

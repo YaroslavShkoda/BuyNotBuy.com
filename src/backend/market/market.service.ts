@@ -1,10 +1,17 @@
-import { marketDataProvider } from './market.provider.js';
-import { assertCandleSeries } from './candle-validation.js';
+import { assertCandleSeries, findCandleSeriesIssues } from './candle-validation.js';
+import { classifyFreshness, isUsableForSignal } from './market-freshness.js';
+import {
+    activeMarketVenue,
+    anyMarketProviderAvailable,
+    marketDataProvider,
+    requestedMarketSymbol,
+} from './market.provider.js';
 
 import { MAX_CANDLE_LIMIT, marketConfig } from '../config/market.config.js';
 import { requiredCandleCount } from '../config/indicator.config.js';
 import { MarketDataError } from '../errors/market-data.error.js';
 
+import type { MarketFreshness } from './market-freshness.js';
 import type { AssetPrice, MarketData } from '../types/market.js';
 
 export interface MarketDataResult {
@@ -14,10 +21,19 @@ export interface MarketDataResult {
      * the provider is currently unavailable. The HTTP layer turns this into
      * the `X-Data-Stale` header so a consumer can tell a repeated reading
      * from a live one.
+     *
+     * Kept as its own field rather than derived from `freshness`, because the
+     * header predates the freshness model and two states map onto it: a stale
+     * snapshot and a current one served while every venue is down are both
+     * "not freshly fetched", and the header's job is to say that much.
      */
     stale: boolean;
     /** Age of the underlying snapshot in milliseconds. */
     ageMs: number;
+    /** Which venue actually produced this snapshot. */
+    provider: string;
+    /** The single answer to "how much should a caller trust this". */
+    freshness: MarketFreshness;
 }
 
 interface CacheEntry {
@@ -49,10 +65,25 @@ export async function getMarketData(): Promise<MarketDataResult> {
         cached !== null &&
         now - cached.fetchedAt < marketConfig.cacheTtlMs
     ) {
+        // A cache hit means nobody was asked, so whether the feed is alive has
+        // to be looked up separately. Without this the dashboard reports a dead
+        // market as a healthy one: both venues circuit-open, every page load
+        // served from memory, and `X-Data-Stale: false` on all of them.
+        const anyProviderAvailable = anyMarketProviderAvailable();
+
         return {
             data: cached.data,
-            stale: false,
+            stale: !anyProviderAvailable,
             ageMs: now - cached.fetchedAt,
+            provider: cached.data.provider,
+            freshness: classifyFreshness({
+                ageMs: now - cached.fetchedAt,
+                providerAnswered: false,
+                anyProviderAvailable,
+                toleratedIssues: [],
+                requiredCandles: requiredCandleCount(),
+                actualCandles: cached.data.candles.length,
+            }),
         };
     }
 
@@ -72,7 +103,13 @@ async function fetchAndCache(): Promise<MarketDataResult> {
 
         cache = { data, fetchedAt: Date.now() };
 
-        return { data, stale: false, ageMs: 0 };
+        return {
+            data,
+            stale: false,
+            ageMs: 0,
+            provider: data.provider,
+            freshness: 'fresh',
+        };
     } catch (error) {
         // A provider outage should degrade the dashboard, not blank it: the
         // last good snapshot is still the truth about the last closed candle.
@@ -83,14 +120,27 @@ async function fetchAndCache(): Promise<MarketDataResult> {
             ? Number.POSITIVE_INFINITY
             : Date.now() - fallback.fetchedAt;
 
+        const freshness = classifyFreshness({
+            ageMs: fallback === null ? null : ageMs,
+            providerAnswered: false,
+            anyProviderAvailable: anyMarketProviderAvailable(),
+            toleratedIssues: [],
+            requiredCandles:
+                fallback === null ? undefined : fallback.data.candles.length,
+            actualCandles:
+                fallback === null ? undefined : fallback.data.candles.length,
+        });
+
         if (
             fallback !== null &&
-            ageMs <= marketConfig.maxStaleMs
+            freshness === 'stale'
         ) {
             return {
                 data: fallback.data,
                 stale: true,
                 ageMs,
+                provider: fallback.data.provider,
+                freshness,
             };
         }
 
@@ -99,9 +149,29 @@ async function fetchAndCache(): Promise<MarketDataResult> {
 }
 
 async function fetchMarketData(): Promise<MarketData> {
-    const candles = await marketDataProvider.getCandles(
-        resolveCandleLimit(),
-    );
+    const requestedSymbol = requestedMarketSymbol();
+    const { venue, symbol, candles } =
+        await marketDataProvider.getAttributedCandles(
+            resolveCandleLimit(),
+        );
+
+    // A fallback configured with a different ticker is a legitimate setting, but
+    // answering from it while reporting the primary's symbol is not: the price
+    // of one asset would be published under another's name, and nothing
+    // downstream could tell. Refused rather than relabelled.
+    if (symbol !== requestedSymbol) {
+        throw new MarketDataError(
+            'Market data provider answered with a different symbol than requested',
+            {
+                code: 'MARKET_PROVIDER_ERROR',
+                cause: {
+                    provider: venue,
+                    requestedSymbol,
+                    answeredSymbol: symbol,
+                },
+            },
+        );
+    }
 
     // Every provider funnels through here, so the invariants the indicators
     // rely on are checked exactly once. An unsorted or impossible series would
@@ -115,7 +185,7 @@ async function fetchMarketData(): Promise<MarketData> {
     assertCandleSeries(
         candles,
         Date.now(),
-        marketConfig.provider,
+        venue,
         MAX_CANDLE_LIMIT,
         marketConfig.candleIntervalMs,
     );
@@ -128,7 +198,7 @@ async function fetchMarketData(): Promise<MarketData> {
             {
                 code: 'MARKET_PROVIDER_ERROR',
                 cause: {
-                    provider: marketConfig.provider,
+                    provider: venue,
                     endpoint: '/api/v3/klines',
                     candleCount: candles.length,
                 },
@@ -142,12 +212,43 @@ async function fetchMarketData(): Promise<MarketData> {
     // have to be computed against the same time base.
     return {
         price: {
-            symbol: marketConfig.symbol,
+            symbol: requestedSymbol,
             price: lastCandle.close,
         },
         candles,
+        provider: venue,
+        symbol: requestedSymbol,
+        interval: marketConfig.candleInterval,
+        // Market time, not fetch time. The two differ by up to one interval and
+        // only this one belongs in a record meant to be replayed.
+        timestamp: lastCandle.timestamp + marketConfig.candleIntervalMs,
     };
 }
+
+/**
+ * The one place that decides whether a series is good enough to build on.
+ *
+ * Shared with the quality score so the two cannot disagree: a snapshot the
+ * freshness model calls unusable and one the quality score calls perfect would
+ * produce a dashboard that shows a green quality bar over a signal that was
+ * refused.
+ */
+export function isSnapshotUsable(result: MarketDataResult): boolean {
+    return isUsableForSignal(result.freshness);
+}
+
+/** Test hook: the raw series verdict, for the quality score and its tests. */
+export function inspectCandles(candles: MarketData['candles']) {
+    return findCandleSeriesIssues(
+        candles,
+        Date.now(),
+        MAX_CANDLE_LIMIT,
+        marketConfig.candleIntervalMs,
+    );
+}
+
+/** The venue currently answering, or null when there is nothing to switch. */
+export { activeMarketVenue };
 
 /**
  * Never ask for less than the indicator warm-up needs, and never ask for more

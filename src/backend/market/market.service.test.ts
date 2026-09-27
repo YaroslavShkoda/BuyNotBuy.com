@@ -1,17 +1,35 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockMarketDataProvider } = vi.hoisted(() => ({
+const { mockMarketDataProvider, mockAnyProviderAvailable } = vi.hoisted(() => ({
+    mockAnyProviderAvailable: vi.fn(() => true),
     mockMarketDataProvider: {
         getPrice: vi.fn(async () => ({
             symbol: 'BTCUSDT',
             price: 80000,
         })),
-        getCandles: vi.fn(async () => [] as unknown[]),
+        getCandles: vi.fn(async (_limit?: number) => [] as unknown[]),
+        /**
+         * The attributed call the snapshot path actually makes, delegating to
+         * the same stub as `getCandles` so every existing arrangement and
+         * assertion keeps working while the envelope is exercised for real.
+         */
+        getAttributedCandles: vi.fn(async (limit?: number) => ({
+            venue: 'binance',
+            symbol: 'BTCUSDT',
+            candles: (await mockMarketDataProvider.getCandles(limit)) as Candle[],
+        })),
     },
 }));
 
 vi.mock('./market.provider.js', () => ({
     marketDataProvider: mockMarketDataProvider,
+    // The freshness model asks whether a live price is obtainable even when the
+    // cache answers, because a cache hit means nobody asked anybody. Stubbed
+    // separately from the provider so a test can make the feed dead without
+    // making the fetch throw.
+    anyMarketProviderAvailable: mockAnyProviderAvailable,
+    activeMarketVenue: vi.fn(() => 'binance'),
+    requestedMarketSymbol: vi.fn(() => 'BTCUSDT'),
 }));
 
 import {
@@ -67,15 +85,22 @@ function expectedMarketData(candles: Candle[], price: number) {
                 price,
             },
             candles,
+            provider: 'binance',
+            symbol: 'BTCUSDT',
+            interval: marketConfig.candleInterval,
+            timestamp: (candles.at(-1)?.timestamp ?? 0) + HOUR_MS,
         },
         stale: false,
         ageMs: 0,
+        provider: 'binance',
+        freshness: 'fresh',
     };
 }
 
 describe('market.service', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        mockAnyProviderAvailable.mockReturnValue(true);
         // The snapshot cache is process-wide by design; without a reset a
         // snapshot from one test would satisfy the next one and hide the
         // behaviour under test.
@@ -342,6 +367,124 @@ describe('market.service', () => {
                 results.every((result) => result.stale === false),
             ).toBe(true);
             expect(mockMarketDataProvider.getCandles).toHaveBeenCalledTimes(1);
+        });
+
+        it('calls a cached snapshot fresh even when every venue is dead', async () => {
+            vi.useFakeTimers({
+                toFake: ['Date'],
+                now: new Date('2026-02-01T00:00:00Z'),
+            });
+
+            try {
+                // A full warm-up window, not a one-bar stub: a snapshot that
+                // cannot support a signal is `partially_available` whatever the
+                // venues are doing, and that would mask the state under test.
+                const candles = series(
+                    Array.from({ length: requiredCandleCount() }, () => 80000),
+                );
+
+                mockMarketDataProvider.getCandles.mockResolvedValueOnce(candles);
+
+                const first = await getMarketData();
+
+                // Both venues are now refusing. A cache hit means nobody was
+                // asked, so the only way to know the feed is dead is to look —
+                // and without that look the dashboard serves a good snapshot
+                // with `X-Data-Stale: false` for as long as the outage lasts,
+                // which is precisely the failure that goes unnoticed for an hour.
+                mockAnyProviderAvailable.mockReturnValue(false);
+
+                const second = await getMarketData();
+
+                expect(first.freshness).toBe('fresh');
+                expect(second.freshness).toBe('provider_failed');
+                expect(second.stale).toBe(true);
+                expect(second.data).toBe(first.data);
+                expect(mockMarketDataProvider.getCandles).toHaveBeenCalledTimes(1);
+            } finally {
+                vi.useRealTimers();
+            }
+        });
+
+        it('keeps calling a cached snapshot fresh while a backup is still up', async () => {
+            vi.useFakeTimers({
+                toFake: ['Date'],
+                now: new Date('2026-02-01T00:00:00Z'),
+            });
+
+            try {
+                mockMarketDataProvider.getCandles.mockResolvedValueOnce(
+                    series(
+                        Array.from({ length: requiredCandleCount() }, () => 80000),
+                    ),
+                );
+
+                await getMarketData();
+
+                // The primary is gone but the backup is not: the answer is
+                // still a live one, and reporting `provider_failed` here would
+                // cry wolf on every failover the site handles by design.
+                mockAnyProviderAvailable.mockReturnValue(true);
+
+                const again = await getMarketData();
+
+                expect(again.freshness).toBe('fresh');
+                expect(again.stale).toBe(false);
+            } finally {
+                vi.useRealTimers();
+            }
+        });
+    });
+
+    describe('snapshot attribution', () => {
+        it('records the venue that actually answered', async () => {
+            mockMarketDataProvider.getAttributedCandles.mockResolvedValueOnce({
+                venue: 'bitget',
+                symbol: 'BTCUSDT',
+                candles: series([80000]),
+            });
+
+            const result = await getMarketData();
+
+            // The two venues print different numbers for the same hour, so a
+            // failover that is not labelled is a fake market move in every
+            // chart and every stored snapshot.
+            expect(result.provider).toBe('bitget');
+            expect(result.data.provider).toBe('bitget');
+        });
+
+        it('stamps the market clock, not the fetch clock', async () => {
+            const candles = series([80000, 81500]);
+
+            mockMarketDataProvider.getCandles.mockResolvedValueOnce(candles);
+
+            const { data } = await getMarketData();
+
+            // "When we looked" and "what the market did" are different facts,
+            // and only the second one belongs in a record meant to be replayed.
+            expect(data.timestamp).toBe(
+                (candles.at(-1)?.timestamp ?? 0) + marketConfig.candleIntervalMs,
+            );
+        });
+
+        it('refuses a venue that answers with a different symbol', async () => {
+            // A fallback configured for another pair is a legitimate setting;
+            // publishing its price under the primary's ticker is not.
+            mockMarketDataProvider.getAttributedCandles.mockResolvedValueOnce({
+                venue: 'bitget',
+                symbol: 'ETHUSDT',
+                candles: series([3000]),
+            });
+
+            const error = await getMarketData().catch((caught: unknown) => caught);
+
+            expect(error).toBeInstanceOf(MarketDataError);
+            expect((error as MarketDataError).code).toBe('MARKET_PROVIDER_ERROR');
+            expect((error as MarketDataError).cause).toMatchObject({
+                provider: 'bitget',
+                requestedSymbol: 'BTCUSDT',
+                answeredSymbol: 'ETHUSDT',
+            });
         });
     });
 });

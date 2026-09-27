@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import Fastify from 'fastify';
 
-const { mockMarketDataProvider } = vi.hoisted(() => ({
-    mockMarketDataProvider: {
+const { mockMarketDataProvider, mockAnyProviderAvailable } = vi.hoisted(() => {
+    const base = {
         getPrice: vi.fn(async () => ({
             symbol: 'BTCUSDT',
             price: 80000,
@@ -22,11 +22,26 @@ const { mockMarketDataProvider } = vi.hoisted(() => ({
                 };
             }),
         ),
-    },
-}));
+    };
+
+    return {
+        mockAnyProviderAvailable: vi.fn(() => true),
+        mockMarketDataProvider: {
+            ...base,
+            getAttributedCandles: vi.fn(async (limit?: number) => ({
+                venue: 'binance',
+                symbol: 'BTCUSDT',
+                candles: await base.getCandles(limit),
+            })),
+        },
+    };
+});
 
 vi.mock('../../market/market.provider.js', () => ({
     marketDataProvider: mockMarketDataProvider,
+    anyMarketProviderAvailable: mockAnyProviderAvailable,
+    activeMarketVenue: vi.fn(() => 'binance'),
+    requestedMarketSymbol: vi.fn(() => 'BTCUSDT'),
 }));
 
 vi.mock('../../history/signal-history.service.js', () => ({

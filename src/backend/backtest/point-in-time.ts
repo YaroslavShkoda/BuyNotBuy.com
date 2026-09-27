@@ -1,6 +1,7 @@
 import { calculateMarketIndicators } from '../indicators/indicator.service.js';
 import { calculateSignal } from '../signals/signal.service.js';
 import { INDICATOR_SIGNAL_CONFIG } from '../config/indicator.config.js';
+import { marketConfig } from '../config/market.config.js';
 
 import type { MarketIndicators } from '../indicators/indicator.service.js';
 import type { SignalResult } from '../signals/signal.types.js';
@@ -55,9 +56,17 @@ export function computeSignalAt(
 
     const price = visible[visible.length - 1]!.close;
 
+    // The envelope is filled in rather than left half-built, and the timestamp
+    // is the close of the last visible bar — not the wall clock. A point-in-time
+    // helper whose own record claimed to be from "now" would smuggle the very
+    // thing it exists to prevent into everything downstream that reads it.
     const marketData: MarketData = {
         price: { symbol: 'BACKTEST', price },
         candles: visible,
+        provider: 'backtest',
+        symbol: 'BACKTEST',
+        interval: marketConfig.candleInterval,
+        timestamp: visible[visible.length - 1]!.timestamp,
     };
 
     return signalFrom(

@@ -5,8 +5,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MarketDataError } from '../errors/market-data.error.js';
 import { ApiErrorResponseSchema } from './schemas.js';
 
-const { mockMarketDataProvider } = vi.hoisted(() => ({
-    mockMarketDataProvider: {
+const { mockMarketDataProvider, mockAnyProviderAvailable } = vi.hoisted(() => {
+    const base = {
         getPrice: vi.fn(async () => ({
             symbol: 'BTCUSDT',
             price: 80000,
@@ -14,11 +14,26 @@ const { mockMarketDataProvider } = vi.hoisted(() => ({
         getCandles: vi.fn(async (limit = 900) =>
             currentCandles(limit),
         ),
-    },
-}));
+    };
+
+    return {
+        mockAnyProviderAvailable: vi.fn(() => true),
+        mockMarketDataProvider: {
+            ...base,
+            getAttributedCandles: vi.fn(async (limit?: number) => ({
+                venue: 'binance',
+                symbol: 'BTCUSDT',
+                candles: await base.getCandles(limit),
+            })),
+        },
+    };
+});
 
 vi.mock('../market/market.provider.js', () => ({
     marketDataProvider: mockMarketDataProvider,
+    anyMarketProviderAvailable: mockAnyProviderAvailable,
+    activeMarketVenue: vi.fn(() => 'binance'),
+    requestedMarketSymbol: vi.fn(() => 'BTCUSDT'),
 }));
 
 vi.mock('../history/signal-history.service.js', () => ({

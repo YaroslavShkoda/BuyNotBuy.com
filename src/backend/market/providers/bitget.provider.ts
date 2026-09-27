@@ -11,7 +11,7 @@ import { marketConfig } from '../../config/market.config.js';
 import { MAX_CANDLE_LIMIT } from '../../config/market.config.js';
 import { sendProviderRequest } from './provider-http.js';
 
-import type { MarketDataProvider } from './market-data.provider.js';
+import type { MarketDataProvider, ProviderCandles } from './market-data.provider.js';
 
 const TICKERS_ENDPOINT = '/api/v2/spot/market/tickers';
 const CANDLES_ENDPOINT = '/api/v2/spot/market/candles';
@@ -171,8 +171,10 @@ export interface BitgetProviderOptions {
 }
 
 export class BitgetProvider implements MarketDataProvider {
+    readonly name = 'bitget';
+
     private readonly baseUrl: string;
-    private readonly symbol: string;
+    readonly symbol: string;
     private readonly interval: { granularity: string; durationMs: number };
     private readonly defaultCandleLimit: number;
 
@@ -258,6 +260,16 @@ export class BitgetProvider implements MarketDataProvider {
         limit: number = this.defaultCandleLimit,
     ): Promise<Candle[]> {
         return this.fetchCandles(limit);
+    }
+
+    async getAttributedCandles(
+        limit: number = this.defaultCandleLimit,
+    ): Promise<ProviderCandles> {
+        return {
+            venue: this.name,
+            symbol: this.symbol,
+            candles: await this.fetchCandles(limit),
+        };
     }
 
     /**

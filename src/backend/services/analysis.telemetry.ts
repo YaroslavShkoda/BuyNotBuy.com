@@ -6,6 +6,8 @@ import type {
     IndicatorSignal,
 } from '../signals/signal.types.js';
 
+import type { MarketFreshness } from '../market/market-freshness.js';
+
 export interface AnalysisTelemetryLogger {
     info(
         context: AnalysisTelemetry,
@@ -27,6 +29,18 @@ export type AnalysisTelemetry = AnalysisStageDurations & {
     symbol: string;
     candleCount: number;
     candleInterval: string;
+    /** Close of the newest candle, i.e. the market's own clock. */
+    marketTimestamp: number;
+    /**
+     * Which of the six freshness states the snapshot behind this analysis is.
+     *
+     * A field rather than only the `dataStale` boolean, because the two answer
+     * different questions: `dataStale` says "not freshly fetched", this says
+     * why. A dashboard degraded to a cached snapshot and one whose market feed
+     * is entirely dead both answer "true" to the first and are different
+     * incidents.
+     */
+    freshness: MarketFreshness;
     signal: IndicatorSignal;
     confidence: number;
     requestId?: string;
@@ -112,6 +126,8 @@ export function buildAnalysisTelemetry(
         symbol: string;
         candleCount: number;
         candleInterval: string;
+        marketTimestamp: number;
+        freshness: MarketFreshness;
         requestId?: string;
     },
 ): AnalysisTelemetry {
@@ -121,6 +137,8 @@ export function buildAnalysisTelemetry(
         symbol: context.symbol,
         candleCount: context.candleCount,
         candleInterval: context.candleInterval,
+        marketTimestamp: context.marketTimestamp,
+        freshness: context.freshness,
         marketDataDurationMs: durations.marketDataDurationMs,
         indicatorsDurationMs: durations.indicatorsDurationMs,
         divergenceDurationMs: durations.divergenceDurationMs,

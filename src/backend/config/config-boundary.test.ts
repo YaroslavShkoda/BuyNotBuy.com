@@ -41,6 +41,8 @@ const VALID_ENV: Record<string, string> = {
     MARKET_CIRCUIT_COOLDOWN_MS: '30000',
     MARKET_MAX_RETRY_AFTER_MS: '120000',
     MARKET_USER_AGENT: 'BuyNotBuy.com/1.0 (+https://buynotbuy.com)',
+    MARKET_PROVIDER_DEGRADED_AFTER_MS: '300000',
+    MARKET_PROVIDER_LATENCY_SAMPLE_SIZE: '512',
 };
 
 function clearMarketEnv(): void {
@@ -84,6 +86,8 @@ describe('configuration boundary hardening (task 7)', () => {
             circuitFailureThreshold: 5,
             circuitCooldownMs: 30000,
             maxRetryAfterMs: 120000,
+            providerDegradedAfterMs: 300000,
+            providerLatencySampleSize: 512,
             userAgent: 'BuyNotBuy.com/1.0 (+https://buynotbuy.com)',
         });
     });

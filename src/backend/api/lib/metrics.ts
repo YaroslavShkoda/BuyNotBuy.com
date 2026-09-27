@@ -1,6 +1,9 @@
 import { observabilityConfig } from '../../config/observability.config.js';
 import { signalHistoryBacklog } from '../../history/signal-history.service.js';
 import { indicatorVoteBacklog } from '../../indicators/performance/indicator-performance.service.js';
+import { configuredMarketVenues } from '../../market/market.provider.js';
+import { venueHealth } from '../../market/providers/provider-http.js';
+import { providerTelemetryAll } from '../../market/providers/provider-telemetry.js';
 
 import type { FastifyReply, FastifyRequest } from 'fastify';
 
@@ -164,6 +167,68 @@ export function renderMetrics(): string {
             `# HELP buynotbuy_write_backlog_${name}_dropped_total Records lost to a full buffer.`,
             `# TYPE buynotbuy_write_backlog_${name}_dropped_total counter`,
             `buynotbuy_write_backlog_${name}_dropped_total ${state.dropped}`,
+        );
+    }
+
+    // Provider telemetry. The venue is the only label, and the venue list is
+    // the configured one — bounded by configuration, not by traffic, so this
+    // cannot grow a series per request the way a path or a symbol would.
+    //
+    // Rendered for every configured venue even before the first call, so a
+    // scraper sees a zero rather than a gap. A gap and a zero look identical on
+    // a graph and mean opposite things: "no traffic" and "no data".
+    for (const venue of new Set([
+        ...configuredMarketVenues(),
+        ...providerTelemetryAll().map((entry) => entry.provider),
+    ])) {
+        const stats = providerTelemetryAll().find(
+            (entry) => entry.provider === venue,
+        );
+        const healthState = venueHealth(venue);
+        const label = `{provider="${escapeLabel(venue)}"}`;
+
+        lines.push(
+            '',
+            `# HELP buynotbuy_provider_requests_total Provider calls attempted.`,
+            '# TYPE buynotbuy_provider_requests_total counter',
+            `buynotbuy_provider_requests_total${label} ${stats?.requests ?? 0}`,
+            '',
+            '# HELP buynotbuy_provider_errors_total Provider calls that failed.',
+            '# TYPE buynotbuy_provider_errors_total counter',
+            `buynotbuy_provider_errors_total${label} ${stats?.failures ?? 0}`,
+            '',
+            '# HELP buynotbuy_provider_rate_limits_total Rate-limit responses received.',
+            '# TYPE buynotbuy_provider_rate_limits_total counter',
+            `buynotbuy_provider_rate_limits_total${label} ${stats?.rateLimits ?? 0}`,
+            '',
+            '# HELP buynotbuy_provider_retries_total Provider calls retried.',
+            '# TYPE buynotbuy_provider_retries_total counter',
+            `buynotbuy_provider_retries_total${label} ${stats?.retries ?? 0}`,
+            '',
+            '# HELP buynotbuy_provider_circuit_open_total Calls refused by an open breaker.',
+            '# TYPE buynotbuy_provider_circuit_open_total counter',
+            `buynotbuy_provider_circuit_open_total${label} ${stats?.circuitOpens ?? 0}`,
+            '',
+            '# HELP buynotbuy_provider_latency_ms Provider call latency percentiles over the recent sample.',
+            '# TYPE buynotbuy_provider_latency_ms gauge',
+            `buynotbuy_provider_latency_ms${label} ${stats?.lastLatencyMs ?? 0}`,
+            `buynotbuy_provider_latency_p50_ms${label} ${stats?.latencyP50Ms ?? 0}`,
+            `buynotbuy_provider_latency_p95_ms${label} ${stats?.latencyP95Ms ?? 0}`,
+            `buynotbuy_provider_latency_p99_ms${label} ${stats?.latencyP99Ms ?? 0}`,
+            '',
+            '# HELP buynotbuy_provider_error_rate Share of provider calls that failed, in [0, 1].',
+            '# TYPE buynotbuy_provider_error_rate gauge',
+            // No traffic is rendered as 0 rather than as a NaN, which is what an
+            // absent sample would produce and which no scraper can graph.
+            `buynotbuy_provider_error_rate${label} ${stats?.errorRate ?? 0}`,
+            '',
+            '# HELP buynotbuy_provider_health 1 when the venue can be asked, 0 when it cannot.',
+            '# TYPE buynotbuy_provider_health gauge',
+            `buynotbuy_provider_health${label} ${healthState.available ? 1 : 0}`,
+            '',
+            '# HELP buynotbuy_provider_consecutive_failures Failures since the last success.',
+            '# TYPE buynotbuy_provider_consecutive_failures gauge',
+            `buynotbuy_provider_consecutive_failures${label} ${healthState.consecutiveFailures}`,
         );
     }
 

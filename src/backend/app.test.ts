@@ -5,8 +5,8 @@ import { marketConfig } from './config/market.config.js';
 import { requiredCandleCount } from './config/indicator.config.js';
 import { currentCandles } from './test-support/candles.js';
 
-const { mockMarketDataProvider } = vi.hoisted(() => ({
-    mockMarketDataProvider: {
+const { mockMarketDataProvider, mockAnyProviderAvailable } = vi.hoisted(() => {
+    const base = {
         getPrice: vi.fn(async () => ({
             symbol: 'BTCUSDT',
             price: 80000,
@@ -16,11 +16,29 @@ const { mockMarketDataProvider } = vi.hoisted(() => ({
             async (limit = marketConfig.defaultCandleLimit) =>
                 currentCandles(limit, 100, 0),
         ),
-    },
-}));
+    };
+
+    return {
+        mockAnyProviderAvailable: vi.fn(() => true),
+        mockMarketDataProvider: {
+            ...base,
+            // The attributed call the snapshot path makes, delegating to the
+            // same stub so every existing arrangement keeps working while the
+            // venue envelope is exercised for real.
+            getAttributedCandles: vi.fn(async (limit?: number) => ({
+                venue: 'binance',
+                symbol: 'BTCUSDT',
+                candles: await base.getCandles(limit),
+            })),
+        },
+    };
+});
 
 vi.mock('./market/market.provider.js', () => ({
     marketDataProvider: mockMarketDataProvider,
+    anyMarketProviderAvailable: mockAnyProviderAvailable,
+    activeMarketVenue: vi.fn(() => 'binance'),
+    requestedMarketSymbol: vi.fn(() => marketConfig.symbol),
 }));
 
 vi.mock('./history/signal-history.service.js', () => ({

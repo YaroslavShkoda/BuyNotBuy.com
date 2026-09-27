@@ -1,4 +1,5 @@
 import { currentCandles } from '../test-support/candles.js';
+import { marketData } from '../test-support/market-data.js';
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -10,18 +11,33 @@ import {
     PriceResponseSchema,
 } from './schemas.js';
 
-const { mockMarketDataProvider } = vi.hoisted(() => ({
-    mockMarketDataProvider: {
+const { mockMarketDataProvider, mockAnyProviderAvailable } = vi.hoisted(() => {
+    const base = {
         getPrice: vi.fn(async () => ({
             symbol: 'BTCUSDT',
             price: 80000,
         })),
         getCandles: vi.fn(async (limit = 900) => currentCandles(limit)),
-    },
-}));
+    };
+
+    return {
+        mockAnyProviderAvailable: vi.fn(() => true),
+        mockMarketDataProvider: {
+            ...base,
+            getAttributedCandles: vi.fn(async (limit?: number) => ({
+                venue: 'binance',
+                symbol: 'BTCUSDT',
+                candles: await base.getCandles(limit),
+            })),
+        },
+    };
+});
 
 vi.mock('../market/market.provider.js', () => ({
     marketDataProvider: mockMarketDataProvider,
+    anyMarketProviderAvailable: mockAnyProviderAvailable,
+    activeMarketVenue: vi.fn(() => 'binance'),
+    requestedMarketSymbol: vi.fn(() => 'BTCUSDT'),
 }));
 
 vi.mock('../history/signal-history.service.js', () => ({
@@ -253,12 +269,11 @@ describe('runtime reliability & lifecycle (task 8)', () => {
         const analysisService = await import('../services/analysis.service');
         const marketService = await import('../market/market.service');
 
-        const marketData = {
+        const snapshot = marketData(currentCandles(900), {
             price: { symbol: 'BTCUSDT', price: 200 },
-            candles: currentCandles(900),
-        };
+        });
 
-        const spy = vi.spyOn(marketService, 'getMarketData').mockResolvedValue(freshMarketData(marketData));
+        const spy = vi.spyOn(marketService, 'getMarketData').mockResolvedValue(freshMarketData(snapshot));
 
         try {
             const okLogger = { info: vi.fn() };

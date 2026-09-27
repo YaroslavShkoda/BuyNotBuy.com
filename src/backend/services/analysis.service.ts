@@ -26,6 +26,7 @@ import {
 } from './analysis.telemetry.js';
 
 import type { AnalysisFailedStage, AnalysisTelemetryLogger } from './analysis.telemetry.js';
+import type { MarketFreshness } from '../market/market-freshness.js';
 import type { SignalHistoryLogger } from '../history/signal-history.types.js';
 
 const MOMENTUM_PERIOD = indicatorConfig.momentumPeriod;
@@ -35,6 +36,10 @@ export interface AnalysisWithStatus {
     /** The market snapshot behind this analysis was reused after a failure. */
     stale: boolean;
     ageMs: number;
+    /** Which of the six freshness states that snapshot is in. */
+    freshness: MarketFreshness;
+    /** Which venue actually produced it. */
+    provider: string;
 }
 
 export async function analyzeMarket(
@@ -87,6 +92,8 @@ export async function analyzeMarketWithStatus(
     let marketData: MarketData;
     let marketDataStale = false;
     let marketDataAgeMs = 0;
+    let marketFreshness: MarketFreshness = 'fresh';
+    let marketProvider: string = marketConfig.provider;
 
     try {
         const marketDataMeasured = await measureAsync(
@@ -96,6 +103,8 @@ export async function analyzeMarketWithStatus(
         marketData = marketDataMeasured.result.data;
         marketDataStale = marketDataMeasured.result.stale;
         marketDataAgeMs = marketDataMeasured.result.ageMs;
+        marketFreshness = marketDataMeasured.result.freshness;
+        marketProvider = marketDataMeasured.result.provider;
         completedDurations.marketDataDurationMs = marketDataMeasured.durationMs;
     } catch (error) {
         fail(error, 'market-data');
@@ -191,10 +200,15 @@ export async function analyzeMarketWithStatus(
                 totalDurationMs: performance.now() - totalStart,
             },
             {
-                provider: marketConfig.provider,
+                provider: marketProvider,
                 symbol: marketData.price.symbol,
                 candleCount: marketData.candles.length,
                 candleInterval: marketConfig.candleInterval,
+                marketTimestamp: marketData.timestamp,
+                // The state, not just the boolean. "Stale" covers a snapshot
+                // behind the market and a snapshot that is current while the
+                // feed is dead, and those two call for different responses.
+                freshness: marketFreshness,
                 ...(marketDataStale
                     ? { dataStale: true, dataAgeMs: marketDataAgeMs }
                     : {}),
@@ -246,7 +260,13 @@ export async function analyzeMarketWithStatus(
     // on the input hash, so a retry cannot produce a second copy.
     void storeSnapshot(analysis, marketData, historyLogger).catch(() => undefined);
 
-    return { analysis, stale: marketDataStale, ageMs: marketDataAgeMs };
+    return {
+        analysis,
+        stale: marketDataStale,
+        ageMs: marketDataAgeMs,
+        freshness: marketFreshness,
+        provider: marketProvider,
+    };
 }
 
 /**

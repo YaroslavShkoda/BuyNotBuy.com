@@ -59,6 +59,8 @@ vi.mock('../../services/analysis.service.js', () => ({
         analysis: mockAnalysis,
         stale: false,
         ageMs: 0,
+        freshness: 'fresh' as const,
+        provider: 'binance',
     })),
 }));
 
@@ -96,6 +98,8 @@ describe('GET /api/analysis', () => {
             analysis: mockAnalysis,
             stale: true,
             ageMs: 245_000,
+            freshness: 'stale',
+            provider: 'bitget',
         });
 
         const app = Fastify();
@@ -112,6 +116,10 @@ describe('GET /api/analysis', () => {
         expect(response.headers['x-data-stale']).toBe('true');
         expect(response.headers['x-data-age-ms']).toBe('245000');
         expect(response.headers['cache-control']).toBe('no-store');
+        // The two headers that the boolean alone cannot express: which of the
+        // six states this is, and which venue answered.
+        expect(response.headers['x-data-freshness']).toBe('stale');
+        expect(response.headers['x-data-provider']).toBe('bitget');
 
         await app.close();
     });

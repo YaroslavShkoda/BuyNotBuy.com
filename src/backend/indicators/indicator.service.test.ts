@@ -1,15 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { calculateMarketIndicators } from './indicator.service.js';
 import { requiredCandleCount } from '../config/indicator.config.js';
+import { marketData } from '../test-support/market-data.js';
 import type { MarketData } from '../types/market.js';
 
 function risingMarketData(length: number, price = 400): MarketData {
-    return {
-        price: {
-            symbol: 'BTCUSDT',
-            price,
-        },
-        candles: Array.from({ length }, (_, index) => {
+    return marketData(
+        Array.from({ length }, (_, index) => {
             const close = 100 + index;
 
             return {
@@ -21,7 +18,8 @@ function risingMarketData(length: number, price = 400): MarketData {
                 volume: 1000,
             };
         }),
-    };
+        { price: { symbol: 'BTCUSDT', price } },
+    );
 }
 
 describe('calculateMarketIndicators', () => {

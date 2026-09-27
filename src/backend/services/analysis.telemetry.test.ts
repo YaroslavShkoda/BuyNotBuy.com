@@ -1,5 +1,23 @@
 import { describe, expect, it, vi } from 'vitest';
 import { freshMarketData } from '../test-support/market-data-result.js';
+import { marketData } from '../test-support/market-data.js';
+
+function marketDataFixture() {
+    return marketData(
+        Array.from(
+            { length: 900 },
+            (_, index) => ({
+                timestamp: index,
+                open: 100,
+                high: 100 + index,
+                low: 100,
+                close: 100 + index,
+                volume: 1000,
+            }),
+        ),
+        { price: { symbol: 'BTCUSDT', price: 200 } },
+    );
+}
 
 import {
     attachAnalysisErrorContext,
@@ -74,6 +92,8 @@ describe('analysis.telemetry', () => {
                 symbol: 'BTCUSDT',
                 candleCount: 300,
                 candleInterval: '1h',
+                marketTimestamp: 1_700_000_000_000,
+                freshness: 'fresh',
                 requestId: 'req-1',
             },
         );
@@ -84,6 +104,8 @@ describe('analysis.telemetry', () => {
             symbol: 'BTCUSDT',
             candleCount: 300,
             candleInterval: '1h',
+            marketTimestamp: 1_700_000_000_000,
+            freshness: 'fresh',
             marketDataDurationMs: 1,
             indicatorsDurationMs: 2,
             divergenceDurationMs: 3,
@@ -118,26 +140,10 @@ describe('analyzeMarket observability', () => {
         const { analyzeMarket } = await import('./analysis.service');
         const marketService = await import('../market/market.service');
 
-        const marketData = {
-            price: {
-                symbol: 'BTCUSDT',
-                price: 200,
-            },
-            candles: Array.from(
-                { length: 900 },
-                (_, index) => ({
-                    timestamp: index,
-                    open: 100,
-                    high: 100 + index,
-                    low: 100,
-                    close: 100 + index,
-                    volume: 1000,
-                }),
-            ),
-        };
+        const snapshot = marketDataFixture();
 
         const getMarketDataSpy = vi.spyOn(marketService, 'getMarketData')
-            .mockResolvedValue(freshMarketData(marketData));
+            .mockResolvedValue(freshMarketData(snapshot));
 
         try {
             const baseline = await analyzeMarket();
@@ -155,8 +161,8 @@ describe('analyzeMarket observability', () => {
         expect(message).toBe('market_analysis_completed');
         expect(context['event']).toBe('market_analysis_completed');
         expect(context['provider']).toBeTypeOf('string');
-        expect(context['symbol']).toBe(marketData.price.symbol);
-        expect(context['candleCount']).toBe(marketData.candles.length);
+        expect(context['symbol']).toBe(snapshot.price.symbol);
+        expect(context['candleCount']).toBe(snapshot.candles.length);
         expect(context['signal']).toBe(result.signal.signal);
         expect(context['confidence']).toBe(result.signal.confidence);
         expect(context['requestId']).toBe('req-observability');

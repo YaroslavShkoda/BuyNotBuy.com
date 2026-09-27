@@ -119,8 +119,43 @@ describe('readiness', () => {
         expect(response.statusCode).toBe(200);
         expect(response.json()).toEqual({
             status: 'ready',
-            checks: { database: { ok: true } },
+            checks: {
+                database: { ok: true },
+                // Reported, not gating. The venue list is a pure read of state
+                // this process already keeps, so the probe costs nothing and
+                // cannot be the thing that provokes the rate limit it is
+                // checking for.
+                marketData: expect.objectContaining({
+                    ok: expect.any(Boolean),
+                    venues: expect.any(Array),
+                }),
+            },
         });
+    });
+
+    it('reports market-data venues without making readiness flap', async () => {
+        const healthy = await track(createApp()).inject({
+            method: 'GET',
+            url: '/readyz',
+        });
+
+        expect(healthy.statusCode).toBe(200);
+        expect(healthy.json().checks.marketData.venues).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({
+                    provider: expect.any(String),
+                    state: expect.any(String),
+                    circuit: expect.any(String),
+                    available: expect.any(Boolean),
+                }),
+            ]),
+        );
+
+        // A dead upstream is exactly the state the service already handles — it
+        // serves the last good snapshot and says so in a header. Failing
+        // readiness on it would pull a working instance out of rotation for a
+        // blip, so it is reported and deliberately not acted on.
+        expect(healthy.json().checks.marketData.ok).toBeTypeOf('boolean');
     });
 
     it('reports a reason to the caller and keeps the detail in the log', async () => {

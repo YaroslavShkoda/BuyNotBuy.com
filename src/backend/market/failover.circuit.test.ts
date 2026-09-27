@@ -16,6 +16,8 @@ import type { MarketDataProvider } from './providers/market-data.provider.js';
  */
 function refusing(venue: string, reason: string): MarketDataProvider {
     return {
+        name: venue,
+        symbol: 'BTCUSDT',
         getPrice: async () => {
             throw new MarketDataError(reason, {
                 code: 'MARKET_DATA_UNAVAILABLE',
@@ -33,16 +35,29 @@ function refusing(venue: string, reason: string): MarketDataProvider {
         getHistoricalCandles: async () => {
             throw new MarketDataError(reason, { code: 'MARKET_DATA_UNAVAILABLE' });
         },
+        getAttributedCandles: async () => {
+            throw new MarketDataError(reason, {
+                code: 'MARKET_DATA_UNAVAILABLE',
+                retryAfterSeconds: 30,
+                cause: { provider: venue, circuit: 'open' },
+            });
+        },
     };
 }
 
 function answering(venue: string, price: number): MarketDataProvider {
     return {
+        name: venue,
+        symbol: 'BTCUSDT',
         getPrice: async () => ({ symbol: 'BTCUSDT', price }),
         getCandles: async () => [],
         getHistoricalCandles: async () => [],
-        venue,
-    } as unknown as MarketDataProvider;
+        getAttributedCandles: async () => ({
+            venue,
+            symbol: 'BTCUSDT',
+            candles: [],
+        }),
+    };
 }
 
 describe('failover across an open circuit', () => {
@@ -79,18 +94,34 @@ describe('failover across an open circuit', () => {
             {
                 name: 'binance',
                 provider: {
+                    name: 'binance',
+                    symbol: 'BTCUSDT',
                     getPrice: primary,
                     getCandles: async () => [],
                     getHistoricalCandles: async () => [],
+                    getAttributedCandles: async () => {
+                        throw new MarketDataError('circuit open', {
+                            code: 'MARKET_DATA_UNAVAILABLE',
+                            retryAfterSeconds: 30,
+                            cause: { provider: 'binance', circuit: 'open' },
+                        });
+                    },
                 },
             },
             [
                 {
                     name: 'bitget',
                     provider: {
+                        name: 'bitget',
+                        symbol: 'BTCUSDT',
                         getPrice: backup,
                         getCandles: async () => [],
                         getHistoricalCandles: async () => [],
+                        getAttributedCandles: async () => ({
+                            venue: 'bitget',
+                            symbol: 'BTCUSDT',
+                            candles: [],
+                        }),
                     },
                 },
             ],

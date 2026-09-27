@@ -9,6 +9,7 @@ import { analyzeMarket } from './analysis.service.js';
 import * as marketService from '../market/market.service.js';
 import * as divergenceService from '../indicators/divergence.service.js';
 import { freshMarketData } from '../test-support/market-data-result.js';
+import { marketData } from '../test-support/market-data.js';
 
 describe('analyzeMarket', () => {
     it('builds complete market analysis', async () => {
@@ -16,12 +17,8 @@ describe('analyzeMarket', () => {
         vi.spyOn(
             marketService,
             'getMarketData',
-        ).mockResolvedValue(freshMarketData({
-            price: {
-                symbol: 'BTCUSDT',
-                price: 200,
-            },
-            candles: Array.from(
+        ).mockResolvedValue(freshMarketData(marketData(
+            Array.from(
                 { length: 900 },
                 (_, index) => ({
                     timestamp: index,
@@ -32,7 +29,8 @@ describe('analyzeMarket', () => {
                     volume: 1000,
                 }),
             ),
-        }));
+            { price: { symbol: 'BTCUSDT', price: 200 } },
+        )));
 
         const result = await analyzeMarket();
 

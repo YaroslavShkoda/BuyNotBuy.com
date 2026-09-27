@@ -3,6 +3,7 @@ import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { analyzeMarket } from './analysis.service.js';
 import * as marketService from '../market/market.service.js';
 import { freshMarketData } from '../test-support/market-data-result.js';
+import { marketData } from '../test-support/market-data.js';
 import { MarketDataError } from '../errors/market-data.error.js';
 import * as historyRepository from '../history/signal-history.repository.js';
 
@@ -10,12 +11,8 @@ import type { SignalHistoryRepository } from '../history/signal-history.reposito
 import type { SignalHistoryEntry } from '../history/signal-history.types.js';
 import type { MockInstance } from 'vitest';
 
-const marketDataFixture = {
-    price: {
-        symbol: 'BTCUSDT',
-        price: 200,
-    },
-    candles: Array.from(
+const marketDataFixture = marketData(
+    Array.from(
         { length: 900 },
         (_, index) => ({
             timestamp: index,
@@ -26,7 +23,8 @@ const marketDataFixture = {
             volume: 1000,
         }),
     ),
-};
+    { price: { symbol: 'BTCUSDT', price: 200 } },
+);
 
 /**
  * Waits until at least `expected` entries are readable, then hands them back.

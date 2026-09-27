@@ -37,6 +37,8 @@ describe('marketConfig', () => {
             circuitFailureThreshold: 5,
             circuitCooldownMs: 30000,
             maxRetryAfterMs: 120000,
+            providerDegradedAfterMs: 300000,
+            providerLatencySampleSize: 512,
             userAgent: 'BuyNotBuy.com/1.0 (+https://buynotbuy.com)',
         });
     });
@@ -62,6 +64,8 @@ describe('marketConfig', () => {
         process.env.MARKET_FALLBACK_PROVIDERS = 'bitget';
         process.env.MARKET_FALLBACK_BASE_URL = 'https://backup.example.com';
         process.env.MARKET_FALLBACK_SYMBOL = 'ETHUSDT';
+        process.env.MARKET_PROVIDER_DEGRADED_AFTER_MS = '45000';
+        process.env.MARKET_PROVIDER_LATENCY_SAMPLE_SIZE = '64';
 
         const { marketConfig } = await import('./market.config');
 
@@ -84,6 +88,8 @@ describe('marketConfig', () => {
             circuitFailureThreshold: 3,
             circuitCooldownMs: 15000,
             maxRetryAfterMs: 90000,
+            providerDegradedAfterMs: 45000,
+            providerLatencySampleSize: 64,
             userAgent: 'Custom/9.9',
         });
     });

@@ -17,9 +17,11 @@ function venue(
         historical?: (limit: number) => Promise<never[]>;
     } = {},
 ) {
-    const calls = { price: 0, candles: 0, historical: 0 };
+    const calls = { price: 0, candles: 0, historical: 0, attributed: 0 };
 
     const provider: MarketDataProvider = {
+        name,
+        symbol: PRICE.symbol,
         getPrice: async () => {
             calls.price += 1;
 
@@ -34,6 +36,17 @@ function venue(
             calls.historical += 1;
 
             return behaviour.historical ? behaviour.historical(limit) : [];
+        },
+        getAttributedCandles: async () => {
+            calls.attributed += 1;
+
+            return {
+                venue: name,
+                symbol: PRICE.symbol,
+                candles: await (behaviour.candles
+                    ? behaviour.candles()
+                    : Promise.resolve([])),
+            };
         },
     };
 

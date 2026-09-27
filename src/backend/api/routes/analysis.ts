@@ -11,7 +11,7 @@ export async function analysisRoutes(
     app: FastifyInstance,
 ) {
     app.get('/api/analysis', async (request, reply) => {
-        const { payload, stale, ageMs } = await getAnalysis(
+        const result = await getAnalysis(
             request.log,
             request.id,
         );
@@ -20,9 +20,9 @@ export async function analysisRoutes(
         // whether the answer behind it is old. A client that skips the body
         // has lost nothing else, and dropping the header would leave it unable
         // to tell "unchanged and fresh" from "unchanged and stale".
-        setDataFreshnessHeaders(reply, stale, ageMs);
+        setDataFreshnessHeaders(reply, result);
 
-        return sendWithEtag(request, reply, payload, {
+        return sendWithEtag(request, reply, result.payload, {
             // The analysis stamps the moment it was computed into the body.
             // Left in the comparison, every request would carry a different
             // tag and the client would never see a single 304.

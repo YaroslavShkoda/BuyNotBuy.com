@@ -5,12 +5,20 @@ import type {
     Candle,
 } from '../../types/market.js';
 
-import type { MarketDataProvider } from './market-data.provider.js';
+import type { MarketDataProvider, ProviderCandles } from './market-data.provider.js';
 
 export class MockProvider implements MarketDataProvider {
+    readonly name = 'mock';
+
+    readonly symbol: string;
+
+    constructor(symbol: string = marketConfig.symbol) {
+        this.symbol = symbol;
+    }
+
     async getPrice(): Promise<AssetPrice> {
         return {
-            symbol: marketConfig.symbol,
+            symbol: this.symbol,
             price: 100000,
         };
     }
@@ -19,6 +27,16 @@ export class MockProvider implements MarketDataProvider {
         limit: number = marketConfig.defaultCandleLimit,
     ): Promise<Candle[]> {
         return this.buildCandles(limit);
+    }
+
+    async getAttributedCandles(
+        limit: number = marketConfig.defaultCandleLimit,
+    ): Promise<ProviderCandles> {
+        return {
+            venue: this.name,
+            symbol: this.symbol,
+            candles: this.buildCandles(limit),
+        };
     }
 
     /**
