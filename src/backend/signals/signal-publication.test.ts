@@ -1,0 +1,170 @@
+import { describe, expect, it, beforeEach, afterEach } from 'vitest';
+import fc from 'fast-check';
+
+import { MetricRegistry, useRegistry } from '../observability/registry.js';
+import { METRIC_NAMES } from '../observability/metrics.js';
+import {
+    recordPublishedSignal,
+    resetPublishedSignals,
+    lastPublishedSignal,
+    churnRate,
+} from './signal-publication.js';
+
+import type { IndicatorSignal } from './signal.types.js';
+
+const DIRECTIONS: IndicatorSignal[] = ['LONG', 'SHORT', 'NEUTRAL'];
+
+describe('the metrics are recorded where the work happens, not where it is reported', () => {
+    let registry: MetricRegistry;
+
+    beforeEach(() => {
+        registry = new MetricRegistry();
+        useRegistry(registry);
+        // The "previous signal" is process memory by design, so it survives
+        // between tests exactly as it survives between requests. Every test
+        // that reads the counters has to start from the state a restart would.
+        resetPublishedSignals();
+    });
+
+    afterEach(() => {
+        useRegistry(null);
+    });
+
+    it('counts a signal that was actually published to a caller', () => {
+        recordPublishedSignal('LONG');
+        recordPublishedSignal('LONG');
+
+        expect(registry.value('signal_generation_total')).toBe(2);
+    });
+
+    it('counts NEUTRAL as a generated signal, because it is an answer', () => {
+        recordPublishedSignal('NEUTRAL');
+
+        // A counter that skipped HOLD would say the system had stopped working
+        // exactly when it had correctly decided to do nothing.
+        expect(registry.value('signal_generation_total')).toBe(1);
+    });
+
+    it('counts a change only when the direction differs from the last one', () => {
+        recordPublishedSignal('LONG');
+        recordPublishedSignal('LONG');
+        recordPublishedSignal('SHORT');
+        recordPublishedSignal('LONG');
+
+        expect(registry.value('signal_changes_total')).toBe(2);
+    });
+
+    it('publishes the total unlabelled, so asking for it by name works', () => {
+        recordPublishedSignal('LONG');
+        recordPublishedSignal('SHORT');
+
+        // The first version carried a from/to label, so the series that existed
+        // was signal_changes_total{from="LONG",to="SHORT"} and the metric the
+        // roadmap promised read as null to anyone who asked for it by name. A
+        // counter behind a label needs sum by () on the far side, and that gets
+        // forgotten once and then reads as zero forever.
+        expect(registry.value('signal_changes_total')).toBe(1);
+    });
+
+    it('does not count the first signal as a change', () => {
+        recordPublishedSignal('LONG');
+
+        // With no memory of a previous one, nothing supports the other answer.
+        expect(registry.value('signal_changes_total')).toBe(0);
+    });
+
+    it('forgets the previous signal on a restart, and says so with a zero', () => {
+        recordPublishedSignal('LONG');
+        resetPublishedSignals();
+        recordPublishedSignal('SHORT');
+
+        // Not a bug, and worth pinning: the first signal after a restart is
+        // not a change, because there is no earlier signal to have changed
+        // from. The alternative — treating it as a change — would report a flip
+        // on every deploy of a system that had not moved at all.
+        expect(registry.value('signal_changes_total')).toBe(0);
+        expect(registry.value('signal_generation_total')).toBe(2);
+    });
+
+    it('remembers the last direction, which is what the next call compares against', () => {
+        expect(lastPublishedSignal()).toBeNull();
+        recordPublishedSignal('SHORT');
+        expect(lastPublishedSignal()).toBe('SHORT');
+    });
+
+    it('reports churn as null rather than dividing by nothing', () => {
+        // A division of two counters by hand is exactly where a zero
+        // denominator quietly becomes a NaN on somebody's graph.
+        expect(churnRate()).toBeNull();
+    });
+
+    it('makes a thousand answers and two changes visible as a ratio', () => {
+        for (let index = 0; index < 1000; index += 1) {
+            recordPublishedSignal('LONG');
+        }
+
+        recordPublishedSignal('SHORT');
+        recordPublishedSignal('LONG');
+
+        // The generation counter alone would show a healthy thousand, and a
+        // system that answers a thousand times and changes twice has stopped
+        // noticing the market.
+        expect(registry.value('signal_generation_total')).toBe(1002);
+        expect(churnRate()).toBeCloseTo(2 / 1002, 10);
+    });
+
+    it('never counts more changes than signals', () => {
+        fc.assert(
+            fc.property(
+                fc.array(fc.constantFrom(...DIRECTIONS), { maxLength: 60 }),
+                (sequence) => {
+                    resetPublishedSignals();
+
+                    const fresh = new MetricRegistry();
+                    useRegistry(fresh);
+
+                    for (const direction of sequence) {
+                        recordPublishedSignal(direction);
+                    }
+
+                    const generated = fresh.value('signal_generation_total') ?? 0;
+                    const changed = fresh.value('signal_changes_total') ?? 0;
+
+                    expect(changed).toBeLessThanOrEqual(generated);
+                    expect(changed).toBeLessThanOrEqual(sequence.length);
+                },
+            ),
+            { numRuns: 100 },
+        );
+    });
+});
+
+describe('the exposition carries the whole promise or none of it', () => {
+    it('names every promised metric, even the ones nothing has recorded yet', () => {
+        const rendered = new MetricRegistry().render({ namespace: 'buynotbuy_' });
+
+        for (const name of METRIC_NAMES) {
+            expect(rendered).toContain(`buynotbuy_${name}`);
+        }
+    });
+
+    it('keeps the eight that had nowhere to be recorded before', () => {
+        const rendered = new MetricRegistry().render({ namespace: 'buynotbuy_' });
+
+        // These eight were the gap: the old exposition published five provider
+        // series and had no place at all for the cache, the indicators, the
+        // signals, the database or the backtest.
+        for (const name of [
+            'market_cache_hits',
+            'market_cache_misses',
+            'market_stale_served',
+            'indicator_calculation_duration',
+            'signal_generation_total',
+            'signal_changes_total',
+            'database_query_duration',
+            'backtest_duration',
+        ]) {
+            expect(rendered).toContain(name);
+        }
+    });
+});

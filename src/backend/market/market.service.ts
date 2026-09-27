@@ -10,6 +10,7 @@ import {
 import { MAX_CANDLE_LIMIT, marketConfig } from '../config/market.config.js';
 import { requiredCandleCount } from '../config/indicator.config.js';
 import { MarketDataError } from '../errors/market-data.error.js';
+import { currentRegistry } from '../observability/registry.js';
 
 import type { MarketFreshness } from './market-freshness.js';
 import type { AssetPrice, MarketData } from '../types/market.js';
@@ -71,6 +72,8 @@ export async function getMarketData(): Promise<MarketDataResult> {
         // served from memory, and `X-Data-Stale: false` on all of them.
         const anyProviderAvailable = anyMarketProviderAvailable();
 
+        currentRegistry().counter('market_cache_hits');
+
         return {
             data: cached.data,
             stale: !anyProviderAvailable,
@@ -90,9 +93,16 @@ export async function getMarketData(): Promise<MarketDataResult> {
     // Concurrent callers share one provider request instead of each starting
     // their own; the shared result is cached, so a burst of page loads costs
     // a single upstream call.
-    inFlight ??= fetchAndCache().finally(() => {
-        inFlight = null;
-    });
+    if (inFlight === null) {
+        // Counted only on the branch that actually starts an upstream call.
+        // Ten page loads sharing one request cost the provider one request, and
+        // a counter that said ten would be measuring the dashboard's traffic
+        // rather than what the cache was worth.
+        currentRegistry().counter('market_cache_misses');
+        inFlight = fetchAndCache().finally(() => {
+            inFlight = null;
+        });
+    }
 
     return inFlight;
 }
@@ -135,6 +145,13 @@ async function fetchAndCache(): Promise<MarketDataResult> {
             fallback !== null &&
             freshness === 'stale'
         ) {
+            // The one path in this module that serves data the market has moved
+            // past. It is a metric rather than a log line because its whole
+            // value is the shape over time: one stale hour during an outage is
+            // the system working, and a stale hour every hour for a week is
+            // the system having quietly stopped noticing.
+            currentRegistry().counter('market_stale_served');
+
             return {
                 data: fallback.data,
                 stale: true,

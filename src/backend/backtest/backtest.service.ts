@@ -1,3 +1,4 @@
+import { currentRegistry } from '../observability/registry.js';
 import { getMarketData } from '../market/market.service.js';
 import { marketDataProvider } from '../market/market.provider.js';
 import { marketConfig } from '../config/market.config.js';
@@ -68,6 +69,23 @@ function requiredCandles(options: WalkForwardOptions): number {
  */
 export async function runBacktest(
     options: Partial<WalkForwardOptions> = {},
+): Promise<BacktestReport> {
+    const startedAt = performance.now();
+
+    try {
+        return await runBacktestMeasured(options, startedAt);
+    } finally {
+        // A backtest that throws still took the time, and the time is the only
+        // thing that says the run got too big to finish. Recorded outside the
+        // successful path for the same reason the database timing is: the
+        // duration nobody waits for is the one worth measuring.
+        currentRegistry().observe('backtest_duration', performance.now() - startedAt);
+    }
+}
+
+async function runBacktestMeasured(
+    options: Partial<WalkForwardOptions>,
+    startedAt: number,
 ): Promise<BacktestReport> {
     const resolved = { ...DEFAULT_WALK_FORWARD_OPTIONS, ...options };
     const needed = requiredCandles(resolved);

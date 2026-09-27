@@ -9,6 +9,7 @@ import { calculateRSI } from './rsi.js';
 import { calculateStochastic } from './stochastic.js';
 import { createIndicatorRegistry, indicatorContext } from './indicator.registry.js';
 import { createSeriesGraph, emaSeries } from './series.graph.js';
+import { currentRegistry } from '../observability/registry.js';
 
 import type { IndicatorDefinition, IndicatorRegistry, IndicatorValue } from './indicator.registry.js';
 import type { MarketData } from '../types/market.js';
@@ -296,30 +297,44 @@ export function calculateMarketIndicators(
 ): MarketIndicators {
     assertWarmupCandles(marketData.candles.length);
 
-    const context = indicatorContext(
-        marketData.candles,
-        marketData.timestamp,
-    );
-    const values = indicatorRegistry.calculate({
-        ...context,
-        series: resolveRequiredSeries(marketData.candles, context.closes),
-    });
+    const startedAt = performance.now();
 
-    const ema = requireValue(values, EMA_INDICATOR.key).value;
-    const macd = requireValue(values, MACD_INDICATOR.key);
+    try {
+        const context = indicatorContext(
+            marketData.candles,
+            marketData.timestamp,
+        );
+        const values = indicatorRegistry.calculate({
+            ...context,
+            series: resolveRequiredSeries(marketData.candles, context.closes),
+        });
 
-    return {
-        ema,
-        stochastic: requireValue(values, STOCHASTIC_INDICATOR.key).value,
-        momentum: requireValue(values, MOMENTUM_INDICATOR.key).value,
-        atr: requireValue(values, ATR_INDICATOR.key).value,
-        rsi: requireValue(values, RSI_INDICATOR.key).value,
-        macd: {
-            macd: macd.value,
-            signal: macd.extra?.signal ?? Number.NaN,
-            histogram: macd.extra?.histogram ?? Number.NaN,
-        },
-    };
+        const ema = requireValue(values, EMA_INDICATOR.key).value;
+        const macd = requireValue(values, MACD_INDICATOR.key);
+
+        return {
+            ema,
+            stochastic: requireValue(values, STOCHASTIC_INDICATOR.key).value,
+            momentum: requireValue(values, MOMENTUM_INDICATOR.key).value,
+            atr: requireValue(values, ATR_INDICATOR.key).value,
+            rsi: requireValue(values, RSI_INDICATOR.key).value,
+            macd: {
+                macd: macd.value,
+                signal: macd.extra?.signal ?? Number.NaN,
+                histogram: macd.extra?.histogram ?? Number.NaN,
+            },
+        };
+    } finally {
+        // The whole window, not each indicator. The seven run over the same
+        // 900 bars and the question worth answering is whether an analysis is
+        // fast enough to be asked on a page load, not which of the seven is
+        // the slow one — a per-indicator split here would be a label set
+        // bounded by configuration and never queried.
+        currentRegistry().observe(
+            'indicator_calculation_duration',
+            performance.now() - startedAt,
+        );
+    }
 }
 
 /**

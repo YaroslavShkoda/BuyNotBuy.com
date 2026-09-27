@@ -1,6 +1,7 @@
 import { Pool, types } from 'pg';
 
 import { databaseConfig } from '../config/database.config.js';
+import { currentRegistry } from '../observability/registry.js';
 
 import type { PoolClient, QueryResult, QueryResultRow } from 'pg';
 
@@ -75,11 +76,44 @@ export function getPool(): Pool {
     return pool;
 }
 
+/**
+ * The name a statement is filed under in `database_query_duration`.
+ *
+ * The call site, not the SQL. A per-`text` label would put every parameterised
+ * statement into its own permanent series, and the series would be keyed by
+ * text nobody reads; the call site is bounded by the number of methods in this
+ * codebase and is what somebody would search for when a query got slow.
+ */
+function operationOf(text: string): string {
+    const trimmed = text.trimStart();
+
+    for (const line of trimmed.split('\n')) {
+        const match = /^\s*(?:--[^\n]*\n\s*)*(select|insert|update|delete|with)\b/i.exec(line);
+
+        if (match !== null) {
+            return match[1]?.toLowerCase() ?? 'other';
+        }
+    }
+
+    return 'other';
+}
+
 export async function query<Row extends QueryResultRow>(
     text: string,
     values: readonly unknown[] = [],
 ): Promise<QueryResult<Row>> {
-    return getPool().query<Row>(text, values as unknown[]);
+    const startedAt = performance.now();
+
+    try {
+        return await getPool().query<Row>(text, values as unknown[]);
+    } finally {
+        // In a finally, not after: a duration recorded only on the success path
+        // describes how fast the database is when it agrees, which is the half
+        // nobody is paged about. The slow query is the one that timed out.
+        currentRegistry().observe('database_query_duration', performance.now() - startedAt, {
+            operation: operationOf(text),
+        });
+    }
 }
 
 /**

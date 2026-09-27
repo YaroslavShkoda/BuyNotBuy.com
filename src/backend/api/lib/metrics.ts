@@ -4,6 +4,7 @@ import { indicatorVoteBacklog } from '../../indicators/performance/indicator-per
 import { configuredMarketVenues } from '../../market/market.provider.js';
 import { venueHealth } from '../../market/providers/provider-http.js';
 import { providerTelemetryAll } from '../../market/providers/provider-telemetry.js';
+import { currentRegistry } from '../../observability/registry.js';
 
 import type { FastifyReply, FastifyRequest } from 'fastify';
 
@@ -242,5 +243,17 @@ export function renderMetrics(): string {
         '',
     );
 
+    // The metrics the roadmap named, from the registry that records them at the
+    // call sites. Appended rather than merged into the blocks above, because
+    // these have declared kinds and a test that holds the registry against the
+    // list of names; the hand-written lines above carry extra series this
+    // project found worth having, which is a different thing from the promise.
+    lines.push(roadmapExposition());
+
     return lines.join('\n');
+}
+
+/** The thirteen promised metrics, in the registry's own text exposition. */
+function roadmapExposition(): string {
+    return currentRegistry().render({ namespace: 'buynotbuy_' });
 }

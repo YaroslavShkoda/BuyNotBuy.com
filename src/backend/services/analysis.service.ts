@@ -3,6 +3,7 @@ import type { MarketData } from '../types/market.js';
 import type { MarketIndicators } from '../indicators/indicator.service.js';
 import type { DivergenceAnalysis } from '../indicators/divergence.service.js';
 import type { SignalResult } from '../signals/signal.types.js';
+import { recordPublishedSignal } from '../signals/signal-publication.js';
 
 import { getMarketData } from '../market/market.service.js';
 import { calculateMarketIndicators, toWireIndicators } from '../indicators/indicator.service.js';
@@ -191,6 +192,13 @@ export async function analyzeMarketWithStatus(
             macdSignal: indicatorConfig.macdSignalPeriod,
         },
     };
+
+    // Counted where the signal is *published*, not inside `calculateSignal`.
+    // That function is pure arithmetic called by hundreds of tests with
+    // invented prices, and a counter it moved would measure the test suite
+    // rather than the system. Here, one counter tick is one signal a caller
+    // was actually given.
+    recordPublishedSignal(signal.signal);
 
     logger?.info(
         buildAnalysisTelemetry(
