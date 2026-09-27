@@ -87,6 +87,8 @@ describe('indicator registry', () => {
             'atr',
             'rsi',
             'macd',
+            'bollinger',
+            'adx',
         ]);
     });
 
@@ -290,12 +292,32 @@ describe('a new indicator is one file', () => {
         // Only the calculators are files; everything else is wiring. A
         // calculator with no registration is a new indicator nobody can see.
         const calculators = files.filter((name) =>
-            ['ema.ts', 'rsi.ts', 'macd.ts', 'atr.ts', 'momentum.ts', 'stochastic.ts'].includes(
+            ['ema.ts', 'rsi.ts', 'macd.ts', 'atr.ts', 'momentum.ts', 'stochastic.ts', 'bollinger.ts', 'adx.ts'].includes(
                 name,
             ),
         );
 
         expect(calculators.length).toBeGreaterThan(0);
         expect(known.size).toBeGreaterThanOrEqual(calculators.length);
+    });
+
+    it('added indicators without touching a single vote', () => {
+        // The consensus is the product. Bollinger and ADX were added as
+        // context, and the proof that adding them cost nothing is that the
+        // voter's list is still the same three it was before either existed.
+        expect(indicatorRegistry.voters().map((entry) => entry.key)).toEqual([
+            'ema',
+            'stochastic',
+            'momentum',
+        ]);
+    });
+
+    it('keeps every contextual indicator out of the vote, by construction', () => {
+        // Not a snapshot of today's decision — a rule. Anything registered as
+        // context can never reach the consensus without changing its declared
+        // role, which is a reviewable change rather than a silent one.
+        for (const definition of indicatorRegistry.contextual()) {
+            expect(definition.role).toBe('context');
+        }
     });
 });

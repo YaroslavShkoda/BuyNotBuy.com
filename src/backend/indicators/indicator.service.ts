@@ -1,6 +1,8 @@
 import { indicatorConfig, requiredCandleCount } from '../config/indicator.config.js';
 import { MarketDataError } from '../errors/market-data.error.js';
 import { calculateATR } from './atr.js';
+import { calculateADX } from './adx.js';
+import { calculateBollingerBands } from './bollinger.js';
 import { calculateEMA } from './ema.js';
 import { calculateMACD } from './macd.js';
 import { calculateMomentum } from './momentum.js';
@@ -124,6 +126,60 @@ export const MACD_INDICATOR: IndicatorDefinition = {
     },
 };
 
+export const BOLLINGER_INDICATOR: IndicatorDefinition = {
+    key: 'bollinger',
+    name: `Bollinger ${indicatorConfig.bollingerPeriod}/${indicatorConfig.bollingerStdDev}`,
+    role: 'context',
+    warmup: indicatorConfig.bollingerPeriod,
+    calculate: (context) => {
+        const bands = calculateBollingerBands(
+            context.candles,
+            indicatorConfig.bollingerPeriod,
+            indicatorConfig.bollingerStdDev,
+        );
+
+        // %B rather than the middle band, because the middle band is a
+        // smoothed price and a caller asking for this wants to know where
+        // price sits inside the range.
+        return {
+            value: bands.percentB,
+            extra: {
+                middle: bands.middle,
+                upper: bands.upper,
+                lower: bands.lower,
+                bandwidth: bands.bandwidth,
+            },
+        };
+    },
+};
+
+export const ADX_INDICATOR: IndicatorDefinition = {
+    key: 'adx',
+    name: `ADX ${indicatorConfig.adxPeriod}`,
+    role: 'context',
+    // Wilder smooths the true range and then the directional index, so the
+    // series has to be twice the period plus one bar long before the recursion
+    // has anything to work with.
+    warmup: indicatorConfig.adxPeriod * 2 + 1,
+    calculate: (context) => {
+        const movement = calculateADX(
+            context.candles,
+            indicatorConfig.adxPeriod,
+        );
+
+        // ADX itself, not +DI: the whole point of it is that it has no
+        // direction, and a value that took a side would be a different
+        // indicator wearing this one's name.
+        return {
+            value: movement.adx,
+            extra: {
+                plusDI: movement.plusDI,
+                minusDI: movement.minusDI,
+            },
+        };
+    },
+};
+
 /**
  * The registry the process runs on.
  *
@@ -141,6 +197,8 @@ export const indicatorRegistry: IndicatorRegistry = (() => {
         ATR_INDICATOR,
         RSI_INDICATOR,
         MACD_INDICATOR,
+        BOLLINGER_INDICATOR,
+        ADX_INDICATOR,
     ]) {
         registry.register(definition);
     }

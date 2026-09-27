@@ -28,6 +28,32 @@ function periodFromEnv(name: string, fallback: number): number {
 }
 
 /**
+ * A number of standard deviations, read from the environment when it is set.
+ *
+ * Zero is allowed here and is not allowed for a period: zero bands are a
+ * meaningful, if useless, answer, and a negative width is not. The distinction
+ * is worth keeping rather than folding both into `periodFromEnv`, where a
+ * valid zero would be rejected.
+ */
+function deviationFromEnv(name: string, fallback: number): number {
+    const raw = process.env[name];
+
+    if (raw === undefined || raw.trim() === '') {
+        return fallback;
+    }
+
+    const parsed = z.coerce.number().min(0).safeParse(raw.trim());
+
+    if (!parsed.success) {
+        throw new Error(
+            `${name} must be a number of standard deviations, received "${raw}"`,
+        );
+    }
+
+    return parsed.data;
+}
+
+/**
  * Single source of truth for indicator periods.
  *
  * The warm-up multiplier is the important part. An EMA seeded with the SMA of
@@ -42,6 +68,14 @@ export const indicatorConfig = {
     momentumPeriod: periodFromEnv('INDICATOR_MOMENTUM_PERIOD', 100),
     atrPeriod: periodFromEnv('INDICATOR_ATR_PERIOD', 14),
     rsiPeriod: periodFromEnv('INDICATOR_RSI_PERIOD', 14),
+    bollingerPeriod: periodFromEnv('INDICATOR_BOLLINGER_PERIOD', 20),
+    /**
+     * Standard deviations for the bands. Two is Bollinger's own; one and a half
+     * is a tighter envelope, and it is configurable because the right answer is
+     * a statement about the instrument rather than a constant in the code.
+     */
+    bollingerStdDev: deviationFromEnv('INDICATOR_BOLLINGER_STDDEV', 2),
+    adxPeriod: periodFromEnv('INDICATOR_ADX_PERIOD', 14),
     macdFastPeriod: periodFromEnv('INDICATOR_MACD_FAST_PERIOD', 12),
     macdSlowPeriod: periodFromEnv('INDICATOR_MACD_SLOW_PERIOD', 26),
     macdSignalPeriod: periodFromEnv('INDICATOR_MACD_SIGNAL_PERIOD', 9),
