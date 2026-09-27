@@ -18,7 +18,8 @@
 
 Финальное измеренное состояние: **1743 теста, 138 файлов,
 `npm run verify` зелёный, `npm run build` собирается, lint чист, typecheck
-чист.** 45 коммитов впереди `origin/main`, **не запушены**.
+чист.** Весь проход впереди `origin/main` и **не запушен** — проверить точно:
+`git rev-list --count origin/main..HEAD`.
 
 Ключевое из сделанного, на что опирался финальный блок:
 `outcome.ts` · `performance.ts` / `calibration.ts` / `regime-performance.ts` ·
