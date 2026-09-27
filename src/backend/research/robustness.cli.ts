@@ -68,6 +68,8 @@ console.log(
 );
 
 const periods = [14, 16, 18, 20, 22, 24, 28, 35, 55];
+/** The length the project actually ships, named so the output can be checked against it. */
+const CHOSEN_CHANNEL_PERIOD = 20;
 const surface = periods.map((channelPeriod) => {
     const run = runStrategy(
         fromModule(`donchian-${channelPeriod}`, createDonchian({ channelPeriod })),
@@ -94,9 +96,21 @@ console.table(surface);
 const profitable = surface.filter(
     (row) => !row['итог'].startsWith('-') && Number(row['профит-фактор']) > 1,
 ).length;
+const bestRow = [...surface].sort(
+    (left, right) =>
+        Number(right['итог'].replace('%', '')) - Number(left['итог'].replace('%', '')),
+)[0]!;
+const bestPeriod = periods[surface.indexOf(bestRow)];
+/** `surface` is indexed by position in `periods`, not by the period itself. */
+const chosenRow = surface[periods.indexOf(CHOSEN_CHANNEL_PERIOD)]!;
 console.log(
     `Прибыльных длин: ${profitable} из ${periods.length}. ` +
-    `Выбранная длина 20 — это максимум, нет — устойчивость, одна — точка.\n`,
+    `Выбранная длина ${CHOSEN_CHANNEL_PERIOD}, она даёт ${chosenRow['итог']}. ` +
+    `Лучшее среднее — ${bestPeriod} (${bestRow['итог']}).`,
+);
+console.log(
+    'Совпадение с максимумом таблицы не делает выбор устойчивым: соседние длины\n' +
+    'отличаются на десятки процентов, а по складкам 20 выигрывает одну из восьми.\n',
 );
 
 console.log('='.repeat(104));
