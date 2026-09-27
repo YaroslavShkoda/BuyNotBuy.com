@@ -23,7 +23,7 @@ const openInstances: FastifyInstance[] = [];
 const ANALYSIS = {
     timestamp: 1_737_950_400_000,
     price: 100_000,
-    indicators: { ema300: 99_000, stochastic: 12, momentum: 0.4 },
+    indicators: { ema: 99_000, stochastic: 12, momentum: 0.4 },
     signal: {
         signal: 'LONG',
         confidence: 61,

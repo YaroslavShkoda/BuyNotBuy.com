@@ -6,7 +6,7 @@ import type { MarketIndicators } from '../indicators/indicator.service.js';
 
 function indicators(overrides: Partial<MarketIndicators> = {}): MarketIndicators {
     return {
-        ema300: 100,
+        ema: 100,
         stochastic: 50,
         momentum: 0,
         atr: 1,
@@ -36,7 +36,7 @@ describe('signal service: values that are not numbers', () => {
     });
 
     it('reports an unusable EMA as unavailable', () => {
-        const result = calculateSignal(100, indicators({ ema300: Number.NaN }), [
+        const result = calculateSignal(100, indicators({ ema: Number.NaN }), [
             100,
         ]);
 
@@ -69,10 +69,10 @@ describe('signal service: values that are not numbers', () => {
     it('never turns an unusable indicator into a directional headline', () => {
         for (const broken of [
             { momentum: Number.NaN },
-            { ema300: Number.NaN },
+            { ema: Number.NaN },
             { stochastic: Number.NaN },
             { momentum: Number.POSITIVE_INFINITY },
-            { ema300: Number.POSITIVE_INFINITY },
+            { ema: Number.POSITIVE_INFINITY },
         ]) {
             const result = calculateSignal(100, indicators(broken), [100]);
 
@@ -89,7 +89,7 @@ describe('signal service: a vote with no weight behind it', () => {
         // weight. One real voter is one voter.
         const result = calculateSignal(
             100,
-            indicators({ ema300: 100, stochastic: 10, momentum: 0 }),
+            indicators({ ema: 100, stochastic: 10, momentum: 0 }),
             [100],
         );
 
@@ -99,7 +99,7 @@ describe('signal service: a vote with no weight behind it', () => {
     it('publishes a direction when two indicators carry real weight', () => {
         const result = calculateSignal(
             110,
-            indicators({ ema300: 100, stochastic: 10, momentum: 8 }),
+            indicators({ ema: 100, stochastic: 10, momentum: 8 }),
             [110, 110, 110],
         );
 

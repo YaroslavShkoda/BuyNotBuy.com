@@ -1,0 +1,173 @@
+import type { Candle } from '../types/market.js';
+
+/**
+ * The contract every indicator is written against.
+ *
+ * It exists because "add an indicator" was previously a change to one
+ * function, one interface, one API schema, one signal type, one row in the
+ * dashboard and one branch of a switch — seven places, none of which fails
+ * when any of the others is missed. The result is an indicator that computes,
+ * never reaches a vote, and nobody notices for a release.
+ *
+ * So the parts an indicator is made of are declared once: what it needs to see,
+ * what it produces, how much history it insists on, and whether it is allowed
+ * to vote. A new indicator is one file and one line in the registry, and a
+ * missing piece is a type error rather than a silence.
+ */
+
+/**
+ * What an indicator is computed from.
+ *
+ * A context rather than a parameter list, because the inputs an indicator
+ * needs are not a choice anyone should be making per call: the series, the
+ * derived price arrays, and the market facts around them.
+ */
+export interface IndicatorContext {
+    /**
+     * The series. Not readonly, because the calculators this was extracted
+     * from take a mutable array and copying it once per indicator per request
+     * is a real cost for a difference no caller can act on.
+     */
+    readonly candles: Candle[];
+    /** `candles.map(c => c.close)`, built once for the whole run. */
+    readonly closes: number[];
+    /** The close of the bar in progress, or null when there is none. */
+    readonly price: number | null;
+    readonly now: number;
+}
+
+/**
+ * What an indicator produced.
+ *
+ * `value` is a number rather than a union because the interesting difference
+ * between a trend indicator and a bounded oscillator is not the type, it is
+ * what the vote is allowed to do with it. Making that a field means a new
+ * indicator cannot be added without saying which side of that line it is on.
+ */
+export interface IndicatorValue {
+    readonly value: number;
+    /** Anything the indicator also wants a caller to see, such as bands. */
+    readonly extra?: Readonly<Record<string, number>>;
+}
+
+export type IndicatorRole =
+    /** Takes a side. Enters the consensus. */
+    | 'vote'
+    /** Describes the market. Never enters the consensus. */
+    | 'context';
+
+export interface IndicatorDefinition {
+    /**
+     * Stable identity, independent of the display name and of the period.
+     *
+     * The performance table keys its history on this. A rename that changes
+     * this key silently starts a new series and orphans every vote ever
+     * recorded under the old one.
+     */
+    readonly key: string;
+    /** Human-readable label, period included. Shown to a person. */
+    readonly name: string;
+    /** Whether this indicator votes, and what happens if it is missing. */
+    readonly role: IndicatorRole;
+    /** Bars this indicator needs before it will produce anything. */
+    readonly warmup: number;
+    readonly calculate: (context: IndicatorContext) => IndicatorValue;
+}
+
+/**
+ * A registry that answers one question: what does this system know how to
+ * compute?
+ *
+ * `list` exists so callers stop holding their own list. Every place that
+ * enumerates indicators is a place to forget one, and the dashboard, the
+ * consensus and the performance table each kept their own.
+ */
+export interface IndicatorRegistry {
+    register(definition: IndicatorDefinition): void;
+    get(key: string): IndicatorDefinition | undefined;
+    /** Every registered indicator, in registration order. */
+    list(): readonly IndicatorDefinition[];
+    /** Only those allowed to vote. */
+    voters(): readonly IndicatorDefinition[];
+    /** Only those that describe the market. */
+    contextual(): readonly IndicatorDefinition[];
+    /**
+     * Runs everything, keyed by indicator key.
+     *
+     * An indicator that cannot produce a value is reported as absent rather
+     * than as a zero, because a zero is a number the consensus will happily
+     * use and an absent one is a hole somebody has to look at.
+     */
+    calculate(context: IndicatorContext): Readonly<Record<string, IndicatorValue>>;
+}
+
+export function createIndicatorRegistry(): IndicatorRegistry {
+    const definitions = new Map<string, IndicatorDefinition>();
+
+    return {
+        register(definition) {
+            if (definitions.has(definition.key)) {
+                // Silently replacing a definition would mean a vote recorded
+                // under this key is now describing something else, and nothing
+                // would say so.
+                throw new Error(
+                    `Indicator "${definition.key}" is already registered`,
+                );
+            }
+
+            definitions.set(definition.key, definition);
+        },
+
+        get(key) {
+            return definitions.get(key);
+        },
+
+        list() {
+            return [...definitions.values()];
+        },
+
+        voters() {
+            return this.list().filter((entry) => entry.role === 'vote');
+        },
+
+        contextual() {
+            return this.list().filter((entry) => entry.role === 'context');
+        },
+
+        calculate(context) {
+            const results: Record<string, IndicatorValue> = {};
+
+            for (const definition of definitions.values()) {
+                if (context.candles.length < definition.warmup) {
+                    continue;
+                }
+
+                const value = definition.calculate(context);
+
+                if (!Number.isFinite(value.value)) {
+                    // Recorded as missing rather than written as a number, so
+                    // the gap is visible instead of being averaged away.
+                    continue;
+                }
+
+                results[definition.key] = value;
+            }
+
+            return results;
+        },
+    };
+}
+
+/** Builds the context an indicator is computed from, once per run. */
+export function indicatorContext(
+    candles: readonly Candle[],
+    now: number,
+    price: number | null = null,
+): IndicatorContext {
+    return {
+        candles: [...candles],
+        closes: candles.map((candle) => candle.close),
+        price,
+        now,
+    };
+}

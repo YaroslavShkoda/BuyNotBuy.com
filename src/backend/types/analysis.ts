@@ -1,4 +1,4 @@
-import type { MarketIndicators } from '../indicators/indicator.service.js';
+import type { MarketIndicatorsWire } from '../indicators/indicator.service.js';
 import type { SignalResult } from '../signals/signal.types.js';
 import type { DivergenceAnalysis } from '../indicators/divergence.service.js';
 
@@ -30,7 +30,15 @@ export interface IndicatorPeriods {
 export interface MarketAnalysis {
     timestamp: number;
     price: number;
-    indicators: MarketIndicators;
+    /**
+     * The published shape, not the internal one.
+     *
+     * The backend calls this `ema` and the wire calls it `ema300`, and the
+     * conversion is deliberate and total: renaming it everywhere is a breaking
+     * change to every client, and a client that starts receiving `undefined`
+     * is not something this refactor gets to decide.
+     */
+    indicators: MarketIndicatorsWire;
     signal: SignalResult;
     momentum: MomentumAnalysis;
     divergence: DivergenceAnalysis;

@@ -31,7 +31,7 @@ function conviction(
 
 function analyzeEMA(
     price: number,
-    ema300: number,
+    ema: number,
     recentCloses: number[],
     config: ResolvedIndicatorSignalConfig,
 ): IndicatorAnalysis {
@@ -39,8 +39,8 @@ function analyzeEMA(
     const confirmBars = config.ema.confirmBars;
     const scale = config.ema.convictionScalePercent;
 
-    if (!Number.isFinite(price) || !Number.isFinite(ema300) || ema300 <= 0 || price <= 0) {
-        // `ema300 <= 0` alone is not enough: every comparison against NaN is
+    if (!Number.isFinite(price) || !Number.isFinite(ema) || ema <= 0 || price <= 0) {
+        // `ema <= 0` alone is not enough: every comparison against NaN is
         // false, so a NaN average would sail past the guard and be reported as
         // a working indicator that simply could not find a side.
         return {
@@ -57,13 +57,13 @@ function analyzeEMA(
         : [price];
 
     const above = closes.filter(
-        (close) => close > ema300,
+        (close) => close > ema,
     ).length;
     const below = closes.filter(
-        (close) => close < ema300,
+        (close) => close < ema,
     ).length;
 
-    const distancePercent = ((price - ema300) / ema300) * 100;
+    const distancePercent = ((price - ema) / ema) * 100;
     const weight = conviction(distancePercent, scale);
 
     if (above === closes.length) {
@@ -230,7 +230,7 @@ export function calculateSignal(
     const config = resolveConfig(overrides);
 
     const indicatorAnalyses = [
-        analyzeEMA(price, indicators.ema300, recentCloses, config),
+        analyzeEMA(price, indicators.ema, recentCloses, config),
         analyzeStochastic(indicators.stochastic, config),
         analyzeMomentum(indicators.momentum, config),
     ];

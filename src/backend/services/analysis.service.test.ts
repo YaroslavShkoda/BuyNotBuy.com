@@ -39,6 +39,11 @@ describe('analyzeMarket', () => {
         // 900-bar linear ramp: the exact EMA-300 lags the last close by
         // (period - 1) / 2 = 149.5. The old 300-bar window returned its seed
         // SMA (249.5) instead, which never recursed.
+        //
+        // The field is `ema300` because this is the published shape. The
+        // backend calls it `ema`; the rename stops at the wire, where a client
+        // that has been reading this name since the first release is not
+        // something a refactor gets to break.
         expect(result.indicators.ema300).toBeCloseTo(849.5, 6);
         expect(result.indicators.stochastic).toBe(100);
         // Momentum is a rate of change now: (999 - 899) / 899 = +11.12%,

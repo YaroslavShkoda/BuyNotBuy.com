@@ -69,7 +69,9 @@ describe('integration boundaries (task 6)', () => {
 
         const baseline = calculateMarketIndicators(base);
 
-        expect(baseline).toHaveProperty('ema300');
+        // The internal model. This calls the calculator directly, so `ema` is
+        // the right name here; the published response renames it on the way out.
+        expect(baseline).toHaveProperty('ema');
         expect(baseline).toHaveProperty('stochastic');
         expect(baseline).toHaveProperty('momentum');
 
@@ -81,7 +83,7 @@ describe('integration boundaries (task 6)', () => {
             })),
         });
 
-        expect(shifted.ema300).not.toBe(baseline.ema300);
+        expect(shifted.ema).not.toBe(baseline.ema);
     });
 
     it('indicators -> signal wiring: signal list and consensus follow the actual indicator values', async () => {

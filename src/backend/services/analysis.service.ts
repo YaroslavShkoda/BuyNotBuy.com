@@ -5,7 +5,7 @@ import type { DivergenceAnalysis } from '../indicators/divergence.service.js';
 import type { SignalResult } from '../signals/signal.types.js';
 
 import { getMarketData } from '../market/market.service.js';
-import { calculateMarketIndicators } from '../indicators/indicator.service.js';
+import { calculateMarketIndicators, toWireIndicators } from '../indicators/indicator.service.js';
 import { calculateSignal } from '../signals/signal.service.js';
 import { calculateMomentumSeries } from '../indicators/momentum-series.js';
 import { analyzeDivergence } from '../indicators/divergence.service.js';
@@ -169,7 +169,7 @@ export async function analyzeMarketWithStatus(
     const analysis: MarketAnalysis = {
         timestamp: Date.now(),
         price: marketData.price.price,
-        indicators,
+        indicators: toWireIndicators(indicators),
         signal,
         momentum: {
             period: MOMENTUM_PERIOD,

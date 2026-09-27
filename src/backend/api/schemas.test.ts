@@ -132,7 +132,8 @@ function validAnalysis(): AnalysisFixture {
         macdFast: 12,
         macdSlow: 26,
         macdSignal: 9,
-    },    };
+    },
+    };
 }
 
 describe('API schemas', () => {

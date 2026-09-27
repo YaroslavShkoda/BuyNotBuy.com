@@ -19,7 +19,7 @@ describe('calculateSignal', () => {
         const result = calculateSignal(
             80_000,
             {
-                ema300: 78_000,
+                ema: 78_000,
                 stochastic: 10,
                 momentum: 2,
                 atr: 0.015,
@@ -42,7 +42,7 @@ describe('calculateSignal', () => {
         const result = calculateSignal(
             80_000,
             {
-                ema300: 78_000,
+                ema: 78_000,
                 stochastic: 10,
                 momentum: 2,
                 atr: 0.015,
@@ -65,7 +65,7 @@ describe('calculateSignal', () => {
         const result = calculateSignal(
             80_000,
             {
-                ema300: 78_000,
+                ema: 78_000,
                 stochastic: 10,
                 momentum: 2,
                 atr: 0.015,
@@ -94,7 +94,7 @@ describe('calculateSignal', () => {
         const near = calculateSignal(
             78_040,
             {
-                ema300: 78_000,
+                ema: 78_000,
                 stochastic: 10,
                 momentum: 2,
                 atr: 0.015,
@@ -107,7 +107,7 @@ describe('calculateSignal', () => {
         const far = calculateSignal(
             80_000,
             {
-                ema300: 78_000,
+                ema: 78_000,
                 stochastic: 10,
                 momentum: 2,
                 atr: 0.015,
@@ -128,7 +128,7 @@ describe('calculateSignal', () => {
         const result = calculateSignal(
             80_000,
             {
-                ema300: 78_000,
+                ema: 78_000,
                 stochastic: 50,
                 momentum: 0.01,
                 atr: 0.015,
@@ -154,7 +154,7 @@ describe('calculateSignal', () => {
         const result = calculateSignal(
             80_000,
             {
-                ema300: 78_000,
+                ema: 78_000,
                 stochastic: 50,
                 momentum: 0.5,
                 atr: 0.015,
@@ -177,7 +177,7 @@ describe('calculateSignal', () => {
         const result = calculateSignal(
             80_000,
             {
-                ema300: 78_000,
+                ema: 78_000,
                 stochastic: 50,
                 momentum: -deadbandPercent,
                 atr: 0.015,
@@ -197,7 +197,7 @@ describe('calculateSignal', () => {
         const result = calculateSignal(
             80_000,
             {
-                ema300: 80_000,
+                ema: 80_000,
                 stochastic: 50,
                 momentum: 2,
                 atr: 0.015,
@@ -218,7 +218,7 @@ describe('calculateSignal', () => {
         const result = calculateSignal(
             80_000,
             {
-                ema300: 0,
+                ema: 0,
                 stochastic: 50,
                 momentum: 0,
                 atr: 0.015,
@@ -239,7 +239,7 @@ describe('calculateSignal', () => {
         const result = calculateSignal(
             80_000,
             {
-                ema300: 78_000,
+                ema: 78_000,
                 stochastic: 10,
                 momentum: 2,
                 atr: 0.015,

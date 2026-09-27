@@ -28,12 +28,12 @@ describe('calculateMarketIndicators', () => {
 
         const result = calculateMarketIndicators(marketData);
 
-        expect(result).toHaveProperty('ema300');
+        expect(result).toHaveProperty('ema');
         expect(result).toHaveProperty('stochastic');
 
         // A linear ramp has an exact EMA solution, so this is an independent
         // expectation rather than a recorded snapshot.
-        expect(result.ema300).toBeCloseTo(849.5, 6);
+        expect(result.ema).toBeCloseTo(849.5, 6);
         expect(result.stochastic).toBeGreaterThanOrEqual(0);
         expect(result.stochastic).toBeLessThanOrEqual(100);
     });
@@ -47,7 +47,7 @@ describe('calculateMarketIndicators', () => {
             0,
         ) / marketData.candles.length;
 
-        expect(result.ema300).not.toBeCloseTo(sma, 6);
+        expect(result.ema).not.toBeCloseTo(sma, 6);
     });
 
     it('reacts to bars appended after the window, not only to the window itself', () => {
@@ -69,7 +69,7 @@ describe('calculateMarketIndicators', () => {
             ],
         });
 
-        expect(extended.ema300).toBeGreaterThan(baseline.ema300);
+        expect(extended.ema).toBeGreaterThan(baseline.ema);
     });
 
     it('throws when the window cannot warm the EMA up', () => {
