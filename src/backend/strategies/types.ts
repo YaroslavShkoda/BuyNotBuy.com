@@ -30,7 +30,8 @@ import type { IndicatorSignal } from '../signals/signal.types.js';
 export type StrategyKey =
     | 'consensus-primary'
     | 'donchian-20'
-    | 'donchian-trend-gated';
+    | 'donchian-trend-gated'
+    | 'donchian-calm-gated';
 
 export interface StrategyContext {
     /**

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { createConsensusPrimary } from './consensus-primary.js';
 import { createDonchian } from './donchian.js';
 import { createDonchianTrendGated } from './donchian-trend-gated.js';
+import { createDonchianCalmGated } from './donchian-calm-gated.js';
 import {
     DONCHIAN_TREND_GATED_CONFIG,
 } from './donchian-trend-gated.js';
@@ -124,6 +125,12 @@ export const STRATEGY_FACTORIES: Readonly<
 > = {
     'donchian-20': () => createDonchian(),
     'donchian-trend-gated': () => createDonchianTrendGated(),
+    // Selectable, not the default. The default is still the rule that loses
+    // money, because a user asked for it by name and because that is how a
+    // candidate arrives. This one is the version the ablation says is better
+    // and the walk-forward likes most, which is exactly why it must not be
+    // installed by having someone read a table and act on it.
+    'donchian-calm-gated': () => createDonchianCalmGated(),
 };
 
 export interface RegistryOptions {
