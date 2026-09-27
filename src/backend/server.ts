@@ -15,9 +15,14 @@ import {
 } from './indicators/performance/indicator-performance.service.js';
 import { getMarketData } from './market/market.service.js';
 import { createVenueWatcher } from './market/market.provider.js';
+import {
+    configuredSeries,
+    startIngestionScheduler,
+} from './history/ingestion.service.js';
 import { analyzeMarket } from './services/analysis.service.js';
 import { startPoller } from './services/poller.js';
 
+import type { IngestionScheduler } from './history/ingestion.service.js';
 import type { Poller } from './services/poller.js';
 import type { Candle } from './types/market.js';
 
@@ -36,6 +41,17 @@ let isShuttingDown = false;
 // Held outside the handler so shutdown can await whatever cycle is running
 // instead of tearing the database out from under an open write.
 let poller: Poller | null = null;
+
+/**
+ * The candle table's own clock, separate from the analysis poller.
+ *
+ * Kept apart on purpose. The analysis poller answers "what does the dashboard
+ * say now" and its interval is chosen for how stale a page may be; this one
+ * answers "is the history complete" and its interval is chosen so a missed
+ * tick costs a delay rather than an hour. Tying the two together would make
+ * every change to one silently change the guarantee of the other.
+ */
+let ingestion: IngestionScheduler | null = null;
 
 /**
  * The candle window the poller settles against.
@@ -103,6 +119,11 @@ async function shutdown(): Promise<void> {
     }
 
     isShuttingDown = true;
+
+    if (ingestion !== null) {
+        await ingestion.stop();
+        ingestion = null;
+    }
 
     if (poller !== null) {
         await poller.stop();
@@ -189,6 +210,19 @@ async function startServer() {
                         );
                     }
                 },
+            });
+
+            // Started after the analysis poller so the first history entry is
+            // written before the ingest loop begins filling the table that
+            // entry will later be measured against. Either order works; this
+            // one means the table is never behind the entry that claims to
+            // have been derived from it.
+            ingestion = startIngestionScheduler({
+                key: configuredSeries(),
+                intervalMs: marketConfig.candleIntervalMs,
+                maxPeriodMs: marketConfig.candleIntervalMs,
+                pollEnabled: historyConfig.pollEnabled,
+                logger: app.log,
             });
         }
     } catch (error) {
