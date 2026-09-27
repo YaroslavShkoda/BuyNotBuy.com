@@ -184,6 +184,124 @@ export const MIGRATIONS: readonly Migration[] = [
             WHERE is_closed;
         `,
     },
+    {
+        version: 6,
+        name: 'signal_state',
+        sql: `
+            CREATE TABLE IF NOT EXISTS signal_state (
+                id BIGSERIAL PRIMARY KEY,
+                symbol TEXT NOT NULL,
+                provider TEXT NOT NULL,
+                interval TEXT NOT NULL,
+
+                -- The direction this signal is currently in, not every direction
+                -- it has passed through. A signal that flipped LONG to SHORT and
+                -- back is a new signal; pretending it is the old one makes the
+                -- outcome engine measure a trade nobody held.
+                direction TEXT NOT NULL,
+                status TEXT NOT NULL,
+
+                -- The snapshot this state was last written from. A foreign key
+                -- would be better and cannot be: snapshots are pruned, and a
+                -- pruned snapshot must not take the history of every signal
+                -- that referenced it with it.
+                snapshot_id BIGINT,
+
+                price DOUBLE PRECISION NOT NULL,
+                confidence DOUBLE PRECISION NOT NULL,
+
+                -- The bar the signal was published on. The clock for the
+                -- cooldown is measured in closed bars, not in wall time, so a
+                -- backend that was down for four hours does not come back
+                -- believing it is ready to publish.
+                published_at BIGINT NOT NULL,
+                candle_timestamp BIGINT NOT NULL,
+
+                created_at BIGINT NOT NULL,
+                updated_at BIGINT NOT NULL,
+
+                CONSTRAINT signal_state_direction_known CHECK (
+                    direction IN ('LONG', 'SHORT')
+                ),
+                CONSTRAINT signal_state_status_known CHECK (
+                    status IN (
+                        'GENERATED',
+                        'ACTIVE',
+                        'UPDATED',
+                        'INVALIDATED',
+                        'EXPIRED',
+                        'CLOSED'
+                    )
+                ),
+                CONSTRAINT signal_state_price_positive CHECK (price > 0),
+                CONSTRAINT signal_state_confidence_bounded CHECK (
+                    confidence >= 0 AND confidence <= 100
+                ),
+
+                -- One live signal per series. This is what makes dedup a
+                -- database guarantee rather than a check somebody has to
+                -- remember to run before writing.
+                UNIQUE (symbol, provider, interval)
+            );
+
+            -- Every read is "the live signal for this series", and the unique
+            -- constraint above already carries that prefix.
+            CREATE INDEX IF NOT EXISTS idx_signal_state_status
+            ON signal_state (status, updated_at DESC);
+        `,
+    },
+    {
+        version: 7,
+        name: 'signal_transition',
+        sql: `
+            CREATE TABLE IF NOT EXISTS signal_transition (
+                id BIGSERIAL PRIMARY KEY,
+                state_id BIGINT NOT NULL,
+                symbol TEXT NOT NULL,
+                provider TEXT NOT NULL,
+                interval TEXT NOT NULL,
+
+                from_status TEXT,
+                to_status TEXT NOT NULL,
+                from_direction TEXT,
+                to_direction TEXT NOT NULL,
+
+                -- Why it moved, in words a person can act on. "The panel
+                -- stopped agreeing" and "the market closed against us" are
+                -- different events and the performance of the strategy depends
+                -- on telling them apart.
+                reason TEXT NOT NULL,
+
+                -- Candle the transition happened on, never wall time. A
+                -- transition recorded against a wall clock cannot be lined up
+                -- with the bars that caused it.
+                candle_timestamp BIGINT NOT NULL,
+                price DOUBLE PRECISION NOT NULL,
+                created_at BIGINT NOT NULL,
+
+                CONSTRAINT signal_transition_to_known CHECK (
+                    to_status IN (
+                        'GENERATED',
+                        'ACTIVE',
+                        'UPDATED',
+                        'INVALIDATED',
+                        'EXPIRED',
+                        'CLOSED'
+                    )
+                ),
+                CONSTRAINT signal_transition_price_positive CHECK (price > 0)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_signal_transition_state
+            ON signal_transition (state_id, created_at DESC);
+
+            -- The outcome engine reads every transition of every signal that
+            -- has resolved, and there is one series of them per signal. This is
+            -- the read the whole of block 18 depends on.
+            CREATE INDEX IF NOT EXISTS idx_signal_transition_series
+            ON signal_transition (symbol, provider, interval, created_at DESC);
+        `,
+    },
 ];
 
 /** Newest schema version this build knows how to produce. */

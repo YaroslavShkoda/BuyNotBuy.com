@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto';
 
 import { afterAll, beforeAll, beforeEach } from 'vitest';
 
+import type { Pool } from 'pg';
+
 /**
  * Keeps every test run out of the real database.
  *
@@ -58,8 +60,27 @@ process.env.DATABASE_URL = withSearchPath(
     SCHEMA,
 );
 
-const { closePool, query } = await import('../db/pool.js');
+const { closePool, query, getPool } = await import('../db/pool.js');
 const { applyMigrations } = await import('../db/migrations.js');
+
+/**
+ * The pool this file's tests use.
+ *
+ * Exported because a test that only truncates a table does not need the pool,
+ * while a test that borrows a connection or runs a raw query does. Importing
+ * `db/pool` from a test directly would grab a connection on the default search
+ * path — the real schema — and truncate the wrong table.
+ */
+export function getTestPool(): Pool {
+    return getPool();
+}
+
+export async function truncateSignalTables(): Promise<void> {
+    await query(
+        `TRUNCATE signal_history, indicator_vote, market_candles,
+                  signal_transition, signal_state`,
+    );
+}
 
 beforeAll(async () => {
     await query(`CREATE SCHEMA IF NOT EXISTS ${SCHEMA}`);
@@ -77,7 +98,7 @@ beforeAll(async () => {
  * stop at the test boundary too.
  */
 beforeEach(async () => {
-    await query('TRUNCATE signal_history, indicator_vote, market_candles');
+    await truncateSignalTables();
 });
 
 afterAll(async () => {
