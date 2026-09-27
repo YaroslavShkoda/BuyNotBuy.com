@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { NetworkAccessError } from './no-network.js';
+import { ProviderError } from '../errors/provider.error.js';
 
 /**
  * These tests are the guard's own proof of life.
@@ -51,12 +52,25 @@ describe('the network guard', () => {
         // This is the assertion that matters. The provider module is
         // untouched by the guard, and it is where a real exchange call would
         // actually be made.
-        await expect(
-            sendBinanceRequest({
-                url: 'https://data-api.binance.vision/api/v3/klines?symbol=BTCUSDT&interval=1h&limit=10',
-                endpoint: '/api/v3/klines',
-            }),
-        ).rejects.toThrow(/data-api\.binance\.vision/);
+        //
+        // The blocked URL is asserted on the wrapped error\'s `details`, not on
+        // the message. The transport now classifies this as `unavailable` and
+        // puts the venue\'s own words in the message, so matching the sentence
+        // would be matching the transport\'s phrasing — and would have silently
+        // stopped proving that the guard is what refused it.
+        const error = await sendBinanceRequest({
+            url: 'https://data-api.binance.vision/api/v3/klines?symbol=BTCUSDT&interval=1h&limit=10',
+            endpoint: '/api/v3/klines',
+        }).catch((e: unknown) => e);
+
+        expect(error).toMatchObject({
+            kind: 'unavailable',
+            provider: 'binance',
+            endpoint: '/api/v3/klines',
+        });
+        expect((error as ProviderError).details.originalError).toMatch(
+            /data-api\.binance\.vision/,
+        );
     });
 
     it('explains how to make the test pass', async () => {

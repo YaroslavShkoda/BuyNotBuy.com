@@ -2,7 +2,7 @@ import { ApplicationError } from './application.error.js';
 
 import type { ErrorCode } from './application.error.js';
 
-interface MarketDataErrorOptions {
+export interface MarketDataErrorOptions {
     code?: ErrorCode;
     statusCode?: number;
     cause?: unknown;

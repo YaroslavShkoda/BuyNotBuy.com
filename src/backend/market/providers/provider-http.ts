@@ -1,4 +1,4 @@
-import { MarketDataError } from '../../errors/market-data.error.js';
+import { ProviderError, statusForKind } from '../../errors/provider.error.js';
 import { marketConfig } from '../../config/market.config.js';
 
 import { CircuitBreaker } from './circuit-breaker.js';
@@ -6,6 +6,7 @@ import * as health from './provider-health.js';
 import * as telemetry from './provider-telemetry.js';
 
 import type { CircuitBreakerState } from './circuit-breaker.js';
+import type { ProviderFailureKind } from '../../errors/provider.error.js';
 
 
 /**
@@ -60,10 +61,20 @@ export interface ProviderRequestOptions {
     signal?: AbortSignal;
 }
 
-/** Test hook: the breaker is process-wide state, like any circuit breaker. */
+/**
+ * Test hook: everything this layer remembers about one venue.
+ *
+ * The breaker and the health record are process-wide state, like any circuit
+ * breaker, and telemetry is a counter that only goes up — so a reset that
+ * cleared two of the three would leave a suite that passes for the wrong
+ * reason. A test asserting "this venue was asked once" has to be able to make
+ * that true, and it cannot do so while a previous test's calls are still in
+ * the count.
+ */
 export function resetProviderTransport(provider: string): void {
     breakerFor(provider).reset();
     health.resetProviderHealth(provider);
+    telemetry.resetProviderTelemetry(provider);
 }
 
 /**
@@ -80,9 +91,23 @@ export function providerCircuitState(provider: string): CircuitBreakerState {
 
 export function isRateLimited(error: unknown): boolean {
     return (
-        error instanceof MarketDataError &&
-        error.code === 'MARKET_RATE_LIMITED'
+        error instanceof ProviderError &&
+        error.kind === 'rate_limited'
     );
+}
+
+/**
+ * The kind of failure, or null when it is not a provider failure at all.
+ *
+ * The one place a caller asks "what went wrong" without reading a message.
+ * Null rather than a guess for anything unrecognised: an error this code has
+ * never seen is not a timeout, and treating it as one would send it down the
+ * retry path forever.
+ */
+export function providerFailureKind(
+    error: unknown,
+): ProviderFailureKind | null {
+    return error instanceof ProviderError ? error.kind : null;
 }
 
 /**
@@ -145,6 +170,35 @@ export async function sendProviderRequest(
             });
         } catch (error) {
             const elapsedMs = performance.now() - startedAt;
+            const callerGaveUp = options.signal?.aborted === true;
+
+            // A caller who has already given up is not a provider failure to
+            // paper over with more attempts. It is also not a failure of the
+            // venue, and recording it as one would let a shutdown — or a client
+            // that simply navigated away — trip the breaker and take the venue
+            // out for the next half minute of real traffic.
+            //
+            // The check has to come *before* the recording, and it is here
+            // because a shutdown aborts every in-flight request at once: a
+            // rolling deploy would otherwise produce exactly the consecutive
+            // failures that open the breaker, and the first request after the
+            // restart would be refused by a circuit this process opened against
+            // venues that were never actually unwell.
+            //
+            // The request still counts. It was made, it consumed a socket and it
+            // took the time it took; leaving it out of the request count would
+            // make the latency numbers describe a different set of calls than
+            // the ones that happened.
+            if (callerGaveUp) {
+                telemetry.recordProviderRequest(
+                    options.provider,
+                    options.endpoint,
+                    elapsedMs,
+                    null,
+                );
+
+                throw error;
+            }
 
             breaker.recordFailure();
             telemetry.recordProviderRequest(
@@ -156,17 +210,8 @@ export async function sendProviderRequest(
             telemetry.recordProviderError(options.provider, options.endpoint);
             health.recordProviderFailure(options.provider);
 
-            // A caller who has already given up is not a provider failure to
-            // paper over with more attempts. It is also not a failure of the
-            // venue, and recording it as one would let a shutdown — or a client
-            // that simply navigated away — trip the breaker and take the venue
-            // out for the next half minute of real traffic.
-            if (options.signal?.aborted === true) {
-                throw error;
-            }
-
             if (attempt >= maxRetries) {
-                throw error;
+                throw transportError(options, error);
             }
 
             telemetry.recordProviderRetry(options.provider);
@@ -195,17 +240,18 @@ export async function sendProviderRequest(
                 httpStatus: response.status,
             });
 
-            throw new MarketDataError(
+            throw new ProviderError(
+                'rate_limited',
                 'Market data provider rate limit reached',
                 {
-                    code: 'MARKET_RATE_LIMITED',
+                    statusCode: statusForKind('rate_limited'),
                     retryAfterSeconds: Math.max(1, Math.round(retryAfterMs / 1000)),
-                    cause: {
+                    context: {
                         provider: options.provider,
                         endpoint: options.endpoint,
                         httpStatus: response.status,
                         retryAfterMs,
-                        usedWeight: readUsedWeight(response),
+                        details: { usedWeight: readUsedWeight(response) },
                     },
                 },
             );
@@ -247,7 +293,13 @@ export async function sendProviderRequest(
                 });
             }
 
-            return response;
+            // Thrown rather than returned, so every non-2xx leaves this layer
+            // as the same typed failure no matter which venue produced it. A
+            // returned `Response` is a branch the caller has to remember to
+            // write; there are four call sites here today and each of them had
+            // grown its own copy of "429 or 5xx is 503, otherwise 502", which
+            // is precisely the duplication a transport layer exists to remove.
+            throw httpStatusError(options, response.status);
         }
 
         breaker.recordFailure();
@@ -346,24 +398,107 @@ function isRateLimitStatus(
     return status === 429 || (provider === 'binance' && status === 418);
 }
 
+/**
+ * The status → failure mapping, in one table.
+ *
+ * Previously each provider re-implemented "429 or 5xx is a 503, anything else
+ * non-2xx is a 502", in three places, with the 429 case handled separately
+ * because it needed a `Retry-After`. A table makes the whole decision visible
+ * at once and gives one place to add a status.
+ *
+ * The status a client sees is unchanged from what it saw before, deliberately.
+ * This is an internal refactor of how failures are *described*, not a decision
+ * to move a published contract, and a 5xx staying 503 is the status clients
+ * have already been handling.
+ *
+ * The kind is not the same thing as the status, which is why both are here:
+ * 5xx and a dead socket are both `unavailable` — the venue never produced an
+ * answer, and that is exactly what a retry can fix — but the first is a 503 and
+ * the second a 502, because the first is a service that is up and broken and
+ * the second is a service this one could not reach at all.
+ */
+function httpStatusError(
+    options: ProviderRequestOptions,
+    status: number,
+): ProviderError {
+    const isThrottle =
+        status === 429 || (options.provider === 'binance' && status === 418);
+
+    const kind: ProviderFailureKind = isThrottle
+        ? 'rate_limited'
+        : status >= 500
+          ? 'unavailable'
+          : 'invalid_response';
+
+    return new ProviderError(
+        kind,
+        `Market data provider request failed with HTTP ${status}`,
+        {
+            statusCode: isThrottle || status >= 500 ? 503 : 502,
+            context: {
+                provider: options.provider,
+                endpoint: options.endpoint,
+                httpStatus: status,
+            },
+        },
+    );
+}
+
 function circuitOpenError(
     provider: string,
     endpoint: string,
     breaker: CircuitBreaker,
-): MarketDataError {
+): ProviderError {
     const retryAfterMs = breaker.retryAfterMs;
 
-    return new MarketDataError(
+    return new ProviderError(
+        'circuit_open',
         'Market data provider is temporarily disabled after repeated failures',
         {
-            code: 'MARKET_DATA_UNAVAILABLE',
+            statusCode: statusForKind('circuit_open'),
             retryAfterSeconds: Math.max(1, Math.round(retryAfterMs / 1000)),
-            cause: {
-                provider,
-                endpoint,
-                circuit: 'open',
-                retryAfterMs,
+            context: { provider, endpoint, retryAfterMs },
+        },
+    );
+}
+
+/**
+ * Turns a thrown transport error into something a caller can branch on.
+ *
+ * The classification is by type rather than by message, because the two cases
+ * need opposite treatment by whoever reads the log: a timeout means the venue
+ * is reachable and slow, and a dropped connection means it is not reachable at
+ * all. Reading "timed out" out of a sentence would work right up until a
+ * runtime reworded it.
+ */
+function transportError(
+    options: ProviderRequestOptions,
+    error: unknown,
+): ProviderError {
+    const timedOut =
+        error instanceof DOMException && error.name === 'TimeoutError';
+
+    return new ProviderError(
+        timedOut ? 'timeout' : 'unavailable',
+        timedOut
+            ? 'Market data provider timed out'
+            : 'Market data provider could not be reached',
+        {
+            statusCode: statusForKind(timedOut ? 'timeout' : 'unavailable'),
+            context: {
+                provider: options.provider,
+                endpoint: options.endpoint,
+                details: {
+                    originalError:
+                        error instanceof Error
+                            ? `${error.name}: ${error.message}`
+                            : String(error),
+                    ...(timedOut
+                        ? { timeoutMs: marketConfig.requestTimeoutMs }
+                        : {}),
+                },
             },
+            cause: error,
         },
     );
 }

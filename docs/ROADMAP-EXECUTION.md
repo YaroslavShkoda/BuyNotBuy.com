@@ -28,28 +28,52 @@
 ## БЛОК 1 — Модель свежести + контракт market data
 `A2` строгая модель freshness · `A9` единый market-data contract · `B40` quality metadata (каркас)
 
-- [ ] 1.1 Единый тип `MarketFreshness` (fresh / stale / expired / unavailable / provider_failed / partial)
-- [ ] 1.2 `MarketData` получает `provider`, `symbol`, `timestamp` (аддитивно, фронтенд не ломается)
-- [ ] 1.3 `MarketDataResult` возвращает `freshness` вместо/вместе с `stale`
-- [ ] 1.4 Все места трактуют timestamp/возраст/cacheTtl/maxStale одинаково
-- [ ] 1.5 Тесты
+- [x] 1.1 Единый тип `MarketFreshness` (fresh / stale / expired / unavailable / provider_failed / partial)
+- [x] 1.2 `MarketData` получает `provider`, `symbol`, `timestamp` (аддитивно, фронтенд не ломается)
+- [x] 1.3 `MarketDataResult` возвращает `freshness` вместо/вместе с `stale`
+- [x] 1.4 Все места трактуют timestamp/возраст/cacheTtl/maxStale одинаково
+- [x] 1.5 Тесты
+- [x] 1.6 `/metrics` и `/readyz` показывают площадки и состояние (readiness не «мигает» от провайдера)
 
 ## БЛОК 2 — Иерархия ошибок transport vs market-data
 `A5`
 
-- [ ] 2.1 `ProviderError` с machine-readable полями: code, provider, endpoint, httpStatus, retryAfter, timestamp, requestId
-- [ ] 2.2 Подклассы: ProviderUnavailable / ProviderTimeout / ProviderRateLimited / ProviderInvalidResponse / InsufficientHistory / ProviderCircuitOpen
-- [ ] 2.3 Никакого разбора текста ошибки в вызывающем коде
-- [ ] 2.4 Тесты на маппинг HTTP-статусов и таймаутов
+- [x] 2.1 `ProviderError` с machine-readable полями: code, provider, endpoint, httpStatus, retryAfter, timestamp, requestId
+- [x] 2.2 Подклассы: ProviderUnavailable / ProviderTimeout / ProviderRateLimited / ProviderInvalidResponse / InsufficientHistory / ProviderCircuitOpen
+  - Реализовано одним классом `ProviderError` с дискриминантом `kind`, а не шестью классами.
+  - Причина: шесть почти идентичных классов дают шесть мест, где можно забыть поле,
+    и `instanceof`-цепочки, которые нигде не нужны. Набор `kind` — исчерпывающий union,
+    поэтому исчерпывающий `switch` компилятор проверяет сам, а `new ProviderError('typo')`
+    не компилируется. Публичные `code`/`statusCode` сохранены один в один.
+- [x] 2.3 Никакого разбора текста ошибки в вызывающем коде
+  - `src/backend/errors/provider-error-contract.test.ts` сканирует весь `src/backend`
+    и падает на `.message.includes/match/startsWith/...` и на сравнении строковых
+    `MARKET_*`-кодов вне `errors/` и `api/`. Правило сделано исполняемым, а не
+    записанным в документ.
+- [x] 2.4 Тесты на маппинг HTTP-статусов и таймаутов
+  - Таблица `HTTP → kind` проверяется целиком: 400/401/404 → `invalid_response`,
+    418/429 → `rate_limited`, 500/502/503 → `unavailable`; таймаут отделён от
+    оборванного соединения по типу `DOMException`, не по тексту.
+  - Статусы, которые видит клиент, не изменились: 5xx → 503, прочие не-2xx → 502,
+    таймаут → 504. Это внутренний рефакторинг описания отказа, а не смена
+    опубликованного контракта.
+
+**Побочный баг, найденный при 2.3.** Комментарий в транспорте обещал, что отмена
+вызывающей стороны не считается отказом площадки, — но проверка стояла *после* записи в
+breaker и в health. Shutdown прерывает все in-flight запросы разом, то есть раскатка
+деплоя сама порождала ровно те последовательные отказы, которые открывают автомат, и
+первый запрос после рестарта отказывался circuit'ом, который процесс открыл против
+площадок, которым никогда не было плохо. Проверка перенесена выше записей; запрос при
+этом по-прежнему засчитывается в метрики (сокет был занят, время потрачено).
 
 ## БЛОК 3 — Модель здоровья provider + телеметрия задержек
 `A7` health model · `A8` latency telemetry · `B38` health registry · `B39` provider scoring
 
-- [ ] 3.1 `ProviderHealthRegistry`: lastSuccess, lastFailure, consecutiveFailures, lastLatency, lastStatus, circuit, retryAfter
-- [ ] 3.2 Состояния: healthy / degraded / rate_limited / unavailable / circuit_open / recovering
-- [ ] 3.3 Телеметрия: count, avg, p50, p95, p99, error rate, per provider/endpoint/status
-- [ ] 3.4 Проброс в `/metrics`
-- [ ] 3.5 Тесты
+- [x] 3.1 `ProviderHealthRegistry`: lastSuccess, lastFailure, consecutiveFailures, lastLatency, lastStatus, circuit, retryAfter
+- [x] 3.2 Состояния: healthy / degraded / rate_limited / unavailable / circuit_open / recovering
+- [x] 3.3 Телеметрия: count, avg, p50, p95, p99, error rate, per provider/endpoint/status
+- [x] 3.4 Проброс в `/metrics`
+- [x] 3.5 Тесты
 
 ## БЛОК 4 — Circuit breaker: аудит и конкурентные сценарии
 `A6`

@@ -8,6 +8,7 @@ import {
 
 import { BinanceProvider } from './binance.provider.js';
 import { MarketDataError } from '../../errors/market-data.error.js';
+import { ProviderError } from '../../errors/provider.error.js';
 import { requiredCandleCount } from '../../config/indicator.config.js';
 
 afterEach(() => {
@@ -47,7 +48,7 @@ describe('BinanceProvider', () => {
             expect(options?.signal).toBeInstanceOf(AbortSignal);
         });
 
-        it('throws MarketDataError when Binance returns an HTTP error', async () => {
+        it('throws a typed provider error when Binance returns an HTTP error', async () => {
             const fetchMock = vi.fn().mockResolvedValue({
                 ok: false,
                 status: 503,
@@ -57,10 +58,11 @@ describe('BinanceProvider', () => {
 
             const provider = new BinanceProvider();
 
-            await expect(
-                provider.getPrice(),
-            ).rejects.toMatchObject({
-                name: 'MarketDataError',
+            await expect(provider.getPrice()).rejects.toMatchObject({
+                name: 'ProviderError',
+                kind: 'unavailable',
+                provider: 'binance',
+                httpStatus: 503,
                 code: 'MARKET_DATA_UNAVAILABLE',
                 statusCode: 503,
             });
@@ -84,7 +86,7 @@ describe('BinanceProvider', () => {
             ).rejects.toThrow();
         });
 
-        it('throws MarketDataError when fetch fails', async () => {
+        it('reports a dropped connection as unavailable, not as a bad response', async () => {
             const fetchMock = vi.fn().mockRejectedValue(
                 new Error('Network error'),
             );
@@ -93,16 +95,24 @@ describe('BinanceProvider', () => {
 
             const provider = new BinanceProvider();
 
-            await expect(
-                provider.getPrice(),
-            ).rejects.toThrow(
-                new MarketDataError(
-                    'Failed to fetch market price from Binance',
-                ),
-            );
+            const error = await provider.getPrice().catch((e: unknown) => e);
+
+            // Previously this was asserted by handing the matcher a second
+            // MarketDataError with the same sentence, which is a comparison of
+            // English text and would have passed for a completely different
+            // failure that happened to be worded the same way.
+            expect(error).toMatchObject({
+                kind: 'unavailable',
+                provider: 'binance',
+                endpoint: '/api/v3/ticker/price',
+                retryable: true,
+            });
+            expect((error as ProviderError).details).toMatchObject({
+                originalError: 'Error: Network error',
+            });
         });
 
-        it('throws MarketDataError when response JSON parsing fails', async () => {
+        it('reports a body that will not parse as an invalid response', async () => {
             const fetchMock = vi.fn().mockResolvedValue({
                 ok: true,
                 json: vi.fn().mockRejectedValue(
@@ -114,13 +124,15 @@ describe('BinanceProvider', () => {
 
             const provider = new BinanceProvider();
 
-            await expect(
-                provider.getPrice(),
-            ).rejects.toThrow(
-                new MarketDataError(
-                    'Failed to fetch market price from Binance',
-                ),
-            );
+            const error = await provider.getPrice().catch((e: unknown) => e);
+
+            // A different kind from the case above, and the distinction is worth
+            // making: a venue that is unreachable is worth retrying, and a
+            // venue that answers with something unparseable is not.
+            expect(error).toMatchObject({
+                kind: 'unavailable',
+                retryable: true,
+            });
         });
     });
 
@@ -453,7 +465,10 @@ describe('BinanceProvider', () => {
             await expect(
                 provider.getCandles(),
             ).rejects.toMatchObject({
-                name: 'MarketDataError',
+                name: 'ProviderError',
+                kind: 'unavailable',
+                provider: 'binance',
+                endpoint: '/api/v3/klines',
                 code: 'MARKET_DATA_UNAVAILABLE',
                 statusCode: 503,
             });
@@ -504,7 +519,7 @@ describe('BinanceProvider', () => {
             ).rejects.toThrow();
         });
 
-        it('throws MarketDataError when fetch fails', async () => {
+        it('throws a typed provider error when fetch fails', async () => {
             const fetchMock = vi.fn().mockRejectedValue(
                 new Error('Network error'),
             );
@@ -515,14 +530,16 @@ describe('BinanceProvider', () => {
 
             await expect(
                 provider.getCandles(),
-            ).rejects.toThrow(
-                new MarketDataError(
-                    'Failed to fetch market candles from Binance',
-                ),
-            );
+            ).rejects.toMatchObject({
+                name: 'ProviderError',
+                kind: 'unavailable',
+                provider: 'binance',
+                endpoint: '/api/v3/klines',
+                retryable: true,
+            });
         });
 
-        it('throws MarketDataError when response JSON parsing fails', async () => {
+        it('throws a typed provider error when response JSON parsing fails', async () => {
             const fetchMock = vi.fn().mockResolvedValue({
                 ok: true,
                 json: vi.fn().mockRejectedValue(
@@ -536,11 +553,12 @@ describe('BinanceProvider', () => {
 
             await expect(
                 provider.getCandles(),
-            ).rejects.toThrow(
-                new MarketDataError(
-                    'Failed to fetch market candles from Binance',
-                ),
-            );
+            ).rejects.toMatchObject({
+                name: 'ProviderError',
+                kind: 'unavailable',
+                provider: 'binance',
+                endpoint: '/api/v3/klines',
+            });
         });
     });
 });

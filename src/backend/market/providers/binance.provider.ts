@@ -6,6 +6,7 @@ import type {
 } from '../../types/market.js';
 
 import { MarketDataError } from '../../errors/market-data.error.js';
+import { ProviderError } from '../../errors/provider.error.js';
 
 import { marketConfig } from '../../config/market.config.js';
 import { MAX_CANDLE_LIMIT } from '../../config/market.config.js';
@@ -99,7 +100,7 @@ export class BinanceProvider implements MarketDataProvider {
     async getPrice(): Promise<AssetPrice> {        const url =
             `${marketConfig.baseUrl}` +
             PRICE_ENDPOINT +
-            `?symbol=${encodeURIComponent(marketConfig.symbol)}`;
+            `?symbol=${encodeURIComponent(this.symbol)}`;
 
         try {
             const response = await sendBinanceRequest({
@@ -107,25 +108,11 @@ export class BinanceProvider implements MarketDataProvider {
                 endpoint: PRICE_ENDPOINT,
             });
 
-            if (!response.ok) {
-                throw new MarketDataError(
-                    `Binance price request failed with HTTP ${response.status}`,
-                    {
-                        code: response.status === 429 || response.status >= 500
-                            ? 'MARKET_DATA_UNAVAILABLE'
-                            : 'MARKET_PROVIDER_ERROR',
-                        statusCode: response.status === 429 || response.status >= 500
-                            ? 503
-                            : 502,
-                        cause: {
-                            provider: 'binance',
-                            endpoint: PRICE_ENDPOINT,
-                            httpStatus: response.status,
-                        },
-                    },
-                );
-            }
-
+            // No `response.ok` branch: the transport throws a typed
+            // `ProviderError` for every non-2xx, so a status check here could
+            // only ever be dead code — and the two copies that did exist had
+            // already drifted, which is how a 4xx and a 429 briefly disagreed
+            // about their own status code.
             const data = await response.json();
 
             const validatedData = BinancePriceSchema.parse(data);
@@ -226,22 +213,12 @@ export class BinanceProvider implements MarketDataProvider {
             });
 
             if (!response.ok) {
-                throw new MarketDataError(
-                    `Binance klines request failed with HTTP ${response.status}`,
-                    {
-                        code: response.status === 429 || response.status >= 500
-                            ? 'MARKET_DATA_UNAVAILABLE'
-                            : 'MARKET_PROVIDER_ERROR',
-                        statusCode: response.status === 429 || response.status >= 500
-                            ? 503
-                            : 502,
-                        cause: {
-                            provider: 'binance',
-                            endpoint: KLINES_ENDPOINT,
-                            httpStatus: response.status,
-                        },
-                    },
-                );
+                // Unreachable through the real transport, which throws a typed
+                // error for every non-2xx. Kept because a test double may
+                // return a `Response` instead, and the alternative — a
+                // `ZodError` from parsing an error page — would report a
+                // transport problem as a malformed response.
+                throw httpStatusErrorOf(response.status);
             }
 
             const data = await response.json();
@@ -257,6 +234,27 @@ export class BinanceProvider implements MarketDataProvider {
             );
         }
     }
+}
+
+/**
+ * The transport already turns a non-2xx into a typed `ProviderError`, so this
+ * is a belt-and-braces branch for a mock or a future transport that returns
+ * the `Response` instead of throwing. It goes through the same mapping rather
+ * than inventing a code, so a 429 read here is a 503 exactly as it is there.
+ */
+function httpStatusErrorOf(status: number): ProviderError {
+    return new ProviderError(
+        status === 429 || status === 418
+            ? 'rate_limited'
+            : status >= 500
+              ? 'unavailable'
+              : 'invalid_response',
+        `Binance request failed with HTTP ${status}`,
+        {
+            statusCode: status === 429 || status === 418 ? 503 : 502,
+            context: { provider: 'binance', httpStatus: status },
+        },
+    );
 }
 
 /**
@@ -307,6 +305,18 @@ function dropStillFormingCandles(
     return candles;
 }
 
+/**
+ * Classifies whatever escaped the transport, and passes through what it already
+ * classified.
+ *
+ * The pass-through is the point: the transport knows about timeouts, statuses
+ * and open circuits, and a second classifier running here would be a second
+ * opinion that disagrees. What is left for this function is the part only the
+ * provider can see — a body that does not match the schema — and that is a
+ * genuinely different failure from an outage, which is why it is
+ * `invalid_response` and not `unavailable`: a retry returns the same
+ * malformed body.
+ */
 function normalizeBinanceError(
     error: unknown,
     endpoint: string,
@@ -317,43 +327,56 @@ function normalizeBinanceError(
     }
 
     if (isTimeoutError(error)) {
-        return new MarketDataError(
+        return new ProviderError(
+            'timeout',
             'Market data provider timed out',
             {
-                code: 'MARKET_PROVIDER_TIMEOUT',
-                cause: {
+                context: {
                     provider: 'binance',
                     endpoint,
-                    timeoutMs: marketConfig.requestTimeoutMs,
-                    originalError: toLogSafeCause(error),
+                    details: {
+                        timeoutMs: marketConfig.requestTimeoutMs,
+                        originalError: toLogSafeCause(error),
+                    },
                 },
+                cause: error,
             },
         );
     }
 
     if (error instanceof z.ZodError) {
-        return new MarketDataError(
+        return new ProviderError(
+            'invalid_response',
             'Market data provider returned an unexpected response',
             {
-                code: 'MARKET_PROVIDER_ERROR',
-                cause: {
+                context: {
                     provider: 'binance',
                     endpoint,
-                    originalError: toLogSafeCause(error),
+                    // The path, not the value: a malformed price string is not
+                    // a secret, but a whole rejected payload can carry enough
+                    // of one to be worth not copying into a log line.
+                    details: {
+                        issues: error.issues
+                            .slice(0, 5)
+                            .map((issue) => `${issue.path.join('.')}: ${issue.message}`),
+                        issueCount: error.issues.length,
+                    },
                 },
+                cause: error,
             },
         );
     }
 
-    return new MarketDataError(
+    return new ProviderError(
+        'unavailable',
         fallbackMessage,
         {
-            code: 'MARKET_DATA_UNAVAILABLE',
-            cause: {
+            context: {
                 provider: 'binance',
                 endpoint,
-                originalError: toLogSafeCause(error),
+                details: { originalError: toLogSafeCause(error) },
             },
+            cause: error,
         },
     );
 }

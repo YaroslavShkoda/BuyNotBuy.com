@@ -10,7 +10,7 @@ import {
 import { BinanceProvider } from './binance.provider.js';
 import { resetBinanceTransport } from './binance-http.js';
 import { marketConfig } from '../../config/market.config.js';
-import { MarketDataError } from '../../errors/market-data.error.js';
+import { ProviderError } from '../../errors/provider.error.js';
 
 beforeEach(() => {
     // The breaker is process-wide state; a test that trips it would otherwise
@@ -34,14 +34,13 @@ describe('BinanceProvider error cases', () => {
 
         const error = await provider.getPrice().catch((e) => e);
 
-        expect(error).toBeInstanceOf(MarketDataError);
+        expect(error).toBeInstanceOf(ProviderError);
         expect(error.code).toBe('MARKET_DATA_UNAVAILABLE');
         expect(error.statusCode).toBe(503);
-        expect(error.cause).toMatchObject({
-            provider: 'binance',
-            endpoint: '/api/v3/ticker/price',
-            httpStatus: 500,
-        });
+        expect(error.kind).toBe('unavailable');
+        expect(error.provider).toBe('binance');
+        expect(error.endpoint).toBe('/api/v3/ticker/price');
+        expect(error.httpStatus).toBe(500);
     });
 
     it('maps HTTP 429 to MARKET_RATE_LIMITED with 503', async () => {
@@ -55,9 +54,10 @@ describe('BinanceProvider error cases', () => {
 
         const error = await provider.getCandles().catch((e) => e);
 
-        expect(error).toBeInstanceOf(MarketDataError);
+        expect(error).toBeInstanceOf(ProviderError);
         expect(error.code).toBe('MARKET_RATE_LIMITED');
         expect(error.statusCode).toBe(503);
+        expect(error.kind).toBe('rate_limited');
     });
 
     it('treats HTTP 418 like a rate limit because it is an IP ban', async () => {
@@ -106,13 +106,11 @@ describe('BinanceProvider error cases', () => {
         // Without the weight reading it is impossible to tell a real throttle
         // from a request that merely happened to land near the limit.
         expect(error.retryAfterSeconds).toBe(30);
-        expect(error.cause).toMatchObject({
-            provider: 'binance',
-            endpoint: '/api/v3/ticker/price',
-            httpStatus: 429,
-            retryAfterMs: 30000,
-            usedWeight: '1200',
-        });
+        expect(error.provider).toBe('binance');
+        expect(error.endpoint).toBe('/api/v3/ticker/price');
+        expect(error.httpStatus).toBe(429);
+        expect(error.retryAfterMs).toBe(30000);
+        expect(error.details).toMatchObject({ usedWeight: '1200' });
     });
 
     it('caps an absurd Retry-After so a request can never hang for minutes', async () => {
@@ -142,12 +140,10 @@ describe('BinanceProvider error cases', () => {
 
         const error = await provider.getPrice().catch((e) => e);
 
-        expect(error).toBeInstanceOf(MarketDataError);
-        expect(error.cause).toMatchObject({
-            provider: 'binance',
-            endpoint: '/api/v3/ticker/price',
-            httpStatus: 429,
-        });
+        expect(error).toBeInstanceOf(ProviderError);
+        expect(error.provider).toBe('binance');
+        expect(error.endpoint).toBe('/api/v3/ticker/price');
+        expect(error.httpStatus).toBe(429);
     });
 
     it('reads the current weight header name as well as the legacy one', async () => {
@@ -163,7 +159,7 @@ describe('BinanceProvider error cases', () => {
 
         const error = await provider.getPrice().catch((e) => e);
 
-        expect(error.cause).toMatchObject({ usedWeight: '1180' });
+        expect(error.details).toMatchObject({ usedWeight: '1180' });
     });
 
     it('falls back to the rolling-minute weight when the window header is absent', async () => {
@@ -177,7 +173,7 @@ describe('BinanceProvider error cases', () => {
 
         const error = await provider.getPrice().catch((e) => e);
 
-        expect(error.cause).toMatchObject({ usedWeight: '640' });
+        expect(error.details).toMatchObject({ usedWeight: '640' });
     });
 
     it('reports no weight when the provider sends none', async () => {
@@ -191,7 +187,7 @@ describe('BinanceProvider error cases', () => {
 
         const error = await provider.getPrice().catch((e) => e);
 
-        expect(error.cause).toMatchObject({ usedWeight: null });
+        expect(error.details).toMatchObject({ usedWeight: null });
     });
 
     it('maps HTTP 400 to MARKET_PROVIDER_ERROR with 502', async () => {
@@ -204,9 +200,10 @@ describe('BinanceProvider error cases', () => {
 
         const error = await provider.getPrice().catch((e) => e);
 
-        expect(error).toBeInstanceOf(MarketDataError);
+        expect(error).toBeInstanceOf(ProviderError);
         expect(error.code).toBe('MARKET_PROVIDER_ERROR');
         expect(error.statusCode).toBe(502);
+        expect(error.kind).toBe('invalid_response');
     });
 
     it('maps timeout to MARKET_PROVIDER_TIMEOUT with 504', async () => {
@@ -217,9 +214,10 @@ describe('BinanceProvider error cases', () => {
 
         const error = await provider.getPrice().catch((e) => e);
 
-        expect(error).toBeInstanceOf(MarketDataError);
+        expect(error).toBeInstanceOf(ProviderError);
         expect(error.code).toBe('MARKET_PROVIDER_TIMEOUT');
         expect(error.statusCode).toBe(504);
+        expect(error.kind).toBe('timeout');
     });
 
     it('maps candles timeout to MARKET_PROVIDER_TIMEOUT with 504', async () => {
@@ -230,12 +228,12 @@ describe('BinanceProvider error cases', () => {
 
         const error = await provider.getCandles().catch((e) => e);
 
-        expect(error).toBeInstanceOf(MarketDataError);
+        expect(error).toBeInstanceOf(ProviderError);
         expect(error.code).toBe('MARKET_PROVIDER_TIMEOUT');
         expect(error.statusCode).toBe(504);
-        expect(error.cause).toMatchObject({
-            provider: 'binance',
-            endpoint: '/api/v3/klines',
+        expect(error.provider).toBe('binance');
+        expect(error.endpoint).toBe('/api/v3/klines');
+        expect(error.details).toMatchObject({
             timeoutMs: marketConfig.requestTimeoutMs,
         });
     });
@@ -248,9 +246,7 @@ describe('BinanceProvider error cases', () => {
 
         const error = await provider.getPrice().catch((e) => e);
 
-        expect(error.cause).toMatchObject({
-            provider: 'binance',
-            endpoint: '/api/v3/ticker/price',
+        expect(error.details).toMatchObject({
             timeoutMs: marketConfig.requestTimeoutMs,
         });
     });
@@ -263,9 +259,9 @@ describe('BinanceProvider error cases', () => {
 
         const error = await provider.getPrice().catch((e) => e);
 
-        expect(error.cause).toMatchObject({
-            provider: 'binance',
-            endpoint: '/api/v3/ticker/price',
+        expect(error.provider).toBe('binance');
+        expect(error.endpoint).toBe('/api/v3/ticker/price');
+        expect(error.details).toMatchObject({
             timeoutMs: marketConfig.requestTimeoutMs,
             originalError: 'TimeoutError: The operation timed out',
         });
@@ -303,9 +299,9 @@ describe('BinanceProvider error cases', () => {
 
         const error = await provider.getCandles().catch((e) => e);
 
-        expect(error).toBeInstanceOf(MarketDataError);
+        expect(error).toBeInstanceOf(ProviderError);
         expect(error.code).toBe('MARKET_DATA_UNAVAILABLE');
-        expect(error.cause).toMatchObject({ provider: 'binance' });
+        expect(error.provider).toBe('binance');
     });
 
     it('maps invalid response schema (ZodError) to MARKET_PROVIDER_ERROR', async () => {
@@ -318,9 +314,10 @@ describe('BinanceProvider error cases', () => {
 
         const error = await provider.getPrice().catch((e) => e);
 
-        expect(error).toBeInstanceOf(MarketDataError);
+        expect(error).toBeInstanceOf(ProviderError);
         expect(error.code).toBe('MARKET_PROVIDER_ERROR');
         expect(error.statusCode).toBe(502);
+        expect(error.kind).toBe('invalid_response');
     });
 
     it('maps network error to MARKET_DATA_UNAVAILABLE and keeps cause', async () => {
@@ -330,8 +327,9 @@ describe('BinanceProvider error cases', () => {
 
         const error = await provider.getPrice().catch((e) => e);
 
-        expect(error).toBeInstanceOf(MarketDataError);
+        expect(error).toBeInstanceOf(ProviderError);
         expect(error.code).toBe('MARKET_DATA_UNAVAILABLE');
-        expect(error.cause).toMatchObject({ provider: 'binance' });
+        expect(error.provider).toBe('binance');
+        expect(error.kind).toBe('unavailable');
     });
 });

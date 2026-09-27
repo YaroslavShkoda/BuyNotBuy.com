@@ -6,6 +6,7 @@ import type {
 } from '../../types/market.js';
 
 import { MarketDataError } from '../../errors/market-data.error.js';
+import { ProviderError } from '../../errors/provider.error.js';
 
 import { marketConfig } from '../../config/market.config.js';
 import { MAX_CANDLE_LIMIT } from '../../config/market.config.js';
@@ -386,6 +387,13 @@ export class BitgetProvider implements MarketDataProvider {
 /**
  * Throws on a business-level failure, which the transport cannot see because
  * the status line says 200.
+ *
+ * The code, not the message, decides the classification — and the two branches
+ * are genuinely different incidents. A code in the request-error set means this
+ * request was wrong and will stay wrong; anything else is the venue being
+ * unhappy in a way that may pass. The old `code` field carried that as a string
+ * and every reader had to know the table; the `kind` carries it as the thing a
+ * caller actually branches on.
  */
 function assertBitgetSuccess(
     body: { code: string; msg?: string | undefined },
@@ -397,15 +405,19 @@ function assertBitgetSuccess(
 
     const isRequestError = REQUEST_ERROR_CODES.has(body.code);
 
-    throw new MarketDataError(
+    throw new ProviderError(
+        isRequestError ? 'invalid_response' : 'unavailable',
         `Bitget rejected the request: ${body.msg ?? 'no message'}`,
         {
-            code: isRequestError ? 'MARKET_PROVIDER_ERROR' : 'MARKET_DATA_UNAVAILABLE',
-            cause: {
+            context: {
                 provider: 'bitget',
                 endpoint,
-                bitgetCode: body.code,
-                bitgetMessage: body.msg ?? null,
+                details: {
+                    bitgetCode: body.code,
+                    // The venue's own sentence, quoted rather than matched on.
+                    // A reader can act on it; nothing branches on it.
+                    bitgetMessage: body.msg ?? null,
+                },
             },
         },
     );
@@ -478,43 +490,53 @@ function normalizeBitgetError(
     }
 
     if (error instanceof DOMException && error.name === 'TimeoutError') {
-        return new MarketDataError(
+        return new ProviderError(
+            'timeout',
             'Market data provider timed out',
             {
-                code: 'MARKET_PROVIDER_TIMEOUT',
-                cause: {
+                context: {
                     provider: 'bitget',
                     endpoint,
-                    timeoutMs: marketConfig.requestTimeoutMs,
-                    originalError: toLogSafeCause(error),
+                    details: {
+                        timeoutMs: marketConfig.requestTimeoutMs,
+                        originalError: toLogSafeCause(error),
+                    },
                 },
+                cause: error,
             },
         );
     }
 
     if (error instanceof z.ZodError) {
-        return new MarketDataError(
+        return new ProviderError(
+            'invalid_response',
             'Market data provider returned an unexpected response',
             {
-                code: 'MARKET_PROVIDER_ERROR',
-                cause: {
+                context: {
                     provider: 'bitget',
                     endpoint,
-                    originalError: toLogSafeCause(error),
+                    details: {
+                        issues: error.issues
+                            .slice(0, 5)
+                            .map((issue) => `${issue.path.join('.')}: ${issue.message}`),
+                        issueCount: error.issues.length,
+                    },
                 },
+                cause: error,
             },
         );
     }
 
-    return new MarketDataError(
+    return new ProviderError(
+        'unavailable',
         fallbackMessage,
         {
-            code: 'MARKET_DATA_UNAVAILABLE',
-            cause: {
+            context: {
                 provider: 'bitget',
                 endpoint,
-                originalError: toLogSafeCause(error),
+                details: { originalError: toLogSafeCause(error) },
             },
+            cause: error,
         },
     );
 }

@@ -83,7 +83,21 @@ function seriesFor(provider: string): ProviderSeries {
     return created;
 }
 
-export function resetProviderTelemetry(): void {
+/**
+ * Test hook: forget one venue, or all of them.
+ *
+ * The counters only ever go up, which is right in production and wrong between
+ * tests. Without a scoped reset a suite that asserts "this venue was asked
+ * once" is really asserting "somewhere in this file, some venue was asked
+ * once", and it passes or fails according to test order.
+ */
+export function resetProviderTelemetry(provider?: string): void {
+    if (provider !== undefined) {
+        series.delete(provider);
+
+        return;
+    }
+
     series.clear();
 }
 

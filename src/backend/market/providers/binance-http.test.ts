@@ -8,7 +8,7 @@ import {
 } from 'vitest';
 
 import { marketConfig } from '../../config/market.config.js';
-import { MarketDataError } from '../../errors/market-data.error.js';
+import { ProviderError } from '../../errors/provider.error.js';
 
 import {
     backoffDelayMs,
@@ -16,6 +16,11 @@ import {
     resetBinanceTransport,
     sendBinanceRequest,
 } from './binance-http.js';
+import {
+    isVenueAvailable,
+    providerCircuitState,
+} from './provider-http.js';
+import { providerTelemetry } from './provider-telemetry.js';
 
 const ENDPOINT = '/api/v3/klines';
 const URL = 'https://data-api.binance.vision/api/v3/klines?symbol=BTCUSDT';
@@ -181,21 +186,34 @@ describe('sendBinanceRequest retries', () => {
         const fetchMock = vi.fn().mockResolvedValue(statusResponse(500));
         vi.stubGlobal('fetch', fetchMock);
 
-        const promise = sendBinanceRequest({ url: URL, endpoint: ENDPOINT });
-        await settle();
+        const error = await runToCompletion();
 
-        await expect(promise).resolves.toMatchObject({ status: 500 });
         expect(fetchMock).toHaveBeenCalledTimes(marketConfig.maxRetries + 1);
+        expect(error).toBeInstanceOf(ProviderError);
+        expect(error).toMatchObject({
+            kind: 'unavailable',
+            httpStatus: 500,
+            provider: 'binance',
+            endpoint: ENDPOINT,
+        });
     });
 
     it('does not retry a 4xx: the provider already decided', async () => {
         const fetchMock = vi.fn().mockResolvedValue(statusResponse(400));
         vi.stubGlobal('fetch', fetchMock);
 
-        const response = await sendBinanceRequest({ url: URL, endpoint: ENDPOINT });
+        const error = await runToCompletion();
 
-        expect(response.status).toBe(400);
         expect(fetchMock).toHaveBeenCalledTimes(1);
+        // `invalid_response` rather than `unavailable`: the venue answered, and
+        // what it said is that this request is wrong. A retry returns the same
+        // answer, and reading it as an outage would spend the whole budget on
+        // a guaranteed repeat.
+        expect(error).toMatchObject({
+            kind: 'invalid_response',
+            httpStatus: 400,
+            retryable: false,
+        });
     });
 
     it('identifies itself with a User-Agent on every attempt', async () => {
@@ -232,7 +250,7 @@ describe('sendBinanceRequest circuit breaker', () => {
         for (let index = 0; index < 10 && !refused; index += 1) {
             const outcome = await runToCompletion();
 
-            refused = (outcome as MarketDataError).cause !== undefined;
+            refused = (outcome as ProviderError).kind === 'circuit_open';
         }
 
         expect(refused).toBe(true);
@@ -241,7 +259,7 @@ describe('sendBinanceRequest circuit breaker', () => {
 
         // While open, the refusal is immediate and no socket is opened at all.
         expect(await runToCompletion()).toMatchObject({
-            code: 'MARKET_DATA_UNAVAILABLE',
+            kind: 'circuit_open',
         });
 
         expect(fetchMock).toHaveBeenCalledTimes(callsWhenOpen);
@@ -253,18 +271,19 @@ describe('sendBinanceRequest circuit breaker', () => {
         for (let index = 0; index < 10; index += 1) {
             const outcome = await runToCompletion();
 
-            if ((outcome as MarketDataError).cause !== undefined) {
+            if ((outcome as ProviderError).kind === 'circuit_open') {
                 break;
             }
         }
 
         const error = await runToCompletion();
 
-        expect(error).toBeInstanceOf(MarketDataError);
-        expect((error as MarketDataError).cause).toMatchObject({
-            circuit: 'open',
-        });
-        expect((error as MarketDataError).retryAfterSeconds).toBeGreaterThan(0);
+        expect(error).toBeInstanceOf(ProviderError);
+        // The refusal is ours, and saying so is what keeps a health model from
+        // reading it as evidence against the venue.
+        expect((error as ProviderError).kind).toBe('circuit_open');
+        expect((error as ProviderError).retryAfterMs).toBeGreaterThan(0);
+        expect((error as ProviderError).retryAfterSeconds).toBeGreaterThan(0);
     });
 
     it('reopens only after the cooldown has elapsed', async () => {
@@ -274,7 +293,7 @@ describe('sendBinanceRequest circuit breaker', () => {
         for (let index = 0; index < 10; index += 1) {
             const outcome = await runToCompletion();
 
-            if ((outcome as MarketDataError).cause !== undefined) {
+            if ((outcome as ProviderError).kind === 'circuit_open') {
                 break;
             }
         }
@@ -290,7 +309,7 @@ describe('sendBinanceRequest circuit breaker', () => {
         expect(callsAfterCooldown).toBeGreaterThan(0);
 
         expect(await runToCompletion()).toMatchObject({
-            code: 'MARKET_DATA_UNAVAILABLE',
+            kind: 'circuit_open',
         });
 
         expect(fetchMock.mock.calls.length).toBe(callsAfterCooldown);
@@ -309,8 +328,9 @@ describe('sendBinanceRequest rate limiting', () => {
             endpoint: ENDPOINT,
         }).catch((e: unknown) => e);
 
-        expect((error as MarketDataError).code).toBe('MARKET_RATE_LIMITED');
-        expect((error as MarketDataError).retryAfterSeconds).toBe(42);
+        expect((error as ProviderError).code).toBe('MARKET_RATE_LIMITED');
+        expect((error as ProviderError).kind).toBe('rate_limited');
+        expect((error as ProviderError).retryAfterSeconds).toBe(42);
 
         // The next call is refused without a socket until the window closes.
         await vi.advanceTimersByTimeAsync(42_000 + 1);
@@ -328,9 +348,52 @@ describe('sendBinanceRequest rate limiting', () => {
             endpoint: ENDPOINT,
         }).catch((e: unknown) => e);
 
-        expect((error as MarketDataError).retryAfterSeconds).toBe(
+        expect((error as ProviderError).retryAfterSeconds).toBe(
             Math.round(marketConfig.circuitCooldownMs / 1000),
         );
+    });
+});
+
+describe('sendBinanceRequest status mapping', () => {
+    // The whole table in one place, because the point of the change is that
+    // it now exists in one place. Each row drives a real request so the
+    // mapping is measured rather than read off the source.
+    const cases: Array<[number, string]> = [
+        [400, 'invalid_response'],
+        [401, 'invalid_response'],
+        [404, 'invalid_response'],
+        [418, 'rate_limited'],
+        [429, 'rate_limited'],
+        [500, 'unavailable'],
+        [502, 'unavailable'],
+        [503, 'unavailable'],
+    ];
+
+    for (const [status, kind] of cases) {
+        it(`maps HTTP ${status} to ${kind}`, async () => {
+            vi.stubGlobal('fetch', vi.fn().mockResolvedValue(statusResponse(status)));
+
+            const error = await runToCompletion();
+
+            expect(error).toBeInstanceOf(ProviderError);
+            expect(error).toMatchObject({
+                kind,
+                httpStatus: status,
+                provider: 'binance',
+                endpoint: ENDPOINT,
+            });
+        });
+    }
+
+    it('never returns a non-2xx response to a caller', async () => {
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(statusResponse(404)));
+
+        // A returned `Response` is a branch every call site has to remember to
+        // write. Four call sites had each grown their own copy of the status
+        // mapping, and two of them had already drifted.
+        await expect(
+            sendBinanceRequest({ url: URL, endpoint: ENDPOINT }),
+        ).rejects.toBeInstanceOf(ProviderError);
     });
 });
 
@@ -365,5 +428,44 @@ describe('sendBinanceRequest cancellation', () => {
 
         expect(await outcome).toBeInstanceOf(TypeError);
         expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not count a cancelled request as a failure of the venue', async () => {
+        vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('fetch failed')));
+
+        // A rolling deploy aborts every in-flight request at once. If those
+        // aborts reached the breaker, the deploy itself would manufacture the
+        // consecutive failures that open the circuit, and the first request
+        // after the restart would be refused by a circuit this process opened
+        // against venues that were never unwell.
+        for (let index = 0; index < marketConfig.circuitFailureThreshold * 2; index += 1) {
+            const controller = new AbortController();
+            const outcome = runToCompletion(controller.signal);
+
+            controller.abort();
+
+            await outcome;
+        }
+
+        expect(providerCircuitState('binance')).toBe('closed');
+        expect(isVenueAvailable('binance')).toBe(true);
+    });
+
+    it('still counts a cancelled request as a request that was made', async () => {
+        vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('fetch failed')));
+
+        const controller = new AbortController();
+        const outcome = runToCompletion(controller.signal);
+
+        controller.abort();
+        await outcome;
+
+        // The request happened, took time and held a socket. Dropping it from
+        // the count would make the latency percentiles describe a different
+        // set of calls than the ones that actually happened.
+        const snapshot = providerTelemetry('binance');
+
+        expect(snapshot.requests).toBe(1);
+        expect(snapshot.failures).toBe(0);
     });
 });
