@@ -16,6 +16,90 @@ afterEach(() => {
 });
 
 describe('BinanceProvider', () => {
+    describe('a provider asks about the market it was built for', () => {
+        // The regression. `getPrice` read `this.symbol` and `fetchKlines` read
+        // `marketConfig.symbol`, so a provider constructed for one market asked
+        // the venue about another whenever it fetched candles. Every existing
+        // test constructed it with no arguments, which is why the two agreed.
+        //
+        // Asserted on the URL, not on the returned candles: a stub returns the
+        // same body whatever the query says, so a test on the result would pass
+        // against the broken version and is exactly the test that was missing.
+        const klineRow = [
+            1700000000000, '1', '2', '0.5', '1.5', '10', 1700003599999,
+            '15', 5, '5', '5', '0',
+        ];
+
+        it('asks for its own symbol when fetching candles', async () => {
+            const fetchMock = vi.fn().mockResolvedValue({
+                ok: true,
+                json: async () => [klineRow],
+            });
+
+            vi.stubGlobal('fetch', fetchMock);
+
+            await new BinanceProvider('ETHUSDT').getCandles(1);
+
+            const url = String(fetchMock.mock.calls[0]?.[0]);
+
+            expect(url).toContain('symbol=ETHUSDT');
+            expect(url).not.toContain('symbol=BTCUSDT');
+        });
+
+        it('asks for its own symbol when fetching a price', async () => {
+            const fetchMock = vi.fn().mockResolvedValue({
+                ok: true,
+                json: async () => ({ symbol: 'ETHUSDT', price: '3000' }),
+            });
+
+            vi.stubGlobal('fetch', fetchMock);
+
+            await new BinanceProvider('ETHUSDT').getPrice();
+
+            expect(String(fetchMock.mock.calls[0]?.[0])).toContain('symbol=ETHUSDT');
+        });
+
+        it('asks for its own interval, not the configured one', async () => {
+            // The same drift, in the other field, and one nobody had noticed
+            // because `this.interval` did not exist to disagree with.
+            const fetchMock = vi.fn().mockResolvedValue({
+                ok: true,
+                json: async () => [klineRow],
+            });
+
+            vi.stubGlobal('fetch', fetchMock);
+
+            await new BinanceProvider('BTCUSDT', '4h').getCandles(1);
+
+            const url = String(fetchMock.mock.calls[0]?.[0]);
+
+            expect(url).toContain('interval=4h');
+        });
+
+        it('says the same thing whichever method is called', async () => {
+            // The invariant rather than the examples: no method of a provider
+            // may read a market from anywhere but its own fields.
+            const fetchMock = vi.fn().mockResolvedValue({
+                ok: true,
+                json: async () => [klineRow],
+            });
+
+            vi.stubGlobal('fetch', fetchMock);
+
+            const provider = new BinanceProvider('XRPBTC', '1d');
+
+            await provider.getCandles(1);
+            await provider.getHistoricalCandles(2);
+
+            for (const call of fetchMock.mock.calls) {
+                const url = String(call[0]);
+
+                expect(url).toContain('symbol=XRPBTC');
+                expect(url).toContain('interval=1d');
+            }
+        });
+    });
+
     describe('getPrice', () => {
         it('returns market price from Binance API', async () => {
             const fetchMock = vi.fn().mockResolvedValue({

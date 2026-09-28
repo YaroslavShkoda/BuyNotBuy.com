@@ -93,8 +93,27 @@ export class BinanceProvider implements MarketDataProvider {
 
     readonly symbol: string;
 
-    constructor(symbol: string = marketConfig.symbol) {
+    /**
+     * The interval this provider asks for, stored rather than read from
+     * configuration at each call.
+     *
+     * `fetchKlines` used to build its URL from `marketConfig.symbol` while
+     * `getPrice` built the same query from `this.symbol`, so a provider
+     * constructed for one market asked the venue about another in half its
+     * methods. The only production call site passes the configured value, so
+     * the two agreed by coincidence and the bug was invisible; it fires the
+     * moment anything constructs a provider for a second market, which is
+     * exactly what PHASE 9 is for.
+     *
+     * `BitgetProvider` already had this shape — symbol and interval in the
+     * constructor, `this` everywhere — so the fix is not a new idea but the
+     * removal of a copy that had drifted from it.
+     */
+    readonly interval: string;
+
+    constructor(symbol: string = marketConfig.symbol, interval: string = marketConfig.candleInterval) {
         this.symbol = symbol;
+        this.interval = interval;
     }
 
     async getPrice(): Promise<AssetPrice> {        const url =
@@ -218,8 +237,8 @@ export class BinanceProvider implements MarketDataProvider {
     ): Promise<Candle[]> {
         const url =
             `${marketConfig.baseUrl}${KLINES_ENDPOINT}` +
-            `?symbol=${encodeURIComponent(marketConfig.symbol)}` +
-            `&interval=${encodeURIComponent(marketConfig.candleInterval)}` +
+            `?symbol=${encodeURIComponent(this.symbol)}` +
+            `&interval=${encodeURIComponent(this.interval)}` +
             `&limit=${limit}` +
             (endTime === undefined ? '' : `&endTime=${endTime}`);
 
