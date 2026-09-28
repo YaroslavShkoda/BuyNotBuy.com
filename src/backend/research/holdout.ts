@@ -103,11 +103,32 @@ export function holdoutStatus(
  * A single read.
  *
  * Named to be awkward to call twice, and to be the only way to get an answer.
- * It does not enforce the one-read rule — nothing here can, because reading a
- * number does not record that it was read — and the honest answer is that this
- * is a discipline enforced by a comment and a date, not by code. The checks
- * below are the parts a machine can hold: that enough bars exist, and that the
- * rule being reported is the rule that was registered.
+ *
+ * **What this cannot do, and what it now does instead.** The comment used to
+ * end here: it does not enforce the one-read rule, because reading a number
+ * does not record that it was read, and that is a discipline enforced by a
+ * comment and a date. That is true about the *data*, and it was the end of the
+ * thinking too early.
+ *
+ * Nobody can be stopped from loading the bars twice. The fixture is in the
+ * repository. What can be stopped is choosing the question afterwards — which
+ * is the failure this is actually afraid of, and the one the old comment was
+ * quietly tolerating: read, find the return ugly, report the profit factor
+ * instead.
+ *
+ * So the binding is moved upstream, where it is still cheap.
+ * `holdout-protocol.ts` fixes which statistics will be reported while the
+ * window is empty, out of a closed set that cannot be extended at reporting
+ * time, and the verdict it produces is complete rather than selectable.
+ * Migration 14 gives that verdict a table that can hold exactly one row, ever
+ * — `CHECK (id = 1)` — so a second read fails in the database instead of in a
+ * reader's memory.
+ *
+ * What is still true, and should stay written down: this does not stop the
+ * bars being re-read, and it does not stop someone writing a new module with a
+ * different purpose. It is a lock on the verdict, not on the curiosity. A
+ * second read is now loud instead of silent, which is the difference between a
+ * discipline and a habit.
  */
 export function evaluateHoldout(
     status: HoldoutStatus,
