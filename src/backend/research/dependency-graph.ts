@@ -111,7 +111,17 @@ export const LAYERS: readonly Layer[] = [
     { name: CONFIG, composition: false, mayImport: ['instruments'] },
     // A pure leaf. No I/O, no database, no clock — which is what lets its
     // tests prove something about parsing rather than about a connection.
-    { name: 'instruments', composition: false, mayImport: [] },
+    //
+    // `db` and `config` are declared here, and the declaration is the point: a
+    // repository in a domain folder is the M2 debt this project already has in
+    // `indicators`, `strategies` and `signals`, and the rule for M2 is that all
+    // four move to a data layer together. Recording it costs one line and names
+    // the debt; leaving it out would produce a fourteenth violation with no
+    // name attached, discovered by a guard rather than chosen by a person.
+    //
+    // The purity worth protecting is `instruments/domain.ts`, which is what
+    // those two imports are kept out of.
+    { name: 'instruments', composition: false, mayImport: ['db', 'config'] },
     { name: 'db', composition: false, mayImport: [] },
     { name: 'market', composition: false, mayImport: ['db'] },
     { name: 'indicators', composition: false, mayImport: [] },

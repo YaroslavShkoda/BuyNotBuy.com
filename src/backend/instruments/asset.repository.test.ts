@@ -1,0 +1,213 @@
+import { beforeEach, describe, expect, it } from 'vitest';
+
+import { AssetRepository } from './asset.repository.js';
+import { query } from '../db/pool.js';
+
+const repository = new AssetRepository();
+
+const CONFIGURED = [
+    { symbol: 'BTC', category: 'crypto' as const },
+    { symbol: 'USDT', category: 'crypto' as const },
+    { symbol: 'EUR', category: 'fiat' as const },
+];
+
+describe('AssetRepository', () => {
+    beforeEach(async () => {
+        await query('DELETE FROM instrument');
+        await query('DELETE FROM asset');
+        await repository.seedFromConfiguration(CONFIGURED);
+        await repository.recordInstrument('BTCUSDT');
+    });
+
+    describe('seeding from configuration', () => {
+        it('writes what configuration says on the first run', async () => {
+            const assets = await repository.listAssets();
+
+            expect(assets.map((row) => row.symbol)).toEqual(['BTC', 'EUR', 'USDT']);
+        });
+
+        it('marks them as configured, not learned', async () => {
+            // A person typing a category and a classifier deriving one are
+            // different facts, and PHASE 14 will produce the second kind. Storing
+            // them identically means the first learned opinion is
+            // indistinguishable from a default.
+            const assets = await repository.listAssets();
+
+            expect(assets.every((row) => row.source === 'configured')).toBe(true);
+        });
+
+        it('does not reactivate an asset somebody suspended', async () => {
+            // The reason this is `ON CONFLICT DO NOTHING` rather than an upsert.
+            // It runs on every start; an upsert that wrote `status` would bring
+            // a suspended asset back on each restart, silently, forever.
+            await repository.suspendAsset('BTC');
+            await repository.seedFromConfiguration(CONFIGURED);
+
+            const assets = await repository.listAssets();
+            const btc = assets.find((row) => row.symbol === 'BTC');
+
+            expect(btc?.status).toBe('inactive');
+        });
+
+        it('does not overwrite a classification learned from data', async () => {
+            await query(`UPDATE asset SET category = 'fiat', source = 'learned' WHERE symbol = 'BTC'`);
+            await repository.seedFromConfiguration(CONFIGURED);
+
+            const assets = await repository.listAssets();
+            const btc = assets.find((row) => row.symbol === 'BTC');
+
+            // Old results are never rewritten. A learned category overwritten by
+            // a default on every restart would make PHASE 14 undo itself.
+            expect(btc?.category).toBe('fiat');
+            expect(btc?.source).toBe('learned');
+        });
+
+        it('does not write the same asset twice', async () => {
+            const result = await repository.seedFromConfiguration(CONFIGURED);
+
+            expect(result.inserted).toBe(0);
+            expect((await repository.listAssets()).length).toBe(3);
+        });
+    });
+
+    describe('recording an instrument', () => {
+        it('writes the pair and both halves', async () => {
+            const instruments = await repository.listInstruments();
+
+            expect(instruments).toEqual([
+                {
+                    ticker: 'BTCUSDT',
+                    baseAsset: 'BTC',
+                    quoteAsset: 'USDT',
+                    marketKind: 'crypto',
+                    status: 'active',
+                },
+            ]);
+        });
+
+        it('marks halves it had to invent as unclassified rather than as crypto', async () => {
+            // The first version of this codebase had no way to say "not known",
+            // so it said crypto, and BTCBRL was a crypto market. An invented
+            // half is not a classified one.
+            //
+            // Written as a ticker with a genuinely absent half rather than by
+            // deleting one first: deleting an asset that an instrument still
+            // references is refused by the foreign key, which is the constraint
+            // doing its job and not a test to work around.
+            expect(await repository.recordInstrument('XRPBTC')).toBe(true);
+
+            const assets = await repository.listAssets();
+            const xrp = assets.find((row) => row.symbol === 'XRP');
+
+            expect(xrp).toMatchObject({ symbol: 'XRP', status: 'unknown' });
+        });
+
+        it('records a half it already knows as classified, not unknown', async () => {
+            await repository.recordInstrument('XRPBTC');
+
+            const assets = await repository.listAssets();
+
+            expect(assets.find((row) => row.symbol === 'BTC')?.status).toBe('active');
+            expect(assets.find((row) => row.symbol === 'XRP')?.status).toBe('unknown');
+        });
+
+        it('refuses a ticker that is not a pair at all', async () => {
+            expect(await repository.recordInstrument('1h')).toBe(false);
+            expect(await repository.recordInstrument('binance')).toBe(false);
+            expect((await repository.listInstruments()).length).toBe(1);
+        });
+    });
+
+    describe('whether a market may be traded', () => {
+        it('allows a registered, active market', async () => {
+            const verdict = await repository.tradability('BTCUSDT');
+
+            expect(verdict.tradable).toBe(true);
+        });
+
+        it('names both halves rather than returning the instrument alone', async () => {
+            const verdict = await repository.tradability('BTCUSDT');
+
+            if (!verdict.tradable) {
+                throw new Error('expected the market to be tradable');
+            }
+
+            expect(verdict.instrument.base.symbol).toBe('BTC');
+            expect(verdict.instrument.quote.symbol).toBe('USDT');
+            expect(verdict.instrument.market).toBe('crypto');
+        });
+
+        it('refuses a market the database has never heard of', async () => {
+            await repository.recordInstrument('ETHBTC');
+
+            const verdict = await repository.tradability('ETHUSDT');
+
+            expect(verdict).toEqual({ tradable: false, reason: 'unknown_instrument' });
+        });
+
+        it('lets the database refuse what configuration still lists', async () => {
+            // The direction of authority, in one test. Configuration says BTC is
+            // wanted — it is in the seed list, and it will be seeded again on
+            // every start. The suspension is the newer fact and the one with a
+            // reason attached, so it wins.
+            await repository.suspendAsset('BTC');
+
+            const verdict = await repository.tradability('BTCUSDT');
+
+            expect(verdict).toEqual({ tradable: false, reason: 'base_inactive' });
+        });
+
+        it('refuses a market whose quote is suspended', async () => {
+            await repository.suspendAsset('USDT');
+
+            expect(await repository.tradability('BTCUSDT')).toEqual({
+                tradable: false,
+                reason: 'quote_inactive',
+            });
+        });
+
+        it('refuses a market whose halves are unclassified, and says which', async () => {
+            await query(`UPDATE asset SET status = 'unknown' WHERE symbol = 'USDT'`);
+
+            expect(await repository.tradability('BTCUSDT')).toEqual({
+                tradable: false,
+                reason: 'quote_unknown',
+            });
+        });
+
+        it('refuses a suspended instrument itself', async () => {
+            await query(`UPDATE instrument SET status = 'inactive' WHERE ticker = 'BTCUSDT'`);
+
+            expect(await repository.tradability('BTCUSDT')).toEqual({
+                tradable: false,
+                reason: 'instrument_inactive',
+            });
+        });
+
+        it('explains every reason it can give', () => {
+            // A refusal with no sentence is a refusal with nothing to act on, and
+            // the six reasons are fixed by different people.
+            for (const reason of [
+                'unknown_instrument',
+                'base_inactive',
+                'quote_inactive',
+                'instrument_inactive',
+                'base_unknown',
+                'quote_unknown',
+            ] as const) {
+                expect(AssetRepository.describeReason(reason).length).toBeGreaterThan(4);
+            }
+        });
+
+        it('re-reads the answer each time rather than caching it', async () => {
+            // The reason this is not read at startup. A check that can only be
+            // performed once is right by accident; a suspension that arrives
+            // after the process started has to be able to take effect.
+            expect((await repository.tradability('BTCUSDT')).tradable).toBe(true);
+            await repository.suspendAsset('BTC');
+            expect((await repository.tradability('BTCUSDT')).tradable).toBe(false);
+            await query(`UPDATE asset SET status = 'active' WHERE symbol = 'BTC'`);
+            expect((await repository.tradability('BTCUSDT')).tradable).toBe(true);
+        });
+    });
+});
