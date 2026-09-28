@@ -258,28 +258,40 @@ describe('PHASE 0.2 names two kinds of target, and a guard that watched one is h
 });
 
 describe('this codebase, audited', () => {
-    it('finds the two hardcodes and only the two', () => {
-        // Pinned deliberately. Removing a hardcode means editing this list in
-        // the same commit, which is the point: the number cannot fall silently,
-        // and it cannot be made to look better by loosening the check.
+    it('finds no hardcoded market in the domain, and the number is pinned anyway', () => {
+        // It was two, and the two are gone. The list is pinned rather than
+        // deleted so that the next one is a visible edit in a diff: a guard
+        // that stops counting is not the same as a guard that reached zero.
         const report = audit(realRoot);
 
-        expect(report.violations.map((v) => `${v.file}:${v.line} ${v.value}`)).toEqual([
-            'api/routes/health.ts:63 BTCUSDT',
-            'observability/health.registry.ts:230 BTCUSDT',
-        ]);
+        expect(report.violations.map((v) => `${v.file}:${v.line} ${v.value}`)).toEqual([]);
     });
 
-    it('reads a normal file as one', () => {
-        // The regression test from above, pointed at a real file that contains
-        // the multi-line template literal that stopped the first scanner.
+    it('reads a normal file as one, and finds nothing hardcoded in it', () => {
+        // The regression test from above, pointed at a real file. It used to
+        // contain the audit's one domain hardcode on line 63, one line below a
+        // template literal spanning three lines — which is what the first
+        // scanner walked into and never came out of. A file that was read
+        // correctly is exactly the file worth keeping this pointed at.
         const report = audit(realRoot);
         const health = report.occurrences.filter(
             (o) => o.file === 'api/routes/health.ts' && o.kind === 'code',
         );
 
-        expect(health).toHaveLength(1);
-        expect(health[0]?.line).toBe(63);
+        expect(health).toEqual([]);
+    });
+
+    it('still reads the whole of that file rather than stopping at the template', () => {
+        // Zero findings is also what a scanner that gave up would report, so
+        // zero on its own proves nothing. The proof is that the file is fully
+        // read: its own comment about the vote store mentions no market, and
+        // its later mentions of one are prose, and prose is found.
+        const report = audit(realRoot);
+        const prose = report.occurrences.filter(
+            (o) => o.file === 'api/routes/health.ts' && o.kind === 'comment',
+        );
+
+        expect(prose.length).toBeGreaterThan(0);
     });
 
     it('separates the strategies’ written findings from their decisions', () => {

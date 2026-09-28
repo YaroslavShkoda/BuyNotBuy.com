@@ -8,6 +8,7 @@ import {
 import { createMetrics, judgeSnapshot } from './metrics.js';
 import { getPool } from '../db/pool.js';
 import { DEFAULT_RETENTION_POLICIES } from '../db/retention.js';
+import { marketConfig } from '../config/market.config.js';
 
 import type {
     HealthComponent,
@@ -220,15 +221,31 @@ export const healthRegistry: HealthRegistry = createHealthRegistry({
     },
     market: {
         async lastCandleAt() {
+            // Filtered by the market being polled, and the filter is the point.
+            // `MAX(timestamp)` across the whole table is the newest bar of
+            // *any* market, while the message below names one — so the day a
+            // second market is written to this table, a stale BTCUSDT would
+            // have been reported as fresh because ETH moved. Today exactly one
+            // market is written, so this changes nothing; it is here because the
+            // day it would matter is the day nobody would be looking at this
+            // query.
             const rows = await getPool().query<{ last: number | null }>(
-                'SELECT MAX(timestamp) AS last FROM market_candles',
+                'SELECT MAX(timestamp) AS last FROM market_candles WHERE symbol = $1',
+                [marketConfig.symbol],
             );
 
             return rows.rows[0]?.last ?? 0;
         },
-        provider: () => 'binance',
-        symbol: () => 'BTCUSDT',
-        interval: () => '1d',
+        // Read from configuration rather than written here. The registry used
+        // to answer `'BTCUSDT'` and `'1d'` as literals, which made this file
+        // the second of the two places in the domain that decided the system
+        // was about Bitcoin — and it decided it in a message that says the
+        // last bar is fresh, so the wrong market would have read as a healthy
+        // one. The name of the market being polled is configuration, and
+        // configuration already holds it.
+        provider: () => marketConfig.provider,
+        symbol: () => marketConfig.symbol,
+        interval: () => marketConfig.candleInterval,
     },
     snapshot: {
         ageMs: () => 0,

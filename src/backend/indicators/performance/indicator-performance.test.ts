@@ -181,6 +181,7 @@ describe('indicator vote storage', () => {
             listUnsettled: vi.fn().mockResolvedValue([]),
             settle: vi.fn().mockResolvedValue(undefined),
             count: vi.fn().mockResolvedValue(0),
+            isReadable: vi.fn().mockResolvedValue(true),
         };
 
         const logger = { warn: vi.fn() };
@@ -590,6 +591,7 @@ describe('forward return settlement', () => {
             listUnsettled: vi.fn().mockRejectedValue(new Error('database is locked')),
             settle: vi.fn().mockResolvedValue(undefined),
             count: vi.fn().mockResolvedValue(0),
+            isReadable: vi.fn().mockResolvedValue(true),
         };
 
         const logger = { warn: vi.fn() };
@@ -611,6 +613,7 @@ describe('forward return settlement', () => {
             listUnsettled: vi.fn().mockResolvedValue([unsettled()]),
             settle: vi.fn().mockRejectedValue(new Error('database is locked')),
             count: vi.fn().mockResolvedValue(0),
+            isReadable: vi.fn().mockResolvedValue(true),
         };
 
         const logger = { warn: vi.fn() };

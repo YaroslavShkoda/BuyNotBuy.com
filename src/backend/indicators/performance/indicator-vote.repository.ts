@@ -31,6 +31,17 @@ export interface IndicatorVoteRepository {
     /** Applies forward returns to stored votes, matched by symbol, hour and indicator. */
     settle(symbol: string, updates: SettleUpdate[]): Promise<void>;
     count(symbol: string): Promise<number>;
+    /**
+     * Whether the store can be read at all, naming no market.
+     *
+     * The readiness check wants to know whether the table exists and is
+     * queryable. It used to ask for `count('BTCUSDT')`, which made the one
+     * question that has no market in it require naming one — and a readiness
+     * probe that hardcodes a market cannot ask about a second one. An empty
+     * table answers this question correctly; `count` answers a different one,
+     * which is how many rows one market has.
+     */
+    isReadable(): Promise<boolean>;
 }
 
 interface VoteRow {
@@ -245,6 +256,17 @@ export function createIndicatorVoteRepository(
             );
 
             return result.rows[0]?.total ?? 0;
+        },
+
+        async isReadable(): Promise<boolean> {
+            // LIMIT 1 rather than COUNT(*): a full count on a table that grows
+            // forever is work a readiness probe should not do on every call, and
+            // the probe does not want a number.
+            const result = await query<{ present: number }>(
+                `SELECT 1 AS present FROM ${INDICATOR_TABLE} LIMIT 1`,
+            );
+
+            return result.rowCount !== null;
         },
     };
 }

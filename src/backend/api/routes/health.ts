@@ -60,7 +60,12 @@ async function databaseIsUsable(): Promise<CheckResult> {
         // The vote store is a second table in the same database. Reading it
         // here means a missing table is reported now, rather than as a silent
         // no-op on the first write an hour from now.
-        await getIndicatorVoteRepository().count('BTCUSDT');
+        //
+        // As a reachability question rather than a count. It used to ask for
+        // `count('BTCUSDT')`, which put a market name into a probe whose whole
+        // subject is "is the database usable" — and a readiness check that
+        // hardcodes a market cannot be run against a second one.
+        await getIndicatorVoteRepository().isReadable();
 
         return { ok: true };
     } catch (error) {

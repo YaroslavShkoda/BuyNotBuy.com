@@ -24,7 +24,11 @@ const { historyRepository, voteRepository } = vi.hoisted(() => ({
         durabilitySettings: vi.fn(),
     },
     voteRepository: {
-        count: vi.fn(),
+        // Deliberately without `count`. A readiness probe that had to name a
+        // market would be unable to say anything about a second one, and the
+        // absence of the method here is the assertion: if the route reaches for
+        // it, the call is a TypeError and readiness reports 503.
+        isReadable: vi.fn(),
     },
 }));
 
@@ -55,7 +59,7 @@ beforeEach(() => {
         statementTimeout: '10s',
         lockTimeout: '5s',
     });
-    voteRepository.count.mockResolvedValue(0);
+    voteRepository.isReadable.mockResolvedValue(true);
 
     // The counters are a module singleton. Without this, a 503 from a
     // readiness test above would be counted as a failure by a metrics test
@@ -110,6 +114,18 @@ describe('liveness', () => {
 });
 
 describe('readiness', () => {
+    it('asks whether the vote store is readable without naming a market', async () => {
+        // The point of the change this asserts. Readiness is a question about
+        // the database, and a question that has no market in it should not have
+        // to name one to be asked.
+        await track(createApp()).inject({ method: 'GET', url: '/readyz' });
+
+        expect(voteRepository.isReadable).toHaveBeenCalled();
+        expect(
+            (voteRepository as unknown as Record<string, unknown>).count,
+        ).toBeUndefined();
+    });
+
     it('is ready when the database answers', async () => {
         const response = await track(createApp()).inject({
             method: 'GET',
@@ -201,7 +217,7 @@ describe('readiness', () => {
     });
 
     it('reports an unreadable vote table as not ready', async () => {
-        voteRepository.count.mockRejectedValue(
+        voteRepository.isReadable.mockRejectedValue(
             new Error('relation "indicator_vote" does not exist'),
         );
 
