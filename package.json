@@ -37,6 +37,7 @@
     "fast-check": "^4.10.2",
     "tsx": "^4.23.13",
     "typescript": "7.0.2",
+    "typescript-5": "npm:typescript@^5.9.3",
     "vitest": "^5.0.1"
   }
 }
