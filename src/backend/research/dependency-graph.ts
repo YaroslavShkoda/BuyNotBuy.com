@@ -92,12 +92,26 @@ const CONFIG = 'config';
  * counter, and a layer that may not be counted is a layer nobody can operate.
  * Cross-cutting concerns are leaves, not destinations.
  */
-export const UNIVERSAL: readonly string[] = [TYPES, ERRORS, CONFIG, 'observability'];
+export const UNIVERSAL: readonly string[] = [
+    TYPES,
+    ERRORS,
+    CONFIG,
+    'instruments',
+    'observability',
+];
 
 export const LAYERS: readonly Layer[] = [
     { name: TYPES, composition: false, mayImport: [] },
     { name: ERRORS, composition: false, mayImport: [] },
-    { name: CONFIG, composition: false, mayImport: [] },
+    // May import `instruments`, and the edge is the honest description of what
+    // the code does: a market setting is only usable if the asset registry can
+    // split it, so the registry is an input to whether the config is valid.
+    // Without that edge a bad symbol passed validation and the failure arrived
+    // from a venue as an HTTP 400 hours later.
+    { name: CONFIG, composition: false, mayImport: ['instruments'] },
+    // A pure leaf. No I/O, no database, no clock — which is what lets its
+    // tests prove something about parsing rather than about a connection.
+    { name: 'instruments', composition: false, mayImport: [] },
     { name: 'db', composition: false, mayImport: [] },
     { name: 'market', composition: false, mayImport: ['db'] },
     { name: 'indicators', composition: false, mayImport: [] },

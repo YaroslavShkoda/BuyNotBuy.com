@@ -1,7 +1,30 @@
 import { z } from 'zod';
 
+import { describeUnresolved, resolveInstrument } from './asset.registry.js';
+
 /** Binance /api/v3/klines silently caps the limit at 1000 per request. */
 export const MAX_CANDLE_LIMIT = 1000;
+
+/**
+ * Returns the symbol if the registry understands it, and refuses to start if it
+ * does not.
+ *
+ * The refusal is thrown, not returned, because the alternative is a process
+ * that runs and cannot parse the market it was configured to trade. Every other
+ * config failure in this file is already fatal at import time, and a symbol is
+ * no different: it is the one setting a running system is least able to do
+ * without.
+ */
+function resolvableSymbol(symbol: string): string {
+    if (resolveInstrument(symbol) === null) {
+        throw new Error(
+            `MARKET_SYMBOL is set to ${describeUnresolved(symbol)}. ` +
+                'The process will not start on a market it cannot name.',
+        );
+    }
+
+    return symbol;
+}
 
 /** A venue this application knows how to read. */
 const MarketProviderSchema = z.enum(['binance', 'bitget', 'mock']);
@@ -315,14 +338,6 @@ export const marketConfig: MarketConfig = MarketConfigSchema.parse({
         process.env.MARKET_FALLBACK_BASE_URL ??
         'https://api.bitget.com',
 
-    symbol:
-        process.env.MARKET_SYMBOL ??
-        'BTCUSDT',
-
-    fallbackSymbol:
-        process.env.MARKET_FALLBACK_SYMBOL ??
-        'BTCUSDT',
-
     candleInterval:
         process.env.MARKET_CANDLE_INTERVAL ??
         '1h',
@@ -396,4 +411,23 @@ export const marketConfig: MarketConfig = MarketConfigSchema.parse({
     userAgent:
         process.env.MARKET_USER_AGENT ??
         'BuyNotBuy.com/1.0 (+https://buynotbuy.com)',
+
+    // Refuse to start on a symbol the asset registry cannot split. The shape
+    // check above is necessary and not sufficient: `XRPBRL` passes
+    // `/^[A-Z0-9]{1,32}$/`, the process starts, and the failure arrives from a
+    // venue as an HTTP 400 naming a symbol this system has no way to interpret.
+    // Two things were true at once — the ticker is well-formed and it is
+    // meaningless — and only one of them was being checked.
+    //
+    // This is a deliberate import of the registry from inside the config it
+    // validates, and the cycle is the point rather than an accident: the
+    // registry is an input to whether a market setting is usable, so the check
+    // belongs where the setting is read. The dependency graph records it, and
+    // `config` may import `instruments`, so the layering allows it.
+    symbol: resolvableSymbol(process.env.MARKET_SYMBOL ?? 'BTCUSDT'),
+    fallbackSymbol: resolvableSymbol(
+        process.env.MARKET_FALLBACK_SYMBOL ??
+            process.env.MARKET_SYMBOL ??
+            'BTCUSDT',
+    ),
 });
