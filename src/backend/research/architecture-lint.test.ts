@@ -6,12 +6,14 @@ import {
     audit,
     isExempt,
     listSources,
+    looksLikeMarketDefault,
+    looksLikeMarketIdentifier,
     looksLikeSymbol,
     mentionsInProse,
     scanFile,
 } from './architecture-lint.js';
 
-import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
@@ -116,6 +118,13 @@ describe('what counts as naming a market', () => {
         }
     });
 
+    it('takes an identifier named after a market, in any spelling', () => {
+        expect(looksLikeMarketIdentifier('btcSymbol')).toBe(true);
+        expect(looksLikeMarketIdentifier('BTC_PRICE')).toBe(true);
+        expect(looksLikeMarketIdentifier('bitcoinCandles')).toBe(true);
+        expect(looksLikeMarketIdentifier('marketCandles')).toBe(false);
+    });
+
     it('reads prose the way a reader does, not the way a lexer does', () => {
         // A filename is a mention of the market, not an identifier.
         expect(mentionsInProse('over 2096 bars of btcusdt-1d.csv and bitcoin')).toEqual([
@@ -143,6 +152,108 @@ describe('the exemption table is a decision, and is pinned', () => {
         expect(isExempt('research/dataset.ts')).toBe(true);
         expect(isExempt('api/routes/config.ts')).toBe(false);
         expect(isExempt('market/providers/binance.provider.ts')).toBe(false);
+    });
+});
+
+describe('PHASE 0.2 names two kinds of target, and a guard that watched one is half a guard', () => {
+    it('catches a market named in an identifier, not in a literal', () => {
+        // `const btcSymbol = ...` says which market the code is about at the
+        // moment it is declared, and there is no string literal anywhere near
+        // it. A rule that only reads literals cannot see it at all.
+        const root = tree({ 'thing.ts': "const btcSymbol = 'BTCUSDT';\n" });
+        const named = scanFile(join(root, 'thing.ts'), root).filter(
+            (o) => o.via === 'identifier',
+        );
+
+        expect(named.map((o) => o.value)).toEqual(['btcSymbol']);
+    });
+
+    it('catches a default that could carry a market', () => {
+        const root = tree({ 'thing.ts': 'const defaultSymbol = read();\n' });
+        const named = scanFile(join(root, 'thing.ts'), root).filter(
+            (o) => o.via === 'identifier',
+        );
+
+        expect(named.map((o) => o.value)).toEqual(['defaultSymbol']);
+    });
+
+    it('catches it however it is spelled, not only as PHASE 0.2 writes it', () => {
+        // The roadmap names two spellings. A rule that fires on those two only
+        // is a rule waiting to be spelled `defaultTicker` instead.
+        for (const name of [
+            'defaultSymbol',
+            'defaultAsset',
+            'defaultMarket',
+            'defaultTicker',
+            'defaultInstrument',
+            'DEFAULT_SYMBOL',
+        ]) {
+            expect(looksLikeMarketDefault(name)).toBe(true);
+        }
+    });
+
+    it('leaves defaults that carry no market alone', () => {
+        // This codebase has `defaultCandleLimit` fifteen times and
+        // `defaultQuery` four times. Counting those would bury the finding.
+        for (const name of ['defaultCandleLimit', 'defaultQuery', 'defaultLimit', 'defaults']) {
+            expect(looksLikeMarketDefault(name)).toBe(false);
+        }
+    });
+
+    it('counts a declaration once, not every time it is referenced', () => {
+        // A constant named BTC_MARKER used twelve times is one hardcode, and a
+        // report that says twelve would be read as noise and switched off.
+        const root = tree({
+            'thing.ts': [
+                'const BTC_MARKER = 1;',
+                'const a = BTC_MARKER;',
+                'const b = BTC_MARKER;',
+                'const c = BTC_MARKER;',
+                '',
+            ].join('\n'),
+        });
+
+        expect(
+            scanFile(join(root, 'thing.ts'), root).filter((o) => o.via === 'identifier'),
+        ).toHaveLength(1);
+    });
+
+    it('ignores a market word inside a comment, which is the whole distinction', () => {
+        const root = tree({ 'thing.ts': '// btcSymbol used to live here\nconst x = 1;\n' });
+
+        expect(
+            scanFile(join(root, 'thing.ts'), root).filter((o) => o.via === 'identifier'),
+        ).toEqual([]);
+    });
+
+    it('has no market-named declaration in the domain today', () => {
+        // Measured, not assumed: `defaultSymbol` and `defaultAsset`, which
+        // PHASE 0.2 lists as things to find, are absent from this codebase
+        // entirely. The ten that exist are research scripts naming their
+        // subject, which is the experiment rather than a decision about the
+        // system.
+        const report = audit(realRoot);
+        const named = report.occurrences.filter((o) => o.via === 'identifier');
+
+        expect(named).toHaveLength(10);
+        expect(named.filter((o) => !o.exempted)).toEqual([]);
+        expect(named.every((o) => o.file.startsWith('research/'))).toBe(true);
+    });
+
+    it('reports no defaultSymbol and no defaultAsset in code', () => {
+        // Asked as a raw text search this comes back true, because this file
+        // and two others say the words out loud in order to explain that they
+        // are absent. A search that cannot tell a mention from a declaration
+        // would have "found" the absence and reported it as a presence, which
+        // is the failure this whole file exists to avoid — so the question is
+        // asked of the audit, which can tell the difference.
+        const offenders = listSources(realRoot).flatMap((file) =>
+            scanFile(file, realRoot)
+                .filter((o) => o.via === 'identifier' && looksLikeMarketDefault(o.value))
+                .map((o) => `${o.file}:${o.line} ${o.value}`),
+        );
+
+        expect(offenders).toEqual([]);
     });
 });
 

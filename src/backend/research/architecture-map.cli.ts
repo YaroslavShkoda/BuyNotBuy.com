@@ -40,26 +40,41 @@ console.log('='.repeat(94));
 console.log('M0. КАРТА BACKEND. ЧАСТЬ СГЕНЕРИРОВАНА, ЧАСТЬ — РЕШЕНИЕ');
 console.log('='.repeat(94));
 
-console.log('\n  СЛОИ\n');
+console.log('\n  СЛОИ. «вход» — рёбра, входящие в слой, «выход» — исходящие.\n');
+console.log('  Рёбра внутри слоя не считаются: слой, разговаривающий сам с собой,\n');
+console.log('  не имеет более широкой границы, чем та, что у него реально есть.\n');
 for (const layer of LAYERS) {
     const row = graph.byLayer.find((entry) => entry.layer === layer.name);
+
+    if (!row) {
+        continue;
+    }
+
     const kind = layer.composition
         ? 'составляющий'
         : (UNIVERSAL.includes(layer.name) ? 'сквозной лист' : 'ядро');
 
     console.log(
-        `  ${pad(layer.name, 16)} ${String(row?.files ?? 0).padStart(4)} файлов  ` +
-            `${String(row?.edges ?? 0).padStart(4)} рёбер  ${pad(kind, 16)} ` +
-            (layer.composition ? '' : `→ ${layer.mayImport.join(', ') || 'ничего'}`),
+        `  ${pad(layer.name, 15)} ${String(row.files).padStart(3)} файлов  ` +
+            `вход ${String(row.in).padStart(3)}  выход ${String(row.out).padStart(3)}  ${pad(kind, 14)}`,
     );
+    const where = Object.keys(row.outTo).filter((to) => to !== layer.name);
+
+    if (where.length > 0) {
+        console.log(
+            `  ${' '.repeat(15)}   → ${where.map((to) => `${to}(${row.outTo[to]})`).join(' ')}`,
+        );
+    }
 }
-for (const [name, kind] of Object.entries(UNPLACED)) {
+for (const [name] of Object.entries(UNPLACED)) {
     const row = graph.byLayer.find((entry) => entry.layer === name);
 
-    console.log(
-        `  ${pad(name, 16)} ${String(row?.files ?? 0).padStart(4)} файлов  ` +
-            `${String(row?.edges ?? 0).padStart(4)} рёбер  ${pad(kind, 16)} (вне таблицы)`,
-    );
+    if (row) {
+        console.log(
+            `  ${pad(name, 15)} ${String(row.files).padStart(3)} файлов  ` +
+                `вход ${String(row.in).padStart(3)}  выход ${String(row.out).padStart(3)}  (вне таблицы)`,
+        );
+    }
 }
 
 console.log(`\n  ИТОГО: ${graph.files} файлов, ${graph.edges} рёбер, ${graph.internal} внутри слоя`);

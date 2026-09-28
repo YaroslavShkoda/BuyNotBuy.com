@@ -42,7 +42,25 @@ for (const row of report.byLayer) {
         : (declared.mayImport.join(', ') || 'ничего');
 
     console.log(
-        `  ${pad(row.layer, 16)} ${String(row.files).padStart(6)} ${String(row.edges).padStart(14)}   ${access}`,
+        `  ${pad(row.layer, 16)} ${String(row.files).padStart(6)} ${String(row.out).padStart(14)}   ${access}`,
+    );
+}
+
+const unreachable = report.unreachable;
+
+if (unreachable.length > 0) {
+    console.log('\n  Ядро, до которого не доходит ни один вызов:');
+    for (const row of unreachable) {
+        console.log(
+            `    ${pad(row.layer, 16)} ${String(row.files).padStart(3)} файлов, ` +
+                `исходящих ${row.out}: ${Object.keys(row.outTo).join(', ') || '—'}`,
+        );
+    }
+    console.log(
+        '    Слой, который что-то делает, но никем не вызывается, — это либо\n' +
+            '    мёртвый код, либо код, к которому нет пути. Составляющие слои и\n' +
+            '    точки входа сюда не попадают: у research и app.ts вызывающих нет\n' +
+            '    именно потому, что их запускают.\n',
     );
 }
 

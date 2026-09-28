@@ -417,11 +417,35 @@ export function findCycle(graph: Graph, internal = false): Cycle | null {
     return found;
 }
 
+export interface LayerRow {
+    readonly layer: string;
+    readonly files: number;
+    /** Edges leaving the layer. This is the layer's output. */
+    readonly out: number;
+    /** Edges entering the layer. This is the layer's input. */
+    readonly in: number;
+    /** Outgoing edges to each named layer, in name order. */
+    readonly outTo: Readonly<Record<string, number>>;
+    /** Incoming edges from each named layer, in name order. */
+    readonly inFrom: Readonly<Record<string, number>>;
+}
+
 export interface Summary {
     readonly files: number;
     readonly edges: number;
     readonly internal: number;
-    readonly byLayer: ReadonlyArray<{ layer: string; files: number; edges: number }>;
+    readonly byLayer: readonly LayerRow[];
+    /**
+     * Core layers that do something and that nothing reaches.
+     *
+     * Composition layers and entry points are excluded, and the exclusion is
+     * the point rather than a convenience: `research` and `app.ts` have no
+     * callers because they are the things you run, and a rule that reported
+     * them as stranded would be reporting the architecture working. A core
+     * layer with zero inbound edges is a different claim — it calculates, it
+     * is tested, and there is no path from production to it.
+     */
+    readonly unreachable: readonly LayerRow[];
     readonly violations: readonly Violation[];
     readonly unplaced: readonly string[];
     readonly cycle: Cycle | null;
@@ -433,11 +457,22 @@ export interface Cycle {
     readonly edges: readonly Edge[];
 }
 
+/** Adds one to a tally. Counts belong in one place, not at every call site. */
+const tally = (into: Map<string, number>, key: string): void => {
+    into.set(key, (into.get(key) ?? 0) + 1);
+};
+
+const sorted = (into: Map<string, number>): Record<string, number> =>
+    Object.fromEntries([...into.entries()].sort(([a], [b]) => (a < b ? -1 : 1)));
+
 export function summarise(root: string): Summary {
     const graph = buildGraph(root);
 
     const filesInLayer = new Map<string, Set<string>>();
-    const edgesFromLayer = new Map<string, number>();
+    const outTo = new Map<string, Map<string, number>>();
+    const inFrom = new Map<string, Map<string, number>>();
+    const outCount = new Map<string, number>();
+    const inCount = new Map<string, number>();
 
     for (const edge of graph.edges) {
         for (const file of [edge.from, edge.to]) {
@@ -448,22 +483,48 @@ export function summarise(root: string): Summary {
             filesInLayer.set(layer, set);
         }
 
-        const from = layerOf(edge.from);
+        // An edge inside a layer is that layer talking to itself, and counting
+        // it as both its input and its output would make every layer look
+        // busier than the boundary it actually has.
+        if (edge.internal) {
+            continue;
+        }
 
-        edgesFromLayer.set(from, (edgesFromLayer.get(from) ?? 0) + 1);
+        const from = layerOf(edge.from);
+        const to = layerOf(edge.to);
+
+        tally(outCount, from);
+        tally(inCount, to);
+
+        const outMap = outTo.get(from) ?? new Map<string, number>();
+
+        tally(outMap, to);
+        outTo.set(from, outMap);
+
+        const inMap = inFrom.get(to) ?? new Map<string, number>();
+
+        tally(inMap, from);
+        inFrom.set(to, inMap);
     }
 
     const byLayer = [...filesInLayer.keys()].sort().map((layer) => ({
         layer,
         files: filesInLayer.get(layer)?.size ?? 0,
-        edges: edgesFromLayer.get(layer) ?? 0,
+        out: outCount.get(layer) ?? 0,
+        in: inCount.get(layer) ?? 0,
+        outTo: sorted(outTo.get(layer) ?? new Map<string, number>()),
+        inFrom: sorted(inFrom.get(layer) ?? new Map<string, number>()),
     }));
+
+    const isComposition = (layer: string): boolean =>
+        declarationOf(layer)?.composition === true || UNPLACED[layer] === 'composition';
 
     return {
         files: graph.files,
         edges: graph.edges.length,
         internal: graph.edges.filter((edge) => edge.internal).length,
         byLayer,
+        unreachable: byLayer.filter((row) => row.in === 0 && row.out > 0 && !isComposition(row.layer)),
         violations: violations(graph),
         unplaced: unplacedLayers(graph),
         cycle: findCycle(graph, false),

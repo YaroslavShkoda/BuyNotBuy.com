@@ -206,6 +206,47 @@ describe('this codebase, measured', () => {
         expect(summarise(realRoot).unplaced).toEqual([]);
     });
 
+    it('finds a layer that nothing can reach', () => {
+        // Four modules, ten edges between them, and not one edge arriving from
+        // outside. `performance/` calculates, and no production path calls it —
+        // only its own tests do, and a test is not a caller. The roadmap puts
+        // "performance aggregation" in M6 as work to do; this is work that was
+        // done, is tested, and was never wired to anything.
+        const report = summarise(realRoot);
+
+        expect(report.unreachable.map((row) => row.layer)).toEqual(['performance']);
+    });
+
+    it('does not report an entry point as stranded', () => {
+        // `research` and `app.ts` have no callers because they are the things
+        // you run. A rule that called them unreachable would be calling the
+        // architecture broken, and would be switched off the first time it was
+        // right about something else.
+        const report = summarise(realRoot);
+        const stranded = report.unreachable.map((row) => row.layer);
+
+        expect(stranded).not.toContain('research');
+        expect(stranded).not.toContain('app.ts');
+        expect(stranded).not.toContain('api');
+    });
+
+    it('does not count a layer talking to itself as a boundary', () => {
+        // 240 of the 576 edges are within a layer. Counting them as input and
+        // output would make every layer look like it had a wider surface than
+        // the one it actually has, and the map would be decoration.
+        const report = summarise(realRoot);
+        const boundary = report.byLayer.reduce((total, row) => total + row.in, 0);
+
+        expect(boundary).toBe(report.edges - report.internal);
+    });
+
+    it('gives every layer an input and an output, even a leaf with none', () => {
+        for (const row of summarise(realRoot).byLayer) {
+            expect(typeof row.in).toBe('number');
+            expect(typeof row.out).toBe('number');
+        }
+    });
+
     it('has no cycle between layers', () => {
         expect(summarise(realRoot).cycle).toBeNull();
     });

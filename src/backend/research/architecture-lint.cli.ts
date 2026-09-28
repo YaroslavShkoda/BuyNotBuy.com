@@ -38,7 +38,37 @@ for (const exception of EXCEPTIONS) {
     console.log(`    ${exception.path.padEnd(12)} ${exception.reason}`);
 }
 
-console.log('\n  ' + '='.repeat(88));
+const named = report.occurrences.filter((o) => o.via === 'identifier');
+
+console.log(
+    '\n  ' + '='.repeat(88) +
+        '\n  ВТОРАЯ ОСЬ. PHASE 0.2 ищет не только литералы, но и имена:\n' +
+        '  defaultSymbol, defaultAsset, btcSymbol, BTC_PRICE. Строковым\n' +
+        '  литералом их не поймать — это объявления.\n' +
+        `\n  Объявлений с рынком в имени: ${named.length}` +
+        (named.some((o) => !o.exempted)
+            ? ', из них вне разрешённых слоёв:'
+            : ', все в разрешённых слоях:') +
+        '\n',
+);
+
+for (const occurrence of named) {
+    console.log(
+        `   ${occurrence.exempted ? ' ' : '!'} ${occurrence.file}:${occurrence.line}  ${occurrence.value}`,
+    );
+}
+
+if (named.every((o) => o.exempted)) {
+    console.log(
+        '\n  `defaultSymbol` и `defaultAsset`, которые PHASE 0.2 предлагает искать,\n' +
+            '  в этом коде отсутствуют — оба. Именованных рынок вне исследовательских\n' +
+            '  скриптов, которые так и называют свой предмет, не осталось ни одного.\n' +
+            '  Правило остаётся в guard на тот день, когда одно из имён появится:\n' +
+            '  аудит, работающий только по одному написанию, это не аудит.\n',
+    );
+}
+
+console.log('  ' + '='.repeat(88));
 if (report.violations.length === 0) {
     console.log('  Нарушений нет: домен нигде не решает, на каком рынке работает.\n');
 } else {

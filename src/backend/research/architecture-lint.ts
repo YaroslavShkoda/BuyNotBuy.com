@@ -84,13 +84,58 @@ export const EXCEPTIONS: readonly Exception[] = [
 
 export type OccurrenceKind = 'code' | 'comment';
 
+/**
+ * How a market got into the source.
+ *
+ * Two axes, because PHASE 0.2 names two kinds of target and a guard that only
+ * watched one of them would be a guard for half the question. The audit
+ * already found the literals; the identifier axis was measured separately and
+ * came back empty, and a measurement nobody can repeat is a memory.
+ */
+export type OccurrenceVia = 'literal' | 'identifier';
+
 export interface Occurrence {
     readonly file: string;
     readonly line: number;
     readonly value: string;
     readonly kind: OccurrenceKind;
+    readonly via: OccurrenceVia;
     /** True when the file is exempt by table, false when it is a violation. */
     readonly exempted: boolean;
+}
+
+/**
+ * Whether an identifier is named after a market.
+ *
+ * `btcSymbol`, `BTC_PRICE`, `bitcoinCandles` all say which market the code is
+ * about at the moment it is declared, and not one of them is a string literal,
+ * so the literal rule cannot see any of them. This is the second axis of
+ * PHASE 0.2's search list. It was measured once by hand and came back empty,
+ * and a measurement nobody can repeat is a memory.
+ */
+export function looksLikeMarketIdentifier(name: string): boolean {
+    return /btc|bitcoin/i.test(name);
+}
+
+/**
+ * Whether an identifier is a default that could carry a market.
+ *
+ * PHASE 0.2 names `defaultSymbol` and `defaultAsset` explicitly, and this
+ * codebase has **neither** — measured, not assumed. The pattern is kept anyway
+ * because the point of the guard is the day one of them appears, and a rule
+ * that fires on two spellings only is a rule waiting to be spelled differently.
+ * `defaultCandleLimit` and `defaultQuery` pass, because they carry no market.
+ */
+export function looksLikeMarketDefault(name: string): boolean {
+    // Case-insensitive on the prefix, because a rule that catches
+    // `defaultSymbol` and misses `DEFAULT_SYMBOL` is caught by whoever writes
+    // the second one.
+    return /^default[A-Z_]/i.test(name) && /symbol|asset|market|ticker|pair|instrument/i.test(name);
+}
+
+/** Either identifier axis, which the two functions above are the two halves of. */
+export function looksLikeMarketBinding(name: string): boolean {
+    return looksLikeMarketIdentifier(name) || looksLikeMarketDefault(name);
 }
 
 /** Quote currencies a crypto instrument can be written against. */
@@ -234,6 +279,46 @@ function isStringLike(node: ts.Node): boolean {
     );
 }
 
+/**
+ * True for a name that is being *declared*, not merely referenced.
+ *
+ * Only declarations count. A constant named `BTC_MARKER` produces one finding
+ * where it is declared, and if every reference counted as well the audit would
+ * report a single hardcode a dozen times and be read as noise.
+ */
+function isDeclarationSite(node: ts.Node): boolean {
+    if (ts.isVariableDeclaration(node) || ts.isParameter(node) || ts.isFunctionDeclaration(node)) {
+        return true;
+    }
+
+    if (ts.isPropertyAssignment(node) || ts.isPropertyDeclaration(node)) {
+        return true;
+    }
+
+    return (
+        (ts.isClassDeclaration(node) || ts.isInterfaceDeclaration(node) || ts.isEnumDeclaration(node)) &&
+        node.name !== undefined
+    );
+}
+
+/** The name at a declaration site, when it is a plain identifier. */
+function declaredName(node: ts.Node): ts.Identifier | undefined {
+    // A function declaration's name is optional, so the guard has to come
+    // before the narrowing call rather than after it.
+    const candidate = ts.isVariableDeclaration(node) ||
+        ts.isParameter(node) ||
+        ts.isFunctionDeclaration(node) ||
+        ts.isPropertyAssignment(node) ||
+        ts.isPropertyDeclaration(node) ||
+        ts.isClassDeclaration(node) ||
+        ts.isInterfaceDeclaration(node) ||
+        ts.isEnumDeclaration(node)
+        ? node.name
+        : undefined;
+
+    return candidate && ts.isIdentifier(candidate) ? candidate : undefined;
+}
+
 export function scanFile(fullPath: string, root: string): Occurrence[] {
     const text = readFileSync(fullPath, 'utf8');
     const relativePath = relative(root, fullPath).split(sep).join('/');
@@ -271,6 +356,22 @@ export function scanFile(fullPath: string, root: string): Occurrence[] {
                     line: lineAt(start),
                     value: node.text,
                     kind: 'code',
+                    via: 'literal',
+                    exempted: exempt,
+                });
+            }
+        }
+
+        if (isDeclarationSite(node)) {
+            const name = declaredName(node);
+
+            if (name && looksLikeMarketBinding(name.text)) {
+                occurrences.push({
+                    file: relativePath,
+                    line: lineAt(name.getStart(source)),
+                    value: name.text,
+                    kind: 'code',
+                    via: 'identifier',
                     exempted: exempt,
                 });
             }
@@ -296,6 +397,7 @@ export function scanFile(fullPath: string, root: string): Occurrence[] {
                 line: lineAt(start),
                 value,
                 kind: 'comment',
+                via: 'literal',
                 exempted: true,
             });
         }
@@ -312,6 +414,8 @@ export interface Report {
     readonly configured: number;
     /** Symbols in code, in the domain. Each one is an architectural hardcode. */
     readonly violations: readonly Occurrence[];
+    /** Findings that arrived as a name rather than as a literal. */
+    readonly named: number;
 }
 
 /** Scans a tree and separates decisions from documentation. */
@@ -323,5 +427,6 @@ export function audit(root: string): Report {
         documented: occurrences.filter((o) => o.kind === 'comment').length,
         configured: occurrences.filter((o) => o.kind === 'code' && o.exempted).length,
         violations: occurrences.filter((o) => o.kind === 'code' && !o.exempted),
+        named: occurrences.filter((o) => o.via === 'identifier').length,
     };
 }
