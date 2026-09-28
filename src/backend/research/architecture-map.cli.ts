@@ -33,7 +33,10 @@ const tables = [...migrationsSource.matchAll(/CREATE TABLE IF NOT EXISTS (\w+)/g
 
 const routesDir = join(root, 'api', 'routes');
 const routes = readdirSync(routesDir)
-    .filter((name) => name.endsWith('.ts'))
+    // A test file in api/routes is a test of a route, not a route. Listing it
+    // as one would make the section claim more than it measured, which is the
+    // one thing a section labelled "прочитано из кода" must never do.
+    .filter((name) => name.endsWith('.ts') && !name.endsWith('.test.ts'))
     .map((name) => name.replace(/\.ts$/, ''));
 
 console.log('='.repeat(94));
