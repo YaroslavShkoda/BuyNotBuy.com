@@ -1,6 +1,6 @@
 import { currentRegistry } from '../observability/registry.js';
-import { getMarketData } from '../market/market.service.js';
-import { marketDataProvider } from '../market/market.provider.js';
+import { getMarketData, resolveRequest } from '../market/market.service.js';
+import { marketProviderFor } from '../market/market.provider.js';
 import { marketConfig } from '../config/market.config.js';
 import { INDICATOR_SIGNAL_CONFIG, requiredCandleCount } from '../config/indicator.config.js';
 import { assertCandleSeries } from '../market/candle-validation.js';
@@ -10,6 +10,7 @@ import { manifestFor } from './manifest.js';
 
 import type { WalkForwardOptions, WalkForwardResult } from './walk-forward.js';
 import type { ExperimentManifest } from './experiment.js';
+import type { MarketRequest } from '../market/capability.js';
 
 /**
  * Which code produced the run, when there is any.
@@ -66,14 +67,26 @@ function requiredCandles(options: WalkForwardOptions): number {
  * would be spent warming up. History is therefore fetched separately, sized
  * to the warm-up plus the training and evaluation windows, and the live
  * snapshot is read only to name the current price.
+ *
+ * **The market is a parameter, and it was not one until now.** This function
+ * had no way to be told what to backtest: it read the configured market, fetched
+ * that, and then labelled the result with the same configured value. The two
+ * always agreed, which is exactly why the defect was invisible — a report whose
+ * symbol came from the configuration rather than from the measurement cannot
+ * disagree with the data, so nothing ever says the label is wrong.
+ *
+ * It also fetched through the module singleton instead of the router, so a
+ * backtest could not have reached a market the live path could not, even after
+ * the router learned to serve several. Both are the M3 defect one layer up.
  */
 export async function runBacktest(
     options: Partial<WalkForwardOptions> = {},
+    request: MarketRequest = resolveRequest(),
 ): Promise<BacktestReport> {
     const startedAt = performance.now();
 
     try {
-        return await runBacktestMeasured(options, startedAt);
+        return await runBacktestMeasured(options, startedAt, request);
     } finally {
         // A backtest that throws still took the time, and the time is the only
         // thing that says the run got too big to finish. Recorded outside the
@@ -86,13 +99,18 @@ export async function runBacktest(
 async function runBacktestMeasured(
     options: Partial<WalkForwardOptions>,
     startedAt: number,
+    request: MarketRequest,
 ): Promise<BacktestReport> {
     const resolved = { ...DEFAULT_WALK_FORWARD_OPTIONS, ...options };
     const needed = requiredCandles(resolved);
 
-    const snapshot = await getMarketData();
+    const snapshot = await getMarketData(request);
 
-    const candles = await marketDataProvider.getHistoricalCandles(needed);
+    // Routed, not the singleton: the backtest and the live path now ask the
+    // same question of the same capability table, so a market the service
+    // cannot serve is refused here for the stated reason rather than answered
+    // with BTC because BTC happened to be configured.
+    const candles = await marketProviderFor(request.instrument).getHistoricalCandles(needed);
 
     // The same integrity checks the live path applies, so a backtest cannot
     // quietly measure a series the live service would have rejected. The cap
@@ -109,8 +127,12 @@ async function runBacktestMeasured(
 
     return {
         ...result,
-        symbol: marketConfig.symbol,
-        candleInterval: marketConfig.candleInterval,
+        // Named from what was measured, not from what was configured. The
+        // manifest is the record that a result can be reproduced, and a record
+        // whose symbol is a config value says only that the config was read —
+        // it cannot tell a reader which market the numbers came from.
+        symbol: request.instrument,
+        candleInterval: request.interval,
         candleCount: candles.length,
         from: candles[0]?.timestamp ?? 0,
         to: candles[candles.length - 1]?.timestamp ?? 0,
@@ -128,8 +150,8 @@ async function runBacktestMeasured(
             candles,
             resolved,
             {
-                id: `${marketConfig.symbol}-${marketConfig.candleInterval}-${candles.length}`,
-                name: `${marketConfig.symbol} ${marketConfig.candleInterval}`,
+                id: `${request.instrument}-${request.interval}-${candles.length}`,
+                name: `${request.instrument} ${request.interval}`,
                 // From the first bar's own timestamp rather than the clock, so
                 // a run repeated on the same data produces the same manifest
                 // and a diff between them shows a real change instead of the
@@ -141,10 +163,10 @@ async function runBacktestMeasured(
                 commit: BACKTEST_COMMIT,
             },
             {
-                name: `${marketConfig.symbol}-${marketConfig.candleInterval}`,
-                symbol: marketConfig.symbol,
+                name: `${request.instrument}-${request.interval}`,
+                symbol: request.instrument,
                 provider: marketConfig.provider,
-                interval: marketConfig.candleInterval,
+                interval: request.interval,
             },
             {
                 longThreshold: INDICATOR_SIGNAL_CONFIG.stochastic.longThreshold,

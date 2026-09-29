@@ -71,8 +71,11 @@ const inFlight = new Map<string, Promise<MarketDataResult>>();
  * Defaulting rather than requiring keeps every existing caller — the frozen
  * API, the poller, the backtest — working unchanged while the parameter exists
  * only where a caller already knows which market it wants.
+ *
+ * Exported because the backtest asks the same question, and two copies of this
+ * default would be two places where a change has to be remembered.
  */
-function resolveRequest(request?: MarketRequest): MarketRequest {
+export function resolveRequest(request?: MarketRequest): MarketRequest {
     return (
         request ?? {
             instrument: marketConfig.symbol,

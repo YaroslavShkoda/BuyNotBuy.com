@@ -15,6 +15,7 @@
  *   BACKTEST_FEE_RATE=0 BACKTEST_SLIPPAGE_RATE=0 npm run backtest
  */
 import { runBacktest } from './backtest.service.js';
+import { marketConfig } from '../config/market.config.js';
 import { DEFAULT_WALK_FORWARD_OPTIONS } from './walk-forward.js';
 import { ExecutionConfigParser } from './execution.js';
 
@@ -387,7 +388,15 @@ function describeSignificance(report: BacktestReport): string | null {
 }
 
 async function main(): Promise<void> {
-    const report = await runBacktest(overridesFromEnv());
+    // The market is named here rather than inside the service. The service
+    // defaults to the configured market so every other caller keeps working,
+    // but a command line that cannot be told which market to run is the same
+    // defect one level down: it can only ever produce a report about whatever
+    // the process happened to be configured with.
+    const report = await runBacktest(overridesFromEnv(), {
+        instrument: process.env['BACKTEST_INSTRUMENT'] ?? marketConfig.symbol,
+        interval: process.env['BACKTEST_INTERVAL'] ?? marketConfig.candleInterval,
+    });
 
     console.log(describe(report));
     console.log(describeProvenance(report));
