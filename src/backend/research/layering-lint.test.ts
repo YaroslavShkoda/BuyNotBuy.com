@@ -121,16 +121,23 @@ describe('this codebase, measured', () => {
     it('has no domain file that touches the database outside a repository', () => {
         // Zero, and pinned at zero so it cannot be raised quietly. This is the
         // rule M2 existed to enable, and it turned out to be enabled already:
-        // all eleven files outside `db/` that reach into the database are ten
+        // all twelve files outside `db/` that reach into the database are eleven
         // repositories and one health check.
         expect(audit(realRoot).offences).toEqual([]);
     }, 30000);
 
-    it('names the ten repositories, so the accepted set is checkable', () => {
+    it('names the eleven repositories, so the accepted set is checkable', () => {
         // "There is no SQL in the domain" and "the only SQL in the domain is in
-        // these ten files" are different claims, and only the second one can be
-        // checked later. A guard that reports only failures says nothing about
-        // what it accepted.
+        // these eleven files" are different claims, and only the second one can
+        // be checked later. A guard that reports only failures says nothing
+        // about what it accepted.
+        //
+        // **This list is a tripwire, and it has now caught something.** Adding
+        // `performance/performance-load.repository.ts` to read outcomes made
+        // this test fail with eleven instead of ten, which is the moment it
+        // exists for: a new seam is a thing a person agreed to, not a thing
+        // that appeared. The name is written here so the agreement is on the
+        // record.
         const report = audit(realRoot);
 
         expect([...report.seams].sort()).toEqual([
@@ -141,6 +148,7 @@ describe('this codebase, measured', () => {
             'indicators/performance/indicator-vote.repository.ts',
             'instruments/asset.repository.ts',
             'outcomes/outcome.repository.ts',
+            'performance/performance-load.repository.ts',
             'signals/lifecycle.repository.ts',
             'strategies/candidate.repository.ts',
             'strategies/decision-log.repository.ts',

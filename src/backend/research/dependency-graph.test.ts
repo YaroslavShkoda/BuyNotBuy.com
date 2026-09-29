@@ -236,15 +236,36 @@ describe('this codebase, measured', () => {
         expect(summarise(realRoot).unplaced).toEqual([]);
     }, 30000);
 
-    it('finds a layer that nothing can reach', () => {
-        // Four modules, ten edges between them, and not one edge arriving from
-        // outside. `performance/` calculates, and no production path calls it —
-        // only its own tests do, and a test is not a caller. The roadmap puts
-        // "performance aggregation" in M6 as work to do; this is work that was
-        // done, is tested, and was never wired to anything.
+    it('finds no stranded layer, and would have', () => {
+        // **This test was the finding.** It read: four modules, ten edges
+        // between them, not one edge arriving from outside — `performance/`
+        // calculated, and no production path called it. Only its own tests did,
+        // and a test is not a caller. Four hundred and fifty-four lines of code
+        // and a thousand one hundred and fifty-four lines of tests, with no way
+        // to be asked a question.
+        //
+        // The roadmap put "performance aggregation" in M6 as work to do: this
+        // was work that had been done, was tested, and was wired to nothing.
+        // It is now reached by a reader and a command line, and the finding is
+        // closed by the code rather than by declaring the layer a root — which
+        // is the move that silences a finding instead of fixing one.
+        //
+        // Kept as a guard rather than deleted, because "nothing is stranded" is
+        // a claim about the whole tree and it costs one call to check.
         const report = summarise(realRoot);
 
-        expect(report.unreachable.map((row) => row.layer)).toEqual(['performance']);
+        expect(report.unreachable).toEqual([]);
+    }, 30000);
+
+    it('reaches the performance layer from a real caller, not from a root', () => {
+        // If `performance` were counted reachable because something declared it
+        // a composition root, the number above would be empty for the wrong
+        // reason and this one is what would catch it.
+        const report = summarise(realRoot);
+        const row = report.byLayer.find((entry) => entry.layer === 'performance');
+
+        expect(row?.in).toBeGreaterThan(0);
+        expect(row?.inFrom).toEqual({ research: row?.in });
     }, 30000);
 
     it('does not report an entry point as stranded', () => {
