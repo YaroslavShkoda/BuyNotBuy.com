@@ -4,6 +4,8 @@ import { indicatorConfig, INDICATOR_SIGNAL_CONFIG } from './indicator.config.js'
 
 import { strategySetFingerprint } from '../strategies/strategy-fingerprint.js';
 
+import type { ResolvedIndicatorSignalConfig } from './indicator.config.js';
+
 /**
  * A stable fingerprint of everything that can change a signal.
  *
@@ -12,6 +14,14 @@ import { strategySetFingerprint } from '../strategies/strategy-fingerprint.js';
  * the fingerprint and quietly re-version every snapshot. Adding a setting that
  * can change an output is a deliberate act, and it is made by adding a line
  * here.
+ *
+ * **The thresholds arrive as an argument rather than being read from here.**
+ * Per-asset overrides mean the shipped configuration is no longer the only
+ * configuration: a market with its own thresholds produces a different signal,
+ * and a fingerprint that did not say so would give two different strategies one
+ * version. The comment below explains why the rule set is in this hash, and the
+ * same argument covers the thresholds — a table that blended them would be a
+ * series no configuration ever produced, with every individual number right.
  */
 export interface StrategyFingerprint {
     /** Machine-readable, order-independent hash of every setting below. */
@@ -19,7 +29,9 @@ export interface StrategyFingerprint {
     config: Record<string, unknown>;
 }
 
-export function fingerprintStrategy(): StrategyFingerprint {
+export function fingerprintStrategy(
+    signal: ResolvedIndicatorSignalConfig = INDICATOR_SIGNAL_CONFIG,
+): StrategyFingerprint {
     const config = {
         periods: {
             ema: indicatorConfig.emaPeriod,
@@ -32,16 +44,13 @@ export function fingerprintStrategy(): StrategyFingerprint {
             macdSignal: indicatorConfig.macdSignalPeriod,
         },
         thresholds: {
-            stochasticLong: INDICATOR_SIGNAL_CONFIG.stochastic.longThreshold,
-            stochasticShort: INDICATOR_SIGNAL_CONFIG.stochastic.shortThreshold,
-            stochasticCenter: INDICATOR_SIGNAL_CONFIG.stochastic.center,
-            momentumDeadbandPercent:
-                INDICATOR_SIGNAL_CONFIG.momentum.deadbandPercent,
-            momentumConvictionScalePercent:
-                INDICATOR_SIGNAL_CONFIG.momentum.convictionScalePercent,
-            emaConfirmBars: INDICATOR_SIGNAL_CONFIG.ema.confirmBars,
-            emaConvictionScalePercent:
-                INDICATOR_SIGNAL_CONFIG.ema.convictionScalePercent,
+            stochasticLong: signal.stochastic.longThreshold,
+            stochasticShort: signal.stochastic.shortThreshold,
+            stochasticCenter: signal.stochastic.center,
+            momentumDeadbandPercent: signal.momentum.deadbandPercent,
+            momentumConvictionScalePercent: signal.momentum.convictionScalePercent,
+            emaConfirmBars: signal.ema.confirmBars,
+            emaConvictionScalePercent: signal.ema.convictionScalePercent,
         },
         // Which rules are installed, which one is the fallback, and whether it
         // is allowed to publish. Part of the configuration for the same reason

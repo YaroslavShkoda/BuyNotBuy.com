@@ -15,6 +15,7 @@ const ENV_NAMES = [
     'INDICATOR_DIVERGENCE_RIGHT_WINDOW',
     'INDICATOR_DIVERGENCE_MAX_DISTANCE',
     'INDICATOR_DIVERGENCE_MAX_AGE',
+    'INDICATOR_ASSET_CONFIG',
 ] as const;
 
 async function loadConfig(env: Record<string, string> = {}) {
@@ -122,3 +123,165 @@ describe('display names follow the period', () => {
         expect(emaDisplayName(300)).toBe('EMA 300');
     });
 });
+
+/**
+ * Per-asset thresholds, which is PHASE 7's actual request.
+ *
+ * The file says "configure indicators per asset"; what it names as the thing to
+ * delete is a hardcoded ticker. The ticker was never there, and what stood in
+ * its place was a single global configuration read in twenty-eight places —
+ * none of which had a market to read it for. That is the shape of "the system
+ * works for BTC", and it is a missing parameter rather than a literal.
+ */
+describe('per-asset thresholds', () => {
+    it('ships the global configuration for a market nobody configured', async () => {
+        const { signalConfigFor, INDICATOR_SIGNAL_CONFIG, hasAssetSignalConfig } =
+            await loadConfig({
+                INDICATOR_ASSET_CONFIG: 'ETHUSDT=stochastic:longThreshold=22',
+            });
+
+        // Not a fallback for a missing setting — the answer, and recorded as
+        // absent so a reader can tell it from a market that was configured.
+        expect(hasAssetSignalConfig('BTCUSDT')).toBe(false);
+        expect(signalConfigFor('BTCUSDT')).toEqual(INDICATOR_SIGNAL_CONFIG);
+    });
+
+    it('applies a declared override', async () => {
+        const { signalConfigFor, hasAssetSignalConfig } = await loadConfig({
+            INDICATOR_ASSET_CONFIG: 'ETHUSDT=stochastic:longThreshold=22+shortThreshold=74',
+        });
+
+        expect(hasAssetSignalConfig('ETHUSDT')).toBe(true);
+        expect(signalConfigFor('ETHUSDT').stochastic).toMatchObject({
+            longThreshold: 22,
+            shortThreshold: 74,
+        });
+    });
+
+    it('merges a partial override rather than dropping the rest', async () => {
+        const { signalConfigFor, INDICATOR_SIGNAL_CONFIG } = await loadConfig({
+            INDICATOR_ASSET_CONFIG: 'ETHUSDT=stochastic:longThreshold=22',
+        });
+
+        // Overriding one number must not silently reset the other seven to
+        // nothing. A partial that replaced the group would make a run on this
+        // market differ from the shipped one in ways nobody asked for.
+        const resolved = signalConfigFor('ETHUSDT');
+
+        expect(resolved.stochastic.longThreshold).toBe(22);
+        expect(resolved.stochastic.shortThreshold).toBe(
+            INDICATOR_SIGNAL_CONFIG.stochastic.shortThreshold,
+        );
+        expect(resolved.ema).toEqual(INDICATOR_SIGNAL_CONFIG.ema);
+        expect(resolved.momentum).toEqual(INDICATOR_SIGNAL_CONFIG.momentum);
+    });
+
+    it('overrides more than one group at once', async () => {
+        const { signalConfigFor } = await loadConfig({
+            INDICATOR_ASSET_CONFIG: 'ETHUSDT=stochastic:longThreshold=22,ema:confirmBars=5',
+        });
+
+        expect(signalConfigFor('ETHUSDT').stochastic.longThreshold).toBe(22);
+        expect(signalConfigFor('ETHUSDT').ema.confirmBars).toBe(5);
+    });
+
+    it('matches a market whatever case it is written in', async () => {
+        // Tickers arrive from configuration, from a URL, and from a symbol the
+        // exchange echoed back. A resolver that matched one spelling would
+        // quietly serve the shipped thresholds for the other.
+        const { signalConfigFor } = await loadConfig({
+            INDICATOR_ASSET_CONFIG: 'ETHUSDT=stochastic:longThreshold=22',
+        });
+
+        expect(signalConfigFor('ethusdt').stochastic.longThreshold).toBe(22);
+        expect(signalConfigFor('EtHuSdT').stochastic.longThreshold).toBe(22);
+    });
+
+    it('keeps one market override off another', async () => {
+        const { signalConfigFor, INDICATOR_SIGNAL_CONFIG } = await loadConfig({
+            INDICATOR_ASSET_CONFIG: 'ETHUSDT=stochastic:longThreshold=22;SOLUSDT=stochastic:longThreshold=9',
+        });
+
+        expect(signalConfigFor('ETHUSDT').stochastic.longThreshold).toBe(22);
+        expect(signalConfigFor('SOLUSDT').stochastic.longThreshold).toBe(9);
+        expect(signalConfigFor('BTCUSDT')).toEqual(INDICATOR_SIGNAL_CONFIG);
+    });
+
+    it('refuses a configuration it cannot read, and says what was wrong', async () => {
+        // A threshold nobody can read is a threshold nobody can defend, and a
+        // resolver that quietly dropped the bad clause would serve a different
+        // strategy from the one the operator wrote down.
+        await expect(
+            loadConfig({ INDICATOR_ASSET_CONFIG: 'ETHUSDT=stochastic:longThreshold=loud' }),
+        ).rejects.toThrow(/INDICATOR_ASSET_CONFIG is not valid/);
+    });
+
+    it('refuses an override outside the range a threshold can have', async () => {
+        // 0..100 is not decoration: a long threshold of 400 is not a strict
+        // long signal, it is a rule that never votes.
+        await expect(
+            loadConfig({ INDICATOR_ASSET_CONFIG: 'ETHUSDT=stochastic:longThreshold=400' }),
+        ).rejects.toThrow(/INDICATOR_ASSET_CONFIG is not valid/);
+    });
+
+    it('refuses a key it does not recognise instead of ignoring it', async () => {
+        await expect(
+            loadConfig({ INDICATOR_ASSET_CONFIG: 'ETHUSDT=stochastic:wideThreshold=22' }),
+        ).rejects.toThrow(/INDICATOR_ASSET_CONFIG is not valid/);
+    });
+
+    it('treats an absent setting as no settings at all', async () => {
+        const { signalConfigFor, hasAssetSignalConfig } = await loadConfig();
+
+        expect(hasAssetSignalConfig('BTCUSDT')).toBe(false);
+        expect(signalConfigFor('BTCUSDT').stochastic.longThreshold).toBe(15);
+    });
+});
+
+describe('the fingerprint of a configuration', () => {
+    it('does not give two markets with different thresholds one version', async () => {
+        // The comment in the fingerprint module explains why the rule set is in
+        // the hash: without it, measurements made by different rules share a
+        // version and the performance tables blend them into a series no rule
+        // ever produced. The same argument covers per-asset thresholds, and
+        // before this the fingerprint read the global — so a market with its
+        // own thresholds and a market without produced different signals under
+        // one name.
+        const { signalConfigFor } = await loadConfig({
+            INDICATOR_ASSET_CONFIG: 'ETHUSDT=stochastic:longThreshold=22',
+        });
+        const { fingerprintStrategy } = await import('./strategy-fingerprint.js');
+
+        const btc = fingerprintStrategy(signalConfigFor('BTCUSDT'));
+        const eth = fingerprintStrategy(signalConfigFor('ETHUSDT'));
+
+        expect(eth.hash).not.toBe(btc.hash);
+    });
+
+    it('gives an override equal to the shipped values the shipped version', async () => {
+        // Otherwise writing the shipped number down explicitly would fork the
+        // version space, and every stored measurement would point at a version
+        // that describes the same strategy.
+        const { signalConfigFor } = await loadConfig({
+            INDICATOR_ASSET_CONFIG: 'ETHUSDT=stochastic:longThreshold=15+shortThreshold=80',
+        });
+        const { INDICATOR_SIGNAL_CONFIG } = await import('./indicator.config.js');
+        const { fingerprintStrategy } = await import('./strategy-fingerprint.js');
+
+        expect(fingerprintStrategy(signalConfigFor('ETHUSDT')).hash).toBe(
+            fingerprintStrategy(INDICATOR_SIGNAL_CONFIG).hash,
+        );
+    });
+
+    it('keeps the shipped configuration as the default fingerprint', async () => {
+        // Every existing caller passes nothing, and a change to the default
+        // would re-version every stored snapshot on the next boot.
+        const { INDICATOR_SIGNAL_CONFIG } = await loadConfig();
+        const { fingerprintStrategy } = await import('./strategy-fingerprint.js');
+
+        expect(fingerprintStrategy().hash).toBe(
+            fingerprintStrategy(INDICATOR_SIGNAL_CONFIG).hash,
+        );
+    });
+});
+

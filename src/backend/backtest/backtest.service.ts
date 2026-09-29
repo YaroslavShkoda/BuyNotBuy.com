@@ -2,7 +2,7 @@ import { currentRegistry } from '../observability/registry.js';
 import { getMarketData, resolveRequest } from '../market/market.service.js';
 import { marketProviderFor } from '../market/market.provider.js';
 import { marketConfig } from '../config/market.config.js';
-import { INDICATOR_SIGNAL_CONFIG, requiredCandleCount } from '../config/indicator.config.js';
+import { requiredCandleCount, signalConfigFor } from '../config/indicator.config.js';
 import { assertCandleSeries } from '../market/candle-validation.js';
 
 import { runWalkForward, DEFAULT_WALK_FORWARD_OPTIONS } from './walk-forward.js';
@@ -104,6 +104,12 @@ async function runBacktestMeasured(
     const resolved = { ...DEFAULT_WALK_FORWARD_OPTIONS, ...options };
     const needed = requiredCandles(resolved);
 
+    // Resolved once, here, for the market this run is about. Every number the
+    // run reports about its own parameters has to come from this one object:
+    // reading the global at each site would let a per-asset override exist and
+    // be recorded as though it had not been used.
+    const signalConfig = signalConfigFor(request.instrument);
+
     const snapshot = await getMarketData(request);
 
     // Routed, not the singleton: the backtest and the live path now ask the
@@ -141,8 +147,8 @@ async function runBacktestMeasured(
         dataAgeMs: snapshot.ageMs,
         requestedCandles: needed,
         shippedParameters: {
-            longThreshold: INDICATOR_SIGNAL_CONFIG.stochastic.longThreshold,
-            shortThreshold: INDICATOR_SIGNAL_CONFIG.stochastic.shortThreshold,
+            longThreshold: signalConfig.stochastic.longThreshold,
+            shortThreshold: signalConfig.stochastic.shortThreshold,
         },
         options: resolved,
         manifest: manifestFor(
@@ -169,8 +175,12 @@ async function runBacktestMeasured(
                 interval: request.interval,
             },
             {
-                longThreshold: INDICATOR_SIGNAL_CONFIG.stochastic.longThreshold,
-                shortThreshold: INDICATOR_SIGNAL_CONFIG.stochastic.shortThreshold,
+                // The parameters the run actually used, for the market it
+                // actually ran on. Reading the global here while `shippedParameters`
+                // reads the resolved one would produce a manifest that
+                // contradicts the report printed beside it.
+                longThreshold: signalConfig.stochastic.longThreshold,
+                shortThreshold: signalConfig.stochastic.shortThreshold,
             },
         ),
     };

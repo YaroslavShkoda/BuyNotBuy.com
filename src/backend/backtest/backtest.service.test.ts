@@ -59,6 +59,25 @@ vi.mock('../market/candle-validation.js', () => ({
     assertCandleSeries: vi.fn(),
 }));
 
+// The per-asset thresholds resolve through the real configuration, because the
+// thing being checked is that the report names the numbers its own market was
+// given. Mocking the resolver would make the assertion circular.
+vi.mock('../config/indicator.config.js', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('../config/indicator.config.js')>();
+
+    return {
+        ...actual,
+        signalConfigFor: (instrument: string) =>
+            instrument === 'ETHUSDT'
+                ? {
+                      stochastic: { longThreshold: 22, shortThreshold: 74, center: 50 },
+                      ema: { confirmBars: 3, convictionScalePercent: 2 },
+                      momentum: { deadbandPercent: 0.15, convictionScalePercent: 3 },
+                  }
+                : actual.INDICATOR_SIGNAL_CONFIG,
+    };
+});
+
 const { runBacktest } = await import('./backtest.service.js');
 
 /** Bars that pass every shape check, because the checks are stubbed anyway. */
@@ -134,6 +153,28 @@ describe('which market a backtest measures', () => {
 
         expect(mocks.marketProviderFor).toHaveBeenCalledWith('BTCUSDT');
         expect(report.symbol).toBe('BTCUSDT');
+    });
+
+    it('reports the thresholds its own market was configured with', async () => {
+        // `shippedParameters` is the record of what actually went into the run.
+        // While it read the global configuration, a per-asset override could
+        // exist, be used, and be reported as though it had not been — and the
+        // manifest beside it would contradict the report printed next to it.
+        const report = await runBacktest({}, { instrument: 'ETHUSDT', interval: '1h' });
+
+        expect(report.shippedParameters).toEqual({
+            longThreshold: 22,
+            shortThreshold: 74,
+        });
+    });
+
+    it('reports the shipped thresholds for a market with no override', async () => {
+        const report = await runBacktest({}, { instrument: 'SOLUSDT', interval: '1h' });
+
+        expect(report.shippedParameters).toEqual({
+            longThreshold: 15,
+            shortThreshold: 80,
+        });
     });
 
     it('puts the market into the manifest, so a result says what it was about', async () => {

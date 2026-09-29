@@ -203,6 +203,176 @@ export const STOCHASTIC_THRESHOLD_GRID: readonly {
 ];
 
 /**
+ * Per-asset threshold overrides, declared rather than learned.
+ *
+ * **Nothing here is fitted from data, and that is the whole point.** The
+ * project's own first rule forbids a system that quietly tunes itself; learning
+ * each asset's thresholds from its own outcomes is that, in miniature, wearing a
+ * configuration file. So an override is something a person wrote down and can
+ * defend, exactly like the venue capabilities M3 introduced: declared, not
+ * discovered.
+ *
+ * An asset with no entry gets the shipped configuration unchanged. That is not a
+ * fallback for a missing setting — it is the answer, and it is recorded as
+ * `null` rather than as "the nearest one" so a reader can tell the difference
+ * between a market that was configured and a market nobody has thought about.
+ */
+const IndicatorOverrideSchema = z
+    .object({
+        stochastic: z
+            .object({
+                longThreshold: z.coerce.number().min(0).max(100).optional(),
+                shortThreshold: z.coerce.number().min(0).max(100).optional(),
+                center: z.coerce.number().min(0).max(100).optional(),
+            })
+            .strict()
+            .optional(),
+        ema: z
+            .object({
+                confirmBars: z.coerce.number().int().min(1).max(50).optional(),
+                convictionScalePercent: z.coerce.number().min(0).max(100).optional(),
+            })
+            .strict()
+            .optional(),
+        momentum: z
+            .object({
+                deadbandPercent: z.coerce.number().min(0).max(100).optional(),
+                convictionScalePercent: z.coerce.number().min(0).max(1000).optional(),
+            })
+            .strict()
+            .optional(),
+    })
+    .strict();
+
+const IndicatorOverridesSchema = z.record(z.string().min(1), IndicatorOverrideSchema);
+
+/** `ASSET` or `ASSET=...`, so a market can be named on its own or with settings. */
+function parseIndicatorOverrides(
+    raw: string | undefined,
+): Record<string, IndicatorSignalOverrides> {
+    if (raw === undefined || raw.trim() === '') {
+        return {};
+    }
+
+    const parsed: Record<string, unknown> = {};
+
+    for (const clause of raw.split(';')) {
+        const trimmed = clause.trim();
+
+        if (trimmed === '') {
+            continue;
+        }
+
+        const equals = trimmed.indexOf('=');
+        const instrument = (equals === -1 ? trimmed : trimmed.slice(0, equals)).trim();
+        const body = equals === -1 ? '' : trimmed.slice(equals + 1).trim();
+        /** Each override group is `group:key=value;key=value`. */
+        const overrides: Record<string, unknown> = {};
+
+        for (const group of body === '' ? [] : body.split(',')) {
+            const colon = group.indexOf(':');
+            const name = colon === -1 ? group : group.slice(0, colon);
+            const pairs = colon === -1 ? group : group.slice(colon + 1);
+
+            for (const pair of pairs.split('+')) {
+                const pairEquals = pair.indexOf('=');
+
+                if (pairEquals === -1) {
+                    continue;
+                }
+
+                const key = pair.slice(0, pairEquals).trim();
+                const value = pair.slice(pairEquals + 1).trim();
+
+                if (key === '' || value === '') {
+                    continue;
+                }
+
+                const group_ = overrides[name.trim()] ?? {};
+
+                Object.assign(group_, { [key]: value });
+                overrides[name.trim()] = group_;
+            }
+        }
+
+        parsed[instrument] = Object.keys(overrides).length === 0 ? {} : overrides;
+    }
+
+    const result = IndicatorOverridesSchema.safeParse(parsed);
+
+    if (!result.success) {
+        throw new Error(
+            `INDICATOR_ASSET_CONFIG is not valid: ${z.prettifyError(result.error)}. ` +
+                'Format: ASSET=stochastic:longThreshold=20+shortThreshold=75;ASSET2',
+        );
+    }
+
+    return dropUndefined(result.data) as Record<string, IndicatorSignalOverrides>;
+}
+
+/**
+ * Removes keys whose value is `undefined`.
+ *
+ * `exactOptionalPropertyTypes` is on, so a property that is *optional* is not
+ * the same as one that may hold `undefined` — and Zod's `.optional()` produces
+ * the second. Left alone, every parsed override would be a type error, which is
+ * the compiler correctly refusing a value that says "set" about something that
+ * was never set. Dropping the key says the true thing: absent.
+ */
+function dropUndefined(value: unknown): unknown {
+    if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+        return value;
+    }
+
+    const out: Record<string, unknown> = {};
+
+    for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+        if (entry === undefined) {
+            continue;
+        }
+
+        out[key] = dropUndefined(entry);
+    }
+
+    return out;
+}
+
+export const INDICATOR_ASSET_CONFIG = parseIndicatorOverrides(
+    process.env['INDICATOR_ASSET_CONFIG'],
+);
+
+/**
+ * The thresholds in force for one market.
+ *
+ * **Returns the shipped configuration for an asset nobody has configured, and
+ * the configured one otherwise, with no third answer.** The absence of an entry
+ * is not an error and not a near miss: a market the system has not been taught
+ * about runs the configuration it ships with, and says so by having no override
+ * rather than by having an empty one.
+ */
+export function signalConfigFor(instrument: string): ResolvedIndicatorSignalConfig {
+    const override = INDICATOR_ASSET_CONFIG[instrument.toUpperCase()];
+
+    if (override === undefined) {
+        return INDICATOR_SIGNAL_CONFIG;
+    }
+
+    return {
+        stochastic: {
+            ...INDICATOR_SIGNAL_CONFIG.stochastic,
+            ...override.stochastic,
+        },
+        ema: { ...INDICATOR_SIGNAL_CONFIG.ema, ...override.ema },
+        momentum: { ...INDICATOR_SIGNAL_CONFIG.momentum, ...override.momentum },
+    };
+}
+
+/** Whether this market has thresholds of its own, or runs the shipped ones. */
+export function hasAssetSignalConfig(instrument: string): boolean {
+    return INDICATOR_ASSET_CONFIG[instrument.toUpperCase()] !== undefined;
+}
+
+/**
  * Minimum number of candles the indicator pipeline needs to produce a
  * meaningful EMA. Served by the market layer, verified by the indicator layer.
  */
