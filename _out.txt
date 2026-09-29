@@ -1,0 +1,13 @@
+applied -> 17
+constraint present: 1
+BEZ  banana           ACCEPTED
+BEZ  walk_forwarded   ACCEPTED
+BEZ  rejected         ACCEPTED
+BEZ  approved         ACCEPTED
+BEZ  shadow           ACCEPTED
+restored: 1
+WITH banana           rejected
+WITH walk_forwarded   rejected
+WITH rejected         rejected
+WITH approved         rejected
+WITH shadow           ACCEPTED <-- HOLE

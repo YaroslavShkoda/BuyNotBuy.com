@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { canTransition, createStrategyRuleRepository } from './candidate.repository.js';
+import {
+    CANDIDATE_STAGES,
+    canTransition,
+    createStrategyRuleRepository,
+} from './candidate.repository.js';
 
 import { getTestPool, truncateSignalTables } from '../test-support/test-database.js';
 
@@ -152,5 +156,54 @@ describe('the table it writes to', () => {
         );
 
         expect(Number(rows[0]!.count)).toBe(0);
+    });
+
+    it('will not store a stage the ladder does not have', async () => {
+        // The column was NOT NULL text with no CHECK, so it was the one place
+        // in the system that records how far a rule got, and it would have
+        // taken any word at all. `canTransition` refuses to skip a stage; this
+        // refuses a stage that does not exist. They are different questions and
+        // only the second one is the database's to answer.
+        await truncateSignalTables();
+
+        const insert = (stage: string) =>
+            getTestPool().query(
+                `INSERT INTO signal_strategy_version
+                     (rule_id, stage, parameters, promoted_at, created_at)
+                 VALUES ('donchian-20', $1, '{}'::jsonb, $2, $2)`,
+                [stage, NOW],
+            );
+
+        // Negative control first: the word the ladder has, which must work. If
+        // this failed, everything below would pass for the wrong reason.
+        await expect(insert('shadow')).resolves.toBeDefined();
+        await expect(insert('banana')).rejects.toThrow();
+        await expect(insert('walk_forwarded')).rejects.toThrow();
+        await expect(insert('rejected')).rejects.toThrow();
+        await expect(insert('approved')).rejects.toThrow();
+    });
+
+    it('stores exactly the stages the code knows and no others', async () => {
+        // The CHECK and CANDIDATE_STAGES are two copies of one list, and two
+        // copies drift — rename a stage in one and the repository would refuse
+        // to write what the database accepts, or the other way round. This reads
+        // the list the database actually enforces and compares it to the list
+        // the code transitions between, in both directions and as a set.
+        await truncateSignalTables();
+
+        const { rows } = await getTestPool().query<{ definition: string }>(
+            `SELECT pg_get_constraintdef(oid) AS definition
+               FROM pg_constraint
+              WHERE conrelid = 'signal_strategy_version'::regclass
+                AND conname = 'signal_strategy_version_stage_check'`,
+        );
+
+        const definition = rows[0]?.definition;
+        expect(definition).toBeDefined();
+
+        const inDatabase = [...(definition ?? '').matchAll(/'([^']+)'/g)].map((m) => m[1]!);
+
+        expect([...inDatabase].sort()).toEqual([...CANDIDATE_STAGES].sort());
+        expect(inDatabase).toHaveLength(CANDIDATE_STAGES.length);
     });
 });
