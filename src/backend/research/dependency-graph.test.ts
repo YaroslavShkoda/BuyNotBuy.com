@@ -9,6 +9,7 @@ import {
     layerOf,
     listSources,
     permits,
+    permitsFile,
     summarise,
     violations,
 } from './dependency-graph.js';
@@ -178,17 +179,46 @@ describe('this codebase, measured', () => {
         expect(files.some((f) => f.includes('test-support'))).toBe(false);
     });
 
-    it('finds the violations the roadmap names, and pins them', () => {
-        // These are the real edges, and they are the ones PHASE 46 lists as
-        // forbidden. Pinned so that fixing one is a deliberate edit rather than
-        // a number that quietly improves.
-        const found = violations(buildGraph(realRoot)).map(
-            (v) => `${v.from} → ${v.to}`,
-        );
+    it('reports the violations that remain, and pins them exactly', () => {
+        // Eight, and pinned as a list rather than a count so that fixing one is
+        // a visible edit. Two of them are the same inversion imported twice —
+        // `history/ingestion.service.ts` reaches `services/poller.ts` with two
+        // import statements — and three are the frozen contract.
+        const found = violations(buildGraph(realRoot))
+            .map((v) => `${v.from} → ${v.to}`)
+            .sort();
 
-        expect(found).toContain('indicators/performance/indicator-vote.repository.ts → db/pool.ts');
-        expect(found).toContain('history/ingestion.service.ts → services/poller.ts');
-        expect(found).toContain('config/strategy-fingerprint.ts → strategies/strategy-fingerprint.ts');
+        expect(found).toEqual([
+            'config/strategy-fingerprint.ts → strategies/strategy-fingerprint.ts',
+            'history/ingestion.service.ts → services/poller.ts',
+            'history/ingestion.service.ts → services/poller.ts',
+            'indicators/performance/indicator-performance.service.ts → history/bounded-write-buffer.ts',
+            'indicators/performance/indicator-performance.service.ts → history/signal-history.service.ts',
+            'strategies/types.ts → signals/signal.types.ts',
+            'types/analysis.ts → indicators/divergence.service.ts',
+            'types/analysis.ts → indicators/indicator.service.ts',
+            'types/analysis.ts → signals/signal.types.ts',
+        ]);
+    });
+
+    it('reports no edge from a domain into the database', () => {
+        // The one M2 existed to deliver, and it is already delivered: a
+        // repository is the declared seam and may reach the pool, and there is
+        // no service in this codebase that opens its own connection.
+        const found = violations(buildGraph(realRoot))
+            .map((v) => `${v.from} → ${v.to}`)
+            .filter((edge) => edge.endsWith('→ db/pool.ts'));
+
+        expect(found).toEqual([]);
+    });
+
+    it('still reports the same edges when the seam is not consulted', () => {
+        // `permits` is the layer rule on its own and is unchanged, so the seam
+        // is an addition to it rather than a replacement — a table that quietly
+        // stopped checking anything would be worse than no table.
+        expect(permits('indicators', 'db')).toBe(false);
+        expect(permitsFile('strategies/candidate.repository.ts', 'db/pool.ts')).toBe(true);
+        expect(permitsFile('strategies/candidate.service.ts', 'db/pool.ts')).toBe(false);
     });
 
     it('finds the inversion that matters most: the wire contract importing code', () => {

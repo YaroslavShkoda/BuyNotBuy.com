@@ -6,6 +6,7 @@ import {
     audit,
     databaseImports,
     dataLayerOf,
+    isSeam,
     listSources,
 } from './layering-lint.js';
 
@@ -117,13 +118,22 @@ describe('the exemption', () => {
 });
 
 describe('this codebase, measured', () => {
-    it('finds the repositories that sit in domain folders', () => {
-        const report = audit(realRoot);
-        const files = [...new Set(report.offences.map((offence) => offence.file))].sort();
+    it('has no domain file that touches the database outside a repository', () => {
+        // Zero, and pinned at zero so it cannot be raised quietly. This is the
+        // rule M2 existed to enable, and it turned out to be enabled already:
+        // all eleven files outside `db/` that reach into the database are ten
+        // repositories and one health check.
+        expect(audit(realRoot).offences).toEqual([]);
+    });
 
-        // Pinned, not merely non-empty. The point of this guard is that the
-        // count falls as a visible edit rather than by someone loosening it.
-        expect(files).toEqual([
+    it('names the ten repositories, so the accepted set is checkable', () => {
+        // "There is no SQL in the domain" and "the only SQL in the domain is in
+        // these ten files" are different claims, and only the second one can be
+        // checked later. A guard that reports only failures says nothing about
+        // what it accepted.
+        const report = audit(realRoot);
+
+        expect([...report.seams].sort()).toEqual([
             'analysis/signal-snapshot.repository.ts',
             'analysis/strategy-version.repository.ts',
             'history/candle.repository.ts',
@@ -143,7 +153,6 @@ describe('this codebase, measured', () => {
         expect(report.exempt.map((entry) => entry.file)).toEqual([
             'observability/health.registry.ts',
         ]);
-        expect(report.offences.some((o) => o.file.includes('health.registry'))).toBe(false);
     });
 
     it('does not report the data layer itself', () => {
@@ -163,18 +172,23 @@ describe('this codebase, measured', () => {
         );
     });
 
-    it('reaches the database rather than merely mentioning it', () => {
-        const report = audit(realRoot);
-
-        expect(report.offences.length).toBeGreaterThanOrEqual(10);
-        expect(report.offences.every((o) => DATABASE_ACCESSORS.includes(o.symbol))).toBe(true);
-    });
-
     it('excludes tests, so a test that mocks the pool is not an offence', () => {
         // There are many; a rule that counted them would be unusable.
         const files = listSources(realRoot);
 
         expect(files.every((file) => !file.endsWith('.test.ts'))).toBe(true);
+    });
+});
+
+describe('which files are the declared seam', () => {
+    it('treats a repository as the seam and nothing else', () => {
+        expect(isSeam('strategies/candidate.repository.ts')).toBe(true);
+        expect(isSeam('indicators/indicator.service.ts')).toBe(false);
+        expect(isSeam('db/pool.ts')).toBe(false);
+    });
+
+    it('does not mistake a service for a repository because the word appears in it', () => {
+        expect(isSeam('strategies/repository-service.ts')).toBe(false);
     });
 });
 

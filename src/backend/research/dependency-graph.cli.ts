@@ -70,7 +70,9 @@ if (report.unplaced.length > 0) {
 }
 
 console.log('\n  ' + '='.repeat(88));
-console.log('  Рёбра, которых объявление не разрешает:');
+console.log(
+    `  Рёбра, которых объявление не разрешает: ${report.violations.length}`,
+);
 if (report.violations.length === 0) {
     console.log('    нет');
 } else {
@@ -78,6 +80,12 @@ if (report.violations.length === 0) {
         console.log(`\n    ${violation.from}:${violation.line} → ${violation.to}`);
         console.log(`      ${violation.reason}`);
     }
+    console.log(
+        '\n    Считать их глазами не нужно и неправильно: я однажды посчитал этот\n' +
+            '    же список поиском по собственному выводу и получил восемь вместо\n' +
+            '    девяти, потому что у одного ребра другой текст причины. Число\n' +
+            '    печатается из данных, а не восстанавливается из текста.\n',
+    );
 }
 
 console.log('\n  Циклы между слоями:');

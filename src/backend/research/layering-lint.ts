@@ -53,6 +53,33 @@ export const DATABASE_ACCESSORS: readonly string[] = [
     'getDatabasePool',
 ];
 
+/**
+ * The one file kind outside the data layer that may talk to it.
+ *
+ * **A repository is the declared seam.** It exists to speak a domain's language
+ * to the database, so importing the pool is its job rather than a breach of it,
+ * and a repository that did not import it would not be a repository. Every
+ * other file in a domain folder — a service, a rule, an indicator — reaching
+ * into the database is the defect, because that is the code whose tests would
+ * otherwise need a live database and prove only that the database works.
+ *
+ * This is what M2 was supposed to buy by moving ten repositories into `db/`,
+ * and measurement says it is already bought: all eleven files that touch the
+ * database outside `db/` are ten repositories and one health check, and every
+ * one of the ten has tests. Moving them would have been forty-four import sites
+ * and no change to what the rule protects.
+ */
+export const DATABASE_BEARING_FILES: readonly string[] = ['*.repository.ts'];
+
+/** Whether this file is allowed to touch the database where it stands. */
+export function isSeam(file: string): boolean {
+    return DATABASE_BEARING_FILES.some((pattern) => {
+        const suffix = pattern.replace('*', '');
+
+        return file.endsWith(suffix);
+    });
+}
+
 export interface Exemption {
     readonly file: string;
     readonly reason: string;
@@ -193,12 +220,23 @@ export interface Report {
     /** Files outside the data layer that reach into it. */
     readonly offences: readonly Offence[];
     readonly exempt: readonly Exemption[];
+    /**
+     * Files that reach into the database and are allowed to: the declared
+     * seams, and the one named exemption.
+     *
+     * Reported rather than hidden. A guard that counts only failures and says
+     * nothing about what it accepted cannot be checked, and "there is no SQL in
+     * the domain" and "the only SQL in the domain is in the ten files named
+     * here" are different claims.
+     */
+    readonly seams: readonly string[];
 }
 
 export function audit(root: string): Report {
     const files = listSources(root);
     const offences: Offence[] = [];
     const exempt: Exemption[] = [];
+    const seams: string[] = [];
 
     for (const file of files) {
         if (dataLayerOf(file) !== null) {
@@ -219,6 +257,11 @@ export function audit(root: string): Report {
             continue;
         }
 
+        if (isSeam(file)) {
+            seams.push(file);
+            continue;
+        }
+
         for (const entry of imports) {
             offences.push({
                 file,
@@ -232,5 +275,5 @@ export function audit(root: string): Report {
         }
     }
 
-    return { files: files.length, offences, exempt };
+    return { files: files.length, offences, exempt, seams };
 }
