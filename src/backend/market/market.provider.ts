@@ -5,8 +5,11 @@ import { BitgetProvider } from './providers/bitget.provider.js';
 import { MockProvider } from './providers/mock.provider.js';
 import { FailoverProvider } from './failover.provider.js';
 import { isVenueAvailable } from './providers/provider-http.js';
+import { describeRoute, route } from './capability.js';
+import { MarketDataError } from '../errors/market-data.error.js';
 
 import type { MarketProviderName } from '../config/market.config.js';
+import type { VenueCapability } from './capability.js';
 import type { MarketDataProvider } from './providers/market-data.provider.js';
 
 /**
@@ -64,6 +67,58 @@ function createMarketDataProvider(): MarketDataProvider {
 
 export const marketDataProvider =
     createMarketDataProvider();
+
+/** What this deployment declares each configured venue can serve. */
+export function configuredVenueCapabilities(): VenueCapability[] {
+    return marketConfig.venueCapabilities.map((entry) => ({
+        venue: entry.venue,
+        instruments: entry.instruments,
+        intervals: entry.intervals,
+    }));
+}
+
+/**
+ * The provider that serves a given market, refused when none can.
+ *
+ * PHASE 3.2. The routing used to be a `switch` on a venue name, which meant the
+ * only question the system could ask was "which venue is configured" and never
+ * "who serves this market". Both are asked now, in the order that keeps the
+ * answer checkable: the capability table decides whether a venue can serve the
+ * request at all, and only then is a provider built for it.
+ *
+ * A market no venue claims throws rather than falling back to the first venue.
+ * The fallback would answer every request, and answering an EUR request with
+ * BTC candles is the failure the whole multi-asset programme exists to
+ * prevent — and it would do so silently, with a healthy-looking response.
+ *
+ * The configured symbol is the one market always available, so a deployment
+ * that configures nothing new keeps working and keeps its existing refusal for a
+ * symbol the registry cannot parse.
+ */
+export function marketProviderFor(instrument: string): MarketDataProvider {
+    const wanted = instrument.trim().toUpperCase();
+
+    if (wanted === marketConfig.symbol.toUpperCase()) {
+        return marketDataProvider;
+    }
+
+    const found = route(
+        { instrument: wanted, interval: marketConfig.candleInterval },
+        configuredVenueCapabilities(),
+        configuredMarketVenues(),
+    );
+
+    if (!found.ok) {
+        throw new MarketDataError(
+            describeRoute(found, { instrument: wanted, interval: marketConfig.candleInterval }),
+            { code: 'MARKET_PROVIDER_ERROR', cause: { requestedSymbol: wanted, reason: found.reason } },
+        );
+    }
+
+    const venue = createVenue(found.venue as MarketProviderName);
+
+    return venue.provider;
+}
 
 /**
  * The venue currently answering, or null when there is nothing to switch.

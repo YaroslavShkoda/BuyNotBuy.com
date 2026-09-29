@@ -3,17 +3,17 @@ import { classifyFreshness, isUsableForSignal } from './market-freshness.js';
 import {
     activeMarketVenue,
     anyMarketProviderAvailable,
-    marketDataProvider,
-    requestedMarketSymbol,
+    marketProviderFor,
 } from './market.provider.js';
 
 import { MAX_CANDLE_LIMIT, marketConfig } from '../config/market.config.js';
 import { requiredCandleCount } from '../config/indicator.config.js';
 import { MarketDataError } from '../errors/market-data.error.js';
 import { currentRegistry } from '../observability/registry.js';
-import { createSingleFlight } from '../observability/single-flight.js';
+import { createKeyedSingleFlight } from '../observability/single-flight.js';
 
 import type { MarketFreshness } from './market-freshness.js';
+import type { MarketRequest } from './capability.js';
 import type { AssetPrice, MarketData } from '../types/market.js';
 
 export interface MarketDataResult {
@@ -43,18 +43,60 @@ interface CacheEntry {
     fetchedAt: number;
 }
 
-let cache: CacheEntry | null = null;
-let inFlight: Promise<MarketDataResult> | null = null;
+/**
+ * The cache and the flight, keyed by the market they belong to.
+ *
+ * **These were one variable and one promise, because there was one market.**
+ * Adding a market to `getMarketData` without keying them would have been a
+ * defect that reported no symptom: the second request would find a warm entry,
+ * serve the first market's candles under the second market's name, and look
+ * entirely healthy — right shape, plausible prices, a fresh timestamp. The
+ * failure the whole multi-asset programme exists to prevent, delivered by the
+ * change meant to prevent it.
+ *
+ * A key rather than a nested structure because the two together are the market,
+ * and two markets that differ only in interval are different series with
+ * different bar counts and different ages; serving one as the other is the same
+ * error as serving BTC as EUR.
+ */
+export const marketKey = (request: MarketRequest): string =>
+    `${request.instrument.toUpperCase()}|${request.interval}`;
 
-const priceFlight = createSingleFlight<AssetPrice>();
+const cache = new Map<string, CacheEntry>();
+const inFlight = new Map<string, Promise<MarketDataResult>>();
 
-export async function getPrice(): Promise<AssetPrice> {
+/**
+ * The market a call that named none means.
+ *
+ * Defaulting rather than requiring keeps every existing caller — the frozen
+ * API, the poller, the backtest — working unchanged while the parameter exists
+ * only where a caller already knows which market it wants.
+ */
+function resolveRequest(request?: MarketRequest): MarketRequest {
+    return (
+        request ?? {
+            instrument: marketConfig.symbol,
+            interval: marketConfig.candleInterval,
+        }
+    );
+}
+
+const priceFlights = createKeyedSingleFlight<AssetPrice>();
+
+export async function getPrice(instrument?: string): Promise<AssetPrice> {
     // Coalesced, not cached. A price is a reading of a moment, and handing back
     // the previous one under this name would be publishing a stale number as a
     // live one — but N callers arriving together should still cost the
     // provider one request, and every one of them should see the same reading
     // rather than N different ones microseconds apart.
-    const { result } = await priceFlight.run(() => marketDataProvider.getPrice());
+    //
+    // Coalesced per market, for the same reason the snapshot is: one market's
+    // shared reading must not be handed to a caller who asked about another,
+    // and a single coalescer is exactly how that happens without a symptom.
+    const wanted = instrument ?? marketConfig.symbol;
+    const { result } = await priceFlights
+        .forMarket(wanted)
+        .run(() => marketProviderFor(wanted).getPrice());
 
     return result;
 }
@@ -64,12 +106,15 @@ export async function getPrice(): Promise<AssetPrice> {
  * for the shutdown path so one run cannot leak a snapshot into the next.
  */
 export function resetMarketDataCache(): void {
-    cache = null;
-    inFlight = null;
+    cache.clear();
+    inFlight.clear();
+    priceFlights.reset();
 }
 
-export async function getMarketData(): Promise<MarketDataResult> {
-    const cached = cache;
+export async function getMarketData(request?: MarketRequest): Promise<MarketDataResult> {
+    const wanted = resolveRequest(request);
+    const key = marketKey(wanted);
+    const cached = cache.get(key) ?? null;
     const now = Date.now();
 
     if (
@@ -100,28 +145,34 @@ export async function getMarketData(): Promise<MarketDataResult> {
         };
     }
 
-    // Concurrent callers share one provider request instead of each starting
-    // their own; the shared result is cached, so a burst of page loads costs
-    // a single upstream call.
-    if (inFlight === null) {
+    // Concurrent callers asking for the same market share one provider request
+    // instead of each starting their own. Keyed like the cache, and for the
+    // same reason: one market's coalescing must not hand another market its
+    // result, which is the one thing a shared promise would otherwise do
+    // silently and on every concurrent load.
+    if (!inFlight.has(key)) {
         // Counted only on the branch that actually starts an upstream call.
         // Ten page loads sharing one request cost the provider one request, and
         // a counter that said ten would be measuring the dashboard's traffic
         // rather than what the cache was worth.
         currentRegistry().counter('market_cache_misses');
-        inFlight = fetchAndCache().finally(() => {
-            inFlight = null;
+        const flight = fetchAndCache(wanted).finally(() => {
+            inFlight.delete(key);
         });
+
+        inFlight.set(key, flight);
     }
 
-    return inFlight;
+    return inFlight.get(key) as Promise<MarketDataResult>;
 }
 
-async function fetchAndCache(): Promise<MarketDataResult> {
-    try {
-        const data = await fetchMarketData();
+async function fetchAndCache(request: MarketRequest): Promise<MarketDataResult> {
+    const key = marketKey(request);
 
-        cache = { data, fetchedAt: Date.now() };
+    try {
+        const data = await fetchMarketData(request);
+
+        cache.set(key, { data, fetchedAt: Date.now() });
 
         return {
             data,
@@ -135,7 +186,10 @@ async function fetchAndCache(): Promise<MarketDataResult> {
         // last good snapshot is still the truth about the last closed candle.
         // The response is flagged so nobody mistakes it for a live reading,
         // and an over-age snapshot is refused rather than passed off as data.
-        const fallback = cache;
+        //
+        // The fallback is this market's own last snapshot. A failed EUR fetch
+        // that served BTC candles would report success with the wrong prices.
+        const fallback = cache.get(key) ?? null;
         const ageMs = fallback === null
             ? Number.POSITIVE_INFINITY
             : Date.now() - fallback.fetchedAt;
@@ -175,10 +229,9 @@ async function fetchAndCache(): Promise<MarketDataResult> {
     }
 }
 
-async function fetchMarketData(): Promise<MarketData> {
-    const requestedSymbol = requestedMarketSymbol();
+async function fetchMarketData(request: MarketRequest): Promise<MarketData> {
     const { venue, symbol, candles } =
-        await marketDataProvider.getAttributedCandles(
+        await marketProviderFor(request.instrument).getAttributedCandles(
             resolveCandleLimit(),
         );
 
@@ -186,14 +239,19 @@ async function fetchMarketData(): Promise<MarketData> {
     // answering from it while reporting the primary's symbol is not: the price
     // of one asset would be published under another's name, and nothing
     // downstream could tell. Refused rather than relabelled.
-    if (symbol !== requestedSymbol) {
+    //
+    // With several markets live this is the check that carries the whole phase:
+    // it is the one place where "the provider answered" and "the caller asked
+    // for" meet, and it compares them against the market the caller named rather
+    // than against whatever the configuration happens to say.
+    if (symbol !== request.instrument) {
         throw new MarketDataError(
             'Market data provider answered with a different symbol than requested',
             {
                 code: 'MARKET_PROVIDER_ERROR',
                 cause: {
                     provider: venue,
-                    requestedSymbol,
+                    requestedSymbol: request.instrument,
                     answeredSymbol: symbol,
                 },
             },
@@ -239,13 +297,13 @@ async function fetchMarketData(): Promise<MarketData> {
     // have to be computed against the same time base.
     return {
         price: {
-            symbol: requestedSymbol,
+            symbol: request.instrument,
             price: lastCandle.close,
         },
         candles,
         provider: venue,
-        symbol: requestedSymbol,
-        interval: marketConfig.candleInterval,
+        symbol: request.instrument,
+        interval: request.interval,
         // Market time, not fetch time. The two differ by up to one interval and
         // only this one belongs in a record meant to be replayed.
         timestamp: lastCandle.timestamp + marketConfig.candleIntervalMs,

@@ -23,6 +23,16 @@ describe('marketConfig', () => {
             fallbackProviders: ['bitget'],
             baseUrl: 'https://data-api.binance.vision',
             fallbackBaseUrl: 'https://api.bitget.com',
+            // PHASE 3.1, derived from the settings above rather than declared
+            // separately: each venue serves the ticker it was built with, at the
+            // configured interval. Two entries survive even though both name
+            // BTCUSDT — deduplication is by venue, because a backup trading the
+            // same market is the ordinary deployment and is exactly the case the
+            // capability model exists to express.
+            venueCapabilities: [
+                { venue: 'binance', instruments: ['BTCUSDT'], intervals: ['1h'] },
+                { venue: 'bitget', instruments: ['BTCUSDT'], intervals: ['1h'] },
+            ],
             symbol: 'BTCUSDT',
             fallbackSymbol: 'BTCUSDT',
             candleInterval: '1h',
@@ -80,6 +90,13 @@ describe('marketConfig', () => {
             fallbackProviders: ['bitget'],
             baseUrl: 'https://example.com',
             fallbackBaseUrl: 'https://backup.example.com',
+            // Both venues trade ETHUSDT here, and both entries survive: the
+            // deduplication is by venue, not by ticker. A backup serving the same
+            // market is the ordinary deployment, not a contradiction.
+            venueCapabilities: [
+                { venue: 'binance', instruments: ['ETHUSDT'], intervals: ['15m'] },
+                { venue: 'bitget', instruments: ['ETHUSDT'], intervals: ['15m'] },
+            ],
             symbol: 'ETHUSDT',
             fallbackSymbol: 'ETHUSDT',
             candleInterval: '15m',

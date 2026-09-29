@@ -75,6 +75,10 @@ describe('configuration boundary hardening (task 7)', () => {
             fallbackProviders: ['bitget'],
             baseUrl: 'https://example.com',
             fallbackBaseUrl: 'https://api.bitget.com',
+            venueCapabilities: [
+                { venue: 'binance', instruments: ['BTCUSDT'], intervals: ['1h'] },
+                { venue: 'bitget', instruments: ['BTCUSDT'], intervals: ['1h'] },
+            ],
             symbol: 'BTCUSDT',
             fallbackSymbol: 'BTCUSDT',
             candleInterval: '1h',

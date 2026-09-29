@@ -34,6 +34,11 @@ const { mockMarketDataProvider, mockAnyProviderAvailable } = vi.hoisted(() => {
 });
 
 vi.mock('../market/market.provider.js', () => ({
+    // The router hands the service a provider for the market it was asked
+    // about. Every test here has one market, so it hands back the one stub —
+    // the routing itself is exercised in capability.test.ts, where a wrong
+    // answer is a property failure rather than a mistyped URL.
+    marketProviderFor: () => mockMarketDataProvider,
     marketDataProvider: mockMarketDataProvider,
     anyMarketProviderAvailable: mockAnyProviderAvailable,
     activeMarketVenue: vi.fn(() => 'binance'),

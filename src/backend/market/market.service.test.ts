@@ -22,6 +22,11 @@ const { mockMarketDataProvider, mockAnyProviderAvailable } = vi.hoisted(() => ({
 }));
 
 vi.mock('./market.provider.js', () => ({
+    // The router hands the service a provider for the market it was asked
+    // about. Every test here has one market, so it hands back the one stub —
+    // the routing itself is exercised in capability.test.ts, where a wrong
+    // answer is a property failure rather than a mistyped URL.
+    marketProviderFor: () => mockMarketDataProvider,
     marketDataProvider: mockMarketDataProvider,
     // The freshness model asks whether a live price is obtainable even when the
     // cache answers, because a cache hit means nobody asked anybody. Stubbed

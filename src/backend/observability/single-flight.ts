@@ -96,3 +96,54 @@ export function createSingleFlight<T>(): SingleFlight<T> {
         },
     };
 }
+
+export interface KeyedSingleFlight<T> {
+    /** The coalescer for one market, created on first use and then reused. */
+    forMarket(key: string): SingleFlight<T>;
+    /** Markets with a coalescer, whether or not one is running. */
+    readonly keys: readonly string[];
+    /** Drops every coalescer, for tests and the shutdown path. */
+    reset(): void;
+}
+
+/**
+ * One coalescer per market.
+ *
+ * **A single coalescer is a market-specific object that does not say so.** It
+ * was correct when there was one market and it became wrong the moment there
+ * were two: a caller that asked a EUR price while a BTC price was in flight
+ * would join the BTC read, get the BTC answer, and see a perfectly ordinary
+ * number under its own request's name. The cost is one upstream call per
+ * in-flight market, which is the cost being bought.
+ *
+ * Counters stay per market, because "how often did a caller join a read it did
+ * not start" is a question about one market's traffic, and summing across
+ * markets would produce a number that could not be acted on.
+ */
+export function createKeyedSingleFlight<T>(): KeyedSingleFlight<T> {
+    const flights = new Map<string, SingleFlight<T>>();
+
+    return {
+        forMarket(key: string): SingleFlight<T> {
+            const existing = flights.get(key);
+
+            if (existing !== undefined) {
+                return existing;
+            }
+
+            const created = createSingleFlight<T>();
+
+            flights.set(key, created);
+
+            return created;
+        },
+
+        get keys(): readonly string[] {
+            return [...flights.keys()];
+        },
+
+        reset(): void {
+            flights.clear();
+        },
+    };
+}

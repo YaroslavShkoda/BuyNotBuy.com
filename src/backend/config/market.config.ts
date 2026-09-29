@@ -30,6 +30,89 @@ function resolvableSymbol(symbol: string): string {
 const MarketProviderSchema = z.enum(['binance', 'bitget', 'mock']);
 
 /**
+ * What each venue is declared to serve, PHASE 3.1.
+ *
+ * **Derived from the settings that already exist rather than a new one.** The
+ * primary was built with `MARKET_SYMBOL` and the backups with
+ * `MARKET_FALLBACK_SYMBOL`, so that *is* the deployment's capability model —
+ * writing it down separately would create a second place to be wrong, and the
+ * two would disagree on the first deployment that served two markets.
+ *
+ * An explicit override exists for the deployment that really does run several
+ * markets, and it is a list rather than a single pair precisely because a
+ * single pair cannot express `bitget` serving SOLUSDT and BTCUSDT while
+ * `binance` serves only the first.
+ */
+const VenueCapabilitySchema = z.object({
+    venue: MarketProviderSchema,
+    instruments: z.array(z.string().min(1)).min(1),
+    intervals: z.array(z.string().regex(/^[0-9]+[mhdw]$/)).min(1),
+});
+
+/**
+ * Reads the capability list, or describes the deployment from its own settings.
+ *
+ * Format: `binance=BTCUSDT,ETHUSDT@1m,1h;bitget=SOLUSDT@1h`. The `@` separates
+ * markets from intervals because a venue serves a cross product of the two, and
+ * a format that listed intervals once per market would let a deployment declare
+ * BTCUSDT at 1h and ETHUSDT at nothing without the config noticing.
+ */
+function parseVenueCapabilities(
+    raw: string | undefined,
+    primary: MarketProviderName,
+    primarySymbol: string,
+    fallbackSymbol: string,
+    interval: string,
+): z.infer<typeof VenueCapabilitySchema>[] {
+    if (raw === undefined || raw.trim() === '') {
+        return [
+            {
+                venue: primary,
+                instruments: [primarySymbol],
+                intervals: [interval],
+            },
+            {
+                venue: MarketProviderSchema.parse('bitget') as MarketProviderName,
+                instruments: [fallbackSymbol],
+                intervals: [interval],
+            },
+        ].filter(
+            (entry, index, all) =>
+                all.findIndex((other) => other.venue === entry.venue) === index,
+        );
+    }
+
+    return raw
+        .split(';')
+        .map((part) => part.trim())
+        .filter((part) => part !== '')
+        .map((part) => {
+            const [venuePart, marketsPart] = part.split('=');
+
+            if (venuePart === undefined || marketsPart === undefined) {
+                throw new Error(
+                    `MARKET_VENUE_CAPABILITIES entry "${part}" is not "venue=MARKETS@intervals"`,
+                );
+            }
+
+            const [instrumentsPart, intervalsPart] = marketsPart.split('@');
+
+            if (instrumentsPart === undefined || intervalsPart === undefined) {
+                throw new Error(
+                    `MARKET_VENUE_CAPABILITIES entry for "${venuePart}" is missing the "@intervals" part`,
+                );
+            }
+
+            return {
+                venue: venuePart.trim(),
+                instruments: instrumentsPart.split(',').map((ticker) => ticker.trim()),
+                intervals: intervalsPart.split(',').map((step) => step.trim()),
+            };
+        })
+        .map((entry) => VenueCapabilitySchema.parse(entry));
+}
+
+/**
  * Reads the backup list from a comma-separated setting.
  *
  * Two rules, both about not quietly doing the wrong thing:
@@ -194,6 +277,14 @@ const MarketConfigSchema = z.object({    provider: MarketProviderSchema,
      * its address is known to work from wherever the server is deployed.
      */
     fallbackBaseUrl: z.string().min(1),
+    /**
+     * What each venue is declared to serve.
+     *
+     * Present as data rather than derived at each call site, so the deployment
+     * has one answer to "who can serve what" and the router cannot answer it
+     * differently depending on who asked.
+     */
+    venueCapabilities: z.array(VenueCapabilitySchema),
     fallbackSymbol: z.string()
         .min(1)
         .regex(/^[A-Z0-9]{1,32}$/, {
@@ -316,6 +407,20 @@ const MarketConfigSchema = z.object({    provider: MarketProviderSchema,
 
 export type MarketConfig = z.infer<typeof MarketConfigSchema>;
 
+/**
+ * Resolved before the literal because the capability table is derived from
+ * them, and a field cannot refer to a sibling declared after it. Naming them
+ * here rather than repeating the environment reads keeps one definition of
+ * what this deployment trades.
+ */
+const configuredSymbol = resolvableSymbol(process.env.MARKET_SYMBOL ?? 'BTCUSDT');
+const configuredFallbackSymbol = resolvableSymbol(
+    process.env.MARKET_FALLBACK_SYMBOL ??
+        process.env.MARKET_SYMBOL ??
+        'BTCUSDT',
+);
+const configuredInterval = process.env.MARKET_CANDLE_INTERVAL ?? '1h';
+
 export const marketConfig: MarketConfig = MarketConfigSchema.parse({
     provider: primaryProvider,
 
@@ -339,8 +444,15 @@ export const marketConfig: MarketConfig = MarketConfigSchema.parse({
         'https://api.bitget.com',
 
     candleInterval:
-        process.env.MARKET_CANDLE_INTERVAL ??
-        '1h',
+        configuredInterval,
+
+    venueCapabilities: parseVenueCapabilities(
+        process.env.MARKET_VENUE_CAPABILITIES,
+        primaryProvider,
+        configuredSymbol,
+        configuredFallbackSymbol,
+        configuredInterval,
+    ),
 
     candleIntervalMs: intervalMs(
         process.env.MARKET_CANDLE_INTERVAL ?? '1h',
@@ -418,16 +530,11 @@ export const marketConfig: MarketConfig = MarketConfigSchema.parse({
     // venue as an HTTP 400 naming a symbol this system has no way to interpret.
     // Two things were true at once — the ticker is well-formed and it is
     // meaningless — and only one of them was being checked.
-    //
     // This is a deliberate import of the registry from inside the config it
     // validates, and the cycle is the point rather than an accident: the
     // registry is an input to whether a market setting is usable, so the check
     // belongs where the setting is read. The dependency graph records it, and
     // `config` may import `instruments`, so the layering allows it.
-    symbol: resolvableSymbol(process.env.MARKET_SYMBOL ?? 'BTCUSDT'),
-    fallbackSymbol: resolvableSymbol(
-        process.env.MARKET_FALLBACK_SYMBOL ??
-            process.env.MARKET_SYMBOL ??
-            'BTCUSDT',
-    ),
+    symbol: configuredSymbol,
+    fallbackSymbol: configuredFallbackSymbol,
 });
