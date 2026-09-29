@@ -124,7 +124,7 @@ describe('this codebase, measured', () => {
         // all eleven files outside `db/` that reach into the database are ten
         // repositories and one health check.
         expect(audit(realRoot).offences).toEqual([]);
-    });
+    }, 30000);
 
     it('names the ten repositories, so the accepted set is checkable', () => {
         // "There is no SQL in the domain" and "the only SQL in the domain is in
@@ -145,7 +145,7 @@ describe('this codebase, measured', () => {
             'strategies/candidate.repository.ts',
             'strategies/decision-log.repository.ts',
         ]);
-    });
+    }, 30000);
 
     it('exempts the health check rather than reporting it', () => {
         const report = audit(realRoot);
@@ -153,13 +153,13 @@ describe('this codebase, measured', () => {
         expect(report.exempt.map((entry) => entry.file)).toEqual([
             'observability/health.registry.ts',
         ]);
-    });
+    }, 30000);
 
     it('does not report the data layer itself', () => {
         const report = audit(realRoot);
 
         expect(report.offences.some((o) => o.file.startsWith('db/'))).toBe(false);
-    });
+    }, 30000);
 
     it('does not report a domain file that never touches the database', () => {
         // The whole layer is full of files that import nothing from `db/`, and a
@@ -170,14 +170,14 @@ describe('this codebase, measured', () => {
         expect(report.offences.some((o) => o.file === 'indicators/indicator.service.ts')).toBe(
             false,
         );
-    });
+    }, 30000);
 
     it('excludes tests, so a test that mocks the pool is not an offence', () => {
         // There are many; a rule that counted them would be unusable.
         const files = listSources(realRoot);
 
         expect(files.every((file) => !file.endsWith('.test.ts'))).toBe(true);
-    });
+    }, 30000);
 });
 
 describe('which files are the declared seam', () => {

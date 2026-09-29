@@ -61,9 +61,15 @@ describe('migrations', () => {
         // The setup file has already applied them, so applying again must be a
         // no-op rather than an error: every service start runs this, and
         // sixteen instances starting at once would run it sixteen times.
+        //
+        // The budget is stated because this call takes the same migration
+        // advisory lock every other suite in this database is contending for,
+        // and vitest's five second default is the same number as the contention
+        // it is waiting out. A no-op run that lost the race reports a timeout,
+        // which is a sentence about the machine rather than about migrations.
         await expect(applyMigrations()).resolves.toBe(LATEST_SCHEMA_VERSION);
         await expect(currentSchemaVersion()).resolves.toBe(LATEST_SCHEMA_VERSION);
-    });
+    }, LOCK_WAIT_BUDGET_MS);
 
     it('creates every table the repositories write into', async () => {
         const result = await query<{ table_name: string }>(

@@ -46,9 +46,23 @@ describe('migration lock', () => {
      * lock is usually already taken by a neighbour. Retrying is the difference
      * between a test that proves the wait and a test that fails on a full
      * machine for no reason.
+     *
+     * **The ceiling here used to be exactly vitest's five second default** —
+     * a hundred attempts at fifty milliseconds — so `takeLock` could spend the
+     * entire test budget and then be killed at the same moment, which reads as
+     * a timeout and not as the thing that caused it. The retry ceiling stays an
+     * honest bound on "a neighbour kept the lock"; the test's budget is now
+     * comfortably above it, so running out of budget means running out of
+     * patience, not running out of time.
      */
+    const LOCK_ATTEMPTS = 100;
+    const LOCK_RETRY_MS = 50;
+
+    /** The budget for these tests, well past the retry ceiling above. */
+    const LOCK_WAIT_BUDGET_MS = 30_000;
+
     async function takeLock(): Promise<void> {
-        for (let attempt = 0; attempt < 100; attempt += 1) {
+        for (let attempt = 0; attempt < LOCK_ATTEMPTS; attempt += 1) {
             const result = await holder.query<{ locked: boolean }>(
                 'SELECT pg_try_advisory_lock($1, $2) AS locked',
                 [NAMESPACE, KEY],
@@ -58,7 +72,7 @@ describe('migration lock', () => {
                 return;
             }
 
-            await new Promise((resolve) => setTimeout(resolve, 50));
+            await new Promise((resolve) => setTimeout(resolve, LOCK_RETRY_MS));
         }
 
         throw new Error('another test file kept the migration lock');
@@ -86,7 +100,7 @@ describe('migration lock', () => {
 
         expect(await migrations).toBeGreaterThan(0);
         expect(Date.now() - started).toBeGreaterThan(1_000);
-    });
+    }, LOCK_WAIT_BUDGET_MS);
 
     it('does not leave the lock held after it finishes', async () => {
         await applyMigrations();
@@ -95,5 +109,5 @@ describe('migration lock', () => {
         // by re-entering a lock it already owns rather than by taking a new
         // one, and a second *process* would wait for the full deadline.
         await takeLock();
-    });
+    }, LOCK_WAIT_BUDGET_MS);
 });

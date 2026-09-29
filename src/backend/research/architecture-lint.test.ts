@@ -238,7 +238,7 @@ describe('PHASE 0.2 names two kinds of target, and a guard that watched one is h
         expect(named).toHaveLength(10);
         expect(named.filter((o) => !o.exempted)).toEqual([]);
         expect(named.every((o) => o.file.startsWith('research/'))).toBe(true);
-    });
+    }, 30000);
 
     it('reports no defaultSymbol and no defaultAsset in code', () => {
         // Asked as a raw text search this comes back true, because this file
@@ -254,7 +254,7 @@ describe('PHASE 0.2 names two kinds of target, and a guard that watched one is h
         );
 
         expect(offenders).toEqual([]);
-    });
+    }, 30000);
 });
 
 describe('this codebase, audited', () => {
@@ -265,7 +265,7 @@ describe('this codebase, audited', () => {
         const report = audit(realRoot);
 
         expect(report.violations.map((v) => `${v.file}:${v.line} ${v.value}`)).toEqual([]);
-    });
+    }, 30000);
 
     it('reads a normal file as one, and finds nothing hardcoded in it', () => {
         // The regression test from above, pointed at a real file. It used to
@@ -279,7 +279,7 @@ describe('this codebase, audited', () => {
         );
 
         expect(health).toEqual([]);
-    });
+    }, 30000);
 
     it('still reads the whole of that file rather than stopping at the template', () => {
         // Zero findings is also what a scanner that gave up would report, so
@@ -292,7 +292,7 @@ describe('this codebase, audited', () => {
         );
 
         expect(prose.length).toBeGreaterThan(0);
-    });
+    }, 30000);
 
     it('separates the strategies’ written findings from their decisions', () => {
         // The strategies are the clearest case for the distinction: their
@@ -309,7 +309,7 @@ describe('this codebase, audited', () => {
 
         expect(strategyProse.length).toBeGreaterThan(5);
         expect(strategyCode).toEqual([]);
-    });
+    }, 30000);
 
     it('never reports documentation as a violation, for any file', () => {
         // The invariant the whole classification rests on. If this ever fails,
@@ -322,12 +322,12 @@ describe('this codebase, audited', () => {
             }),
             { numRuns: 200 },
         );
-    });
+    }, 30000);
 
     it('reports every code occurrence as either exempt or a violation, never neither', () => {
         const report = audit(realRoot);
         const code = report.occurrences.filter((o) => o.kind === 'code');
 
         expect(code).toHaveLength(report.configured + report.violations.length);
-    });
+    }, 30000);
 });

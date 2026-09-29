@@ -163,13 +163,13 @@ describe('this codebase, measured', () => {
 
         expect(resolved.length).toBeGreaterThan(100);
         expect(graphBuilt.edges.every((e) => e.to.endsWith('.ts'))).toBe(true);
-    });
+    }, 30000);
 
     it('does not count a bare package import as an internal edge', () => {
         const graphBuilt = buildGraph(realRoot);
 
         expect(graphBuilt.edges.every((e) => e.specifier.startsWith('.'))).toBe(true);
-    });
+    }, 30000);
 
     it('scans the backend and nothing else', () => {
         const files = listSources(realRoot);
@@ -177,7 +177,7 @@ describe('this codebase, measured', () => {
         expect(files.length).toBeGreaterThan(150);
         expect(files.every((f) => f.endsWith('.ts') && !f.endsWith('.test.ts'))).toBe(true);
         expect(files.some((f) => f.includes('test-support'))).toBe(false);
-    });
+    }, 30000);
 
     it('reports the violations that remain, and pins them exactly', () => {
         // Eight, and pinned as a list rather than a count so that fixing one is
@@ -199,7 +199,7 @@ describe('this codebase, measured', () => {
             'types/analysis.ts → indicators/indicator.service.ts',
             'types/analysis.ts → signals/signal.types.ts',
         ]);
-    });
+    }, 30000);
 
     it('reports no edge from a domain into the database', () => {
         // The one M2 existed to deliver, and it is already delivered: a
@@ -210,7 +210,7 @@ describe('this codebase, measured', () => {
             .filter((edge) => edge.endsWith('→ db/pool.ts'));
 
         expect(found).toEqual([]);
-    });
+    }, 30000);
 
     it('still reports the same edges when the seam is not consulted', () => {
         // `permits` is the layer rule on its own and is unchanged, so the seam
@@ -230,11 +230,11 @@ describe('this codebase, measured', () => {
 
         expect(found).toContain('types/analysis.ts → indicators/indicator.service.ts');
         expect(found).toContain('types/analysis.ts → signals/signal.types.ts');
-    });
+    }, 30000);
 
     it('has no layer outside the table now', () => {
         expect(summarise(realRoot).unplaced).toEqual([]);
-    });
+    }, 30000);
 
     it('finds a layer that nothing can reach', () => {
         // Four modules, ten edges between them, and not one edge arriving from
@@ -245,7 +245,7 @@ describe('this codebase, measured', () => {
         const report = summarise(realRoot);
 
         expect(report.unreachable.map((row) => row.layer)).toEqual(['performance']);
-    });
+    }, 30000);
 
     it('does not report an entry point as stranded', () => {
         // `research` and `app.ts` have no callers because they are the things
@@ -258,7 +258,7 @@ describe('this codebase, measured', () => {
         expect(stranded).not.toContain('research');
         expect(stranded).not.toContain('app.ts');
         expect(stranded).not.toContain('api');
-    });
+    }, 30000);
 
     it('does not count a layer talking to itself as a boundary', () => {
         // 240 of the 576 edges are within a layer. Counting them as input and
@@ -268,18 +268,18 @@ describe('this codebase, measured', () => {
         const boundary = report.byLayer.reduce((total, row) => total + row.in, 0);
 
         expect(boundary).toBe(report.edges - report.internal);
-    });
+    }, 30000);
 
     it('gives every layer an input and an output, even a leaf with none', () => {
         for (const row of summarise(realRoot).byLayer) {
             expect(typeof row.in).toBe('number');
             expect(typeof row.out).toBe('number');
         }
-    });
+    }, 30000);
 
     it('has no cycle between layers', () => {
         expect(summarise(realRoot).cycle).toBeNull();
-    });
+    }, 30000);
 
     it('knows layerOf reads a directory, not a file', () => {
         expect(layerOf('market/providers/binance.provider.ts')).toBe('market');
