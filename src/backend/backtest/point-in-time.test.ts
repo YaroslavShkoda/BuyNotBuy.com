@@ -69,6 +69,47 @@ describe('point-in-time signals', () => {
         expect(point?.recentCloses.at(-1)).toBe(candles[WARMUP]?.close);
         expect(point?.recentCloses).not.toContain(candles[WARMUP + 1]?.close);
     });
+
+    it('widens that window when the market is configured to need more confirmations', () => {
+        // **The bug this pins.** The window was sliced with the shipped
+        // confirm count and the overrides were applied to the signal three
+        // lines later, so a market configured to need five confirmations was
+        // handed the four closes the global setting asks for and then required
+        // five. A rule that can never fire, on one market only, with every other
+        // market behaving — the hardest version of this to notice, and entirely
+        // created by making the setting per-asset.
+        const candles = waveCandles(1200);
+
+        const point = computeSignalAt(candles, WARMUP, {
+            ema: { confirmBars: 5 },
+        });
+
+        expect(point?.recentCloses).toHaveLength(6);
+        expect(point?.recentCloses.at(-1)).toBe(candles[WARMUP]?.close);
+        expect(point?.recentCloses).not.toContain(candles[WARMUP + 1]?.close);
+    });
+
+    it('narrows that window when the market is configured to need fewer', () => {
+        const candles = waveCandles(1200);
+
+        const point = computeSignalAt(candles, WARMUP, {
+            ema: { confirmBars: 1 },
+        });
+
+        expect(point?.recentCloses).toHaveLength(2);
+    });
+
+    it('still ignores the future when the window is widened', () => {
+        // The window is a count, and a wider count is the easiest way to pull a
+        // later close in by accident. The look-ahead guarantee does not depend
+        // on how wide the window is.
+        const candles = waveCandles(1200);
+
+        const point = computeSignalAt(candles, WARMUP, { ema: { confirmBars: 8 } });
+
+        expect(point?.recentCloses).toHaveLength(9);
+        expect(point?.recentCloses).not.toContain(candles[WARMUP + 1]?.close);
+    });
 });
 
 describe('look-ahead bias', () => {

@@ -73,8 +73,16 @@ export function computeSignalAt(
         {
             index,
             price,
+            // Sliced with the *override's* confirm window, not the shipped one.
+            // The overrides are applied to the signal a few lines below, so a
+            // market configured to need five confirmations would have been given
+            // the four closes the global setting asks for and then required
+            // five — a rule that could never fire, on one market only, which is
+            // the hardest kind of this to notice: every other market is fine.
             recentCloses: visible
-                .slice(-(INDICATOR_SIGNAL_CONFIG.ema.confirmBars + 1))
+                .slice(
+                    -((overrides?.ema?.confirmBars ?? INDICATOR_SIGNAL_CONFIG.ema.confirmBars) + 1),
+                )
                 .map((candle) => candle.close),
             indicators: calculateMarketIndicators(marketData),
         },
