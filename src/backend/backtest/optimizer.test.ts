@@ -214,7 +214,17 @@ describe('the search only ever sees the bars it was given', () => {
         const secondScores = second.ranked.map((row) => row.score);
 
         expect(firstScores).not.toEqual(secondScores);
-    });
+        // The same two grid searches as the test above, and the same missing
+        // budget. That one carries a 30s timeout with a comment explaining why,
+        // and this one was written next to it and did not get one — so it
+        // inherited vitest's five seconds and reported a failure whenever the
+        // rest of the suite was busy, which is precisely when a full run runs.
+        //
+        // Observed once in six full runs and never on an idle machine, which is
+        // what the neighbour's comment predicted before this one was diagnosed.
+        // Not reproduced in isolation, so the claim is the mechanism read from
+        // this file rather than a reproduction.
+    }, 30_000);
 });
 
 describe('a point that never trades is not a bad score', () => {
