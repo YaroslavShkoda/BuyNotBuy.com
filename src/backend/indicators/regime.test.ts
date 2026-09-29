@@ -90,6 +90,54 @@ function trend(count: number, percentPerBar = 0.004): number[] {
     return closes;
 }
 
+describe('the window a reading is measured over', () => {
+    it('looks back over a month of hours and only a day of minutes', () => {
+        // My first version of this test asserted the opposite — that both would
+        // use every bar — and it was wrong in an instructive way. 1 500 bars is
+        // 62 days hourly and 25 hours on a minute chart, so the hourly reading
+        // is capped at its 720-bar window and the minute one uses everything it
+        // has and still falls short of the 43 200 it asked for. The minute
+        // reading says so; the hourly one has enough.
+        const series = walk(1_500, 0.0002);
+        const hourly = assessRegime({ candles: candlesFrom(series), interval: '1h' });
+        const minute = assessRegime({ candles: candlesFrom(series), interval: '1m' });
+
+        expect(hourly.baselineBars).toBe(720);
+        expect(minute.baselineBars).toBe(1_500);
+        expect(hourly.unreliable).toBeNull();
+        expect(minute.unreliable).toBe('fewer than 2880 bars');
+    });
+
+    it('measures an hourly chart exactly as it did before the timeframe existed', () => {
+        // Old results are never rewritten. This is the pin: a caller that names
+        // no timeframe, and one that names `1h`, must get the same numbers they
+        // have always got.
+        const series = walk(800, 0.0003);
+        const unnamed = assessRegime({ candles: candlesFrom(series) });
+        const named = assessRegime({ candles: candlesFrom(series), interval: '1h' });
+
+        expect(named).toEqual(unnamed);
+    });
+
+    it('says how many bars the baseline really had, not how many it wanted', () => {
+        // A reading measured over 300 bars is a different claim from one over
+        // 720, and a reader comparing the two has to be able to see which.
+        const reading = assessRegime({
+            candles: candlesFrom(walk(1_500, 0.0002)),
+            interval: '1h',
+        });
+
+        expect(reading.baselineBars).toBe(720);
+
+        const short = assessRegime({
+            candles: candlesFrom(walk(300, 0.0002)),
+            interval: '1h',
+        });
+
+        expect(short.baselineBars).toBe(300);
+    });
+});
+
 describe('volatility regime', () => {
     it('reads NORMAL for a market travelling at its own usual rate', () => {
         const reading = assessRegime({

@@ -1,5 +1,5 @@
 import { indicatorConfig } from '../config/indicator.config.js';
-import { regimeConfig } from '../config/regime.config.js';
+import { regimeConfig, regimeWindowFor } from '../config/regime.config.js';
 import { calculateATR } from './atr.js';
 import { calculateADX } from './adx.js';
 import { calculateBollingerBands } from './bollinger.js';
@@ -34,6 +34,19 @@ export type TrendRegime =
 
 export interface RegimeInput {
     readonly candles: readonly Candle[];
+    /**
+     * The timeframe these candles are on.
+     *
+     * **Optional, and one-hour when it is not given.** The boundary itself is a
+     * multiple of the instrument's own median and needs no timeframe, which is
+     * why no market ever needed its own regime thresholds. The *window* it is
+     * measured over is a length in time, and 720 bars is 30 days on an hourly
+     * chart and 12 hours on a minute one — so the window does need one. Every
+     * stored reading was computed on the hourly reading of that number, and a
+     * caller that names no timeframe gets those numbers back rather than new
+     * ones.
+     */
+    readonly interval?: string;
 }
 
 export interface RegimeReading {
@@ -68,6 +81,7 @@ export interface RegimeReading {
 
 export function assessRegime(input: RegimeInput): RegimeReading {
     const { candles } = input;
+    const window = regimeWindowFor(input.interval);
     const atr = calculateATR(
         [...candles],
         indicatorConfig.atrPeriod,
@@ -79,7 +93,7 @@ export function assessRegime(input: RegimeInput): RegimeReading {
     );
     const movement = calculateADX([...candles], indicatorConfig.adxPeriod);
 
-    const baseline = volatilityBaseline(candles);
+    const baseline = volatilityBaseline(candles, window.baselineBars);
     const current = typicalRange(candles, indicatorConfig.atrPeriod);
     const ratio = baseline <= 0 ? Number.NaN : current / baseline;
 
@@ -100,8 +114,11 @@ export function assessRegime(input: RegimeInput): RegimeReading {
         plusDI: movement.plusDI,
         minusDI: movement.minusDI,
         bandwidth: bands.bandwidth,
-        baselineBars: Math.min(candles.length, regimeConfig.baselineBars),
-        unreliable: whyUnreliable(candles, baseline, ratio),
+        // How many bars the baseline actually had, not how many it asked for.
+        // A reading measured over four bars is a different claim from one over
+        // seven hundred, and a reader comparing the two needs to see which.
+        baselineBars: Math.min(candles.length, window.baselineBars),
+        unreliable: whyUnreliable(candles, baseline, ratio, window.minimumBars),
     };
 }
 
@@ -114,7 +131,7 @@ export function assessRegime(input: RegimeInput): RegimeReading {
  * is supposed to measure cannot detect anything. The median needs half the
  * window to move before it moves at all.
  */
-function volatilityBaseline(candles: readonly Candle[]): number {
+function volatilityBaseline(candles: readonly Candle[], baselineBars: number): number {
     // The whole available history, not history minus the recent window. An
     // earlier version excluded the bars being measured, on the theory that a
     // baseline must not contain what it judges — but a median already answers
@@ -122,7 +139,11 @@ function volatilityBaseline(candles: readonly Candle[]): number {
     // it not at all. Excluding the recent window only costs a third of the
     // history on a short series and makes the answer depend on an arbitrary
     // cut-off.
-    return medianOf(typicalRangePerBar(candles.slice(-regimeConfig.baselineBars)));
+    //
+    // The count is passed in rather than read from the configuration, because it
+    // is the length of a window in *time* and this is the one place that turns
+    // it into bars for the timeframe actually being read.
+    return medianOf(typicalRangePerBar(candles.slice(-baselineBars)));
 }
 
 /**
@@ -237,9 +258,13 @@ function whyUnreliable(
     candles: readonly Candle[],
     baseline: number,
     ratio: number,
+    minimumBars: number,
 ): string | null {
-    if (candles.length < regimeConfig.minimumBars) {
-        return `fewer than ${regimeConfig.minimumBars} bars`;
+    // The floor is for this timeframe, for the same reason the baseline is: a
+    // reading of "not enough bars" measured against another chart's number is
+    // a statement about the configuration rather than about the market.
+    if (candles.length < minimumBars) {
+        return `fewer than ${minimumBars} bars`;
     }
 
     if (baseline <= 0) {

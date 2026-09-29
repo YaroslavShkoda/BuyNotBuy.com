@@ -51,11 +51,21 @@ const RegimeConfigSchema = z.object({
      */
     directional: z.coerce.number().min(0).max(100),
     /**
-     * How many bars the volatility baseline is measured over.
+     * How far back the volatility baseline reaches, in days.
      *
-     * Long enough that one violent afternoon is not itself the new normal.
+     * **In days rather than bars, and the distinction is the whole point.** The
+     * baseline was 720 bars with the comment "30 days of hourly bars" — which
+     * is 30 days on exactly one timeframe. On a daily chart it is two years, and
+     * on a minute chart it is twelve hours, so the number the configuration
+     * stated an intent for was not the number any other chart was computing.
+     *
+     * The boundaries themselves did not have this problem and still do not: they
+     * are multiples of the instrument's own median, and ADX is 0..100 everywhere
+     * by construction. This is about the *window*, which is a property of the
+     * timeframe rather than of the market — so a market never needed its own
+     * regime thresholds, and a timeframe does need its own baseline.
      */
-    baselineBars: z.coerce.number().int().positive(),
+    baselineDays: z.coerce.number().int().positive(),
     /**
      * A regime built from fewer bars than this is reported as unknown.
      *
@@ -63,6 +73,16 @@ const RegimeConfigSchema = z.object({
      * statement about three bars, and reporting it as a regime is how a
      * young table starts classifying itself.
      */
+    minimumDays: z.coerce.number().int().positive(),
+    /**
+     * The bars these work out to on a one-hour chart.
+     *
+     * Kept because they are the numbers the shipped configuration was tuned
+     * against and what every stored reading was computed with. A change to
+     * `regimeWindowFor` that moved these would silently re-label every
+     * historical regime, and rule: old results are never rewritten.
+     */
+    baselineBars: z.coerce.number().int().positive(),
     minimumBars: z.coerce.number().int().positive(),
 }).refine((config) => config.volatility.normal < config.volatility.high, {
     message: 'Volatility normal threshold must be below the high threshold',
@@ -73,9 +93,9 @@ const RegimeConfigSchema = z.object({
 }).refine((config) => config.trend.weak < config.trend.strong, {
     message: 'Trend weak threshold must be below the strong threshold',
     path: ['trend', 'weak'],
-}).refine((config) => config.minimumBars <= config.baselineBars, {
-    message: 'Regime minimum bars must not exceed the baseline length',
-    path: ['minimumBars'],
+}).refine((config) => config.minimumDays <= config.baselineDays, {
+    message: 'Regime minimum days must not exceed the baseline length',
+    path: ['minimumDays'],
 });
 
 export type RegimeConfig = z.infer<typeof RegimeConfigSchema>;
@@ -96,8 +116,80 @@ export const regimeConfig: RegimeConfig = RegimeConfigSchema.parse({
         strong: process.env.REGIME_TREND_STRONG ?? '50',
     },
     directional: process.env.REGIME_DIRECTIONAL ?? '60',
-    // 30 days of hourly bars. Short enough to follow a regime change, long
-    // enough that the baseline is not itself a reaction.
+    // 30 days. Short enough to follow a regime change, long enough that the
+    // baseline is not itself a reaction. Stated in days because 720 bars means
+    // 30 days on one chart and two years on another.
+    baselineDays: process.env.REGIME_BASELINE_DAYS ?? '30',
+    minimumDays: process.env.REGIME_MINIMUM_DAYS ?? '2',
+    // 30 days of hourly bars and 2 days of them: the values the shipped
+    // configuration was tuned against, and what every stored reading was
+    // computed with. Kept rather than derived so a mistake in the day-to-bar
+    // arithmetic shows up as a failing test instead of as a history rewritten
+    // overnight.
     baselineBars: process.env.REGIME_BASELINE_BARS ?? '720',
     minimumBars: process.env.REGIME_MINIMUM_BARS ?? '50',
 });
+
+/** The bar length of an interval, in milliseconds. */
+const MINUTE_MS = 60_000;
+const HOUR_MS = 3_600_000;
+const DAY_MS = 24 * HOUR_MS;
+
+/**
+ * The bars a day of the given timeframe is made of.
+ *
+ * **`1h` is the answer when nothing is known, and it is the answer on purpose.**
+ * Every reading stored so far was computed on a one-hour baseline, so a caller
+ * that does not name its timeframe gets those numbers back and not a different
+ * regime. Guessing a timeframe from the length of the series would relabel
+ * history, and a rule that may not change what has already been measured is
+ * worth more here than completeness.
+ */
+export function barsPerDay(interval: string | undefined): number {
+    const cleaned = (interval ?? '1h').trim().toLowerCase();
+
+    // Written as a division rather than a counted number, because the count is
+    // the thing being asserted and the division is the thing being relied on: a
+    // day of minutes is 1440 on any clock, and a bare 1440 would be one to
+    // check rather than one to read.
+    const perDay = (lengthMs: number): number => Math.round(DAY_MS / lengthMs);
+
+    switch (cleaned) {
+        case '1m':
+            return perDay(MINUTE_MS);
+        case '5m':
+            return perDay(5 * MINUTE_MS);
+        case '15m':
+            return perDay(15 * MINUTE_MS);
+        case '1h':
+            return perDay(HOUR_MS);
+        case '4h':
+            return perDay(4 * HOUR_MS);
+        case '1d':
+            return perDay(DAY_MS);
+        default:
+            // An interval nobody has a length for is asked for as hourly, and
+            // the reading says how many bars it actually used — a wrong label in
+            // the output is recoverable, a silently wrong baseline is not.
+            return perDay(HOUR_MS);
+    }
+}
+
+/**
+ * The window this regime is measured over, on a given timeframe.
+ *
+ * Never smaller than what the shipped configuration used, because a window that
+ * shrank would start calling quiet markets ordinary on the strength of less
+ * history than before — the same label, computed from less evidence.
+ */
+export function regimeWindowFor(interval: string | undefined): {
+    baselineBars: number;
+    minimumBars: number;
+} {
+    const perDay = barsPerDay(interval);
+
+    return {
+        baselineBars: Math.max(regimeConfig.baselineBars, regimeConfig.baselineDays * perDay),
+        minimumBars: Math.max(regimeConfig.minimumBars, regimeConfig.minimumDays * perDay),
+    };
+}

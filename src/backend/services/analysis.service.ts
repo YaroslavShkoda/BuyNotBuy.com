@@ -573,7 +573,14 @@ function analysisContext(
             intervalMs: marketConfig.candleIntervalMs,
             provider: marketData.provider,
         });
-        const regime = assessRegime({ candles: marketData.candles });
+        // The regime window is a length in time, so it needs to know how long a
+        // bar is. The candles are fetched for this market's interval; without
+        // saying so, the baseline would be 720 bars of whatever this is — 30
+        // days hourly, 12 hours on a minute chart.
+        const regime = assessRegime({
+            candles: marketData.candles,
+            interval: marketConfig.candleInterval,
+        });
 
         return {
             regime: regime.unreliable === null
