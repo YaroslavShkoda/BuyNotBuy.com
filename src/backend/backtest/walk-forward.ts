@@ -12,7 +12,10 @@ import {
 import type { ExecutionConfig } from './execution.js';
 import type { Candle } from '../types/market.js';
 import type { BacktestMetrics, BenchmarkMetrics, Trade } from './metrics.js';
-import type { IndicatorSignalOverrides } from '../config/indicator.config.js';
+import type {
+    IndicatorSignalOverrides,
+    ResolvedIndicatorSignalConfig,
+} from '../config/indicator.config.js';
 
 export interface WalkForwardOptions {
     /**
@@ -343,6 +346,7 @@ function fitThresholds(
     trainingStart: number,
     trainingEnd: number,
     options: WalkForwardOptions,
+    signal: ResolvedIndicatorSignalConfig,
 ): {
     thresholds: { longThreshold: number; shortThreshold: number };
     trainedTrades: number;
@@ -403,8 +407,8 @@ function fitThresholds(
         // the product does, not a pair chosen by a coin flip.
         return {
             thresholds: {
-                longThreshold: INDICATOR_SIGNAL_CONFIG.stochastic.longThreshold,
-                shortThreshold: INDICATOR_SIGNAL_CONFIG.stochastic.shortThreshold,
+                longThreshold: signal.stochastic.longThreshold,
+                shortThreshold: signal.stochastic.shortThreshold,
             },
             trainedTrades: 0,
             trainingScore: null,
@@ -439,15 +443,21 @@ function fitThresholds(
     };
 }
 
-function isShippedPair(thresholds: {
-    longThreshold: number;
-    shortThreshold: number;
-}): boolean {
+function isShippedPair(
+    thresholds: {
+        longThreshold: number;
+        shortThreshold: number;
+    },
+    signal: ResolvedIndicatorSignalConfig,
+): boolean {
+    // Compared against the thresholds in force for the market this fold is
+    // about, not against the global ones. With per-asset overrides the global
+    // pair is not what the product ships anywhere else, so a fold that returned
+    // to the configured pair would be reported as a fitted one — and the report
+    // would say the strategy was tuned when nothing had been tuned at all.
     return (
-        thresholds.longThreshold ===
-            INDICATOR_SIGNAL_CONFIG.stochastic.longThreshold &&
-        thresholds.shortThreshold ===
-            INDICATOR_SIGNAL_CONFIG.stochastic.shortThreshold
+        thresholds.longThreshold === signal.stochastic.longThreshold &&
+        thresholds.shortThreshold === signal.stochastic.shortThreshold
     );
 }
 
@@ -630,6 +640,16 @@ function randomEntryBenchmark(
 export function runWalkForward(
     candles: Candle[],
     options: Partial<WalkForwardOptions> = {},
+    /**
+     * The thresholds in force for the market this run is about.
+     *
+     * Defaults to the shipped configuration so every existing caller keeps
+     * working, exactly as `resolveRequest` does for the market itself. It is an
+     * argument rather than a read because a fold that "returned to the shipped
+     * pair" is a claim about a specific pair, and with per-asset overrides
+     * there is no single shipped pair to return to.
+     */
+    signal: ResolvedIndicatorSignalConfig = INDICATOR_SIGNAL_CONFIG,
 ): WalkForwardResult {
     const resolved = { ...DEFAULT_WALK_FORWARD_OPTIONS, ...options };
 
@@ -676,13 +696,11 @@ export function runWalkForward(
         const testPoints = computeSignalSeries(candles, foldStart, foldEnd);
 
         const fitted = resolved.fitParameters
-            ? fitThresholds(candles, trainingStart, trainingEnd, resolved)
+            ? fitThresholds(candles, trainingStart, trainingEnd, resolved, signal)
             : {
                   thresholds: {
-                      longThreshold:
-                          INDICATOR_SIGNAL_CONFIG.stochastic.longThreshold,
-                      shortThreshold:
-                          INDICATOR_SIGNAL_CONFIG.stochastic.shortThreshold,
+                      longThreshold: signal.stochastic.longThreshold,
+                      shortThreshold: signal.stochastic.shortThreshold,
                   },
                   trainedTrades: 0,
                   trainingScore: null,
@@ -706,17 +724,17 @@ export function runWalkForward(
             fitted.validationScore,
         );
 
-        // A rejected fold keeps the shipped configuration rather than the pair
-        // that failed. The rejected pair is still reported, and still measured
-        // on its test window, because a fold that was in doubt and then traded
-        // anyway is a fact about the strategy that is worth having.
+        // A rejected fold keeps the configured thresholds rather than the pair
+        // that failed. "Configured" and not "the global ones" because for a
+        // market with its own thresholds, those are the ones the product ships.
+        // The rejected pair is still reported, and still measured on its test
+        // window, because a fold that was in doubt and then traded anyway is a
+        // fact about the strategy that is worth having.
         const thresholds = judgement.accepted
             ? fitted.thresholds
             : {
-                  longThreshold:
-                      INDICATOR_SIGNAL_CONFIG.stochastic.longThreshold,
-                  shortThreshold:
-                      INDICATOR_SIGNAL_CONFIG.stochastic.shortThreshold,
+                  longThreshold: signal.stochastic.longThreshold,
+                  shortThreshold: signal.stochastic.shortThreshold,
               };
 
         const foldPoints = reapplyThresholds(
@@ -757,7 +775,7 @@ export function runWalkForward(
             // would describe a strategy the run did not evaluate.
             parameters: thresholds,
             fitted:
-                !isShippedPair(thresholds) && judgement.accepted,
+                !isShippedPair(thresholds, signal) && judgement.accepted,
             validation: {
                 accepted: judgement.accepted,
                 reason: judgement.reason,

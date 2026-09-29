@@ -104,12 +104,6 @@ async function runBacktestMeasured(
     const resolved = { ...DEFAULT_WALK_FORWARD_OPTIONS, ...options };
     const needed = requiredCandles(resolved);
 
-    // Resolved once, here, for the market this run is about. Every number the
-    // run reports about its own parameters has to come from this one object:
-    // reading the global at each site would let a per-asset override exist and
-    // be recorded as though it had not been used.
-    const signalConfig = signalConfigFor(request.instrument);
-
     const snapshot = await getMarketData(request);
 
     // Routed, not the singleton: the backtest and the live path now ask the
@@ -129,8 +123,14 @@ async function runBacktestMeasured(
         needed + 1,
     );
 
-    const result = runWalkForward(candles, resolved);
+    // Resolved once, here, for the market this run is about, and handed to the
+    // walk-forward. Every number the run reports about its own parameters, and
+    // every pair a fold falls back to, comes from this one object: reading the
+    // global at each site would let a per-asset override exist and be recorded
+    // as though it had not been used.
+    const signalConfig = signalConfigFor(request.instrument);
 
+    const result = runWalkForward(candles, resolved, signalConfig);
     return {
         ...result,
         // Named from what was measured, not from what was configured. The

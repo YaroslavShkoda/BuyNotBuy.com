@@ -177,6 +177,31 @@ describe('which market a backtest measures', () => {
         });
     });
 
+    it('hands its own thresholds to the walk-forward, not the global ones', async () => {
+        // The threading is the whole point, and it is invisible from the report
+        // alone: `shippedParameters` reads the same object, so both could be
+        // right while the folds still fitted against BTC's pair.
+        mocks.runWalkForward.mockClear();
+        await runBacktest({}, { instrument: 'ETHUSDT', interval: '1h' });
+
+        const config = mocks.runWalkForward.mock.calls[0]?.[2] as
+            | { stochastic: { longThreshold: number } }
+            | undefined;
+
+        expect(config?.stochastic.longThreshold).toBe(22);
+    });
+
+    it('gives the walk-forward the shipped thresholds for a market with no override', async () => {
+        mocks.runWalkForward.mockClear();
+        await runBacktest({}, { instrument: 'BTCUSDT', interval: '1h' });
+
+        const config = mocks.runWalkForward.mock.calls[0]?.[2] as
+            | { stochastic: { longThreshold: number } }
+            | undefined;
+
+        expect(config?.stochastic.longThreshold).toBe(15);
+    });
+
     it('puts the market into the manifest, so a result says what it was about', async () => {
         await runBacktest({}, { instrument: 'ETHUSDT', interval: '1h' });
 
