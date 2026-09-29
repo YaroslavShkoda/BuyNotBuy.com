@@ -9,8 +9,28 @@ export interface StrategyVersion {
     description: string;
     configHash: string;
     createdAt: number;
-    status: 'draft' | 'approved' | 'retired';
 }
+
+/**
+ * **A version has no approval state, and saying so is the point.**
+ *
+ * This table used to carry `status: 'draft' | 'approved' | 'retired'` with a
+ * CHECK that accepted all three. Nothing ever wrote anything but `draft`,
+ * nothing ever tested it — `resolveActive` selects by `config_hash` alone and
+ * never looks at the status — and the ladder whose names it borrowed
+ * (`candidate → backtest → walk-forward → shadow → approval → production`,
+ * with `canTransition` refusing a jump) lives on `strategy_rule`, which this
+ * table has no foreign key to.
+ *
+ * A version identifies a *configuration* by its hash. Whether that
+ * configuration is allowed to run for real money is a question about a rule and
+ * the evidence behind it, and the rule table is the one that holds the
+ * evidence. Carrying a second, unguarded copy of that vocabulary here meant one
+ * `UPDATE` could mark a configuration approved that had never been
+ * walk-forwarded — so the column is gone rather than guarded, and guarding it
+ * would have meant either a second vocabulary to keep in step or a reference to
+ * a stage record that does not exist for a configuration first seen at runtime.
+ */
 
 export interface StrategyVersionRepository {
     /**
@@ -27,7 +47,6 @@ interface StrategyVersionRow {
     description: string;
     config_hash: string;
     created_at: number;
-    status: StrategyVersion['status'];
 }
 
 function toVersion(row: StrategyVersionRow): StrategyVersion {
@@ -37,11 +56,10 @@ function toVersion(row: StrategyVersionRow): StrategyVersion {
         description: row.description,
         configHash: row.config_hash,
         createdAt: row.created_at,
-        status: row.status,
     };
 }
 
-const SELECT_COLUMNS = 'id, name, description, config_hash, created_at, status';
+const SELECT_COLUMNS = 'id, name, description, config_hash, created_at';
 
 /**
  * The version the running configuration belongs to, created on first sight.
@@ -75,8 +93,8 @@ export function createStrategyVersionRepository(): StrategyVersionRepository {
             // analysis path down over a bookkeeping row.
             const inserted = await query<StrategyVersionRow>(
                 `INSERT INTO strategy_version
-                     (created_at, name, description, config, config_hash, status)
-                 VALUES ($1, $2, $3, $4::jsonb, $5, 'draft')
+                     (created_at, name, description, config, config_hash)
+                 VALUES ($1, $2, $3, $4::jsonb, $5)
                  ON CONFLICT (config_hash) DO NOTHING
                  RETURNING ${SELECT_COLUMNS}`,
                 [

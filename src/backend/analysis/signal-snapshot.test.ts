@@ -163,8 +163,8 @@ describe('signal snapshot', () => {
         // guarantee below, tested properly further down.
         const created = await query<{ id: number }>(
             `INSERT INTO strategy_version
-                 (created_at, name, description, config, config_hash, status)
-             VALUES ($1, 'other', 'A different configuration.', '{}'::jsonb, $2, 'draft')
+                 (created_at, name, description, config, config_hash)
+             VALUES ($1, 'other', 'A different configuration.', '{}'::jsonb, $2)
              RETURNING id`,
             [Date.now(), 'a-different-configuration'],
         );
@@ -294,10 +294,34 @@ describe('strategy version', () => {
         expect(second.id).toBe(first.id);
     });
 
-    it('starts as a draft, because nothing has approved it', async () => {
+    it('cannot be marked approved, because the column that held the word is gone', async () => {
+        // The test this replaces asserted `version.status === 'draft'` — a
+        // version starts as a draft because nothing has approved it. It read as
+        // a governance rule and enforced nothing: the CHECK accepted
+        // 'approved' as readily, no code path ever wrote it, and no code path
+        // ever read it. `resolveActive` selects by config_hash alone, so a
+        // version's status could not have decided anything even in principle.
+        //
+        // What is worth asserting now is the schema itself, because that is
+        // where the claim used to live. Against the old column this fails on the
+        // first query; it is a test about the database, not about the
+        // repository's return value.
+        const columns = await query<{ column_name: string }>(
+            `SELECT column_name FROM information_schema.columns
+              WHERE table_schema = 'public' AND table_name = 'strategy_version'`,
+        );
+
+        expect(columns.rows.map((row) => row.column_name)).not.toContain('status');
+    });
+
+    it('still resolves a version by the configuration it describes', async () => {
+        // The part that must not have been lost with the column. A version is
+        // identified by its hash and nothing else; removing a status that never
+        // participated must leave that exactly as it was.
         const version = await createStrategyVersionRepository().resolveActive();
 
-        expect(version.status).toBe('draft');
+        expect(version.configHash).toMatch(/^[0-9a-f]+$/);
+        expect(version.id).toBeGreaterThan(0);
     });
 
     it('shares one repository through the accessor', () => {
