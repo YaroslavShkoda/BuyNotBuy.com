@@ -1,3 +1,4 @@
+import type { SignalExplanation } from '../signals/explanation.js';
 import type { MarketAnalysis } from '../types/analysis.js';
 import type { Candle, MarketData } from '../types/market.js';
 import type { MarketIndicators } from '../indicators/indicator.service.js';
@@ -20,6 +21,8 @@ import { getDecisionLogRepository } from '../strategies/decision-log.repository.
 import { marketConfig } from '../config/market.config.js';
 import { assessDataQuality } from '../history/data-quality.js';
 import { assessRegime } from '../indicators/regime.js';
+import { explainSignal } from '../signals/explanation.js';
+import { consensusConfig } from '../config/consensus.config.js';
 import {
     indicatorConfig,
     INDICATOR_SIGNAL_CONFIG,
@@ -48,7 +51,23 @@ export interface AnalysisWithStatus {
     freshness: MarketFreshness;
     /** Which venue actually produced it. */
     provider: string;
+  /**
+   * Why the signal was published, in a form that can be argued with.
+   *
+   * Backend-only, and outside `MarketAnalysis` for the same reason
+   * `fallbackSuppressed` is: `MarketAnalysis.signal` is a `SignalResult`,
+   * and that type is part of the frozen contract.
+   *
+   * It earns its place by carrying the three things the published signal
+   * does not say: which indicator voted which way, what the market looked
+   * like while they did, and -- the part that matters most -- that the
+   * published percentage is a panel consensus and **not** a probability of
+   * being right. The `explanation.ts` module was written for exactly
+   * this and sat unwired, so nothing in the system could produce it.
+   */
+  readonly explanation: SignalExplanation;
 }
+
 
 export async function analyzeMarket(
     logger?: AnalysisTelemetryLogger,
@@ -137,6 +156,11 @@ export async function analyzeMarketWithStatus(
         ageMs: result.status.ageMs,
         freshness: result.status.freshness,
         provider: result.status.provider,
+        // Beside `MarketAnalysis`, never inside it -- `signal` is a
+        // `SignalResult` and that type is part of the frozen contract. This is
+        // the same place `provider` and `freshness` live: a backend-only field
+        // a client may ignore and a reader on the backend can rely on.
+        explanation: result.explanation,
     };
 }
 
@@ -227,7 +251,10 @@ async function recordStrategyDecisions(input: {
  */
 interface AnalysisComputation {
     readonly analysis: MarketAnalysis;
-    readonly status: Omit<AnalysisWithStatus, 'analysis'>;
+    // `explanation` is excluded on purpose: it is a property of the computation,
+  // not of the market's freshness, and letting `Omit` pick it up would file a
+  // claim about the signal inside an object called `status`.
+  readonly status: Omit<AnalysisWithStatus, 'analysis' | 'explanation'>;
     /**
      * True when the fallback would have changed the published signal and was
      * held back by shadow mode.
@@ -238,6 +265,8 @@ interface AnalysisComputation {
      * evidence the shadow period exists to collect.
      */
     readonly fallbackSuppressed: boolean;
+  /** Built once per computation, beside the analysis it explains. */
+  readonly explanation: SignalExplanation;
     /** One context per caller, differing only in the request id. */
     telemetry(requestId?: string): AnalysisTelemetry;
     /** Writes the history rows for this computation, once. */
@@ -445,9 +474,53 @@ async function computeAnalysis(): Promise<AnalysisComputation> {
     // invented prices, and a counter it moved would measure the test suite
     // rather than the system. The tick happens per caller, above.
 
+    // Measured once, for both the explanation and the history row. It was
+    // already unconditional inside `writeHistory`; moving it here is what lets
+    // the explanation carry the market's own condition without asking for it a
+    // second time.
+    const assessed = analysisContext(marketData, analysis.timestamp);
+
     return {
         analysis,
         fallbackSuppressed,
+        // Built here rather than at the boundary because this is where the
+        // context is: `analysisContext` costs two passes over the candles, and
+        // calling it a second time to fill in an explanation would measure the
+        // market twice for a field nobody has to wait longer than.
+        explanation: explainSignal({
+            direction: analysis.signal.signal,
+            confidence: analysis.signal.confidence,
+            confidenceModel: consensusConfig.confidenceModel,
+            analyses: analysis.signal.indicators,
+            // The published sentence, handed in rather than rebuilt. Explaining a
+            // signal with a reason other than the one that was published is how a
+            // system ends up defending two things at once, and the reason this
+            // module sat unwired for its whole life is that nothing could check
+            // that the two agreed.
+            reason: analysis.signal.reason,
+            // The assessment carries the factor with its score and a
+            // sentence; the explanation wants the name on it. Reduced here,
+            // deliberately, and the name still comes from the factor itself
+            // rather than from a description of it -- which is how a summary
+            // drifts away from the thing it summarises.
+            quality:
+                assessed.quality === null
+                    ? null
+                    : {
+                          score: assessed.quality.score,
+                          usable: assessed.quality.usable,
+                          // QualityFactor is the name, not a record: the score and
+                          // `QualityFactor` is the name, not a record: the score
+                          // and the sentence live in `factors`, and a summary
+                          // that renamed them would describe something else.
+                          worst: assessed.quality.worst,
+                          blockedBy:
+                              assessed.quality.blockedBy === null
+                                  ? []
+                                  : [assessed.quality.blockedBy],
+                      },
+            regime: assessed.regime,
+        }),
         status: {
             stale: marketDataStale,
             ageMs: marketDataAgeMs,
@@ -485,7 +558,7 @@ async function computeAnalysis(): Promise<AnalysisComputation> {
             );
         },
         record(historyLogger) {
-            writeHistory(analysis, marketData, historyLogger);
+            writeHistory(analysis, marketData, historyLogger, assessed.context);
         },
     };
 }
@@ -505,11 +578,20 @@ function writeHistory(
     analysis: MarketAnalysis,
     marketData: MarketData,
     historyLogger?: SignalHistoryLogger,
+    /**
+     * The context, already measured by whoever built the explanation.
+     *
+     * Passed in rather than recomputed: this is two passes over the candles, and
+     * the explanation above needs the same answer, and measuring the market
+     * twice for one answer would be the kind of cost that looks free until two
+     * people copy it.
+     */
+    context?: SignalContext,
 ): void {
     // The market these numbers were produced in. A performance table grouped
     // by regime is the whole reason this column exists, and without it every
     // signal looks like it came from the same market.
-    const context = analysisContext(marketData, analysis.timestamp);
+    const resolved = context ?? analysisContext(marketData, analysis.timestamp).context;
 
     void recordSignalHistory(
         {
@@ -521,11 +603,10 @@ function writeHistory(
             // Conditional rather than assigned undefined: an absent context is
             // a fact, and writing one is how a table ends up full of nulls that
             // look like a failed write.
-            ...(context === undefined ? {} : { context }),
+            ...(resolved === undefined ? {} : { context: resolved }),
         },
         historyLogger,
     );
-
     // The consensus is one number that hides its inputs, so each indicator's
     // own vote is stored next to it. This is what later answers "was the EMA
     // actually right?" instead of leaving it a matter of faith. Also
@@ -577,10 +658,32 @@ function writeHistory(
  * record a signal that was correctly produced is not. The whole thing is
  * therefore best-effort and returns null rather than propagating.
  */
+/**
+ * What the market looked like, in all three shapes something needs it.
+ *
+ * One assessment, three renderings. `context` is the flattened form the history
+ * row has been storing since before anything could explain itself; `regime` and
+ * `quality` are the assessments themselves, which the explanation reads.
+ *
+ * It is one function because it is one measurement. The explanation and the
+ * history describing the same candles differently is exactly the failure this
+ * shape exists to make impossible.
+ */
+interface MarketAssessment {
+    readonly context: SignalContext | undefined;
+    readonly regime: ReturnType<typeof assessRegime> | null;
+    readonly quality: ReturnType<typeof assessDataQuality> | null;
+}
+
+/**
+ * Losing the context on a series too short to assess it is correct; failing to
+ * record a signal that was correctly produced is not. The whole thing is
+ * therefore best-effort and returns empty rather than propagating.
+ */
 function analysisContext(
     marketData: MarketData,
     now: number,
-): SignalContext | undefined {
+): MarketAssessment {
     try {
         const quality = assessDataQuality({
             candles: marketData.candles,
@@ -598,15 +701,29 @@ function analysisContext(
         });
 
         return {
-            regime: regime.unreliable === null
-                ? `${regime.volatility}/${regime.trend}`
-                : `${regime.volatility}/${regime.trend} (${regime.unreliable})`,
-            dataQuality: quality.score,
-            dataQualityUsable: quality.usable,
-            dataQualityWorst: quality.worst,
+            context: {
+                regime: regime.unreliable === null
+                    ? `${regime.volatility}/${regime.trend}`
+                    : `${regime.volatility}/${regime.trend} (${regime.unreliable})`,
+                dataQuality: quality.score,
+                dataQualityUsable: quality.usable,
+                dataQualityWorst: quality.worst,
+            },
+            // The assessments themselves, not their flattened form.
+            //
+            // The history row wants one string and three loose numbers; the
+            // explanation wants the regime on two axes plus a warning about
+            // trusting it, and the quality as a scored object. My first version
+            // kept only the flattened `SignalContext` and rebuilt the rest from
+            // it — which meant two of `RegimeContext`'s three fields had no
+            // honest value and I was one plausible-looking object away from
+            // inventing a structure out of a label. Carrying the assessments
+            // costs nothing: they were already computed.
+            regime,
+            quality,
         };
     } catch {
-        return undefined;
+        return { context: undefined, regime: null, quality: null };
     }
 }
 

@@ -1,10 +1,11 @@
 import Fastify from 'fastify';
 import { describe, expect, it, vi } from 'vitest';
 
+import { consensusConfig } from '../../config/consensus.config.js';
+
 const mockAnalysis = {
     timestamp: 123456789,
-    price: 80000,
-    indicators: {
+    price: 80000,    indicators: {
         ema300: 78000,
         stochastic: 20,
         momentum: 150,
@@ -51,12 +52,46 @@ const mockAnalysis = {
         macdFast: 12,
         macdSlow: 26,
         macdSignal: 9,
-    },};
+    },
+};
+
+/**
+ * The explanation, next to the signal it explains.
+ *
+ * Built from the same numbers rather than written by hand, so the stub cannot
+ * drift into describing a different signal than the one it sits beside — which
+ * is the one thing an explanation stub always ends up doing.
+ */
+const mockExplanation = {
+    direction: 'LONG' as const,
+    supporting: mockAnalysis.signal.indicators.filter(
+        (indicator) => indicator.signal === 'LONG',
+    ),
+    opposing: [],
+    abstaining: mockAnalysis.signal.indicators.filter(
+        (indicator) => indicator.signal === 'NEUTRAL',
+    ),
+    regime: null,
+    quality: null,
+    factors: [],
+    confidence: {
+        value: mockAnalysis.signal.confidence,
+        // Read from the config rather than written out. My first version said
+        // `PANEL_SHARE`, a model that does not exist in the schema — a stub that
+        // names a model the system cannot produce is a stub describing a
+        // different system.
+        model: consensusConfig.confidenceModel,
+        meaning: 'доля панели, не вероятность',
+        isProbabilityOfBeingRight: false as const,
+    },
+    reason: mockAnalysis.signal.reason,
+};
 
 vi.mock('../../services/analysis.service.js', () => ({
     analyzeMarket: vi.fn(async () => mockAnalysis),
     analyzeMarketWithStatus: vi.fn(async () => ({
         analysis: mockAnalysis,
+        explanation: mockExplanation,
         stale: false,
         ageMs: 0,
         freshness: 'fresh' as const,
@@ -96,6 +131,7 @@ describe('GET /api/analysis', () => {
     it('flags a response served from the fallback snapshot', async () => {
         vi.mocked(analyzeMarketWithStatus).mockResolvedValueOnce({
             analysis: mockAnalysis,
+            explanation: mockExplanation,
             stale: true,
             ageMs: 245_000,
             freshness: 'stale',

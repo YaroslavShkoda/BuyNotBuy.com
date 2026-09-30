@@ -89,7 +89,6 @@ describe('production modules with no production caller', () => {
         expect(stranded).toEqual([
             'backtest/optimizer.ts',
             'history/backfill.service.ts',
-            'signals/explanation.ts',
             'strategy/rule-registry.ts',
         ]);
 
