@@ -77,9 +77,20 @@ export function getTestPool(): Pool {
 
 export async function truncateSignalTables(): Promise<void> {
     await query(
+        // `signal_snapshot` was missing from this list, and a table that is not
+        // truncated is not a gap a test can see: every other omission shows up
+        // as a count that will not go back to zero, whereas this one let a file
+        // accumulate rows against itself and still pass as long as each
+        // assertion was written to tolerate the leftovers. Whether that is
+        // harmless depends entirely on what the assertions happen to filter by.
+        //
+        // `strategy_version` is deliberately not here. It is reference data for
+        // this table rather than something these tests produce, and emptying it
+        // would break every file that resolves the active version in `beforeAll`.
         `TRUNCATE signal_history, indicator_vote, market_candles,
                   signal_transition, signal_state, signal_outcome,
-                  strategy_decision_log, signal_strategy_version`,
+                  strategy_decision_log, signal_strategy_version,
+                  signal_snapshot`,
     );
 }
 
