@@ -3,6 +3,8 @@ import { appConfig } from './config/app.config.js';
 import { historyConfig } from './config/history.config.js';
 import { marketConfig } from './config/market.config.js';
 import { assertSignalHistorySchemaReady } from './history/signal-history.repository.js';
+import { getAssetRepository } from './instruments/asset.repository.js';
+import { knownAssets } from './config/asset.registry.js';
 import { reconcileSignalOutcomes } from './outcomes/reconcile.js';
 import { publishSignal } from './signals/publish.js';
 import { closePool } from './db/pool.js';
@@ -167,6 +169,25 @@ async function startServer() {
         // first market request while the service looks healthy. Applying the
         // migrations here also creates the schema on a fresh database.
         await assertSignalHistorySchemaReady();
+
+        // The registry moves into the database, and the configuration stays on
+        // top of it: the config is the declaration, this writes it down, and
+        // `ON CONFLICT DO NOTHING` means a row a person suspended or a
+        // classification learned from data is never quietly reset to the value
+        // somebody typed. It runs before the socket opens for the same reason
+        // the schema check does — a database that cannot answer "is this asset
+        // tradable" should be found at boot, not on the first order.
+        const seeded = await getAssetRepository().seedFromConfiguration(
+            knownAssets.map((entry) => ({
+                symbol: entry.symbol,
+                category: entry.category,
+            })),
+        );
+
+        app.log.info(
+            { event: 'asset_registry_seeded', inserted: seeded.inserted },
+            'asset_registry_seeded',
+        );
 
         const address = await app.listen({
             port: appConfig.port,

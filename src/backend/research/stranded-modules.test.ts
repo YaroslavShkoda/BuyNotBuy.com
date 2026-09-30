@@ -90,29 +90,30 @@ describe('production modules with no production caller', () => {
             'backtest/optimizer.ts',
             'db/retention.store.ts',
             'history/backfill.service.ts',
-            'instruments/asset.repository.ts',
             'instruments/classify.ts',
             'observability/health.registry.ts',
             'signals/explanation.ts',
             'strategy/rule-registry.ts',
         ]);
 
-        // **The signal chain is now connected at both ends.**
+        // **The registry is in the database now, and the configuration stayed on
+        // top of it.** `instruments/asset.repository.ts` left this list when the
+        // server started seeding `asset` and `instrument` at boot — the module
+        // already had 22 tests behind it, including that it does not reactivate
+        // a suspended asset and does not overwrite a classification learned
+        // from data. It was never unfinished. It was unwired, which is a
+        // different defect and one that looks exactly like finished work.
         //
-        // `outcomes/outcome.repository.ts`, `signals/lifecycle.repository.ts`
-        // and `signals/lifecycle.ts` have all left this list: the poller now
-        // publishes a signal into the lifecycle on every cycle and reconciles
-        // the closed ones into measurements on the same cycle. This test failed
-        // each time it happened, which is what it is for — the change is made
-        // deliberately and written down, instead of being noticed in a report a
-        // year later.
+        // What is left, and it is worth reading rather than skimming:
         //
-        // What is left is smaller and quieter, and worth saying plainly:
-        // `instruments/classify.ts` — PHASE 14's data-learned asset classifier —
-        // and `instruments/asset.repository.ts` — the registry migration 15 was
-        // written to move the code onto — still have tests and no callers.
-        // `backtest/optimizer.ts` is the second reader of global config that
-        // M4 could never account for, because it is not called at all.
+        // `instruments/classify.ts` is PHASE 14 — the data-learned asset
+        // classifier — and it is the last piece of the chain this project has
+        // written without connecting. It is also the only consumer that would
+        // make the `source = 'learned'` column mean anything, and the only
+        // thing that could write a `category` the configuration never claimed.
+        //
+        // `backtest/optimizer.ts` is the second reader of global config that M4
+        // could not account for, and the reason is simply that it is not called.
         //
         // **The second promotion ladder.** `rule-registry.ts` holds 312 lines
         // and disagrees with the ladder in use about whether a rule may be
