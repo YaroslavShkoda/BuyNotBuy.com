@@ -1,3 +1,5 @@
+import type { SignalDirection } from '../../types/direction.js';
+
 export type ForwardHorizon = '1h' | '4h' | '24h';
 /** Hours each horizon spans. Kept as data so a new one is a single entry. */
 export const FORWARD_HORIZONS: Record<ForwardHorizon, number> = {
@@ -13,7 +15,7 @@ export interface IndicatorVote {
     symbol: string;
     /** Matches `IndicatorAnalysis.name`, so a vote is traceable to its reason. */
     indicator: string;
-    signal: 'LONG' | 'SHORT' | 'NEUTRAL';
+    signal: SignalDirection;
     weight: number;
     price: number;    /**
      * Return the price made after the vote, as a fraction: 0.01 is +1%.
@@ -41,7 +43,7 @@ export interface UnsettledVote {
      */
     indicator: string;
     price: number;
-    signal: 'LONG' | 'SHORT' | 'NEUTRAL';
+    signal: SignalDirection;
     /** Horizons that have no value yet. */
     pending: ForwardHorizon[];
 }

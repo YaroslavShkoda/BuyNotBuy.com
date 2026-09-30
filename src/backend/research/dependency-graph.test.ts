@@ -180,21 +180,20 @@ describe('this codebase, measured', () => {
     }, 30000);
 
     it('reports the violations that remain, and pins them exactly', () => {
-        // Five, and pinned as a list rather than a count so that fixing one is
-        // a visible edit. Three of them are the frozen contract.
+        // Four, and pinned as a list rather than a count so that fixing one is
+        // a visible edit.
         //
-        // It was seven. The two that went were
-        // `indicators/performance/indicator-performance.service.ts` reaching into
-        // `history/` for `bounded-write-buffer.js` and for the `BacklogState` the
-        // buffer produces. Both were true statements about the wrong file: the
-        // buffer's own header says it is shared by two write paths and names the
-        // second one as being in `indicators/`, and `indicators` is declared a
-        // leaf that may import nothing. A shared utility filed inside one
-        // consumer's domain made the other consumer commit a layering violation
-        // every time it used the thing built to help it. It moved to
-        // `observability/`, which the layer table already puts in UNIVERSAL,
-        // and `BacklogState` moved with it because it is the buffer's own two
-        // counters renamed.
+        // Three of them are the frozen `types/analysis.ts` contract and are the
+        // owner's decision, not this project's. One is real.
+        //
+        // It was five. What went was `strategies/types.ts → signals/signal.types.ts`,
+        // which existed only because the three direction literals had four
+        // separate declarations and `signals/` held one of them. The vocabulary
+        // moved to `types/direction.ts`, which the layer table puts in
+        // UNIVERSAL, and every site now names it: `strategies/types.ts`,
+        // `strategies/decision-log.repository.ts` (six sites) and
+        // `indicators/performance/`. The guard was reporting a real file layout
+        // and is now satisfied by the layout rather than by a declaration.
         //
         // Each count here was measured on both sides — stash, run, restore, run
         // — rather than concluded from the edit. Pinned as edges, not a total,
@@ -205,7 +204,6 @@ describe('this codebase, measured', () => {
 
         expect(found).toEqual([
             'config/strategy-fingerprint.ts → strategies/strategy-fingerprint.ts',
-            'strategies/types.ts → signals/signal.types.ts',
             'types/analysis.ts → indicators/divergence.service.ts',
             'types/analysis.ts → indicators/indicator.service.ts',
             'types/analysis.ts → signals/signal.types.ts',

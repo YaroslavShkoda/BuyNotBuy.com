@@ -1,5 +1,5 @@
 import type { Candle } from '../types/market.js';
-import type { IndicatorSignal } from '../signals/signal.types.js';
+import type { SignalDirection } from '../types/direction.js';
 
 /**
  * What a strategy is, so that adding one does not mean editing the system.
@@ -46,7 +46,7 @@ export interface StrategyContext {
 }
 
 export interface StrategyDecision {
-    readonly direction: IndicatorSignal;
+    readonly direction: SignalDirection;
     /** [0, 1]. Meaningless when the direction is NEUTRAL. */
     readonly confidence: number;
     /** The Russian sentence a person reads, generated from the decision. */

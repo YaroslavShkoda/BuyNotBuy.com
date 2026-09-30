@@ -1,5 +1,6 @@
 import { query } from '../db/pool.js';
 
+import type { SignalDirection } from '../types/direction.js';
 import type { StrategyKey } from './types.js';
 
 /**
@@ -22,16 +23,16 @@ export interface DecisionEntry {
     readonly strategyVersionId: number | null;
     readonly primary: {
         readonly rule: StrategyKey;
-        readonly direction: 'LONG' | 'SHORT' | 'NEUTRAL';
+        readonly direction: SignalDirection;
         readonly confidence: number;
     };
     readonly fallback: {
         readonly rule: StrategyKey;
-        readonly direction: 'LONG' | 'SHORT' | 'NEUTRAL';
+        readonly direction: SignalDirection;
         readonly confidence: number;
     } | null;
     readonly publishedRule: StrategyKey;
-    readonly publishedDirection: 'LONG' | 'SHORT' | 'NEUTRAL';
+    readonly publishedDirection: SignalDirection;
     readonly suppressed: boolean;
     readonly at: number;
 }
@@ -57,7 +58,7 @@ export interface ShadowReport {
     readonly suppressed: number;
     readonly agreement: number;
     readonly byDirection: Readonly<
-        Record<'LONG' | 'SHORT' | 'NEUTRAL', number>
+        Record<SignalDirection, number>
     >;
     readonly breakdown: readonly {
         readonly rule: StrategyKey;
@@ -138,7 +139,7 @@ export function createDecisionLogRepository(): DecisionLogRepository {
             const publishable = cycles - suppressed;
 
             const byDirection = await query<{
-                fallback_direction: 'LONG' | 'SHORT' | 'NEUTRAL';
+                fallback_direction: SignalDirection;
                 count: string;
             }>(
                 `SELECT fallback_direction, COUNT(*) AS count
@@ -149,7 +150,7 @@ export function createDecisionLogRepository(): DecisionLogRepository {
                 [since],
             );
 
-            const counts: Record<'LONG' | 'SHORT' | 'NEUTRAL', number> = {
+            const counts: Record<SignalDirection, number> = {
                 LONG: 0,
                 SHORT: 0,
                 NEUTRAL: 0,

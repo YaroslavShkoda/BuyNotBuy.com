@@ -7,6 +7,7 @@ import {
 } from '../../observability/bounded-write-buffer.js';
 
 import type { BacklogState } from '../../observability/bounded-write-buffer.js';
+import type { SignalDirection } from '../../types/direction.js';
 import type { IndicatorVoteRepository } from './indicator-vote.repository.js';
 import type { Candle } from '../../types/market.js';
 import type { MarketAnalysis } from '../../types/analysis.js';
@@ -253,7 +254,7 @@ function candleCovering(candles: Candle[]): (instant: number) => CandleLookup {
     };
 }
 
-function directionOf(signal: 'LONG' | 'SHORT' | 'NEUTRAL'): 1 | -1 | 0 {
+function directionOf(signal: SignalDirection): 1 | -1 | 0 {
     if (signal === 'LONG') {
         return 1;
     }

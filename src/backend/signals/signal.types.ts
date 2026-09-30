@@ -1,7 +1,17 @@
-export type IndicatorSignal =
-    | 'LONG'
-    | 'SHORT'
-    | 'NEUTRAL';
+import type { SignalDirection } from '../types/direction.js';
+
+export type { SignalDirection } from '../types/direction.js';
+
+/**
+ * The old name, kept so nothing that already imports it has to change.
+ *
+ * Renaming an exported type is a breaking edit for every importer, and this is
+ * a cleanup rather than a migration. The vocabulary has a home every layer may
+ * import now — see `types/direction.ts` for why `signals/` was the wrong place
+ * to have declared it, and for what the layering guard was actually reporting
+ * when it objected to `strategies/types.ts` reaching in here.
+ */
+export type IndicatorSignal = SignalDirection;
 
 /**
  * Stable identity of an indicator, separate from its display name.
