@@ -15,6 +15,17 @@ export interface StoredSnapshot {
     lastCandleTs: number;
     candleCount: number;
     candlesHash: string;
+    /**
+     * Which venue the bars came from, and on what timeframe.
+     *
+     * **Null for a row written before migration 18**, and null is not a default
+     * and not "unknown": it means nobody recorded it, and a reader has to be
+     * able to tell that apart from a venue that happens to be called
+     * "unknown". The column stayed nullable for exactly that reason, and a
+     * fabricated default would have been the tidier choice.
+     */
+    readonly provider: string | null;
+    readonly interval: string | null;
 }
 
 export interface SignalSnapshotRepository {
@@ -34,6 +45,20 @@ export interface SignalSnapshotRepository {
         candles: Candle[];
         /** Included in the identity, so the same candles under a new strategy differ. */
         price: number;
+        /**
+         * The venue the bars came from, and the timeframe they are on.
+         *
+         * **Part of the identity, not decoration.** The fingerprint used to be
+         * `{symbol, price, strategyVersionId, candlesHash}`, so two venues
+         * serving identical candles hashed the same, the unique index on
+         * `(symbol, input_hash)` matched, and `ON CONFLICT DO NOTHING` threw
+         * the second away — leaving a row attributed to whichever venue arrived
+         * first and carrying nothing that said which one that was. `second-source.ts`
+         * measured why that is not cosmetic: the provider moved the numbers by
+         * +5.74% against +0.45% on one identical rule.
+         */
+        provider: string;
+        interval: string;
     }): Promise<{ id: number; created: boolean }>;
 
     byId(id: number): Promise<StoredSnapshot | null>;
@@ -51,11 +76,21 @@ interface SnapshotRow {
     last_candle_ts: number;
     candle_count: number;
     candles_hash: string;
+    /**
+     * Null for a row written before migration 18.
+     *
+     * Null is not "unknown" and is not a default: it means nobody recorded it,
+     * and a reader must be able to tell that apart from a venue that happens to
+     * be called "unknown". The column stayed nullable for exactly that reason.
+     */
+    provider: string | null;
+    interval: string | null;
 }
 
 const SELECT_COLUMNS = `
     id, created_at, symbol, strategy_version_id, input_hash, snapshot,
-    first_candle_ts, last_candle_ts, candle_count, candles_hash
+    first_candle_ts, last_candle_ts, candle_count, candles_hash,
+    provider, interval
 `;
 
 function toStored(row: SnapshotRow): StoredSnapshot {
@@ -70,6 +105,8 @@ function toStored(row: SnapshotRow): StoredSnapshot {
         lastCandleTs: row.last_candle_ts,
         candleCount: row.candle_count,
         candlesHash: row.candles_hash,
+        provider: row.provider,
+        interval: row.interval,
     };
 }
 
@@ -81,12 +118,18 @@ function toStored(row: SnapshotRow): StoredSnapshot {
  * that claims to have been derived from prices the database never saw, and the
  * recorded outcome would then be compared against a different market than the
  * one that produced it.
+ *
+ * The venue and the timeframe take part for the same reason, one step further:
+ * without them, two venues serving identical candles are the same record, and
+ * the second is not stored at all.
  */
 export function inputFingerprint(
     symbol: string,
     price: number,
     candles: Candle[],
     strategyVersionId: number,
+    provider: string,
+    interval: string,
 ): { inputHash: string; candlesHash: string; firstCandleTs: number; lastCandleTs: number } {
     const candlesHash = hashValue(
         candles.map((candle) => [
@@ -111,6 +154,8 @@ export function inputFingerprint(
             price,
             strategyVersionId,
             candlesHash,
+            provider,
+            interval,
         }),
     };
 }
@@ -124,14 +169,17 @@ export function createSignalSnapshotRepository(): SignalSnapshotRepository {
                     input.price,
                     input.candles,
                     input.strategyVersion.id,
+                    input.provider,
+                    input.interval,
                 );
 
             const result = await query<{ id: number }>(
                 `INSERT INTO signal_snapshot (
                      created_at, symbol, strategy_version_id, input_hash, snapshot,
-                     first_candle_ts, last_candle_ts, candle_count, candles_hash
+                     first_candle_ts, last_candle_ts, candle_count, candles_hash,
+                     provider, interval
                  )
-                 VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9)
+                 VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, $10, $11)
                  ON CONFLICT (symbol, input_hash) DO NOTHING
                  RETURNING id`,
                 [
@@ -144,6 +192,8 @@ export function createSignalSnapshotRepository(): SignalSnapshotRepository {
                     lastCandleTs,
                     input.candles.length,
                     candlesHash,
+                    input.provider,
+                    input.interval,
                 ],
             );
 

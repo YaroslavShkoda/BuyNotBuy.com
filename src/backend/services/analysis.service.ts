@@ -608,6 +608,12 @@ async function storeSnapshot(
             strategyVersion,
             price: analysis.price,
             candles: marketData.candles,
+            // Both are part of what the snapshot *is*, not of what it contains.
+            // Two venues can serve identical bars; without these the second
+            // snapshot is silently discarded as a duplicate of the first, and
+            // the row that survives is attributed to whichever arrived first.
+            provider: marketData.provider,
+            interval: marketConfig.candleInterval,
             snapshot: analysis,
         });
 

@@ -48,6 +48,8 @@ describe('signal snapshot', () => {
             strategyVersion: version,
             price: 104,
             candles: candles(5),
+            provider: 'binance',
+            interval: '1h',
             snapshot,
         });
 
@@ -62,6 +64,66 @@ describe('signal snapshot', () => {
         expect(read?.lastCandleTs).toBe(HOUR + 4 * 3_600_000);
     });
 
+    it('keeps a snapshot from a second venue instead of calling it a duplicate', async () => {
+        // The defect, seen from outside. Byte-identical candles from two venues
+        // used to produce the same input hash, the unique index on
+        // `(symbol, input_hash)` matched, and `ON CONFLICT DO NOTHING` returned
+        // the *first* row with `created: false` — so the second venue was not
+        // refused, it was silently folded into the first, and nothing anywhere
+        // said which venue had actually been measured.
+        const version = await createStrategyVersionRepository().resolveActive();
+        const repository = createSignalSnapshotRepository();
+
+        const fromBinance = await repository.record({
+            symbol: 'BTCUSDT',
+            strategyVersion: version,
+            price: 104,
+            candles: candles(5),
+            provider: 'binance',
+            interval: '1h',
+            snapshot,
+        });
+
+        const fromBybit = await repository.record({
+            symbol: 'BTCUSDT',
+            strategyVersion: version,
+            price: 104,
+            // The very same candles. Nothing is wrong with bybit; that is the
+            // point — the two venues agreeing is not a reason to keep one.
+            candles: candles(5),
+            provider: 'bybit',
+            interval: '1h',
+            snapshot,
+        });
+
+        expect(fromBinance.created).toBe(true);
+        expect(fromBybit.created).toBe(true);
+        expect(fromBybit.id).not.toBe(fromBinance.id);
+
+        const stored = await repository.byId(fromBybit.id);
+        expect(stored?.provider).toBe('bybit');
+    });
+
+    it('reads back which venue a snapshot came from', async () => {
+        const version = await createStrategyVersionRepository().resolveActive();
+        const repository = createSignalSnapshotRepository();
+
+        const { id } = await repository.record({
+            symbol: 'ETHUSDT',
+            strategyVersion: version,
+            price: 3000,
+            candles: candles(5, 3000),
+            provider: 'okx',
+            interval: '4h',
+            snapshot,
+        });
+
+        const read = await repository.byId(id);
+
+        expect(read?.provider).toBe('okx');
+        expect(read?.interval).toBe('4h');
+    });
+
     it('stores the same inputs once, however many times it is called', async () => {
         const version = await createStrategyVersionRepository().resolveActive();
         const repository = createSignalSnapshotRepository();
@@ -71,6 +133,8 @@ describe('signal snapshot', () => {
             strategyVersion: version,
             price: 104,
             candles: candles(5),
+            provider: 'binance',
+            interval: '1h',
             snapshot,
         });
 
@@ -79,6 +143,8 @@ describe('signal snapshot', () => {
             strategyVersion: version,
             price: 104,
             candles: candles(5),
+            provider: 'binance',
+            interval: '1h',
             snapshot,
         });
 
@@ -105,6 +171,8 @@ describe('signal snapshot', () => {
             strategyVersion: version,
             price: 104,
             candles: candles(5),
+            provider: 'binance',
+            interval: '1h',
             snapshot,
         });
 
@@ -116,6 +184,8 @@ describe('signal snapshot', () => {
             strategyVersion: version,
             price: 105,
             candles: candles(5),
+            provider: 'binance',
+            interval: '1h',
             snapshot,
         });
 
@@ -131,6 +201,8 @@ describe('signal snapshot', () => {
             strategyVersion: version,
             price: 104,
             candles: candles(5),
+            provider: 'binance',
+            interval: '1h',
             snapshot,
         });
 
@@ -146,6 +218,8 @@ describe('signal snapshot', () => {
             strategyVersion: version,
             price: 104,
             candles: edited,
+            provider: 'binance',
+            interval: '1h',
             snapshot,
         });
 
@@ -178,6 +252,8 @@ describe('signal snapshot', () => {
             strategyVersion: first,
             price: 104,
             candles: candles(5),
+            provider: 'binance',
+            interval: '1h',
             snapshot,
         });
 
@@ -186,6 +262,8 @@ describe('signal snapshot', () => {
             strategyVersion: second ?? first,
             price: 104,
             candles: candles(5),
+            provider: 'binance',
+            interval: '1h',
             snapshot,
         });
 
@@ -202,6 +280,8 @@ describe('signal snapshot', () => {
             strategyVersion: version,
             price: 104,
             candles: candles(5),
+            provider: 'binance',
+            interval: '1h',
             snapshot,
         });
 
@@ -243,7 +323,9 @@ describe('signal snapshot', () => {
                 strategyVersion: version,
                 price,
                 candles: candles(5, price),
-                snapshot,
+                provider: 'binance',
+            interval: '1h',
+            snapshot,
             });
         }
 
@@ -260,24 +342,59 @@ describe('signal snapshot', () => {
 
 describe('input fingerprint', () => {
     it('is stable for the same inputs', () => {
-        const first = inputFingerprint('BTCUSDT', 100, candles(3), 1);
-        const second = inputFingerprint('BTCUSDT', 100, candles(3), 1);
+        const first = inputFingerprint('BTCUSDT', 100, candles(3), 1, 'binance', '1h');
+        const second = inputFingerprint('BTCUSDT', 100, candles(3), 1, 'binance', '1h');
 
         expect(first.inputHash).toBe(second.inputHash);
     });
 
     it('changes when the symbol changes', () => {
-        const first = inputFingerprint('BTCUSDT', 100, candles(3), 1);
-        const second = inputFingerprint('ETHUSDT', 100, candles(3), 1);
+        const first = inputFingerprint('BTCUSDT', 100, candles(3), 1, 'binance', '1h');
+        const second = inputFingerprint('ETHUSDT', 100, candles(3), 1, 'binance', '1h');
 
         expect(first.inputHash).not.toBe(second.inputHash);
     });
 
     it('changes when the strategy changes', () => {
-        const first = inputFingerprint('BTCUSDT', 100, candles(3), 1);
-        const second = inputFingerprint('BTCUSDT', 100, candles(3), 2);
+        const first = inputFingerprint('BTCUSDT', 100, candles(3), 1, 'binance', '1h');
+        const second = inputFingerprint('BTCUSDT', 100, candles(3), 2, 'binance', '1h');
 
         expect(first.inputHash).not.toBe(second.inputHash);
+    });
+
+    it('changes when only the venue changes', () => {
+        // **The defect this pins.** The fingerprint was
+        // `{symbol, price, strategyVersionId, candlesHash}` — byte-identical
+        // candles from two venues hashed the same, the unique index on
+        // `(symbol, input_hash)` matched, `ON CONFLICT DO NOTHING` dropped the
+        // second snapshot, and the row that survived was attributed to whichever
+        // venue arrived first with nothing on it saying which. That is
+        // invariant 9, and `second-source.ts` is the reason it is not cosmetic:
+        // the provider moved the numbers by +5.74% against +0.45% on one rule.
+        const first = inputFingerprint('BTCUSDT', 100, candles(3), 1, 'binance', '1h');
+        const second = inputFingerprint('BTCUSDT', 100, candles(3), 1, 'bybit', '1h');
+
+        expect(first.inputHash).not.toBe(second.inputHash);
+    });
+
+    it('changes when only the timeframe changes', () => {
+        // Same series of bars, different question asked of it. Without this the
+        // two would be one record.
+        const first = inputFingerprint('BTCUSDT', 100, candles(3), 1, 'binance', '1h');
+        const second = inputFingerprint('BTCUSDT', 100, candles(3), 1, 'binance', '1d');
+
+        expect(first.inputHash).not.toBe(second.inputHash);
+    });
+
+    it('is unchanged by the venue when nothing else moves', () => {
+        // The negative control, and the reason the change is safe: the same
+        // venue re-reporting the same market must still be one record, or every
+        // page load would write a new row and the idempotence this fingerprint
+        // exists for would be gone.
+        const first = inputFingerprint('BTCUSDT', 100, candles(3), 1, 'binance', '1h');
+        const second = inputFingerprint('BTCUSDT', 100, candles(3), 1, 'binance', '1h');
+
+        expect(second.inputHash).toBe(first.inputHash);
     });
 });
 
