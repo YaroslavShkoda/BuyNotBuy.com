@@ -185,8 +185,12 @@ describe('production modules with no production caller', () => {
         // `strategy/evidence.repository.ts` and `services/promotion-gate.ts`,
         // attached to the shared repository so that every entry point —
         // including both research CLIs — reaches it. The second ladder still has
-        // no caller, which is a different question, written up in
-        // docs/roadmap-v2-status.md.
+        // no caller, and that is now a written decision rather than an
+        // oversight: `RuleStage` is a vocabulary the database cannot hold, and
+        // the mismatch is enumerated transition by transition in
+        // `strategy/stage-vocabulary.test.ts`. It stays on this list because
+        // nobody has decided what a retired rule means, and a module should not
+        // be wired up to a model the schema contradicts just to shorten a list.
         //
         // **`observability/health.registry.ts` left this list too, and it took a
         // lie with it.** It answered `ageMs: () => 0` and `stale: false`, so
@@ -213,4 +217,24 @@ describe('production modules with no production caller', () => {
 
         expect(productionImporters).toEqual([]);
     });
-});
+
+    /**
+     * Half a minute, and the default five seconds is not a statement about
+     * anything.
+     *
+     * Both tests here walk every production module and resolve its import
+     * graph. That is 199 files at the time of writing, and the cost is linear
+     * in the codebase: adding four production files — two commands and two
+     * reports — was enough to push this past the default budget in the full
+     * parallel run, while the same file passed alone. It is the same failure
+     * `contract-semantics` had, and the remedy is different on purpose: there
+     * the boot was repeated sixteen times and could be shared, and here the scan
+     * *is* the work — one whole-tree pass, nothing to share.
+     *
+     * Raising a limit is a change I distrust by default, so it is worth saying
+     * what makes this one different: the limit was never about this test. It was
+     * a default applied to something whose duration tracks the size of the
+     * repository, and the assertion it guards — that nothing production is
+     * stranded — is worth a few seconds of honest work.
+     */
+}, 30_000);
