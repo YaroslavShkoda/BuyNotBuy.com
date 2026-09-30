@@ -87,7 +87,6 @@ describe('production modules with no production caller', () => {
         // fails on every run for a reason that has nothing to do with the
         // finding. The commentary on what each entry means is below.
         expect(stranded).toEqual([
-            'backtest/optimizer.ts',
             'history/backfill.service.ts',
             'strategy/rule-registry.ts',
         ]);
@@ -144,6 +143,28 @@ describe('production modules with no production caller', () => {
         //
         // `market_candles` and `signal_outcome` are refused outright, which the
         // live run confirmed along with the counts on both sides of the prune.
+
+        // **`backtest/optimizer.ts` left this list, and running it found two
+        // things reading the code would not have.**
+        //
+        // The caller is `optimize.cli.ts`, a command line. A grid search that
+        // promoted its own winner would skip the seven rungs between a number
+        // and a rule; the ladder is Signal → Outcome → Statistics → Candidate →
+        // Backtest → Walk-forward → Shadow → Approval → Production, and the
+        // search's output still has to be read by a person before any of it
+        // happens.
+        //
+        // First: `startIndex` is where a signal may be *computed*, not where the
+        // series starts. My first version passed `0` and the search died on
+        // `MARKET_INSUFFICIENT_HISTORY` — a message about EMA warm-up, correct,
+        // and about the wrong bar.
+        //
+        // Second, and the one worth more: a real search produced a winner of
+        // −0.12% per trade that **passed the spike check**. Its neighbours are
+        // just as losing, so the peak test had nothing to object to. "Not a
+        // spike" means the number is not an artefact; it says nothing about the
+        // number being positive, and the report was ending on a reassuring line
+        // after a passing check. It now says which of the two it found.
 
         // `rule-registry.ts` is still in the list, and **I nearly took it out for
         // the wrong reason.** What round 23 changed was the finding behind it,

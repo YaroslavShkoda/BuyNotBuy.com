@@ -10,6 +10,7 @@
     "dev": "next dev",
     "backend": "node --env-file=.env --import=tsx src/backend/server.ts",
     "backtest": "node --env-file=.env --import=tsx src/backend/backtest/backtest.cli.ts",
+    "optimize": "node --env-file=.env --import=tsx src/backend/backtest/optimize.cli.ts",
     "indicators": "node --env-file=.env --import=tsx src/backend/indicators/performance/indicator-performance.cli.ts",
     "build": "next build && npm run build:backend",
     "build:backend": "tsc -p src/backend/tsconfig.build.json",
