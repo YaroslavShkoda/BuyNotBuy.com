@@ -76,6 +76,67 @@ export interface SignalOutcome {
     readonly closedBy: 'invalidated' | 'expired' | 'reversed' | null;
 }
 
+/**
+ * The remaining outcome types PHASE 12.1 asks for, read off a stored horizon.
+ *
+ * `hit target` and `hit stop` are not columns, and adding them as columns would
+ * be the mistake this file's configuration is written to prevent. A target is
+ * policy — a number somebody chose — and the whole argument of
+ * `breakevenPercent` is that a measurement stays a measurement and a cost
+ * model stays an assumption, so that a performance table can be recomputed when
+ * the fee schedule changes rather than having to be re-measured. Baking "the
+ * target was 2%" into the row would make every stored outcome wrong the moment
+ * somebody decided the target was 2.5%.
+ *
+ * So they are asked instead, afterwards, from the excursion that was recorded:
+ * if the best the price did over the window was at least the target, the target
+ * was reached — and *which* of the two happened first is deliberately not
+ * answered, because a stored maximum cannot say that, and an answer that
+ * guessed would be worse than no answer.
+ */
+export interface ExcursionQuestion {
+    /** How far, as a fraction of the entry price, for the target. */
+    readonly targetFraction: number;
+    /** How far, as a positive fraction, for the stop. */
+    readonly stopFraction: number;
+}
+
+export interface ExcursionAnswers {
+    /** True only when the excursions were recorded at all. */
+    readonly answered: boolean;
+    readonly hitTarget: boolean;
+    readonly hitStop: boolean;
+    /** How far the target was left short, as a fraction. Zero when it was hit. */
+    readonly missedTargetBy: number;
+}
+
+export function readExcursions(
+    horizon: HorizonOutcome,
+    question: ExcursionQuestion,
+): ExcursionAnswers {
+    if (horizon.maxFavourable === null || horizon.maxAdverse === null) {
+        // Not "no" — unanswered. Reporting `false` here would make a table of
+        // targets look like a table where nothing reached one, which is the
+        // failure this module exists to avoid in the other direction.
+        return {
+            answered: false,
+            hitTarget: false,
+            hitStop: false,
+            missedTargetBy: question.targetFraction,
+        };
+    }
+
+    const hitTarget = horizon.maxFavourable >= question.targetFraction;
+    const hitStop = horizon.maxAdverse <= -question.stopFraction;
+
+    return {
+        answered: true,
+        hitTarget,
+        hitStop,
+        missedTargetBy: hitTarget ? 0 : question.targetFraction - horizon.maxFavourable,
+    };
+}
+
 export interface OutcomeInput {
     readonly symbol: string;
     /** The bar the signal was published on. */

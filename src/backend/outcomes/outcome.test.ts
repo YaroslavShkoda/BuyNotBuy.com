@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
 
-import { measureOutcome } from './outcome.js';
+import { measureOutcome, readExcursions } from './outcome.js';
 import { OutcomeConfigParser } from '../config/outcome.config.js';
 
 import type { Candle } from '../types/market.js';
@@ -58,6 +58,111 @@ function measure(
         ...overrides,
     });
 }
+
+/**
+ * One horizon, chosen by how many bars it reaches forward.
+ *
+ * Taking `horizons[0]` would have been the convenient way to write these tests
+ * and it would have quietly changed what they measure: the first horizon is one
+ * bar, and a question about a twelve-bar window is a different question. Three
+ * of them failed against the engine before I said which horizon I meant.
+ */
+function horizonAt(bars: number, candles: Candle[], overrides = {}) {
+    const found = measure(candles, overrides).horizons.find((h) => h.bars === bars);
+
+    expect(found).toBeDefined();
+
+    return found!;
+}
+
+describe('the outcome types PHASE 12.1 asks about', () => {
+    it('answers "did it reach the target" from the excursion already recorded', () => {
+        // PHASE 12.1 lists `hit target` and `hit stop` among the outcome types
+        // and says the schema is better prepared for them. They are deliberately
+        // *not* columns: a target is policy, and baking it into the row would
+        // make every stored outcome wrong the moment somebody changed it. The
+        // question is asked afterwards, from what was measured.
+        const horizon = horizonAt(12, path(40, 0.01));
+
+        const hit = readExcursions(horizon, { targetFraction: 0.05, stopFraction: 0.05 });
+        const missed = readExcursions(horizon, { targetFraction: 5, stopFraction: 0.05 });
+
+        expect(hit.answered).toBe(true);
+        expect(hit.hitTarget).toBe(true);
+        expect(missed.hitTarget).toBe(false);
+        expect(missed.missedTargetBy).toBeGreaterThan(0);
+    });
+
+    it('answers "was it stopped" from the adverse excursion', () => {
+        // A falling market under a long signal: the stop is the whole story.
+        const horizon = horizonAt(12, path(40, -0.01));
+
+        const stopped = readExcursions(horizon, { targetFraction: 0.05, stopFraction: 0.02 });
+        const survived = readExcursions(horizon, { targetFraction: 0.05, stopFraction: 0.9 });
+
+        expect(stopped.hitStop).toBe(true);
+        expect(survived.hitStop).toBe(false);
+    });
+
+    it('says it cannot answer, rather than answering "no", when nothing was recorded', () => {
+        // The failure this guards is the mirror image of the one the module
+        // already guards: a table of targets where nothing reached one looks the
+        // same as a table where the question was never asked.
+        const off = OutcomeConfigParser.parse({
+            horizons: [3],
+            breakevenPercent: 0.1,
+            trackExcursions: false,
+        });
+
+        const [horizon] = measure(path(40, 0.01), { config: off }).horizons;
+
+        expect(horizon?.maxFavourable).toBeNull();
+
+        const answer = readExcursions(horizon!, { targetFraction: 0.05, stopFraction: 0.05 });
+        expect(answer.answered).toBe(false);
+        expect(answer.hitTarget).toBe(false);
+        expect(answer.hitStop).toBe(false);
+    });
+
+    it('reads the same number whichever way the signal pointed', () => {
+        // The excursions are measured from the entry in the signal's direction,
+        // so a short's best case is the fall. If the reader did not respect that
+        // it would report a short that fell as a target missed.
+        const asLong = readExcursions(
+            horizonAt(12, path(40, 0.01), { direction: 'LONG' }),
+            { targetFraction: 0.05, stopFraction: 0.05 },
+        );
+        const asShort = readExcursions(
+            horizonAt(12, path(40, -0.01), { direction: 'SHORT' }),
+            { targetFraction: 0.05, stopFraction: 0.05 },
+        );
+
+        expect(asLong.hitTarget).toBe(true);
+        expect(asShort.hitTarget).toBe(true);
+    });
+
+    it('never reports a target as hit without having reached it', () => {
+        fc.assert(
+            fc.property(
+                fc.double({ min: 0.01, max: 0.5, noNaN: true }),
+                fc.double({ min: 0.01, max: 0.5, noNaN: true }),
+                (targetFraction, stopFraction) => {
+                    const [horizon] = measure(path(30, 0.004)).horizons;
+                    const answer = readExcursions(horizon!, { targetFraction, stopFraction });
+
+                    // The claim is only allowed when the recorded best is at
+                    // least the target, or when the best was never recorded.
+                    return (
+                        !answer.hitTarget ||
+                        answer.missedTargetBy === 0 ||
+                        (horizon?.maxFavourable ?? 0) >= targetFraction
+                    );
+                },
+            ),
+            { numRuns: 120 },
+        );
+    });
+});
 
 describe('a signal is measured against what came after it', () => {
     it('counts bars forward from the entry, not including it', () => {

@@ -39,11 +39,20 @@ const OutcomeConfigSchema = z
         /**
          * Whether to compute the best and worst the price did in between.
          *
-         * Off by default and cheap to turn on, because the two together are
-         * what tells a system to have been right: a signal that reaches its
+         * **On by default, and the comment that used to stand here said "off by
+         * default" — a note denying the value this file ships.** The reason it
+         * is on is the rest of its own argument: a signal that reaches its
          * target on the third bar and comes back is a different result from one
          * that holds, and a table showing only the endpoint cannot tell them
          * apart.
+         *
+         * It is also the only way two questions can be answered afterwards. Given
+         * only the closing price of a window, "did it reach the target first?"
+         * and "was it stopped first?" are both unanswerable, and asking them
+         * later is the normal way to use a record — a target is policy, and
+         * policy changes, while the measurement should not have to be redone when
+         * it does. That is the same reason `breakevenPercent` is charged against
+         * the return instead of subtracted from it.
          */
         trackExcursions: z.coerce.boolean(),
     })
