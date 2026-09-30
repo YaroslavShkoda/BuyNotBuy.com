@@ -48,6 +48,16 @@ export interface StrategyRuleRecord {
     readonly promotedAt: number;
     readonly retiredAt: number | null;
     readonly createdAt: number;
+    /**
+     * The configuration this promotion happened under, or null when nobody said.
+     *
+     * Null is not a gap to be filled by inference. The rule's own parameters and
+     * the indicator configuration live in different spaces, so there is nothing
+     * to compute this from — a rule whose parameters are `{channelPeriod: 20}`
+     * has no representation in `strategy_version.config` at all. The evidence
+     * gate has to refuse on a null rather than guess at one.
+     */
+    readonly strategyVersionId: number | null;
 }
 
 /**
@@ -84,17 +94,32 @@ export interface Promotion {
     readonly parameters: Record<string, unknown>;
     /** What the decision rests on. Required, and may not be empty. */
     readonly evidence: string;
+    /**
+     * The strategy version in force when this promotion was decided.
+     *
+     * Optional only because a promotion may predate the column that records it;
+     * it is **not** optional because a promotion can happen without a caller
+     * that knows, and writing null there would produce a row that looks
+     * complete and can never be joined to a measurement.
+     */
+    readonly strategyVersionId?: number | null;
     readonly at?: number;
 }
 
 export function createStrategyRuleRepository(): StrategyRuleRepository {
     const columns =
-        'id, rule_id, stage, parameters, promoted_at, retired_at, created_at';
+        'id, rule_id, stage, parameters, promoted_at, retired_at, created_at, strategy_version_id';
 
     return {
         async history(ruleId: string): Promise<readonly StrategyRuleRecord[]> {
             const { rows } = await query<Record<string, unknown>>(
-                `SELECT id, rule_id, stage, parameters, promoted_at, retired_at, created_at
+                // `${columns}`, not a list spelled out again. A promotion that
+                // names its configuration came back attributed from `promote`
+                // and unattributed from `history`, because this line had its
+                // own copy of the column list and was one column behind. The
+                // failure was silent in both directions: the row was written
+                // correctly and read back as "unknown".
+                `SELECT ${columns}
                    FROM signal_strategy_version
                   WHERE rule_id = $1
                   ORDER BY promoted_at, id`,
@@ -177,8 +202,9 @@ export function createStrategyRuleRepository(): StrategyRuleRepository {
             // and then production should show both.
             const { rows } = await query<Record<string, unknown>>(
                 `INSERT INTO signal_strategy_version
-                     (rule_id, stage, parameters, promoted_at, retired_at, created_at)
-                 VALUES ($1, $2, $3::jsonb, $4, NULL, $4)
+                     (rule_id, stage, parameters, promoted_at, retired_at, created_at,
+                      strategy_version_id)
+                 VALUES ($1, $2, $3::jsonb, $4, NULL, $4, $5)
                  RETURNING ${columns}`,
                 [
                     input.ruleId,
@@ -194,6 +220,7 @@ export function createStrategyRuleRepository(): StrategyRuleRepository {
                         evidence: input.evidence,
                     }),
                     input.at ?? Date.now(),
+                    input.strategyVersionId ?? null,
                 ],
             );
 
@@ -221,6 +248,10 @@ function toRecord(row: Record<string, unknown>): StrategyRuleRecord {
                 ? null
                 : Number(row['retired_at']),
         createdAt: Number(row['created_at']),
+        strategyVersionId:
+            row['strategy_version_id'] === null || row['strategy_version_id'] === undefined
+                ? null
+                : Number(row['strategy_version_id']),
     };
 }
 

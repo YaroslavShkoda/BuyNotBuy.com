@@ -21,6 +21,71 @@ const promotion = (over: Partial<Promotion> = {}): Promotion => ({
     ...over,
 });
 
+describe('a promotion remembers which configuration it was under', () => {
+    const rules = createStrategyRuleRepository();
+
+    /** A real version row, because the column has a foreign key and should. */
+    const aVersion = async (): Promise<number> => {
+        const pool = getTestPool();
+        const { rows } = await pool.query<{ id: string }>(
+            `INSERT INTO strategy_version (created_at, name, description, config, config_hash)
+             VALUES ($1, 'bridge-test', '', '{}'::jsonb, $2)
+             RETURNING id`,
+            [NOW, `bridge-${Math.random()}`],
+        );
+
+        return Number(rows[0]?.id);
+    };
+
+    beforeEach(async () => {
+        const pool = getTestPool();
+
+        await pool.query('TRUNCATE signal_strategy_version');
+    });
+
+    it('records the strategy version so the row can be joined to a measurement', async () => {
+        // **The join that did not exist.** Measurements are filed under
+        // `strategy_version`; the ladder was filed under `rule_id`; and nothing
+        // anywhere recorded that a promotion happened under one particular
+        // configuration. Without this, the evidence gate could not be wired
+        // even with complete data — there was nothing to query.
+        const version = await aVersion();
+        const record = await rules.promote(promotion({ strategyVersionId: version }));
+
+        expect(record.strategyVersionId).toBe(version);
+    });
+
+    it('survives the round trip, which is the only thing that proves it is stored', async () => {
+        const version = await aVersion();
+
+        await rules.promote(promotion({ strategyVersionId: version }));
+
+        const [current] = await rules.history('donchian-20');
+
+        expect(current?.strategyVersionId).toBe(version);
+    });
+
+    it('refuses a version that does not exist', async () => {
+        // SQLSTATE 23503. A promotion that named a configuration nobody has
+        // would produce a row pointing at nothing, and the evidence gate would
+        // read it as "this rule was measured under version 9999" — a number
+        // with no row behind it is worse than a null, because a null is
+        // visibly absent.
+        await expect(rules.promote(promotion({ strategyVersionId: 999_999 }))).rejects.toThrow();
+    });
+
+    it('says it does not know rather than naming a plausible version', async () => {
+        // Null here is a fact the evidence gate must refuse on, not a gap to
+        // fill. The rule's parameters and the indicator configuration are
+        // different spaces, so there is nothing to compute this from — a rule
+        // with `{channelPeriod: 20}` has no representation in
+        // `strategy_version.config` at all.
+        const record = await rules.promote(promotion());
+
+        expect(record.strategyVersionId).toBeNull();
+    });
+});
+
 describe('a rule cannot reach production without passing through', () => {
     const rules = createStrategyRuleRepository();
 
