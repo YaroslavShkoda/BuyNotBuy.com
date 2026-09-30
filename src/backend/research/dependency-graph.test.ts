@@ -180,30 +180,39 @@ describe('this codebase, measured', () => {
     }, 30000);
 
     it('reports the violations that remain, and pins them exactly', () => {
-        // Four, and pinned as a list rather than a count so that fixing one is
-        // a visible edit.
+        // Three, and pinned as a list rather than a count so that fixing one is
+        // a visible edit. All three are the same file, and all three are the
+        // frozen `types/analysis.ts` contract: the owner's decision, not this
+        // project's.
         //
-        // Three of them are the frozen `types/analysis.ts` contract and are the
-        // owner's decision, not this project's. One is real.
+        // It was five. Two went:
         //
-        // It was five. What went was `strategies/types.ts → signals/signal.types.ts`,
-        // which existed only because the three direction literals had four
-        // separate declarations and `signals/` held one of them. The vocabulary
-        // moved to `types/direction.ts`, which the layer table puts in
-        // UNIVERSAL, and every site now names it: `strategies/types.ts`,
-        // `strategies/decision-log.repository.ts` (six sites) and
-        // `indicators/performance/`. The guard was reporting a real file layout
-        // and is now satisfied by the layout rather than by a declaration.
+        // `strategies/types.ts → signals/signal.types.ts` existed only because
+        // the three direction literals had four separate declarations and
+        // `signals/` held one of them. The vocabulary moved to
+        // `types/direction.ts`, which the table puts in UNIVERSAL, and every
+        // site names it now. The guard was reporting a real file layout.
         //
-        // Each count here was measured on both sides — stash, run, restore, run
-        // — rather than concluded from the edit. Pinned as edges, not a total,
+        // `config/strategy-fingerprint.ts → strategies/strategy-fingerprint.ts`
+        // was not a defect at all, and removing it would have been the wrong
+        // fix. The fingerprint reads `STRATEGY_FACTORIES` so that installing a
+        // rule moves the configuration hash; without it a new rule would file
+        // every later signal under a configuration it is not part of. The
+        // alternative is `strategies → config`, which already exists, and the
+        // pair is a cycle that fails at startup as an undefined binding. The
+        // edge is now declared with its reason, because a table that can only
+        // say "forbidden" cannot describe a trade-off somebody made — and the
+        // next reader would have either re-added the import or deleted the
+        // fingerprint.
+        //
+        // Each count was measured on both sides — stash, run, restore, run —
+        // rather than concluded from the edit. Pinned as edges, not a total,
         // because a total only says something changed and this list says what.
         const found = violations(buildGraph(realRoot))
             .map((v) => `${v.from} → ${v.to}`)
             .sort();
 
         expect(found).toEqual([
-            'config/strategy-fingerprint.ts → strategies/strategy-fingerprint.ts',
             'types/analysis.ts → indicators/divergence.service.ts',
             'types/analysis.ts → indicators/indicator.service.ts',
             'types/analysis.ts → signals/signal.types.ts',

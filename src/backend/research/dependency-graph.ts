@@ -108,7 +108,31 @@ export const LAYERS: readonly Layer[] = [
     // split it, so the registry is an input to whether the config is valid.
     // Without that edge a bad symbol passed validation and the failure arrived
     // from a venue as an HTTP 400 hours later.
-    { name: CONFIG, composition: false, mayImport: ['instruments'] },
+    //
+    // May also import `strategies`, and this one is said out loud because a
+    // config that imports a strategy looks exactly like the mistake this table
+    // exists to prevent.
+    //
+    // `config/strategy-fingerprint.ts` reads `STRATEGY_FACTORIES` so that
+    // installing a rule moves the configuration hash. Without it the hash would
+    // stay the same, no new `strategy_version` row would appear, and every
+    // signal after that point would be filed under a configuration in which the
+    // new rule does not exist — the exact failure the fingerprint was built to
+    // prevent, reintroduced by the list that feeds it.
+    //
+    // The alternative is not "no edge", it is `strategies → config`, which is
+    // what the registry and every strategy module already do. Both together is
+    // a cycle: config → strategies → indicators → config. A cycle is a worse
+    // defect than a declared edge, and it fails as an undefined binding at
+    // startup rather than as a compile error, which is the worst way for a
+    // build to fail. The fingerprint is already split into its own file for
+    // precisely this reason.
+    //
+    // So the edge is declared rather than removed. A table that can only say
+    // "forbidden" cannot describe a trade-off somebody actually made, and the
+    // next reader would either re-add the import or delete the fingerprint —
+    // both worse than the edge being visible here.
+    { name: CONFIG, composition: false, mayImport: ['instruments', 'strategies'] },
     // A pure leaf. No I/O, no database, no clock — which is what lets its
     // tests prove something about parsing rather than about a connection.
     //
