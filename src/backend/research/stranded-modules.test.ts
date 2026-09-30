@@ -88,7 +88,6 @@ describe('production modules with no production caller', () => {
         // finding. The commentary on what each entry means is below.
         expect(stranded).toEqual([
             'backtest/optimizer.ts',
-            'db/retention.store.ts',
             'history/backfill.service.ts',
             'signals/explanation.ts',
             'strategy/rule-registry.ts',
@@ -132,6 +131,21 @@ describe('production modules with no production caller', () => {
         // nothing else. So the gate on self-promotion was a vocabulary, and the
         // only code that gated it on evidence was sitting in this list, unused.
         //
+        // **`db/retention.store.ts` left this list, and wiring it up found a
+        // policy that had never been run.** The retention policies were declared
+        // in code, read by the health registry, and applied by nobody: the system
+        // declared a three-year window for its history and kept everything
+        // forever. The first real prune answered `42703` — the
+        // `signal_transition` policy named a time column called `at`, and the
+        // table has `candle_timestamp` and `created_at`. Nothing could have
+        // caught it while the policy was never executed; it is now
+        // `candle_timestamp`, which is also the right answer for a separate
+        // reason, and every policy's column is checked against the real schema
+        // by a test.
+        //
+        // `market_candles` and `signal_outcome` are refused outright, which the
+        // live run confirmed along with the counts on both sides of the prune.
+
         // `rule-registry.ts` is still in the list, and **I nearly took it out for
         // the wrong reason.** What round 23 changed was the finding behind it,
         // not the module: the gate it implements now runs, through

@@ -5,6 +5,8 @@ import { marketConfig } from './config/market.config.js';
 import { assertSignalHistorySchemaReady } from './history/signal-history.repository.js';
 import { getStrategyRuleRepository } from './strategies/candidate.repository.js';
 import { createEvidenceGate } from './services/promotion-gate.js';
+import { createRetentionRunner } from './services/retention.runner.js';
+import { getRetentionStore } from './db/retention.store.js';
 import { getSignalSnapshotRepository } from './analysis/signal-snapshot.repository.js';
 import { observeNewestBar } from './observability/health.registry.js';
 import { getAssetRepository } from './instruments/asset.repository.js';
@@ -60,6 +62,15 @@ let poller: Poller | null = null;
  * every change to one silently change the guarantee of the other.
  */
 let ingestion: IngestionScheduler | null = null;
+
+/**
+ * One pruner for the process, not one per cycle.
+ *
+ * Module-level because the clock is the state: a runner that remembered only
+ * its own last run would be recreated on every tick and prune on every tick,
+ * which is the opposite of what the clock is for.
+ */
+const retention = createRetentionRunner(getRetentionStore());
 
 /**
  * Drains both write backlogs and reports what could not be saved.
@@ -399,6 +410,36 @@ async function startServer() {
                         app.log.info(
                             { event: 'signal_outcomes_reconciled', ...measured },
                             'signal_outcomes_reconciled',
+                        );
+                    }
+
+                    // Retention, last on the cycle.
+                    //
+                    // Last because it is the only destructive thing here and it
+                    // should run against a database this cycle has already
+                    // written to, not against the state it found. Once a day, on
+                    // its own clock, so the poller cadence does not decide how
+                    // often a DELETE runs.
+                    //
+                    // `market_candles` and `signal_outcome` are protected
+                    // policies and are refused outright — the bars every
+                    // historical claim is measured against, and the only table
+                    // that says which signals turned out right.
+                    const pruned = await retention.maybeRun(Date.now());
+
+                    if (!pruned.skipped && pruned.report !== null) {
+                        app.log.info(
+                            {
+                                event: 'retention_run',
+                                deleted: pruned.report.totalDeleted,
+                                durationMs: pruned.report.totalDurationMs,
+                                tables: pruned.report.results.length,
+                                // Reported even when nothing was deleted: a prune
+                                // that ran and found nothing and a prune that
+                                // never ran produce identical silence.
+                                refused: pruned.report.refused.map((entry) => entry.table),
+                            },
+                            'retention_run',
                         );
                     }
                 },

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { getPool } from './pool.js';
 import {
     DEFAULT_RETENTION_POLICIES,
     describeTable,
@@ -346,3 +347,23 @@ export function createIndexAuditStore(
 }
 
 export { RetentionRunRowSchema };
+
+let shared: RetentionStore | null = null;
+
+/**
+ * The store production uses, built here rather than by the caller.
+ *
+ * **This module is in `db/`, and that is the whole reason the singleton lives
+ * here.** My first wiring had the server import the pool itself, which put a
+ * `db/pool.js` import in a domain file and failed the audit — and the audit's
+ * own note says its one exemption is "not a general one", because a second
+ * exemption added to make one's own change legal is a hole wearing a reason.
+ *
+ * So the composition happens in the layer allowed to do it, and the server asks
+ * for the store the same way it asks every other repository.
+ */
+export function getRetentionStore(): RetentionStore {
+    shared ??= createRetentionStore(getPool());
+
+    return shared;
+}

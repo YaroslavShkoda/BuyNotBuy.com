@@ -86,7 +86,19 @@ export const DEFAULT_RETENTION_POLICIES: readonly RetentionPolicy[] =
             keepDays: 1095,
             rationale:
                 'Журнал переходов нужен, чтобы объяснить, почему сигнал закрылся. Стареет вместе с историей.',
-            timeColumn: 'at',
+            // **`candle_timestamp`, not `at`.** The policy named a column the
+            // table does not have, and because nothing in the project ever ran
+            // a policy, nothing ever found out: SQLSTATE 42703 on the first
+            // prune. A test now checks every policy's column against the real
+            // schema, which is what turned a typo into a five-minute fix
+            // instead of a first cycle that throws.
+            //
+            // It is also the right column for the right reason. `created_at`
+            // is the wall clock, and a transition dated by the clock cannot be
+            // lined up with the bars that caused it — the one thing this table
+            // exists to explain. Ageing a transition by its bar ages it with
+            // the market.
+            timeColumn: 'candle_timestamp',
             protected: false,
         },
         {
