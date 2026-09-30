@@ -161,3 +161,77 @@ export function diffDatasets(
         .filter((field) => left[field] !== right[field])
         .map((field) => ({ field, left: left[field], right: right[field] }));
 }
+
+/**
+ * The candle shape `signal_snapshot` stores: the extent and the count, with no
+ * hash.
+ *
+ * Deliberately narrow. This is what survives the crossing between the two sides
+ * of the evidence chain, and nothing more.
+ */
+export interface SnapshotExtent {
+    readonly firstCandleTs: number;
+    readonly lastCandleTs: number;
+    readonly candleCount: number;
+}
+
+/**
+ * Whether a backtest dataset is the same candles a live snapshot was taken on.
+ *
+ * **There are two fingerprints of one dataset in this system, and they are not
+ * interchangeable.** A dataset carries `checksum`, which is sha256 over a CSV
+ * rendering of the bars; a snapshot carries `candles_hash`, which is `hashValue`
+ * over an array of six-element arrays. Measured on identical bars, the two
+ * disagree:
+ *
+ * ```
+ * checksumCandles  3fc9c7cc6b84893c347daa7c9614cde43456cb82ec9087c97027e6f8a1141448
+ * hashValue        8e4f8db505864ffd3a65222e429a505fdfa1c8eaa746baa5dc4a2989caac20af
+ * ```
+ *
+ * So the seam of the evidence chain — the join between what was measured and
+ * what was decided — could not be verified by hash at all. It could be checked,
+ * because both sides already store the extent and the count in plain columns,
+ * and nobody had built the check.
+ *
+ * **The two hashes are not merged here, and merging them is not free.** Changing
+ * how `candles_hash` is computed would change `input_hash` with it, because
+ * `inputHash` is derived from `candlesHash`. Every snapshot already stored would
+ * then hash differently from the same candles hashed after a deploy, so
+ * re-storing identical input would insert a second snapshot instead of
+ * recognising the first — the store is idempotent on `input_hash`, and that is
+ * the property that keeps the snapshot from duplicating on every page load. Old
+ * rows keep their old hashes and stop matching; that is a decision with a
+ * migration attached, not a refactor.
+ *
+ * This says only that the *extent* agrees. Two datasets can span the same bars
+ * and still differ bar for bar, and that remains unchecked until the hashes
+ * agree — which is written down rather than papered over.
+ */
+export function sameCandles(dataset: Dataset, snapshot: SnapshotExtent): boolean {
+    return (
+        dataset.from === snapshot.firstCandleTs &&
+        dataset.to === snapshot.lastCandleTs &&
+        dataset.bars === snapshot.candleCount
+    );
+}
+
+/**
+ * What the extent comparison found, field by field.
+ *
+ * Same reasoning as `diffDatasets`: "these differ" leaves a reader guessing
+ * whether the window moved or only the contents, and those two mean different
+ * things for whether a measurement can be re-run.
+ */
+export function diffCandles(
+    dataset: Dataset,
+    snapshot: SnapshotExtent,
+): DatasetDifference[] {
+    const pairs: { field: string; left: string | number; right: string | number }[] = [
+        { field: 'from', left: dataset.from, right: snapshot.firstCandleTs },
+        { field: 'to', left: dataset.to, right: snapshot.lastCandleTs },
+        { field: 'bars', left: dataset.bars, right: snapshot.candleCount },
+    ];
+
+    return pairs.filter((pair) => pair.left !== pair.right);
+}
