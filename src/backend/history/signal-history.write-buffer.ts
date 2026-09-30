@@ -1,6 +1,6 @@
-import { createBoundedWriteBuffer } from './bounded-write-buffer.js';
+import { createBoundedWriteBuffer } from '../observability/bounded-write-buffer.js';
 
-import type { BoundedWriteBuffer } from './bounded-write-buffer.js';
+import type { BoundedWriteBuffer } from '../observability/bounded-write-buffer.js';
 import type { SignalHistoryEntry } from './signal-history.types.js';
 
 export interface SignalHistoryWriteBufferOptions {

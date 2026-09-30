@@ -4,9 +4,9 @@ import { historyConfig } from '../../config/history.config.js';
 import {
     createBoundedWriteBuffer,
     createFlushGuard,
-} from '../../history/bounded-write-buffer.js';
+} from '../../observability/bounded-write-buffer.js';
 
-import type { BacklogState } from '../../history/signal-history.service.js';
+import type { BacklogState } from '../../observability/bounded-write-buffer.js';
 import type { IndicatorVoteRepository } from './indicator-vote.repository.js';
 import type { Candle } from '../../types/market.js';
 import type { MarketAnalysis } from '../../types/analysis.js';

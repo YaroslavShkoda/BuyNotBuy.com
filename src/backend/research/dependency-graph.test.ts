@@ -180,27 +180,31 @@ describe('this codebase, measured', () => {
     }, 30000);
 
     it('reports the violations that remain, and pins them exactly', () => {
-        // Seven, and pinned as a list rather than a count so that fixing one is
+        // Five, and pinned as a list rather than a count so that fixing one is
         // a visible edit. Three of them are the frozen contract.
         //
-        // It was nine. The two that went were the same inversion imported
-        // twice — `history/ingestion.service.ts` reached `services/poller.ts`
-        // with a value import and a type import — and the fix was to move the
-        // scheduler that needed the poller out to `services/`, where the edge
-        // points the way every other one in the tree does. The count went from
-        // nine to seven for that reason and no other; it was measured on both
-        // sides rather than assumed from the edit.
+        // It was seven. The two that went were
+        // `indicators/performance/indicator-performance.service.ts` reaching into
+        // `history/` for `bounded-write-buffer.js` and for the `BacklogState` the
+        // buffer produces. Both were true statements about the wrong file: the
+        // buffer's own header says it is shared by two write paths and names the
+        // second one as being in `indicators/`, and `indicators` is declared a
+        // leaf that may import nothing. A shared utility filed inside one
+        // consumer's domain made the other consumer commit a layering violation
+        // every time it used the thing built to help it. It moved to
+        // `observability/`, which the layer table already puts in UNIVERSAL,
+        // and `BacklogState` moved with it because it is the buffer's own two
+        // counters renamed.
         //
-        // Pinned as edges, not as a total, because a total only tells a reader
-        // that something changed and this list tells them what.
+        // Each count here was measured on both sides — stash, run, restore, run
+        // — rather than concluded from the edit. Pinned as edges, not a total,
+        // because a total only says something changed and this list says what.
         const found = violations(buildGraph(realRoot))
             .map((v) => `${v.from} → ${v.to}`)
             .sort();
 
         expect(found).toEqual([
             'config/strategy-fingerprint.ts → strategies/strategy-fingerprint.ts',
-            'indicators/performance/indicator-performance.service.ts → history/bounded-write-buffer.ts',
-            'indicators/performance/indicator-performance.service.ts → history/signal-history.service.ts',
             'strategies/types.ts → signals/signal.types.ts',
             'types/analysis.ts → indicators/divergence.service.ts',
             'types/analysis.ts → indicators/indicator.service.ts',

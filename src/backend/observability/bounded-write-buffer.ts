@@ -11,6 +11,22 @@
  *
  * Bounded on purpose: a long outage must not become unbounded memory growth,
  * and the oldest entries are the least useful to keep.
+ *
+ * **It lives here rather than in `history/`, and it never did belong there.**
+ * Its own first paragraph says it is shared by two write paths, one of which is
+ * in `indicators/`, and `indicators` is declared a leaf that may import
+ * nothing. While the file sat in `history/`, that made the second write path
+ * commit a layering violation every time it used the thing built to help it:
+ * the shared utility was misfiled as one consumer's domain, and the guard was
+ * pointing at a true statement about the wrong file.
+ *
+ * `observability` is where the layer table puts things everything may count
+ * through, and that is what this is: a failure absorbed on purpose so it can be
+ * counted later and drained. `BacklogState` came with it, because it is the two
+ * counters below under different names — it was declared in
+ * `history/signal-history.service.ts` and used by `indicators/` for a shape
+ * that describes a buffer, so a second layer was reaching into a service to
+ * name the state of an object it did not own.
  */
 export interface BoundedWriteBuffer<T> {
     push(entry: T): void;
@@ -27,6 +43,22 @@ export interface BoundedWriteBufferOptions {
     maxSize: number;
     /** Which record this buffer holds, for the operator reading a counter. */
     label: string;
+}
+
+/**
+ * What an operator reads off a backlog.
+ *
+ * Declared beside the buffer rather than in the service that first needed it,
+ * because it is the buffer's own `size` and `droppedCount` under the names the
+ * health endpoint has always used. The two counter names are not the same on
+ * purpose: `buffered` is now, `dropped` is since the process started, and a
+ * reader is meant to be able to tell that.
+ */
+export interface BacklogState {
+    /** Entries held for a retry. */
+    buffered: number;
+    /** Entries lost to an overfull buffer since the process started. */
+    dropped: number;
 }
 
 export function createBoundedWriteBuffer<T>(

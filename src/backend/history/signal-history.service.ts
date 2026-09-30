@@ -3,8 +3,9 @@ import { historyConfig } from '../config/history.config.js';
 
 import { getSignalHistoryRepository } from './signal-history.repository.js';
 import { createSignalHistoryWriteBuffer } from './signal-history.write-buffer.js';
-import { createFlushGuard } from './bounded-write-buffer.js';
+import { createFlushGuard } from '../observability/bounded-write-buffer.js';
 
+import type { BacklogState } from '../observability/bounded-write-buffer.js';
 import type {
     SignalHistoryEntry,
     SignalHistoryLastTransition,
@@ -25,12 +26,12 @@ const writeBuffer = createSignalHistoryWriteBuffer({
  */
 const runFlush = createFlushGuard();
 
-export interface BacklogState {
-    /** Entries held for a retry. */
-    buffered: number;
-    /** Entries lost to an overfull buffer since the process started. */
-    dropped: number;
-}
+/**
+ * Re-exported so the health endpoint and its tests keep one import for "the
+ * shape of a backlog", wherever the buffer that produces it happens to live.
+ * The declaration itself is in `observability/`, beside the buffer.
+ */
+export type { BacklogState } from '../observability/bounded-write-buffer.js';
 
 /**
  * How often retention may run, per process.
