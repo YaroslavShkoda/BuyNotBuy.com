@@ -27,13 +27,27 @@ function vote(
 }
 
 /**
- * The consensus as it was before it became configurable.
+ * The consensus as this file's transcription of the rule, written out again
+ * rather than imported, and that is the point: an equivalence test that calls
+ * the implementation it is testing proves nothing at all. The constants the
+ * rule uses are written into its body so there is nowhere for a shared change
+ * to hide.
  *
- * Written out again rather than imported, and that is the point: an
- * equivalence test that calls the implementation it is testing proves nothing
- * at all. This is the original arithmetic, transcribed, with the three
- * constants it used written into its body so there is nowhere for a shared
- * change to hide.
+ * **This is not the original arithmetic any more, and the name is a leftover.**
+ * It was, until the count that gates a majority was changed to count only votes
+ * that carry conviction. A zero-weight vote — which `analyzeEMA` returns
+ * whenever price sits on the EMA, an ordinary reading — used to satisfy
+ * `minimumAgreeing`, so one indicator could carry a panel to the threshold and
+ * publish LONG at confidence 96 with nothing behind it.
+ *
+ * It was updated to the new rule rather than deleted, and deliberately by hand
+ * from the rule's wording, not by copying the implementation. Re-typing the
+ * implementation into an oracle would turn the check into a tautology: it
+ * would still pass when the implementation was wrong, in exactly the same
+ * place and for the same reason. What the 12 000-panel sweep is now protecting
+ * is the same thing it always protected — an *unintended* change to a rule
+ * someone has agreed to. The change it no longer protects against is the one
+ * that was just made deliberately, on purpose, with tests of its own.
  */
 function legacyConsensus(
     analyses: readonly IndicatorAnalysis[],
@@ -43,18 +57,23 @@ function legacyConsensus(
 
     const legacyTally = (
         signal: 'LONG' | 'SHORT',
-    ): { count: number; weight: number } => {
+    ): { count: number; weight: number; weighted: number } => {
         let count = 0;
         let weight = 0;
+        let weighted = 0;
 
         for (const analysis of analyses) {
             if (analysis.signal === signal) {
                 count += 1;
-                weight += clamp(analysis.weight);
+                const own = clamp(analysis.weight);
+                weight += own;
+                if (own > 0) {
+                    weighted += 1;
+                }
             }
         }
 
-        return { count, weight };
+        return { count, weight, weighted };
     };
 
     const long = legacyTally('LONG');
@@ -87,7 +106,7 @@ function legacyConsensus(
         .filter((analysis) => analysis.signal === winningSignal)
         .map((analysis) => analysis.name);
 
-    if (winning.count < 2) {
+    if (winning.weighted < 2) {
         return {
             signal: 'NEUTRAL',
             confidence: 0,
@@ -103,7 +122,7 @@ function legacyConsensus(
         };
     }
 
-    const meanConviction = winning.weight / winning.count;
+    const meanConviction = winning.weight / winning.weighted;
 
     if (meanConviction < 0.25) {
         return {

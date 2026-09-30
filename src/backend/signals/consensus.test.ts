@@ -254,6 +254,12 @@ describe('calculateConsensus', () => {
     });
 
     it('ignores a non-finite weight instead of poisoning the ratio', () => {
+        // Two properties, and the second is the one this file changed to
+        // express. The first is the old one: a NaN must not turn a confidence
+        // into NaN. The second is stronger — an indicator whose weight is not a
+        // number is not a vote at all, so it cannot take a panel to the majority
+        // threshold. Under the previous rule this exact panel published LONG,
+        // with one real indicator and one undefined reading behind it.
         const result = calculateConsensus(
             makeAnalyses(
                 ['LONG', 1],
@@ -262,8 +268,66 @@ describe('calculateConsensus', () => {
             ),
         );
 
+        expect(Number.isFinite(result.confidence)).toBe(true);
+        expect(result.signal).toBe('NEUTRAL');
+        expect(result.confidence).toBe(0);
+    });
+
+    it('counts a zero-weight lean towards the majority it is claiming to join', () => {
+        // The defect this file exists for. Two indicators lean LONG and one of
+        // them has put no conviction behind it, which is what analyzeEMA
+        // returns whenever price sits on the EMA. Counting the lean anyway let
+        // a single weighted indicator carry the panel across the threshold and
+        // publish LONG at a confidence nothing had earned.
+        const oneRealVote = calculateConsensus(
+            makeAnalyses(
+                ['LONG', 1],
+                ['LONG', 0],
+                ['NEUTRAL', 0],
+            ),
+        );
+
+        expect(oneRealVote.signal).toBe('NEUTRAL');
+        expect(oneRealVote.confidence).toBe(0);
+
+        // The control: give that second indicator something to say and the same
+        // panel publishes, unchanged in every other respect.
+        const twoRealVotes = calculateConsensus(
+            makeAnalyses(
+                ['LONG', 1],
+                ['LONG', 0.6],
+                ['NEUTRAL', 0],
+            ),
+        );
+
+        expect(twoRealVotes.signal).toBe('LONG');
+        expect(twoRealVotes.confidence).toBeGreaterThan(0);
+    });
+
+    it('does not let a zero-weight lean dilute the conviction of the ones that spoke', () => {
+        // meanConviction divides by the votes that carry weight. Dividing by
+        // every agreeing analysis instead meant a panel that agreed on direction
+        // but not on strength reported less conviction than the indicators
+        // that actually said something.
+        //
+        // 0.6 of weight over two indicators is 0.3 each, well over the 0.25
+        // floor. Over three — because a third indicator leaned LONG with nothing
+        // behind it — it is 0.2, and the panel was refused for being undecided
+        // by an indicator that had expressed no opinion at all.
+        //
+        // The assertion is the published signal, not a confidence value. The
+        // confidence comes from a Wilson bound over the weights, which the
+        // divisor does not touch, so comparing confidences here would pass on
+        // the broken code and mean nothing.
+        const result = calculateConsensus(
+            makeAnalyses(
+                ['LONG', 0.3],
+                ['LONG', 0.3],
+                ['LONG', 0],
+            ),
+        );
+
         expect(result.signal).toBe('LONG');
         expect(result.confidence).toBeGreaterThan(0);
-        expect(result.confidence).toBeLessThanOrEqual(100);
     });
 });

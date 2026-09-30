@@ -174,9 +174,10 @@ function tally(
     analyses: readonly IndicatorAnalysis[],
     signal: 'LONG' | 'SHORT',
     model: WeightModel,
-): { count: number; weight: number } {
+): { count: number; weight: number; weighted: number } {
     let count = 0;
     let weight = 0;
+    let weighted = 0;
 
     for (const analysis of analyses) {
         if (analysis.signal !== signal) {
@@ -184,10 +185,18 @@ function tally(
         }
 
         count += 1;
-        weight += weightOf(analysis.weight, model);
+        const own = weightOf(analysis.weight, model);
+        weight += own;
+        // An indicator that leans this way but assigns the lean no conviction is
+        // not a vote for it. `analyzeEMA` returns LONG with weight 0 whenever
+        // price sits on the EMA, which is an ordinary reading, so this is a
+        // shape the panel takes routinely rather than a corner case.
+        if (own > 0) {
+            weighted += 1;
+        }
     }
 
-    return { count, weight };
+    return { count, weight, weighted };
 }
 
 /**
@@ -226,8 +235,12 @@ export function calculateConsensus(
     const panel = partitionPanel(analyses, winningSignal);
     const winningNames = panel.supporting.map((analysis) => analysis.name);
 
-    // A single indicator is an opinion, not a consensus.
-    if (winning.count < config.minimumAgreeing) {
+    // A single indicator is an opinion, not a consensus — and an indicator that
+    // put no conviction behind its lean is not even that. Counting those would
+    // let one reading carry a panel to the threshold on its own, and the rule's
+    // own words — "2 of 3, one indicator is an opinion" — would mean something
+    // different at the moment it mattered most.
+    if (winning.weighted < config.minimumAgreeing) {
         return {
             signal: 'NEUTRAL',
             confidence: 0,
@@ -243,7 +256,11 @@ export function calculateConsensus(
         };
     }
 
-    const meanConviction = winning.weight / winning.count;
+    // Divided by the votes that carry conviction, not by every analysis that
+    // happened to lean the same way. Counting a zero against the average is how
+    // a panel that agrees on direction but not on strength ends up reporting
+    // lower conviction than the indicators that actually spoke.
+    const meanConviction = winning.weight / winning.weighted;
 
     if (meanConviction < config.minimumMeanConviction) {
         return {
