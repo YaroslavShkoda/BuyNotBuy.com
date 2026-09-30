@@ -222,6 +222,67 @@ describe('reconciling closed signals into measurements', () => {
 
         expect(store.calls[0]?.strategyVersionId).toBe(77);
     });
+
+    it('asks the caller for the version, because the snapshot is not ours to read', async () => {
+        // The version lives in `signal_snapshot`, which belongs to the analysis
+        // layer, and an import from here would be a layering violation. So the
+        // engine asks, and the poller — which composes — answers.
+        const store = outcomes();
+        const asked: string[] = [];
+
+        await reconcileSignalOutcomes(
+            { key: KEY, candles: candles(40), now: BASE + 40 * HOUR },
+            lifecycle([state({ snapshotId: '9' })]),
+            store.repository,
+            async (snapshotId) => {
+                asked.push(snapshotId);
+
+                return 42;
+            },
+        );
+
+        expect(asked).toEqual(['9']);
+        expect(store.calls[0]?.strategyVersionId).toBe(42);
+    });
+
+    it('writes no version rather than a guessed one when it cannot be resolved', async () => {
+        // A signal published before migration 18 has no snapshot, a snapshot can
+        // be pruned, and a version can have been deleted. Every one of those is
+        // "unknown". Writing something plausible instead would attach a
+        // measurement to a rule on the strength of a coincidence, and the
+        // promotion gate would grade that rule on it.
+        const store = outcomes();
+
+        await reconcileSignalOutcomes(
+            { key: KEY, candles: candles(40), now: BASE + 40 * HOUR },
+            lifecycle([state({ snapshotId: '9' })]),
+            store.repository,
+            async () => null,
+        );
+
+        expect(store.calls[0]?.strategyVersionId).toBeNull();
+    });
+
+    it('does not ask about a signal that has no snapshot at all', async () => {
+        // One query per signal that could answer, none for the ones that
+        // cannot. Asking anyway would spend a round trip to learn null.
+        const store = outcomes();
+        let asked = 0;
+
+        await reconcileSignalOutcomes(
+            { key: KEY, candles: candles(40), now: BASE + 40 * HOUR },
+            lifecycle([state({ snapshotId: null })]),
+            store.repository,
+            async () => {
+                asked += 1;
+
+                return 1;
+            },
+        );
+
+        expect(asked).toBe(0);
+        expect(store.calls[0]?.strategyVersionId).toBeNull();
+    });
 });
 
 describe('why a signal ended', () => {

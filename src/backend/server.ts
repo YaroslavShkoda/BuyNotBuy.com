@@ -3,6 +3,7 @@ import { appConfig } from './config/app.config.js';
 import { historyConfig } from './config/history.config.js';
 import { marketConfig } from './config/market.config.js';
 import { assertSignalHistorySchemaReady } from './history/signal-history.repository.js';
+import { getSignalSnapshotRepository } from './analysis/signal-snapshot.repository.js';
 import { getAssetRepository } from './instruments/asset.repository.js';
 import { classifyByTradingWeek } from './instruments/classify.js';
 import { knownAssets, resolveInstrument } from './config/asset.registry.js';
@@ -24,12 +25,11 @@ import {
     configuredSeries,
     startIngestionScheduler,
 } from './history/ingestion.service.js';
-import { analyzeMarket } from './services/analysis.service.js';
+import { analyzeMarket, storeSnapshot } from './services/analysis.service.js';
 import { startPoller } from './services/poller.js';
 
 import type { IngestionScheduler } from './history/ingestion.service.js';
 import type { Poller } from './services/poller.js';
-import type { Candle } from './types/market.js';
 
 const app = createApp();
 
@@ -57,17 +57,6 @@ let poller: Poller | null = null;
  * every change to one silently change the guarantee of the other.
  */
 let ingestion: IngestionScheduler | null = null;
-
-/**
- * The candle window the poller settles against.
- *
- * Read before the analysis so the cached snapshot is reused rather than
- * fetched twice, and so a market outage fails the cycle before anything is
- * half-written.
- */
-async function getMarketSeries(): Promise<Candle[]> {
-    return (await getMarketData()).data.candles;
-}
 
 /**
  * Drains both write backlogs and reports what could not be saved.
@@ -206,7 +195,16 @@ async function startServer() {
                     // records an hourly history entry, records each
                     // indicator's own vote, and keeps the snapshot cache warm
                     // for the next page load.
-                    const candles = await getMarketSeries();
+                    //
+                    // The whole market read, not just the bars: the snapshot
+                    // this cycle stores is fingerprinted on the venue that
+                    // served it, and taking the configured provider instead of
+                    // the answering one would produce a different hash for the
+                    // same bars — which is precisely the silent collapse of two
+                    // venues into one row that migration 18 was written to stop.
+                    const marketRead = await getMarketData();
+                    const candles = marketRead.data.candles;
+                    const marketDataProvider = marketRead.data.provider;
 
                     // After the read rather than before it: the venue that
                     // answered is the one worth reporting, and a switch that
@@ -233,6 +231,30 @@ async function startServer() {
                             'signal_publish_skipped',
                         );
                     } else {
+                        // The snapshot is stored here, on the cycle, and not only
+                        // on a request — a hit rate measured today has to be
+                        // re-derivable tomorrow whether or not anybody opened
+                        // the dashboard in between. The analysis writes the same
+                        // row fire-and-forget; `record` is idempotent on the
+                        // input hash, so whichever lands second deduplicates
+                        // rather than producing a second snapshot.
+                        //
+                        // Storing it here rather than in the request is what
+                        // makes the id available at all. Every other write on
+                        // the analysis path is `void` — decision log, history,
+                        // votes, snapshot — so the id was being thrown away,
+                        // and with it the only link from a signal to the rule
+                        // that produced it. `null` here is a real answer: the
+                        // signal still publishes, unattributed, and the
+                        // settlement writes NULL rather than a guess.
+                        const snapshotId = await storeSnapshot({
+                            symbol: marketConfig.symbol,
+                            price: analysis.price,
+                            candles,
+                            provider: marketDataProvider,
+                            snapshot: analysis,
+                        });
+
                         const publishedSignal = await publishSignal({
                             key: configuredSeries(),
                             // A panel with no opinion is `null`, not a
@@ -250,6 +272,7 @@ async function startServer() {
                                       },
                             intervalMs: marketConfig.candleIntervalMs,
                             candleTimestamp: lastBar.timestamp,
+                            snapshotId: snapshotId === null ? null : String(snapshotId),
                         });
 
                         if (publishedSignal.written) {
@@ -330,11 +353,28 @@ async function startServer() {
                     // `signal_outcome` had a repository and no caller, so the
                     // performance table, the calibration curve and every
                     // promotion decision were reading a table nothing wrote.
-                    const measured = await reconcileSignalOutcomes({
-                        key: configuredSeries(),
-                        candles,
-                        limit: historyConfig.maxEntries,
-                    });
+                    const measured = await reconcileSignalOutcomes(
+                        {
+                            key: configuredSeries(),
+                            candles,
+                            limit: historyConfig.maxEntries,
+                        },
+                        undefined,
+                        undefined,
+                        // The version is read from the snapshot the signal was
+                        // published from, and that snapshot belongs to
+                        // `analysis` — a layer `outcomes` may not import. The
+                        // poller composes, so it is the right place to answer,
+                        // and the engine stays ignorant of how snapshots are
+                        // stored.
+                        async (snapshotId) => {
+                            const snapshot = await getSignalSnapshotRepository().byId(
+                                Number(snapshotId),
+                            );
+
+                            return snapshot === null ? null : snapshot.strategyVersionId;
+                        },
+                    );
 
                     if (measured.examined > 0) {
                         app.log.info(

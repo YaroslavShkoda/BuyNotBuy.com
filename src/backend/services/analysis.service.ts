@@ -1,5 +1,5 @@
 import type { MarketAnalysis } from '../types/analysis.js';
-import type { MarketData } from '../types/market.js';
+import type { Candle, MarketData } from '../types/market.js';
 import type { MarketIndicators } from '../indicators/indicator.service.js';
 import type { DivergenceAnalysis } from '../indicators/divergence.service.js';
 import type { SignalResult } from '../signals/signal.types.js';
@@ -543,7 +543,22 @@ function writeHistory(
     // signal to outcome to statistics has nothing to be attached to.
     //
     // Idempotent on the input hash, so a retry cannot produce a second copy.
-    void storeSnapshot(analysis, marketData, historyLogger).catch(() => undefined);
+    // Fire and forget on purpose: every other write on this path is too, and
+    // making this one awaited would put a database round trip in the critical
+    // path of every page load for the sake of an identifier. The poller, which
+    // runs on a schedule and is not answering anybody, stores the same
+    // snapshot itself and gets the id back; the hash makes whichever lands
+    // second a deduplicated no-op rather than a second row.
+    void storeSnapshot(
+        {
+            symbol: marketData.price.symbol,
+            price: analysis.price,
+            candles: marketData.candles,
+            provider: marketData.provider,
+            snapshot: analysis,
+        },
+        historyLogger,
+    ).catch(() => undefined);
 }
 
 /**
@@ -595,26 +610,45 @@ function analysisContext(
     }
 }
 
-async function storeSnapshot(
-    analysis: MarketAnalysis,
-    marketData: MarketData,
+/**
+ * Writes one immutable snapshot and says which row it landed on.
+ *
+ * Takes the four things it actually uses rather than the whole `MarketData`,
+ * because the poller has exactly these four and no `MarketData` object: a
+ * caller that has to fabricate a market to store a snapshot will fabricate
+ * something wrong, and nothing about the row would say so.
+ *
+ * Returns the row id, or null when the write failed or was refused. A caller
+ * that needs the id **must** treat null as a real answer rather than as a
+ * missing one: a snapshot the system cannot point at is a signal that cannot be
+ * traced to the rule that produced it, and the difference is invisible in the
+ * row it would have been.
+ */
+export async function storeSnapshot(
+    input: {
+        readonly symbol: string;
+        readonly price: number;
+        readonly candles: Candle[];
+        readonly provider: string;
+        readonly snapshot: MarketAnalysis;
+    },
     logger?: SignalHistoryLogger,
-): Promise<void> {
+): Promise<number | null> {
     try {
         const strategyVersion = await getStrategyVersionRepository().resolveActive();
 
         const stored = await getSignalSnapshotRepository().record({
-            symbol: marketData.price.symbol,
+            symbol: input.symbol,
             strategyVersion,
-            price: analysis.price,
-            candles: marketData.candles,
+            price: input.price,
+            candles: input.candles,
             // Both are part of what the snapshot *is*, not of what it contains.
             // Two venues can serve identical bars; without these the second
             // snapshot is silently discarded as a duplicate of the first, and
             // the row that survives is attributed to whichever arrived first.
-            provider: marketData.provider,
+            provider: input.provider,
             interval: marketConfig.candleInterval,
-            snapshot: analysis,
+            snapshot: input.snapshot,
         });
 
         logger?.debug?.(
@@ -626,10 +660,14 @@ async function storeSnapshot(
             },
             'signal_snapshot_stored',
         );
+
+        return stored.id;
     } catch (error) {
         logger?.warn(
             { event: 'signal_snapshot_store_failed', err: error },
             'signal_snapshot_store_failed',
         );
+
+        return null;
     }
 }

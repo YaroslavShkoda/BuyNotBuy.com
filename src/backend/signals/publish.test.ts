@@ -169,4 +169,26 @@ describe('publishing the panel into the lifecycle', () => {
             'snap-42',
         );
     });
+
+    it('keeps the original snapshot when a signal is republished or closed', async () => {
+        // **This is the case that broke attribution.** The closing write had no
+        // snapshot of its own and wrote NULL over the one the open had recorded,
+        // so every closed signal was unattributable and every outcome row came
+        // back with a null rule — silently, because null is a legal value in
+        // that column and the row looked complete.
+        //
+        // A signal is measured from the bar it stood on, and the snapshot
+        // holding that bar is what names the rule. Neither a price move nor the
+        // end of the signal changes either of those two things.
+        const store = lifecycle(state({ status: 'GENERATED', snapshotId: 'snap-7' }));
+
+        await publishSignal(
+            { key: KEY, candidate: null, intervalMs: HOUR, candleTimestamp: BAR + 99 * HOUR },
+            store.repository,
+        );
+
+        expect((store.written[0] as { write: { snapshotId: string } }).write.snapshotId).toBe(
+            'snap-7',
+        );
+    });
 });

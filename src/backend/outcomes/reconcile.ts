@@ -3,7 +3,7 @@ import { signalLifecycleRepository } from '../signals/lifecycle.repository.js';
 import { outcomeRepository } from '../outcomes/outcome.repository.js';
 
 import type { SignalLifecycleRepository } from '../signals/lifecycle.repository.js';
-import type { OutcomeRepository } from '../outcomes/outcome.repository.js';
+import type { OutcomeRepository } from './outcome.repository.js';
 import type { Candle } from '../types/market.js';
 import type { SeriesKey } from '../signals/lifecycle.repository.js';
 
@@ -40,6 +40,12 @@ export interface SettleSeries {
     /** How many closed signals to revisit per pass. */
     readonly limit?: number;
     readonly now?: number;
+    /**
+     * The rule the caller knows produced these signals. Optional only because
+     * it can be resolved from the signal's own snapshot — see below — and
+     * optional is a hazard worth naming, so the fallback is the only way to
+     * reach a null version.
+     */
     readonly strategyVersionId?: number | null;
     readonly regime?: string | null;
     readonly dataQuality?: number | null;
@@ -81,10 +87,37 @@ export function closedByFor(status: string): 'invalidated' | 'expired' | 'revers
     return 'reversed';
 }
 
+/**
+ * The strategy version behind a snapshot, resolved by the caller.
+ *
+ * **Injected rather than imported, and that is a layering rule rather than a
+ * style one.** Reading the version means reading a snapshot, and the snapshot
+ * repository lives in `analysis`. An import from here would be
+ * `outcomes → analysis`, which the layering lint refuses — and it would be
+ * right to refuse: the outcome engine has no business knowing how snapshots
+ * are stored. The dependency arrives as a function, so the answer comes from
+ * whoever is allowed to produce it.
+ *
+ * Returns null rather than a guess. A signal published before migration 18 has
+ * no snapshot, a snapshot can be pruned, and a caller can pass a version that
+ * no longer exists — in every case the honest answer is "unknown", and writing
+ * a plausible version instead would attach a measurement to a rule on the
+ * strength of a coincidence.
+ */
+export type VersionResolver = (snapshotId: string) => Promise<number | null>;
+
 export async function reconcileSignalOutcomes(
     series: SettleSeries,
     lifecycle: SignalLifecycleRepository = signalLifecycleRepository,
     outcomes: OutcomeRepository = outcomeRepository,
+    /**
+     * Optional, and omitting it is a real choice rather than a default:
+     * measurements are then written with no rule attached, which shows up as
+     * NULL in `signal_outcome.strategy_version_id` and can be counted. The
+     * alternative — a resolver that returns null from inside this module —
+     * would have needed the import the layering lint forbids.
+     */
+    resolveVersion?: VersionResolver,
 ): Promise<SettleReport> {
     const closed = await lifecycle.closed(series.key, series.limit);
     const now = series.now ?? Date.now();
@@ -92,6 +125,16 @@ export async function reconcileSignalOutcomes(
     let rows = 0;
 
     for (const signal of closed) {
+        // The version is the one the signal was *published from*, never the one
+        // active now. When the fallback is active those are different rules,
+        // and crediting the outcome to the active one would hand the promotion
+        // gate statistics from a rule that did not produce the trade.
+        const version =
+            series.strategyVersionId ??
+            (resolveVersion === undefined || signal.snapshotId === null
+                ? null
+                : await resolveVersion(signal.snapshotId));
+
         const settled = await outcomes.settle({
             key: series.key,
             stateId: Number(signal.id),
@@ -106,7 +149,7 @@ export async function reconcileSignalOutcomes(
             candles: series.candles,
             regime: series.regime ?? null,
             dataQuality: series.dataQuality ?? null,
-            strategyVersionId: series.strategyVersionId ?? null,
+            strategyVersionId: version,
             now,
         });
 

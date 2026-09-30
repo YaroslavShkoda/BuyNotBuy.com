@@ -50,7 +50,17 @@ export interface PublishSeries {
      * required means the caller cannot forget it by omission.
      */
     readonly candleTimestamp: number;
-    /** The snapshot this publication was derived from, when there is one. */
+    /**
+     * The snapshot a signal was published from, and it is not replaced.
+     *
+     * A signal is measured from the bar it stood on, and the snapshot holding
+     * that bar is what says which rule produced it. Updating the signal when
+     * the market moves does not change either, so a republish keeps the
+     * original link, and a close keeps it too — which is the case that bit:
+     * the closing write had no snapshot of its own and was writing NULL over
+     * the one the open had recorded, so every closed signal became
+     * unattributable and every outcome row came back with a null rule.
+     */
     readonly snapshotId?: string | null;
 }
 
@@ -133,7 +143,7 @@ export async function publishSignal(
             {
                 direction: previous.direction,
                 status: decided.toStatus,
-                snapshotId: series.snapshotId ?? null,
+                snapshotId: previous.snapshotId,
                 price: previous.price,
                 confidence: previous.confidence,
                 publishedAt: previous.candleTimestamp,
@@ -169,7 +179,7 @@ export async function publishSignal(
         {
             direction: candidate.direction,
             status: decided.toStatus,
-            snapshotId: series.snapshotId ?? null,
+            snapshotId: previous?.snapshotId ?? series.snapshotId ?? null,
             price: candidate.price,
             confidence: candidate.confidence,
             publishedAt: candidate.candleTimestamp,
