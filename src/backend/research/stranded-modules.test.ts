@@ -94,29 +94,25 @@ describe('production modules with no production caller', () => {
             'instruments/classify.ts',
             'observability/health.registry.ts',
             'signals/explanation.ts',
-            'signals/lifecycle.ts',
             'strategy/rule-registry.ts',
         ]);
 
-        // **The measuring end is connected; the two ends that feed it are not.**
+        // **The signal chain is now connected at both ends.**
         //
-        // `outcomes/outcome.repository.ts` and `signals/lifecycle.repository.ts`
-        // left this list when the poller started reconciling, and that is what
-        // this test is for: it fails when something is wired, so the change is
-        // made deliberately rather than noticed in a report a year later.
+        // `outcomes/outcome.repository.ts`, `signals/lifecycle.repository.ts`
+        // and `signals/lifecycle.ts` have all left this list: the poller now
+        // publishes a signal into the lifecycle on every cycle and reconciles
+        // the closed ones into measurements on the same cycle. This test failed
+        // each time it happened, which is what it is for — the change is made
+        // deliberately and written down, instead of being noticed in a report a
+        // year later.
         //
-        // **What is still missing is more serious than what was fixed.**
-        // `reconcileSignalOutcomes` asks the lifecycle for closed signals, and
-        // nothing publishes a signal or closes one — `signals/lifecycle.ts` is
-        // right there in this list, importing the repository and being imported
-        // by nobody. So the loop now runs on every poll and will find nothing,
-        // because `closed()` can only return rows that a closer wrote, and
-        // there is no closer. A wired settler over an empty source is a
-        // different failure from an unwired one, and it is much harder to see.
-        //
+        // What is left is smaller and quieter, and worth saying plainly:
         // `instruments/classify.ts` — PHASE 14's data-learned asset classifier —
         // and `instruments/asset.repository.ts` — the registry migration 15 was
         // written to move the code onto — still have tests and no callers.
+        // `backtest/optimizer.ts` is the second reader of global config that
+        // M4 could never account for, because it is not called at all.
         //
         // **The second promotion ladder.** `rule-registry.ts` holds 312 lines
         // and disagrees with the ladder in use about whether a rule may be

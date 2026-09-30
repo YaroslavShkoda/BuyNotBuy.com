@@ -111,6 +111,19 @@ export function decideNext(
     candidate: SignalCandidate | null,
     intervalMs: number,
     config: LifecycleConfig = lifecycleConfig,
+    /**
+     * The bar being evaluated, when the panel has no opinion to give.
+     *
+     * **This parameter exists because of a defect it fixes.** Expiry was
+     * measured as bars between the live signal and `candidate?.candleTimestamp
+     * ?? live.candleTimestamp`, so a null candidate collapsed the count to zero
+     * and the expiry branch below could never be reached — a silent panel kept
+     * a dead signal alive forever, which is the exact outcome the comment above
+     * this function says it prevents. A caller that knows the current bar can
+     * now say so; a caller that does not is unchanged, and still gets the old
+     * answer rather than a silent expiry.
+     */
+    currentBarTimestamp?: number,
 ): DecidedTransition {
     if (live === null) {
         if (candidate === null) {
@@ -136,7 +149,11 @@ export function decideNext(
     // reading. Expiry is still recorded on the transition, because the
     // transition carries the bar the signal was standing on and a reader can
     // see for themselves that the window had also run out.
-    const bars = barsBetween(live.candleTimestamp, candidate?.candleTimestamp ?? live.candleTimestamp, intervalMs);
+    // The current bar, which is not the candidate's bar: a panel that has gone
+    // quiet has no bar of its own, and falling back to the live signal's own
+    // timestamp measured the distance as zero, so a signal could never expire.
+    const bar = currentBarTimestamp ?? candidate?.candleTimestamp ?? live.candleTimestamp;
+    const bars = barsBetween(live.candleTimestamp, bar, intervalMs);
 
     const hasFailed =
         candidate !== null &&

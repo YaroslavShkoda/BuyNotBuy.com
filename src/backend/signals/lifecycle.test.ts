@@ -508,3 +508,53 @@ describe('the shipped configuration', () => {
         ).toThrow(/gap where nothing can be published/);
     });
 });
+
+describe('a silent panel and the end of a signal', () => {
+    /**
+     * The regression this file did not have.
+     *
+     * Expiry was measured between the live signal and
+     * `candidate?.candleTimestamp ?? live.candleTimestamp`, so a null candidate
+     * made the distance zero and the expiry branch was unreachable. A signal
+     * could therefore only ever end while the panel was speaking — and the
+     * comment above `decideNext` says the opposite, in as many words: a panel
+     * that has gone quiet must not keep a dead signal alive. Code and stated
+     * intent had been contradicting each other since it was written, and no test
+     * caught it because every existing case passed a candidate.
+     */
+    const live = {
+        direction: 'LONG' as const,
+        status: 'GENERATED' as const,
+        price: 100,
+        confidence: 0.8,
+        candleTimestamp: 1_700_000_000_000,
+    };
+
+    it('expires a signal whose panel has gone quiet, once enough bars have passed', () => {
+        const result = decideNext(live, null, HOUR, CONFIG, live.candleTimestamp + 72 * HOUR);
+
+        expect(result.decision).toEqual({ kind: 'expire' });
+        expect(result.toStatus).toBe('EXPIRED');
+        expect(result.recorded).toBe(true);
+    });
+
+    it('keeps it alive while the silence is still shorter than the window', () => {
+        // 71 bars, not 72. The boundary being exact is the point: a rule that
+        // expired one bar early would shorten every measured holding period in
+        // the performance table by a constant nobody could see.
+        expect(decideNext(live, null, HOUR, CONFIG, live.candleTimestamp + 71 * HOUR).decision).toEqual({
+            kind: 'unchanged',
+        });
+        expect(decideNext(live, null, HOUR, CONFIG, live.candleTimestamp + 72 * HOUR).decision).toEqual({
+            kind: 'expire',
+        });
+    });
+
+    it('still says unchanged when the caller does not say what bar it is on', () => {
+        // The fifth parameter is optional, and a caller that omits it gets the
+        // old answer rather than a silent expiry. That is deliberate: guessing
+        // the current bar would expire signals on a machine that simply has not
+        // told us the time yet.
+        expect(decideNext(live, null, HOUR, CONFIG).decision).toEqual({ kind: 'unchanged' });
+    });
+});

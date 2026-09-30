@@ -4,6 +4,7 @@ import { historyConfig } from './config/history.config.js';
 import { marketConfig } from './config/market.config.js';
 import { assertSignalHistorySchemaReady } from './history/signal-history.repository.js';
 import { reconcileSignalOutcomes } from './outcomes/reconcile.js';
+import { publishSignal } from './signals/publish.js';
 import { closePool } from './db/pool.js';
 import {
     flushSignalHistoryBacklog,
@@ -190,7 +191,57 @@ async function startServer() {
                     // happened during this cycle is exactly the interesting one.
                     reportVenueChange();
 
-                    await analyzeMarket(app.log, 'poller', app.log);
+                    // The other end of the chain the reconciler measures. Both
+                    // run here and not on a request, for the reason the
+                    // poller's own comment gives: a signal published only when
+                    // somebody opens the dashboard leaves holes in the record
+                    // that read as "the signal never changed".
+                    const analysis = await analyzeMarket(app.log, 'poller', app.log);
+                    const verdict = analysis.signal;
+                    const lastBar = candles[candles.length - 1];
+
+                    if (lastBar === undefined) {
+                        // No bar means no bar timestamp, and the lifecycle needs
+                        // one to tell expiry from silence. Publishing a zero
+                        // instead would age every live signal by half the
+                        // universe and expire the entire history in one pass, so
+                        // this cycle does nothing and says so.
+                        app.log.warn(
+                            { event: 'signal_publish_skipped', reason: 'no_candles' },
+                            'signal_publish_skipped',
+                        );
+                    } else {
+                        const publishedSignal = await publishSignal({
+                            key: configuredSeries(),
+                            // A panel with no opinion is `null`, not a
+                            // zero-confidence candidate: silence and weak
+                            // conviction are different facts, and the lifecycle
+                            // treats them differently.
+                            candidate:
+                                verdict.signal === 'NEUTRAL'
+                                    ? null
+                                    : {
+                                          direction: verdict.signal,
+                                          confidence: verdict.confidence,
+                                          price: analysis.price,
+                                          candleTimestamp: lastBar.timestamp,
+                                      },
+                            intervalMs: marketConfig.candleIntervalMs,
+                            candleTimestamp: lastBar.timestamp,
+                        });
+
+                        if (publishedSignal.written) {
+                            app.log.info(
+                                {
+                                    event: 'signal_published',
+                                    kind: publishedSignal.kind,
+                                    toStatus: publishedSignal.toStatus,
+                                    reason: publishedSignal.reason,
+                                },
+                                'signal_published',
+                            );
+                        }
+                    }
 
                     await flushSignalHistoryBacklog(app.log);
 
