@@ -10,6 +10,7 @@ import {
 } from '../config/indicator.config.js';
 
 import type { ExecutionConfig } from './execution.js';
+import type { FoldPlan, Window } from './walk-forward.plan.js';
 import type { Candle } from '../types/market.js';
 import type { BacktestMetrics, BenchmarkMetrics, Trade } from './metrics.js';
 import type {
@@ -56,6 +57,17 @@ export interface WalkForwardFold {
     fold: number;
     startIndex: number;
     endIndex: number;
+    /**
+     * The three windows this fold actually ran on, as `auditWalkForwardPlan`
+     * sees them.
+     *
+     * On the result rather than inside the loop because "the windows were
+     * disjoint" is a claim about the run, and a claim about the run that the
+     * run does not report can only be taken on trust. Carrying the plan out
+     * also lets the leakage audit run over output a caller already has, rather
+     * than over a plan rebuilt from the same arithmetic that produced the bug.
+     */
+    windows: FoldPlan;
     /** Thresholds this fold traded with, fitted or the shipped ones. */
     parameters: { longThreshold: number; shortThreshold: number };
     /** True when the fitted pair differs from the shipped configuration. */
@@ -359,6 +371,18 @@ function fitThresholds(
      */
     trainingScore: number | null;
     validationScore: number | null;
+    /**
+     * The bars `validationScore` was actually measured on, or null when nothing
+     * was fitted and therefore nothing was validated.
+     *
+     * Reported rather than reconstructed by the caller because the caller's job
+     * is to run the fold, not to guess which slice of the training span the fit
+     * was kept off. A caller that rebuilds this window is duplicating a split
+     * that already happened, and a split that is duplicated is a split that can
+     * disagree with itself — the plan would then describe windows the run never
+     * used, which is the one thing the plan exists to prevent.
+     */
+    validation: Window | null;
 } {
     const points = computeSignalSeries(candles, trainingStart, trainingEnd);
 
@@ -413,6 +437,10 @@ function fitThresholds(
             trainedTrades: 0,
             trainingScore: null,
             validationScore: null,
+            // No pair was chosen, so no window was held back for scoring it.
+            // Claiming one here is what makes a plan describe a validation
+            // stage that never ran.
+            validation: null,
         };
     }
 
@@ -440,6 +468,9 @@ function fitThresholds(
                       (sum, trade) => sum + trade.netReturn,
                       0,
                   ) / validationTrades.length,
+        // The same `validationStart..trainingEnd` the score above was measured
+        // on, carried out of the function that measured it.
+        validation: { startIndex: validationStart, endIndex: trainingEnd },
     };
 }
 
@@ -705,24 +736,31 @@ export function runWalkForward(
                   trainedTrades: 0,
                   trainingScore: null,
                   validationScore: null,
+                  // Nothing was fitted, so nothing was held back for scoring.
+                  validation: null,
               };
 
-        const judgement = judgeFold(
-            {
-                fold: foldCount - offset,
-                train: {
-                    startIndex: trainingStart,
-                    endIndex: trainingEnd,
-                },
-                validate: {
-                    startIndex: trainingStart,
-                    endIndex: trainingEnd,
-                },
-                test: { startIndex: foldStart, endIndex: foldEnd },
+        // The fit runs on the head of the training span and the pair is scored
+        // on the tail, so those are two windows and not one window named twice.
+        // `fitThresholds` is the only place that split is known; the plan reads
+        // it rather than recomputing it, because a plan that re-derives its own
+        // windows is a plan that can disagree with the run it describes.
+        const validate = fitted.validation;
+        const foldPlan: FoldPlan = {
+            fold: foldCount - offset,
+            train: {
+                startIndex: trainingStart,
+                endIndex: validate === null ? trainingEnd : validate.startIndex - 1,
             },
-            fitted.trainingScore,
-            fitted.validationScore,
-        );
+            // A fold that fitted nothing has no validation window to name. It
+            // is reported as an empty window rather than as the training span,
+            // so `auditWalkForwardPlan` calls it out instead of a plan quietly
+            // claiming a validation stage that never ran.
+            validate: validate ?? { startIndex: trainingEnd + 1, endIndex: trainingEnd },
+            test: { startIndex: foldStart, endIndex: foldEnd },
+        };
+
+        const judgement = judgeFold(foldPlan, fitted.trainingScore, fitted.validationScore);
 
         // A rejected fold keeps the configured thresholds rather than the pair
         // that failed. "Configured" and not "the global ones" because for a
@@ -776,6 +814,7 @@ export function runWalkForward(
             parameters: thresholds,
             fitted:
                 !isShippedPair(thresholds, signal) && judgement.accepted,
+            windows: foldPlan,
             validation: {
                 accepted: judgement.accepted,
                 reason: judgement.reason,
