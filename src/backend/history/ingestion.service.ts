@@ -1,11 +1,9 @@
 import { marketConfig } from '../config/market.config.js';
-import { startPoller } from '../services/poller.js';
 import { candleRepository } from './candle.repository.js';
-import { isCandleClosed, ingestionPeriodMs } from './candle-clock.js';
+import { isCandleClosed } from './candle-clock.js';
 import { marketDataProvider } from '../market/market.provider.js';
 import { ApplicationError } from '../errors/application.error.js';
 
-import type { Poller, PollerLogger } from '../services/poller.js';
 import type { CandleSeriesKey, CandleRepository } from './candle.repository.js';
 import type { MarketDataProvider } from '../market/providers/market-data.provider.js';
 import type { Candle } from '../types/market.js';
@@ -55,15 +53,6 @@ export interface IngestionOptions {
     readonly provider?: MarketDataProvider;
     /** How many recent bars to ask for. */
     readonly limit?: number;
-}
-
-export interface IngestionSchedulerOptions extends IngestionOptions {
-    readonly logger: PollerLogger;
-    /** Upper bound on the poll period. */
-    readonly maxPeriodMs?: number;
-    readonly pollEnabled?: boolean;
-    readonly setTimer?: (handler: () => void, ms: number) => unknown;
-    readonly clearTimer?: (handle: unknown) => void;
 }
 
 /**
@@ -172,50 +161,6 @@ function splitByAge(
     }
 
     return { closed, forming };
-}
-
-export interface IngestionScheduler extends Poller {
-    /** Runs one cycle by hand, for a test or a one-shot script. */
-    ingest(): Promise<IngestionResult>;
-}
-
-/**
- * Starts the background ingest loop.
- *
- * The period is a fraction of the interval rather than the interval itself, and
- * the reason is about the failure mode rather than the load. A bar closes once
- * an hour; polling once an hour means the tick that misses it — because the
- * provider was slow, because the process was busy, because the machine was
- * restarting — loses that bar for good, and a hole in the history is
- * indistinguishable from a quiet hour for ever after. Polling several times
- * per interval makes a missed tick cost a minute of delay instead of an hour
- * of data.
- */
-export function startIngestionScheduler(
-    options: IngestionSchedulerOptions,
-): IngestionScheduler | null {
-    if (options.pollEnabled === false) {
-        return null;
-    }
-
-    const ingest = (): Promise<IngestionResult> => ingestOnce(options);
-
-    const poller = startPoller({
-        intervalMs: ingestionPeriodMs(
-            options.intervalMs,
-            options.maxPeriodMs ?? Number.POSITIVE_INFINITY,
-        ),
-        run: ingest,
-        logger: options.logger,
-        ...(options.setTimer === undefined
-            ? {}
-            : { setTimer: options.setTimer }),
-        ...(options.clearTimer === undefined
-            ? {}
-            : { clearTimer: options.clearTimer }),
-    });
-
-    return Object.assign(poller, { ingest });
 }
 
 /** The series the ingest loop fills, from the configured venue and symbol. */

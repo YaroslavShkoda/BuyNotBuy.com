@@ -5,11 +5,8 @@ import { join, relative } from 'node:path';
 
 import '../test-support/test-database.js';
 
-import {
-    configuredSeries,
-    ingestOnce,
-    startIngestionScheduler,
-} from './ingestion.service.js';
+import { configuredSeries, ingestOnce } from './ingestion.service.js';
+import { startIngestionScheduler } from '../services/ingestion.scheduler.js';
 import { createCandleRepository } from './candle.repository.js';
 
 import type { PollerLogger } from '../services/poller.js';

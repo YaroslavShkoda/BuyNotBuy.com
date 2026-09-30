@@ -180,18 +180,25 @@ describe('this codebase, measured', () => {
     }, 30000);
 
     it('reports the violations that remain, and pins them exactly', () => {
-        // Eight, and pinned as a list rather than a count so that fixing one is
-        // a visible edit. Two of them are the same inversion imported twice —
-        // `history/ingestion.service.ts` reaches `services/poller.ts` with two
-        // import statements — and three are the frozen contract.
+        // Seven, and pinned as a list rather than a count so that fixing one is
+        // a visible edit. Three of them are the frozen contract.
+        //
+        // It was nine. The two that went were the same inversion imported
+        // twice — `history/ingestion.service.ts` reached `services/poller.ts`
+        // with a value import and a type import — and the fix was to move the
+        // scheduler that needed the poller out to `services/`, where the edge
+        // points the way every other one in the tree does. The count went from
+        // nine to seven for that reason and no other; it was measured on both
+        // sides rather than assumed from the edit.
+        //
+        // Pinned as edges, not as a total, because a total only tells a reader
+        // that something changed and this list tells them what.
         const found = violations(buildGraph(realRoot))
             .map((v) => `${v.from} → ${v.to}`)
             .sort();
 
         expect(found).toEqual([
             'config/strategy-fingerprint.ts → strategies/strategy-fingerprint.ts',
-            'history/ingestion.service.ts → services/poller.ts',
-            'history/ingestion.service.ts → services/poller.ts',
             'indicators/performance/indicator-performance.service.ts → history/bounded-write-buffer.ts',
             'indicators/performance/indicator-performance.service.ts → history/signal-history.service.ts',
             'strategies/types.ts → signals/signal.types.ts',

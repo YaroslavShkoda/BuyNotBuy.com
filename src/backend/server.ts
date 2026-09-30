@@ -26,14 +26,12 @@ import {
 } from './indicators/performance/indicator-performance.service.js';
 import { getMarketData } from './market/market.service.js';
 import { createVenueWatcher } from './market/market.provider.js';
-import {
-    configuredSeries,
-    startIngestionScheduler,
-} from './history/ingestion.service.js';
+import { configuredSeries } from './history/ingestion.service.js';
 import { analyzeMarket, storeSnapshot } from './services/analysis.service.js';
+import { startIngestionScheduler } from './services/ingestion.scheduler.js';
 import { startPoller } from './services/poller.js';
 
-import type { IngestionScheduler } from './history/ingestion.service.js';
+import type { IngestionScheduler } from './services/ingestion.scheduler.js';
 import type { Poller } from './services/poller.js';
 
 const app = createApp();
