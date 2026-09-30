@@ -3,6 +3,7 @@ import { startPoller } from '../services/poller.js';
 import { candleRepository } from './candle.repository.js';
 import { isCandleClosed, ingestionPeriodMs } from './candle-clock.js';
 import { marketDataProvider } from '../market/market.provider.js';
+import { ApplicationError } from '../errors/application.error.js';
 
 import type { Poller, PollerLogger } from '../services/poller.js';
 import type { CandleSeriesKey, CandleRepository } from './candle.repository.js';
@@ -83,6 +84,23 @@ export async function ingestOnce(
     const now = options.now ?? Date.now;
     const limit = options.limit ?? marketConfig.defaultCandleLimit;
     const at = now();
+
+    // The provider names its own symbol, and the key names the rows it is about
+    // to write into. Nothing connected the two, so a provider built for one
+    // market would write its bars into another market's rows — correct-looking
+    // candles in the wrong series, with nothing downstream able to notice.
+    //
+    // Checked before the fetch rather than after, because a request whose result
+    // is certain to be refused should not be spent. Thrown rather than counted,
+    // because this is a wiring fault rather than a market condition: no amount of
+    // retrying resolves it, and the poller logs a failed cycle and keeps ticking,
+    // so the refusal is visible on every cycle instead of being absorbed.
+    if (provider.symbol !== options.key.symbol) {
+        throw new ApplicationError(
+            `Provider ${provider.name} serves ${provider.symbol}, which is not the series ${options.key.symbol}`,
+            { code: 'VALIDATION_ERROR', statusCode: 500 },
+        );
+    }
 
     const fetched = await provider.getHistoricalCandles(limit);
 
