@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import { z } from 'zod';
 
 import { DatasetSchema } from './dataset.js';
@@ -80,6 +82,86 @@ export const ExperimentManifestSchema = z.object({
 });
 
 export type ExperimentManifest = z.infer<typeof ExperimentManifestSchema>;
+
+/**
+ * The fields that decide *which experiment this was*.
+ *
+ * Kept as data rather than written inline, because a field added to the schema
+ * and forgotten here does not fail: the id keeps working, it just stops
+ * distinguishing two runs that differ in the new field, which is the failure
+ * this whole module exists to make impossible.
+ *
+ * The dataset contributes only its *identity* — the same fields `sameDataset`
+ * compares, and the same reason: `name` and `recordedAt` are labels, and two
+ * runs over identical bars under different labels are one experiment recorded
+ * twice. `metrics` and `folds` are excluded for the opposite reason: they are
+ * what the run *said*, and an id derived from them would be a different number
+ * every time the run did, which is a number that cannot identify anything.
+ */
+export const EXPERIMENT_IDENTITY_FIELDS = [
+    'dataset',
+    'execution',
+    'options',
+    'productionParameters',
+] as const;
+
+/**
+ * Everything a manifest says except its own name.
+ *
+ * The `id` is derived from the rest, so taking a manifest that has one is a
+ * type error rather than something to work around — and it states the
+ * direction of the dependency: nothing here can depend on being identified.
+ */
+export type ExperimentIdentity = Omit<ExperimentManifest, 'id'>;
+
+/**
+ * The canonical identity of an experiment, derived from its own contents.
+ *
+ * **The `id` this replaces was a label, and the collision was silent.** The
+ * caller passed `${instrument}-${interval}-${candles.length}` — three of the
+ * things that define a run, with the checksum missing. BTCUSDT at one hour over
+ * 8760 bars in January and the same 8760 bars in February produce the same
+ * string while describing different data. Nothing broke at the time: nothing
+ * groups by `id` yet, and `verifyAgainst` compares the whole dataset including
+ * its checksum rather than the id. So the defect was latent, which is not a
+ * defence of it — it means the first thing that groups by this column, a
+ * results table or a "have I run this?" check, inherits a collision that looks
+ * like a match.
+ *
+ * Derived rather than supplied, for the reason the rest of this file repeats:
+ * an id somebody types is a claim, and an id computed from the record is a
+ * property of the record. Re-running the same data under the same assumptions
+ * reproduces it exactly, and changing a single price changes it — which is the
+ * one behaviour that makes the column worth having.
+ *
+ * A digest is a summary, so the readable half goes first: the symbol, interval
+ * and bar count are the three things a reader looks for, and the hash settles
+ * the rest. Sixteen hex characters is chosen over the full sixty-four because
+ * this is a label in a table, not a security token — and saying so here is
+ * cheaper than somebody later building a proof on it.
+ */
+export function experimentId(measured: ExperimentIdentity): string {
+    const canonical = EXPERIMENT_IDENTITY_FIELDS.map((field) => {
+        const value: unknown =
+            field === 'dataset'
+                ? {
+                      symbol: measured.dataset.symbol,
+                      provider: measured.dataset.provider,
+                      interval: measured.dataset.interval,
+                      from: measured.dataset.from,
+                      to: measured.dataset.to,
+                      bars: measured.dataset.bars,
+                      checksum: measured.dataset.checksum,
+                  }
+                : measured[field];
+
+        return `${field}=${JSON.stringify(value)}`;
+    }).join('\n');
+
+    const digest = createHash('sha256').update(canonical, 'utf8').digest('hex');
+
+    return `${measured.dataset.symbol}-${measured.dataset.interval}-${measured.dataset.bars}-${digest.slice(0, 16)}`;
+}
 
 export const ExperimentRegistrySchema = z.record(
     z.string(),

@@ -1,5 +1,6 @@
 import { describeDataset } from './dataset.js';
-import { ExperimentManifestSchema } from './experiment.js';
+
+import { ExperimentManifestSchema, experimentId } from './experiment.js';
 
 import type { DatasetInput } from './dataset.js';
 import type { ExperimentManifest } from './experiment.js';
@@ -17,7 +18,6 @@ import type { Candle } from '../types/market.js';
  */
 
 export interface ManifestInput {
-    readonly id: string;
     readonly name: string;
     readonly recordedAt: number;
     readonly dataset: DatasetInput;
@@ -30,9 +30,22 @@ export interface ManifestInput {
     readonly commit: string | null;
 }
 
+/**
+ * Built, then named.
+ *
+ * There is no `id` parameter, and that is the point. The identity is computed
+ * from the record that was just assembled, so it cannot disagree with it and
+ * cannot be typed in — the caller used to pass
+ * `${instrument}-${interval}-${candles.length}`, which was three of the fields
+ * that define an experiment with the checksum left out, and which gave two
+ * datasets that differed only in their prices the same name. See
+ * `experimentId` for the rest.
+ */
 export function buildManifest(input: ManifestInput): ExperimentManifest {
-    return ExperimentManifestSchema.parse({
-        id: input.id,
+    // Parsed without the id, because the id is what the parse produces: a
+    // schema that demanded a name before anything had been measured would be
+    // asking for the answer first.
+    const measured = ExperimentManifestSchema.omit({ id: true }).parse({
         name: input.name,
         recordedAt: input.recordedAt,
         dataset: describeDataset(input.dataset),
@@ -74,6 +87,8 @@ export function buildManifest(input: ManifestInput): ExperimentManifest {
         commit: input.commit,
         productionParameters: input.productionParameters,
     });
+
+    return { ...measured, id: experimentId(measured) };
 }
 
 /** A manifest for a run, without the caller having to name its own fields. */
@@ -81,7 +96,7 @@ export function manifestFor(
     result: WalkForwardResult,
     candles: readonly Candle[],
     options: WalkForwardOptions,
-    identity: { id: string; name: string; recordedAt: number; commit: string | null },
+    identity: { name: string; recordedAt: number; commit: string | null },
     series: { name: string; symbol: string; provider: string; interval: string },
     productionParameters: { longThreshold: number; shortThreshold: number },
 ): ExperimentManifest {

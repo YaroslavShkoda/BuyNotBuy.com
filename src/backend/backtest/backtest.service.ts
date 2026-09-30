@@ -156,7 +156,6 @@ async function runBacktestMeasured(
             candles,
             resolved,
             {
-                id: `${request.instrument}-${request.interval}-${candles.length}`,
                 name: `${request.instrument} ${request.interval}`,
                 // From the first bar's own timestamp rather than the clock, so
                 // a run repeated on the same data produces the same manifest

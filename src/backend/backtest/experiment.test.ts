@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
 
 import { describeDataset, checksumCandles, canonicalText, sameDataset, diffDatasets, DatasetSchema } from './dataset.js';
-import { checkReplayable, verifyAgainst, aggregate, ExperimentManifestSchema } from './experiment.js';
+import { checkReplayable, verifyAgainst, aggregate, experimentId, ExperimentManifestSchema } from './experiment.js';
 import { manifestFor } from './manifest.js';
 import { runWalkForward, DEFAULT_WALK_FORWARD_OPTIONS } from './walk-forward.js';
 import { INDICATOR_SIGNAL_CONFIG } from '../config/indicator.config.js';
@@ -39,14 +39,22 @@ const SERIES = {
     interval: '1d',
 };
 
-function manifestOf(id: string, recordedAt = NOW): ExperimentManifest {
+/**
+ * `label` names the run; it does not identify it.
+ *
+ * The id is computed inside `manifestFor` from the record's own contents, so
+ * three calls with the same data are three labels over one experiment — which
+ * is what they are. An earlier version passed the label through as the id, and
+ * the aggregate below was quietly describing the same run three times.
+ */
+function manifestOf(label: string, recordedAt = NOW): ExperimentManifest {
     const result = runWalkForward(SAMPLE, { foldBars: 60, trainingBars: 120, maxFolds: 2 });
 
     return manifestFor(
         result,
         SAMPLE,
         { ...DEFAULT_WALK_FORWARD_OPTIONS, foldBars: 60, trainingBars: 120, maxFolds: 2 },
-        { id, name: `run ${id}`, recordedAt, commit: 'a'.repeat(40) },
+        { name: `run ${label}`, recordedAt, commit: 'a'.repeat(40) },
         SERIES,
         {
             longThreshold: INDICATOR_SIGNAL_CONFIG.stochastic.longThreshold,
@@ -376,5 +384,139 @@ describe('two descriptions of the same thing are the same thing', () => {
             ),
             { numRuns: 100 },
         );
+    });
+});
+
+describe('an experiment is identified by what it measured, not by what it is called', () => {
+    it('names the same experiment the same way however it is labelled', () => {
+        // The collision this replaces was silent and it is worth being precise
+        // about it. The caller used to pass
+        // `${instrument}-${interval}-${candles.length}` as the id: same symbol,
+        // same interval, same count — and the checksum, the one field that
+        // separates January's 8760 bars from February's, left out. Nothing
+        // grouped by it yet, so nothing broke; the first thing that does inherits
+        // a collision that looks like a match.
+        //
+        // The label fields are `name` and `recordedAt`, and they are excluded
+        // for a reason rather than by omission: the same bars re-run tomorrow
+        // under a different title is one experiment recorded twice, and an id
+        // that changed when the title changed would make that look like two.
+        const first = manifestOf('first', NOW);
+        const second = manifestOf('completely different title', NOW + 86_400_000);
+
+        expect(second.name).not.toBe(first.name);
+        expect(second.recordedAt).not.toBe(first.recordedAt);
+        expect(experimentId(second)).toBe(experimentId(first));
+    });
+
+    it('gives a different identity when one price in the data differs', () => {
+        // The property the id is for. One close out of twelve hundred is the
+        // difference between two runs a reader must not confuse, and it is
+        // invisible to every field the old name used.
+        const base = manifestOf('base');
+        const changed = [...SAMPLE];
+        const bar = { ...changed[100]! };
+
+        bar.close += 0.01;
+        changed[100] = bar;
+
+        const other = manifestFor(
+            runWalkForward(changed, {
+                foldBars: 60,
+                trainingBars: 120,
+                maxFolds: 2,
+            }),
+            changed,
+            { ...DEFAULT_WALK_FORWARD_OPTIONS, foldBars: 60, trainingBars: 120, maxFolds: 2 },
+            { name: 'run base', recordedAt: NOW, commit: 'a'.repeat(40) },
+            SERIES,
+            {
+                longThreshold: INDICATOR_SIGNAL_CONFIG.stochastic.longThreshold,
+                shortThreshold: INDICATOR_SIGNAL_CONFIG.stochastic.shortThreshold,
+            },
+        );
+
+        expect(other.dataset.bars).toBe(base.dataset.bars);
+        expect(other.id).not.toBe(base.id);
+    });
+
+    it('gives a different identity when the run is configured differently', () => {
+        // Same bars, same everything a reader would call "the experiment", one
+        // threshold changed. The results may well be identical; whether they
+        // are is not for the id to decide, because a record that cannot tell
+        // those two apart cannot say which one produced a number.
+        const base = manifestOf('base');
+        const other = manifestFor(
+            runWalkForward(SAMPLE, { foldBars: 60, trainingBars: 120, maxFolds: 2 }),
+            SAMPLE,
+            {
+                ...DEFAULT_WALK_FORWARD_OPTIONS,
+                foldBars: 60,
+                trainingBars: 120,
+                maxFolds: 2,
+                // One tenth of a percent on the shipped threshold.
+                execution: {
+                    ...DEFAULT_WALK_FORWARD_OPTIONS.execution,
+                    slippageRate:
+                        DEFAULT_WALK_FORWARD_OPTIONS.execution.slippageRate + 0.001,
+                },
+            },
+            { name: 'run base', recordedAt: NOW, commit: 'a'.repeat(40) },
+            SERIES,
+            {
+                longThreshold: INDICATOR_SIGNAL_CONFIG.stochastic.longThreshold,
+                shortThreshold: INDICATOR_SIGNAL_CONFIG.stochastic.shortThreshold,
+            },
+        );
+
+        expect(other.id).not.toBe(base.id);
+    });
+
+    it('is not derived from what the run said, only from what it measured', () => {
+        // `metrics` and `folds` are excluded on purpose. An id built from them
+        // would be a different string every time the run produced a different
+        // answer, which is a number that cannot identify anything — and it
+        // would also make the identity depend on the correctness of the run,
+        // so a fixed bug would mint a new experiment id and the before-and-after
+        // would stop looking like the same experiment at all.
+        const first = manifestOf('first');
+
+        expect(first.folds.length).toBeGreaterThan(0);
+        expect(experimentId({ ...first, metrics: { ...first.metrics, totalReturn: 99 } })).toBe(
+            experimentId(first),
+        );
+    });
+
+    it('reproduces for the same record and differs for any field it covers', () => {
+        // The canonical field list is data, and this is what holds it to the
+        // record: every field the id claims to cover must actually move it. A
+        // field added to the manifest and forgotten in
+        // `EXPERIMENT_IDENTITY_FIELDS` would not fail this — it would fail the
+        // check that the list has not been quietly narrowed, which is why the
+        // list and this test are read together.
+        const base = manifestOf('base');
+
+        const mutations: { readonly field: string; readonly manifest: ExperimentManifest }[] = [
+            { field: 'execution', manifest: { ...base, execution: { ...base.execution, model: 'intrabar' } } },
+            { field: 'options', manifest: { ...base, options: { ...base.options, foldBars: base.options.foldBars + 1 } } },
+            {
+                field: 'productionParameters',
+                manifest: {
+                    ...base,
+                    productionParameters: {
+                        ...base.productionParameters,
+                        longThreshold: base.productionParameters.longThreshold + 1,
+                    },
+                },
+            },
+            {
+                field: 'dataset',
+                manifest: { ...base, dataset: { ...base.dataset, checksum: 'not-the-same-bars' } },
+            },
+        ];
+
+        for (const { field, manifest } of mutations) {
+            expect(experimentId(manifest), field).not.toBe(experimentId(base));
+        }
     });
 });
