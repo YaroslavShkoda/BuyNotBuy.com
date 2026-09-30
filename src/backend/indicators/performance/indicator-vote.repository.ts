@@ -70,13 +70,25 @@ const UPSERT_SQL = `
     WHERE EXCLUDED.timestamp > ${INDICATOR_TABLE}.timestamp
 `;
 
+/**
+ * Keeps the newest `limit` buckets for one symbol and deletes the rest.
+ *
+ * Scoped by `symbol` on purpose, and not because the table has one market in it
+ * today. An unscoped trim keeps the newest buckets across *every* symbol, so
+ * the first vote recorded for one asset silently deletes the other asset's
+ * history — no error, no log, and a hit-rate table that quietly loses the asset
+ * nobody was looking at. Every other statement in this file already scopes by
+ * symbol; this one not doing so was an omission, not a decision.
+ */
 const TRIM_SQL = `
     DELETE FROM ${INDICATOR_TABLE}
-    WHERE vote_bucket NOT IN (
+    WHERE symbol = $1
+      AND vote_bucket NOT IN (
         SELECT DISTINCT vote_bucket
         FROM ${INDICATOR_TABLE}
+        WHERE symbol = $1
         ORDER BY vote_bucket DESC
-        LIMIT $1
+        LIMIT $2
     )
 `;
 
@@ -149,7 +161,18 @@ export function createIndicatorVoteRepository(
                     ]);
                 }
 
-                await client.query(TRIM_SQL, [options.maxEntries]);
+                // Once per symbol in the batch, not once for the batch. A
+                // batch is allowed to carry more than one symbol, and a single
+                // pass would trim one market's history against another's.
+                const symbols = [
+                    ...new Set(votes.map((vote) => vote.symbol)),
+                ];
+                for (const symbol of symbols) {
+                    await client.query(TRIM_SQL, [
+                        symbol,
+                        options.maxEntries,
+                    ]);
+                }
             });
         },
 
