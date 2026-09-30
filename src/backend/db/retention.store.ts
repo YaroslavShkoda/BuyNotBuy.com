@@ -27,13 +27,15 @@ export interface Queryable {
     ) => Promise<{ rows: T[]; rowCount: number | null }>;
 }
 
-const RetentionRunRowSchema = z.object({
-    table_name: z.string(),
-    cutoff: z.coerce.number(),
-    deleted_rows: z.coerce.number(),
-    duration_ms: z.coerce.number(),
-    skipped: z.coerce.number(),
-});
+// Deliberately not validating `retention_run` rows.
+//
+// The schema this replaces required a `skipped` column that the INSERT below
+// never wrote and never will, because the DELETE either removes every row past
+// the cutoff or fails the statement outright. Validating a column nothing
+// populates means every parse either trusted a database default or threw for a
+// value the code had never written. There is no consumer of the row's own
+// fields here — `lastRun` selects the two it needs and nothing else — so
+// nothing is lost by leaving the shape unvalidated.
 
 export interface RetentionStore {
     listPolicies(): Promise<RetentionPolicy[]>;
@@ -103,6 +105,11 @@ export function createRetentionStore(
             const effective = policies ?? (await this.listPolicies());
             const plan = planPrune(effective, at);
             const results: PruneResult[] = [];
+            // Refusals found while running, as opposed to the ones the plan
+            // already knew about. Kept apart so the two are not confused: a
+            // reader asking "did the plan know this was protected?" deserves a
+            // different answer from one asking "what did the pruner refuse?".
+            const refused: { table: string; reason: string }[] = [];
 
             for (const step of plan.applicable) {
                 const policy = effective.find(
@@ -110,18 +117,32 @@ export function createRetentionStore(
                 );
 
                 if (policy === undefined) {
+                    // Reported rather than dropped. The plan is built from these
+                    // same policies, so this cannot happen today — and a step
+                    // that vanishes leaves a report that looks complete, which
+                    // is the one shape of wrong that nothing downstream can
+                    // notice. Same rule as the unknown-table branch below.
+                    refused.push({
+                        table: step.table,
+                        reason:
+                            `у ${step.table} нет политики хранения среди ` +
+                            'применяемых, хотя план её отобрал',
+                    });
+
                     continue;
                 }
 
                 const known = describeTable(step.table, effective);
 
                 if (!known.known) {
-                    // Unreachable given the plan came from these policies, and
-                    // checked anyway: a table name reaching a DELETE without a
-                    // policy behind it is the one thing this module must never
-                    // do, and a guard that is only checked by construction is a
-                    // guard that stops being checked the first time somebody
-                    // changes the construction.
+                    // `describeTable` has already written down exactly why this
+                    // table was not pruned. Throwing that away and carrying on
+                    // was the module contradicting its own rule — protected
+                    // tables appear in `refused` with a reason, and an unknown
+                    // one is refused for the same reason and was disappearing
+                    // instead.
+                    refused.push({ table: step.table, reason: known.reason });
+
                     continue;
                 }
 
@@ -149,11 +170,10 @@ export function createRetentionStore(
                     deleted: removed,
                     cutoff: step.cutoff,
                     durationMs,
-                    skipped: 0,
                 });
             }
 
-            return report(results, plan.refused);
+                return report(results, [...plan.refused, ...refused]);
         },
 
         async lastRun(table) {
@@ -345,8 +365,6 @@ export function createIndexAuditStore(
         },
     };
 }
-
-export { RetentionRunRowSchema };
 
 let shared: RetentionStore | null = null;
 

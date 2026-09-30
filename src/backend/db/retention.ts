@@ -211,7 +211,16 @@ export interface PruneResult {
     readonly deleted: number;
     readonly cutoff: number;
     readonly durationMs: number;
-    readonly skipped: number;
+    // There used to be a `skipped` here: rows that could not be deleted because
+    // something still references them, counted rather than attempted. The
+    // `retention_run.skipped` column is still in the database and still
+    // describes that intent, but nothing ever wrote it, because the DELETE is
+    // unconditional — it removes every row older than the cutoff or it throws,
+    // and a foreign-key violation fails the whole statement rather than
+    // leaving some rows behind. So the number could only ever be 0, and a
+    // counter that can only be 0 is worse than no counter: it looks measured.
+    // It is gone until the counting exists to be measured. See
+    // `docs/open-questions.md`.
 }
 
 export interface PruneReport {

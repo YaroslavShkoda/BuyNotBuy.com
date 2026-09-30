@@ -41,7 +41,6 @@ function results(deleted: number[], tables = ['a', 'b']): PruneResult[] {
         deleted: deleted[index] ?? 0,
         cutoff: NOW,
         durationMs: 1,
-        skipped: 0,
     }));
 }
 
