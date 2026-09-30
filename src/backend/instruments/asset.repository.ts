@@ -242,6 +242,45 @@ export class AssetRepository {
         };
     }
 
+    /**
+     * Records a category the data decided, once a person has not.
+     *
+     * **This is the one write in the repository that is allowed to change a
+     * configured answer, and only a configured one.** `seedFromConfiguration`
+     * uses `ON CONFLICT DO NOTHING` precisely so that what it writes survives;
+     * a method that overwrote `source = 'learned'` with `'configured'` on the
+     * next boot would erase the only evidence that anything in this system has
+     * ever learned anything, and would do it silently and on every restart.
+     *
+     * The `WHERE source = 'configured'` is the whole policy, and it is what
+     * keeps learning bounded rather than self-referential: a classification
+     * learned from data can never be replaced by another classification learned
+     * from data by this method, so a market cannot oscillate between two
+     * answers by re-deciding the same question with the same evidence. A
+     * disagreement between two learned verdicts is a fact to surface, not a
+     * race to see which lands last.
+     *
+     * What it will not do is overwrite a person's explicit declaration, because
+     * a human saying "this is a fiat pair" and the data disagreeing is a
+     * question for a human, and resolving it automatically in favour of the
+     * data would make the configuration a suggestion.
+     */
+    async recordLearnedCategory(
+        symbol: string,
+        category: 'crypto' | 'fiat',
+        decidedAt: number,
+    ): Promise<{ changed: boolean }> {
+        return await withTransaction(async (client) => {
+            const result = await client.query(
+                `UPDATE asset SET category = $2, source = 'learned', decided_at = $3
+                 WHERE symbol = $1 AND source = 'configured' AND category <> $2`,
+                [symbol, category, decidedAt],
+            );
+
+            return { changed: (result.rowCount ?? 0) > 0 };
+        });
+    }
+
     /** Suspends an asset, and with it every market priced in it. */
     async suspendAsset(symbol: string): Promise<void> {
         await withTransaction(async (client) => {

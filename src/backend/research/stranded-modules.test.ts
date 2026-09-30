@@ -90,28 +90,26 @@ describe('production modules with no production caller', () => {
             'backtest/optimizer.ts',
             'db/retention.store.ts',
             'history/backfill.service.ts',
-            'instruments/classify.ts',
             'observability/health.registry.ts',
             'signals/explanation.ts',
             'strategy/rule-registry.ts',
         ]);
 
-        // **The registry is in the database now, and the configuration stayed on
-        // top of it.** `instruments/asset.repository.ts` left this list when the
-        // server started seeding `asset` and `instrument` at boot — the module
-        // already had 22 tests behind it, including that it does not reactivate
-        // a suspended asset and does not overwrite a classification learned
-        // from data. It was never unfinished. It was unwired, which is a
-        // different defect and one that looks exactly like finished work.
+        // **Everything the roadmap asked for in M1 is now connected.**
         //
-        // What is left, and it is worth reading rather than skimming:
+        // `instruments/asset.repository.ts` left this list when the server began
+        // seeding `asset` and `instrument` at boot — the registry moves into the
+        // database and the configuration stays on top of it. The module already
+        // had 22 tests behind it, including that seeding does not reactivate a
+        // suspended asset and does not overwrite a classification learned from
+        // data. It was never unfinished. It was unwired, which looks exactly
+        // like finished work from the outside.
         //
-        // `instruments/classify.ts` is PHASE 14 — the data-learned asset
-        // classifier — and it is the last piece of the chain this project has
-        // written without connecting. It is also the only consumer that would
-        // make the `source = 'learned'` column mean anything, and the only
-        // thing that could write a `category` the configuration never claimed.
+        // `instruments/classify.ts` left next, and with it PHASE 14 stops being
+        // a milestone and becomes a feature: `source = 'learned'` now has a
+        // writer, and the column stops being a claim about the future.
         //
+        // What remains is smaller, and none of it is on the critical path:
         // `backtest/optimizer.ts` is the second reader of global config that M4
         // could not account for, and the reason is simply that it is not called.
         //

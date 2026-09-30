@@ -70,6 +70,77 @@ describe('AssetRepository', () => {
         });
     });
 
+    describe('a category the data decided', () => {
+        it('overwrites a configured answer, and marks where it came from', async () => {
+            // The one write in this repository permitted to change what
+            // configuration said, and the `source` column is the record of it.
+            // Without that column the two would be indistinguishable, and "the
+            // data decided" and "somebody typed it" are different facts with
+            // different consequences when they disagree.
+            const result = await repository.recordLearnedCategory('BTC', 'fiat', 1_700_000_000_000);
+
+            expect(result.changed).toBe(true);
+
+            const btc = (await repository.listAssets()).find((a) => a.symbol === 'BTC');
+
+            expect(btc?.category).toBe('fiat');
+            expect(btc?.source).toBe('learned');
+        });
+
+        it('never replaces a classification that was already learned', async () => {
+            // **The bound on self-learning.** If this method could overwrite a
+            // learned row, the registry would be able to re-decide the same
+            // question with the same evidence forever — a market oscillating
+            // between two answers, each one erasing the evidence for the other.
+            // A disagreement between two learned verdicts is a fact to surface,
+            // not a race to see which lands last.
+            await repository.recordLearnedCategory('BTC', 'fiat', 1);
+            const second = await repository.recordLearnedCategory('BTC', 'crypto', 2);
+
+            expect(second.changed).toBe(false);
+
+            const btc = (await repository.listAssets()).find((a) => a.symbol === 'BTC');
+            expect(btc?.category).toBe('fiat');
+        });
+
+        it('reports no change when the data agrees with configuration', async () => {
+            // Agreeing is the normal case and must not rewrite the row, because
+            // rewriting it would replace `decided_at` with the time the system
+            // last happened to check, and the column would then answer "when
+            // was this last verified" while looking like "when was this decided".
+            const result = await repository.recordLearnedCategory('BTC', 'crypto', 999);
+
+            expect(result.changed).toBe(false);
+
+            const btc = (await repository.listAssets()).find((a) => a.symbol === 'BTC');
+            expect(btc?.source).toBe('configured');
+        });
+
+        it('does not invent an asset the registry has never heard of', async () => {
+            // A learned category is a claim about a row that exists. Writing one
+            // for a symbol nobody registered would create an asset that no
+            // configuration declared and no instrument references, which is a
+            // row nothing will ever clean up.
+            const result = await repository.recordLearnedCategory('ZZZ', 'fiat', 1);
+
+            expect(result.changed).toBe(false);
+            expect((await repository.listAssets()).some((a) => a.symbol === 'ZZZ')).toBe(false);
+        });
+
+        it('leaves a learned category standing across a reseed', async () => {
+            // The pair of behaviours that make the two rules hold together: the
+            // seed must not undo the learning, and the learning must not be able
+            // to undo a person. Boot runs the seed on every start.
+            await repository.recordLearnedCategory('BTC', 'fiat', 1);
+            await repository.seedFromConfiguration([
+                { symbol: 'BTC', category: 'crypto' as const },
+            ]);
+
+            const btc = (await repository.listAssets()).find((a) => a.symbol === 'BTC');
+            expect(btc?.category).toBe('fiat');
+        });
+    });
+
     describe('recording an instrument', () => {
         it('writes the pair and both halves', async () => {
             const instruments = await repository.listInstruments();

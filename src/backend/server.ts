@@ -4,7 +4,8 @@ import { historyConfig } from './config/history.config.js';
 import { marketConfig } from './config/market.config.js';
 import { assertSignalHistorySchemaReady } from './history/signal-history.repository.js';
 import { getAssetRepository } from './instruments/asset.repository.js';
-import { knownAssets } from './config/asset.registry.js';
+import { classifyByTradingWeek } from './instruments/classify.js';
+import { knownAssets, resolveInstrument } from './config/asset.registry.js';
 import { reconcileSignalOutcomes } from './outcomes/reconcile.js';
 import { publishSignal } from './signals/publish.js';
 import { closePool } from './db/pool.js';
@@ -265,6 +266,46 @@ async function startServer() {
                     }
 
                     await flushSignalHistoryBacklog(app.log);
+
+                    // PHASE 14: what kind of market this is, decided by whether
+                    // it trades at weekends, over at least a fortnight of bars
+                    // so that one thin holiday cannot answer the question.
+                    // The result is a fact about the market's structure, not a
+                    // judgement about the strategy, which is why it may write
+                    // to the registry at all — and it still may not overwrite a
+                    // category a person typed.
+                    const learned = classifyByTradingWeek(
+                        candles,
+                        Date.now(),
+                    );
+
+                    if (learned.verdict !== 'unknown') {
+                        // The base of the pair, named for what it is. Calling it
+                        // `quote` would be the second time in this file that a
+                        // name said something other than the thing, and this is
+                        // the value that ends up in `asset.symbol`.
+                        const base = resolveInstrument(marketConfig.symbol)?.base?.symbol ?? null;
+
+                        if (base !== null) {
+                            const written = await getAssetRepository().recordLearnedCategory(
+                                base,
+                                learned.verdict,
+                                Date.now(),
+                            );
+
+                            if (written.changed) {
+                                app.log.info(
+                                    {
+                                        event: 'asset_category_learned',
+                                        symbol: base,
+                                        category: learned.verdict,
+                                        evidence: learned.evidence,
+                                    },
+                                    'asset_category_learned',
+                                );
+                            }
+                        }
+                    }
 
                     // Forward returns can only be filled in once the candle
                     // that closes each horizon exists, which is why this runs
