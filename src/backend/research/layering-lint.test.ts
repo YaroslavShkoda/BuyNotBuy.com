@@ -121,23 +121,24 @@ describe('this codebase, measured', () => {
     it('has no domain file that touches the database outside a repository', () => {
         // Zero, and pinned at zero so it cannot be raised quietly. This is the
         // rule M2 existed to enable, and it turned out to be enabled already:
-        // all twelve files outside `db/` that reach into the database are eleven
-        // repositories and one health check.
+        // all thirteen files outside `db/` that reach into the database are
+        // twelve repositories and one health check.
         expect(audit(realRoot).offences).toEqual([]);
     }, 30000);
 
-    it('names the eleven repositories, so the accepted set is checkable', () => {
+    it('names the twelve repositories, so the accepted set is checkable', () => {
         // "There is no SQL in the domain" and "the only SQL in the domain is in
-        // these eleven files" are different claims, and only the second one can
+        // these twelve files" are different claims, and only the second one can
         // be checked later. A guard that reports only failures says nothing
         // about what it accepted.
         //
-        // **This list is a tripwire, and it has now caught something.** Adding
-        // `performance/performance-load.repository.ts` to read outcomes made
-        // this test fail with eleven instead of ten, which is the moment it
-        // exists for: a new seam is a thing a person agreed to, not a thing
-        // that appeared. The name is written here so the agreement is on the
-        // record.
+        // **This list is a tripwire, and it has now caught something twice.**
+        // Adding `performance/performance-load.repository.ts` to read outcomes
+        // made this test fail with eleven instead of ten; adding
+        // `strategy/evidence.repository.ts` to read measurements made it fail
+        // with twelve instead of eleven. Both are the moment it exists for: a
+        // new seam is a thing a person agreed to, not a thing that appeared.
+        // The name is written here so the agreement is on the record.
         const report = audit(realRoot);
 
         expect([...report.seams].sort()).toEqual([
@@ -152,6 +153,7 @@ describe('this codebase, measured', () => {
             'signals/lifecycle.repository.ts',
             'strategies/candidate.repository.ts',
             'strategies/decision-log.repository.ts',
+            'strategy/evidence.repository.ts',
         ]);
     }, 30000);
 

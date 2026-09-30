@@ -81,6 +81,30 @@ export function canTransition(from: CandidateStage, to: CandidateStage): boolean
     return NEXT_STAGE[from].includes(to);
 }
 
+/**
+ * The one question a promotion has to answer before it is allowed.
+ *
+ * **Declared here and implemented elsewhere, because the answer lives in a
+ * layer this one may not import.** The evidence gate reads measurements, and
+ * measurements live in the strategy layer, which `strategies` is not allowed to
+ * depend on. Declaring the question as an interface keeps the ordering of
+ * imports honest: this module knows that approval requires evidence and never
+ * learns what evidence is.
+ */
+export interface PromotionGate {
+    /**
+     * @throws when the rule has not earned the stage it is asking for. The
+     *   message is the reason a reader needs, not a status code.
+     */
+    check(input: GateCheck): Promise<void>;
+}
+
+export interface GateCheck {
+    readonly ruleId: string;
+    readonly to: CandidateStage;
+    readonly strategyVersionId: number | null;
+}
+
 export interface StrategyRuleRepository {
     /** Every stage change a rule has ever been through, oldest first. */
     history(ruleId: string): Promise<readonly StrategyRuleRecord[]>;
@@ -106,7 +130,7 @@ export interface Promotion {
     readonly at?: number;
 }
 
-export function createStrategyRuleRepository(): StrategyRuleRepository {
+export function createStrategyRuleRepository(gate?: PromotionGate): StrategyRuleRepository {
     const columns =
         'id, rule_id, stage, parameters, promoted_at, retired_at, created_at, strategy_version_id';
 
@@ -155,6 +179,29 @@ export function createStrategyRuleRepository(): StrategyRuleRepository {
             }
 
             const existing = await this.current(input.ruleId);
+
+            // **The gate, and what it is asked about.**
+            //
+            // It runs before anything is written and it is asked about the stage
+            // being entered, not the one being left. Approval is where a shadow
+            // ends, so that is where the evidence has to exist.
+            //
+            // It is passed the configuration the promotion claims, not the one
+            // that happens to be active. When the two differ — and they differ
+            // exactly when the fallback is running — grading the candidate on the
+            // incumbent's numbers would measure the wrong rule, and a gate that
+            // passes on someone else's evidence is not a gate.
+            //
+            // A null version is refused rather than skipped. Without it there is
+            // nothing to measure, and a promotion nobody can check later is the
+            // exact thing this table was built to prevent.
+            if (gate !== undefined) {
+                await gate.check({
+                    ruleId: input.ruleId,
+                    to: input.to,
+                    strategyVersionId: input.strategyVersionId ?? null,
+                });
+            }
 
             if (existing === null) {
                 // A rule that has never been recorded can only be recorded as
@@ -257,11 +304,32 @@ function toRecord(row: Record<string, unknown>): StrategyRuleRecord {
 
 let shared: StrategyRuleRepository | null = null;
 
-export function getStrategyRuleRepository(): StrategyRuleRepository {
-    shared ??= createStrategyRuleRepository();
+/**
+ * The repository every entry point gets.
+ *
+ * A gate handed here is remembered, and **the first call decides**. A later
+ * call that quietly replaced it with an ungated one would reopen the hole this
+ * was closed to fix, so a second, different gate is refused rather than
+ * preferred.
+ */
+export function getStrategyRuleRepository(gate?: PromotionGate): StrategyRuleRepository {
+    if (gate !== undefined) {
+        if (shared !== null && !gated) {
+            throw new Error(
+                'The strategy rule repository was already taken without an ' +
+                    'evidence gate, and a gate cannot be attached after the fact.',
+            );
+        }
+
+        gated = true;
+    }
+
+    shared ??= createStrategyRuleRepository(gate);
 
     return shared;
 }
+
+let gated = false;
 
 /** Test seam: the singleton exists so production shares one, not so tests share rows. */
 export function resetStrategyRuleRepository(): void {

@@ -3,6 +3,8 @@ import { appConfig } from './config/app.config.js';
 import { historyConfig } from './config/history.config.js';
 import { marketConfig } from './config/market.config.js';
 import { assertSignalHistorySchemaReady } from './history/signal-history.repository.js';
+import { getStrategyRuleRepository } from './strategies/candidate.repository.js';
+import { createEvidenceGate } from './services/promotion-gate.js';
 import { getSignalSnapshotRepository } from './analysis/signal-snapshot.repository.js';
 import { getAssetRepository } from './instruments/asset.repository.js';
 import { classifyByTradingWeek } from './instruments/classify.js';
@@ -159,6 +161,14 @@ async function startServer() {
         // first market request while the service looks healthy. Applying the
         // migrations here also creates the schema on a fresh database.
         await assertSignalHistorySchemaReady();
+
+        // The evidence gate, attached before anything can promote a rule. Every
+        // other entry point — the two research CLIs — reaches the same shared
+        // repository and therefore the same gate, because the gate is attached
+        // to the singleton rather than to one caller. Attaching it later, or
+        // letting a later caller ask for an ungated one, would leave the ladder
+        // open on every path that had not been thought about.
+        getStrategyRuleRepository(createEvidenceGate());
 
         // The registry moves into the database, and the configuration stays on
         // top of it: the config is the declaration, this writes it down, and

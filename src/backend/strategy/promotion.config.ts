@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { outcomeConfig } from '../config/outcome.config.js';
+
 /**
  * The rules a candidate has to pass to become what the system actually does.
  *
@@ -61,6 +63,38 @@ export const PromotionConfigSchema = z
          * wait.
          */
         barIntervalMs: z.coerce.number().int().positive(),
+        /**
+         * The distance at which a signal is judged correct or incorrect.
+         *
+         * Every signal is measured at several horizons, and those measurements
+         * are **not independent samples of the same thing** — they are one
+         * signal read at different distances. Counting them as seven votes
+         * would let a rule clear a twenty-sample gate on three signals, and it
+         * would do so silently, because every row is a real row and every count
+         * is a true count. The arithmetic is only wrong.
+         *
+         * So the gate counts one vote per signal, at this horizon, and the
+         * horizon is named rather than left inside a WHERE clause nobody reads.
+         * It defaults to the shortest configured horizon because that is the
+         * system's own definition of "how long a signal has to work", and
+         * because judging at every distance at once would make the result
+         * depend on which one happened to come out best.
+         */
+        evaluationHorizonBars: z
+            .coerce
+            .number()
+            .int()
+            .positive()
+            // Defaulted rather than required, and the two are not the same
+            // choice. Required would mean every deployment has to name it and
+            // every test literal has to carry a field that says nothing about
+            // the test. Defaulted, the value is still always present after
+            // parsing, so nothing downstream has to guard against its absence.
+            //
+            // It comes from the outcome system rather than being written here,
+            // because two places that both name the horizon are two places
+            // that will disagree.
+            .default(outcomeConfig.horizons[0] ?? 6),
     })
     .refine(
         (config) =>
