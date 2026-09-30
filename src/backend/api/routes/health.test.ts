@@ -3,8 +3,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createApp } from '../../app.js';
 import { resetMetrics } from '../lib/metrics.js';
 import { LATEST_SCHEMA_VERSION } from '../../db/migrations.js';
+import { healthRegistry, observeNewestBar } from '../../observability/health.registry.js';
 
 import type { FastifyInstance } from 'fastify';
+
+/**
+ * A fixed "now" for the freshness assertions below.
+ *
+ * Not the wall clock: these tests are about whether the system knows how old its
+ * data is, and a reading that depends on the hour the suite happens to run is a
+ * reading that passes on Tuesday and fails on Sunday.
+ */
+const NOW = 1_760_000_000_000;
+const DAY = 86_400_000;
 
 /**
  * The database is replaced, not broken.
@@ -145,8 +156,89 @@ describe('readiness', () => {
                     ok: expect.any(Boolean),
                     venues: expect.any(Array),
                 }),
+                // The registry's own view, reported here and not folded into
+                // the readiness decision. Asserted with a shape rather than
+                // swallowed: an operator reading this endpoint has to be able
+                // to learn how old the data they are being shown is, and that
+                // question had no answer anywhere they could reach.
+                components: expect.objectContaining({
+                    state: expect.any(String),
+                    components: expect.any(Array),
+                    problems: expect.any(Array),
+                }),
             },
         });
+    });
+
+    it('says a stale market degrades the report without failing readiness', async () => {
+        // Three days on a daily bar. A weekend is not an outage, and a probe
+        // that failed on it would pull a working instance out of rotation.
+        //
+        // The component is named rather than the report's aggregate, because the
+        // aggregate is the worst component present and one of them reads the
+        // newest bar timestamp out of the database against the wall clock — so
+        // asserting on the aggregate here would be asserting on whatever the
+        // test database happens to hold, which is exactly the flake this suite
+        // does not need.
+        observeNewestBar(NOW - 3 * DAY, NOW);
+
+        const response = await track(createApp()).inject({
+            method: 'GET',
+            url: '/readyz',
+        });
+
+        const component = response
+            .json()
+            .checks.components.components.find(
+                (entry: { name: string }) => entry.name === 'market-freshness',
+            );
+
+        expect(component.state).toBe('degraded');
+        expect(response.statusCode).toBe(200);
+        expect(response.json().status).toBe('ready');
+    });
+
+    it('keeps a dead feed from turning into a dead process', async () => {
+        // Forty days is not "a bit old", it is nothing arriving at all, and the
+        // registry is right to call it failing. Readiness is still 200, because
+        // the instance can serve the data it already has and restarting it
+        // would not make the exchange send bars.
+        observeNewestBar(NOW - 40 * DAY, NOW);
+
+        const response = await track(createApp()).inject({
+            method: 'GET',
+            url: '/readyz',
+        });
+
+        expect(response.statusCode).toBe(200);
+        expect(response.json().status).toBe('ready');
+        expect(response.json().checks.components.state).toBe('failing');
+    });
+
+    it('stops claiming the snapshot is direct once it is not', async () => {
+        // **This is the lie the registry used to tell.** It answered
+        // `ageMs: () => 0` and `stale: false`, so `market-freshness` said
+        // «снимок получен напрямую» at every instant of the process's life,
+        // including the instants it served week-old candles — and did so
+        // without a database call, which is the cheapest possible way to be
+        // confidently wrong.
+        observeNewestBar(NOW - 40 * DAY, NOW);
+
+        const report = await healthRegistry.report();
+        const freshness = report.components.find(
+            (component) => component.name === 'market-freshness',
+        );
+
+        expect(freshness?.state).toBe('degraded');
+        expect(freshness?.dataAgeMs).toBe(40 * DAY);
+
+        observeNewestBar(NOW, NOW);
+
+        const fresh = await healthRegistry.report();
+
+        expect(
+            fresh.components.find((c) => c.name === 'market-freshness')?.state,
+        ).toBe('ok');
     });
 
     it('reports market-data venues without making readiness flap', async () => {

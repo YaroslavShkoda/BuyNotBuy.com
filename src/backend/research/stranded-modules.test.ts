@@ -90,7 +90,6 @@ describe('production modules with no production caller', () => {
             'backtest/optimizer.ts',
             'db/retention.store.ts',
             'history/backfill.service.ts',
-            'observability/health.registry.ts',
             'signals/explanation.ts',
             'strategy/rule-registry.ts',
         ]);
@@ -129,13 +128,28 @@ describe('production modules with no production caller', () => {
         //
         // `canTransition` in the ladder that is actually in use is
         // `NEXT_STAGE[from].includes(to)` — the order of the names — and
-        // `promote()` checks that its `evidence` string is not empty and
-        // nothing else. So the gate on self-promotion is a vocabulary, and the
-        // only code that gates it on evidence was sitting in this list, unused.
+        // `promote()` checked that its `evidence` string was not empty and
+        // nothing else. So the gate on self-promotion was a vocabulary, and the
+        // only code that gated it on evidence was sitting in this list, unused.
         //
-        // The entry stays in the pinned list because the module is still
-        // unwired. What is not unwired is the finding, which is written up in
+        // `rule-registry.ts` is still in the list, and **I nearly took it out for
+        // the wrong reason.** What round 23 changed was the finding behind it,
+        // not the module: the gate it implements now runs, through
+        // `strategy/evidence.repository.ts` and `services/promotion-gate.ts`,
+        // attached to the shared repository so that every entry point —
+        // including both research CLIs — reaches it. The second ladder still has
+        // no caller, which is a different question, written up in
         // docs/roadmap-v2-status.md.
+        //
+        // **`observability/health.registry.ts` left this list too, and it took a
+        // lie with it.** It answered `ageMs: () => 0` and `stale: false`, so
+        // `market-freshness` reported «снимок получен напрямую» at every instant
+        // of the process's life, including every instant it served week-old
+        // candles — and it did so without a database call, which is the
+        // cheapest possible way to be confidently wrong. The poller now tells it
+        // the age of the newest bar, and `/readyz` reports the registry's
+        // components alongside its own checks without letting a stale daily bar
+        // fail readiness: a weekend is not an outage.
     });
 
     it('still finds the promotion subsystem when the graph says every layer is fine', () => {

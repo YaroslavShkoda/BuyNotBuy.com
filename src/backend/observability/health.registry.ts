@@ -48,8 +48,15 @@ export interface MarketProbe {
 
 export interface SnapshotProbe {
     ageMs(): number;
-    /** A cached snapshot is serving the answer, and the answer is right. */
-    stale: boolean;
+    /**
+     * A cached snapshot is serving the answer, and the answer is right.
+     *
+     * A function rather than a value for the same reason `ageMs` is one: both
+     * are read at report time, and a snapshot that went stale while the process
+     * was running has to be able to say so. A boolean captured at construction
+     * is a constant wearing a measurement's name.
+     */
+    stale(): boolean;
 }
 
 export interface HealthRegistryOptions {
@@ -164,8 +171,8 @@ export function createHealthRegistry(options: HealthRegistryOptions): HealthRegi
                 // Degraded, never failing: the answer is still right, it is
                 // just older than it should be, and reporting it as a failure
                 // is a page for a working system.
-                state: options.snapshot.stale ? 'degraded' : 'ok',
-                detail: options.snapshot.stale
+                state: options.snapshot.stale() ? 'degraded' : 'ok',
+                detail: options.snapshot.stale()
                     ? `отдаётся кэшированный снимок, ему ${Math.floor(age / 60_000)} мин`
                     : 'снимок получен напрямую',
                 dataAgeMs: age,
@@ -248,7 +255,40 @@ export const healthRegistry: HealthRegistry = createHealthRegistry({
         interval: () => marketConfig.candleInterval,
     },
     snapshot: {
-        ageMs: () => 0,
-        stale: false,
+        // **These two used to be `() => 0` and `false`, which is a health
+        // check that reports "снимок получен напрямую" forever.** It said the
+        // system was serving fresh data at every instant of its life, including
+        // every instant when it was serving week-old candles, and it did so
+        // without a database call — which is the cheapest possible way to be
+        // confidently wrong.
+        //
+        // What is measured here is the age of the newest bar the system holds,
+        // not the age of a cached snapshot, because no cached snapshot's age is
+        // recorded anywhere in the project. The two differ, and claiming the
+        // second while measuring the first would be the same fabrication with
+        // extra steps. So it is measured, it is named for what it is, and the
+        // threshold comes from the same bar interval the market component uses
+        // rather than from a number that was written once and never revisited.
+        ageMs: () => newestBarAgeMs(),
+        stale: () => newestBarAgeMs() > 2 * marketConfig.candleIntervalMs,
     },
 });
+
+/**
+ * How old the newest bar we hold is, in milliseconds.
+ *
+ * Returns `0` only when the table has no bar for this market at all, which is
+ * the one case where "zero age" and "unknown" happen to agree — and it is
+ * still a guess, so the caller says which market it is talking about rather
+ * than letting a zero stand in for a reading that was never taken.
+ */
+function newestBarAgeMs(): number {
+    return lastBarAge;
+}
+
+let lastBarAge = 0;
+
+/** Called by the poller, which is the only place that learns a bar arrived. */
+export function observeNewestBar(timestamp: number, at: number): void {
+    lastBarAge = Math.max(0, at - timestamp);
+}

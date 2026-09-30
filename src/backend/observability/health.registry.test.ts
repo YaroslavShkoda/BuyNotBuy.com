@@ -28,7 +28,7 @@ function registry(overrides: {
         },
         snapshot: {
             ageMs: () => overrides.ageMs ?? 1_000,
-            stale: overrides.stale ?? false,
+            stale: () => overrides.stale ?? false,
         },
         now: () => NOW,
         freshWithinMs: 2 * DAY,

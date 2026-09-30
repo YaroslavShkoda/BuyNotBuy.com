@@ -8,6 +8,7 @@ import { readRequestId } from '../lib/redaction.js';
 import { observabilityConfig } from '../../config/observability.config.js';
 import { configuredMarketVenues } from '../../market/market.provider.js';
 import { venueHealth } from '../../market/providers/provider-http.js';
+import { healthRegistry } from '../../observability/health.registry.js';
 
 /** Schema version this build can read. Anything higher is not ours to serve. */
 const SUPPORTED_SCHEMA_VERSION = LATEST_SCHEMA_VERSION;
@@ -160,6 +161,28 @@ export function registerHealthRoutes(app: FastifyInstance): void {
         const database = await databaseIsUsable();
         const marketData = marketDataReport();
 
+        // The registry's own view, reported alongside rather than merged into
+        // the readiness decision.
+        //
+        // **Not gating is the point, not an oversight.** A stale daily bar is
+        // normal at the weekend, and a probe that failed on it would pull a
+        // working instance out of rotation for something the service already
+        // handles. What it would also do is convert "the data is a bit old" into
+        // "the process is down", and the two call for completely different
+        // responses from whoever is on call.
+        //
+        // It is reported here because this is the one endpoint a load balancer
+        // operator is guaranteed to look at, and because until now nothing they
+        // could reach could tell them how old the data they are being shown is.
+        const components = await healthRegistry.report();
+
+        if (components.problems.length > 0) {
+            request.log.warn(
+                { event: 'components_degraded', problems: components.problems },
+                'components_degraded',
+            );
+        }
+
         if (!database.ok) {
             request.log.warn(
                 { event: 'readiness_failed', detail: database.detail },
@@ -175,6 +198,7 @@ export function registerHealthRoutes(app: FastifyInstance): void {
                 checks: {
                     database: { ok: false, reason: database.reason },
                     marketData,
+                    components,
                 },
             });
         }
@@ -191,6 +215,7 @@ export function registerHealthRoutes(app: FastifyInstance): void {
             checks: {
                 database: { ok: true },
                 marketData,
+                components,
             },
         });
     });

@@ -6,6 +6,7 @@ import { assertSignalHistorySchemaReady } from './history/signal-history.reposit
 import { getStrategyRuleRepository } from './strategies/candidate.repository.js';
 import { createEvidenceGate } from './services/promotion-gate.js';
 import { getSignalSnapshotRepository } from './analysis/signal-snapshot.repository.js';
+import { observeNewestBar } from './observability/health.registry.js';
 import { getAssetRepository } from './instruments/asset.repository.js';
 import { classifyByTradingWeek } from './instruments/classify.js';
 import { knownAssets, resolveInstrument } from './config/asset.registry.js';
@@ -229,6 +230,14 @@ async function startServer() {
                     const analysis = await analyzeMarket(app.log, 'poller', app.log);
                     const verdict = analysis.signal;
                     const lastBar = candles[candles.length - 1];
+
+                    // Told to the health registry, which is the only thing in
+                    // the project that reports how old the data being served
+                    // is. Before this, the registry answered `ageMs: () => 0`
+                    // and `stale: false` — a check that said «снимок получен
+                    // напрямую» at every instant of the process's life,
+                    // including every instant it served week-old candles.
+                    observeNewestBar(lastBar?.timestamp ?? 0, Date.now());
 
                     if (lastBar === undefined) {
                         // No bar means no bar timestamp, and the lifecycle needs
