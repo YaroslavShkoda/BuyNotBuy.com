@@ -332,7 +332,7 @@ describe('integration boundaries (task 6)', () => {
 
         try {
             const baseline = await analysisService.analyzeMarket();
-            const logger = { info: vi.fn() };
+            const logger = { info: vi.fn(), error: vi.fn() };
             const result = await analysisService.analyzeMarket(
                 logger,
                 'req-integration-6',

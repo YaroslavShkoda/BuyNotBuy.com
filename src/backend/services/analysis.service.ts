@@ -35,7 +35,7 @@ import {
     measureSync,
 } from './analysis.telemetry.js';
 
-import type { AnalysisFailedStage, AnalysisTelemetry, AnalysisTelemetryLogger } from './analysis.telemetry.js';
+import type { AnalysisFailedStage, AnalysisTelemetry, AnalysisTelemetryLogger, FallbackFailureContext } from './analysis.telemetry.js';
 import type { MarketFreshness } from '../market/market-freshness.js';
 import type { SignalHistoryLogger } from '../history/signal-history.types.js';
 import type { SignalContext } from '../history/signal-history.types.js';
@@ -137,6 +137,16 @@ export async function analyzeMarketWithStatus(
     const telemetry = result.telemetry(requestId);
 
     logger?.info(telemetry, 'market_analysis_completed');
+
+    // The run completed and part of it did not work. Logged here, per caller,
+    // for the same reason the line above is: a reader tracing a request id has
+    // to find a line of their own, and a coalesced run of ten requests is ten
+    // things that were served by a fallback that is broken.
+    const fallbackFailure = result.fallbackFailure();
+
+    if (fallbackFailure !== null) {
+        logger?.error(fallbackFailure, 'fallback_strategy_failed');
+    }
 
     // Publication is per caller too: a signal handed to somebody is a signal
     // the system produced, and N callers received N answers.
@@ -269,6 +279,17 @@ interface AnalysisComputation {
   readonly explanation: SignalExplanation;
     /** One context per caller, differing only in the request id. */
     telemetry(requestId?: string): AnalysisTelemetry;
+    /**
+     * The fallback failure this run survived, or null.
+     *
+     * Handed back rather than logged inside the computation because the
+     * computation is shared and the logger is not: ten callers coalesce into
+     * one run, and logging from inside it would file the failure under
+     * whichever request happened to trigger this particular run, or under none.
+     * Every caller gets the same answer and each one records it on its own
+     * line, which is the same rule the telemetry line above already follows.
+     */
+    fallbackFailure(): FallbackFailureContext | null;
     /** Writes the history rows for this computation, once. */
     record(historyLogger?: SignalHistoryLogger): void;
 }
@@ -354,6 +375,7 @@ async function computeAnalysis(): Promise<AnalysisComputation> {
 
     let signal: SignalResult;
     let fallbackSuppressed = false;
+    let fallbackFailure: FallbackFailureContext | null = null;
     let publishedBy: string = 'consensus-primary';
     try {
         const signalMeasured = measureSync(() => calculateSignal(
@@ -437,8 +459,28 @@ async function computeAnalysis(): Promise<AnalysisComputation> {
         // answer. In shadow it is not authoritative, so its failure is not the
         // analysis's failure, and discarding a valid primary answer because an
         // optional strategy threw would turn an enhancement into a dependency.
-        if (readFallbackConfig().mode === 'active') {
+        const fallback = readFallbackConfig();
+
+        if (fallback.mode === 'active') {
             fail(error, 'signal');
+        }
+
+        // Kept, not logged, and not thrown: the decision above is right, and
+        // acting on the failure would turn an enhancement into a dependency.
+        // What was missing was the record. Every run in this mode looks exactly
+        // like every other one — the answer is right, the log is clean, and
+        // nothing anywhere says the enhancement the deployment was configured to
+        // evaluate has not been evaluating anything. Silent degradation is
+        // indistinguishable from quiet health, and the entire point of running
+        // a fallback in shadow is to find out whether it works.
+        if (fallback.mode !== 'active') {
+            fallbackFailure = {
+                event: 'fallback_strategy_failed',
+                mode: fallback.mode,
+                strategy: fallback.key,
+                primaryAnswerKept: true,
+                err: error,
+            };
         }
     }
 
@@ -556,6 +598,9 @@ async function computeAnalysis(): Promise<AnalysisComputation> {
                     ...(requestId !== undefined ? { requestId } : {}),
                 },
             );
+        },
+        fallbackFailure() {
+            return fallbackFailure;
         },
         record(historyLogger) {
             writeHistory(analysis, marketData, historyLogger, assessed.context);

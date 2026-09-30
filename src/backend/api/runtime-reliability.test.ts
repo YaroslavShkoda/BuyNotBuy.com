@@ -136,7 +136,7 @@ describe('runtime reliability & lifecycle (task 8)', () => {
     it('isolates request IDs across concurrent analysis telemetry', async () => {
         const analysisService = await import('../services/analysis.service');
         const requestIds = Array.from({ length: 10 }, (_, index) => `parallel-${index}`);
-        const loggers = requestIds.map(() => ({ info: vi.fn() }));
+        const loggers = requestIds.map(() => ({ info: vi.fn(), error: vi.fn() }));
 
         await Promise.all(requestIds.map((requestId, index) =>
             analysisService.analyzeMarket(loggers[index], requestId),
@@ -281,7 +281,7 @@ describe('runtime reliability & lifecycle (task 8)', () => {
         const spy = vi.spyOn(marketService, 'getMarketData').mockResolvedValue(freshMarketData(snapshot));
 
         try {
-            const okLogger = { info: vi.fn() };
+            const okLogger = { info: vi.fn(), error: vi.fn() };
             const ok = await analysisService.analyzeMarket(okLogger, 'req-ok');
 
             expect(okLogger.info).toHaveBeenCalledTimes(1);
@@ -294,7 +294,7 @@ describe('runtime reliability & lifecycle (task 8)', () => {
 
             spy.mockRejectedValueOnce(new MarketDataError('downstream down'));
 
-            const failLogger = { info: vi.fn() };
+            const failLogger = { info: vi.fn(), error: vi.fn() };
             const failure = await analysisService
                 .analyzeMarket(failLogger, 'req-fail')
                 .then(
@@ -310,7 +310,7 @@ describe('runtime reliability & lifecycle (task 8)', () => {
             );
             expect(readAnalysisErrorContext(failure)?.requestId).toBe('req-fail');
 
-            const okLogger2 = { info: vi.fn() };
+            const okLogger2 = { info: vi.fn(), error: vi.fn() };
             await analysisService.analyzeMarket(okLogger2, 'req-ok-2');
             const [okContext2] = okLogger2.info.mock.calls[0] as [
                 Record<string, unknown>,

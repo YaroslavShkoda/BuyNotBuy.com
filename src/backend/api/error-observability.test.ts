@@ -222,7 +222,7 @@ describe('error observability & diagnostics (task 17)', () => {
                     { length: 10 },
                     (_, index) => `mixed-${index}`,
                 );
-                const loggers = requestIds.map(() => ({ info: vi.fn() }));
+                const loggers = requestIds.map(() => ({ info: vi.fn(), error: vi.fn() }));
 
                 const settled = await Promise.allSettled(
                     requestIds.map((requestId, index) =>
@@ -289,17 +289,17 @@ describe('error observability & diagnostics (task 17)', () => {
                 });
 
             try {
-                const firstLogger = { info: vi.fn() };
+                const firstLogger = { info: vi.fn(), error: vi.fn() };
                 await analyzeMarket(firstLogger, 'recovery-first');
 
                 const failure = await catchAnalysisError(
-                    analyzeMarket({ info: vi.fn() }, 'recovery-failure'),
+                    analyzeMarket({ info: vi.fn(), error: vi.fn() }, 'recovery-failure'),
                 );
                 const failureContext = readAnalysisErrorContext(failure);
                 expect(failureContext?.failedStage).toBe('market-data');
                 expect(failureContext?.requestId).toBe('recovery-failure');
 
-                const recoveredLogger = { info: vi.fn() };
+                const recoveredLogger = { info: vi.fn(), error: vi.fn() };
                 await analyzeMarket(recoveredLogger, 'recovery-after');
 
                 expect(firstLogger.info).toHaveBeenCalledTimes(1);

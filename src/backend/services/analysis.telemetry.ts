@@ -13,6 +13,41 @@ export interface AnalysisTelemetryLogger {
         context: AnalysisTelemetry,
         message: string,
     ): void;
+
+    /**
+     * Required rather than optional.
+     *
+     * The analysis decides several things are not fatal, and every one of those
+     * decisions is a place where an error can stop being recorded. A logger that
+     * could only report successes has no way to say "this ran, and part of it
+     * did not work", which leaves two options and both are wrong: make the whole
+     * run fail, or lose the failure. Requiring `error` means every implementation
+     * has to decide where its failures go, and that decision is worth forcing.
+     */
+    error(
+        context: FallbackFailureContext,
+        message: string,
+    ): void;
+}
+
+/**
+ * A fallback that failed in a mode where its failure is not the run's failure.
+ *
+ * A shape of its own rather than a field on AnalysisTelemetry, because a
+ * snapshot that completed has nowhere to put it — the whole point is that the
+ * caller was given a valid answer. The record answers the question the run
+ * itself cannot: has this optional path been broken for weeks, or since this
+ * morning?
+ */
+export interface FallbackFailureContext {
+    event: 'fallback_strategy_failed';
+    /** The mode whose contract made this failure non-fatal. */
+    mode: 'shadow' | 'off';
+    /** Which strategy was supposed to be consulted. */
+    strategy: string;
+    /** True when the primary answer was kept and the run continued on it. */
+    primaryAnswerKept: boolean;
+    err: unknown;
 }
 
 export interface AnalysisStageDurations {

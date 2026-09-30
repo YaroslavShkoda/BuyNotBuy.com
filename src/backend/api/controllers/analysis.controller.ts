@@ -29,6 +29,16 @@ export async function getAnalysis(
             ): void => {
                 logger.info(context, message);
             },
+            // Narrowed on the way in rather than passed wholesale, so the
+            // analysis cannot reach a level the controller did not intend to
+            // give it. Both methods, because a log that can only report
+            // successes cannot report a run that half-worked.
+            error: (
+                context: Parameters<FastifyBaseLogger['error']>[0],
+                message: string,
+            ): void => {
+                logger.error(context, message);
+            },
         };
 
     const { analysis, stale, ageMs, freshness, provider } =

@@ -151,7 +151,7 @@ describe('analyzeMarket observability', () => {
 
         try {
             const baseline = await analyzeMarket();
-            const logger = { info: vi.fn() };
+            const logger = { info: vi.fn(), error: vi.fn() };
 
             const result = await analyzeMarket(logger, 'req-observability');
 
