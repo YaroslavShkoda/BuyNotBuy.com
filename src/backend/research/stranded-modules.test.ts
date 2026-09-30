@@ -113,13 +113,29 @@ describe('production modules with no production caller', () => {
         // `backtest/optimizer.ts` is the second reader of global config that M4
         // could not account for, and the reason is simply that it is not called.
         //
-        // **The second promotion ladder.** `rule-registry.ts` holds 312 lines
-        // and disagrees with the ladder in use about whether a rule may be
-        // retired from any stage, whether retirement is permanent, and whether
-        // `rejected` is a state at all. `promotion.config.ts` is not in this
-        // list because the stranded registry imports it — unreachable by
-        // transitivity, which an importer check cannot see and which is why the
-        // list needs a reader rather than only a test.
+        // **The second promotion ladder is not a duplicate, and this list is why
+        // I nearly deleted the only implementation of the evidence gate.**
+        //
+        // `rule-registry.ts` holds 312 lines and no production caller, and it
+        // keeps a different vocabulary from the ladder in use — eight values to
+        // seven, with `rejected` among them. That reads as an unfinished
+        // duplicate, and deleting it was the plan.
+        //
+        // Its tests are not about the words. They check that a shadow window is
+        // long enough to collect what it demands, that a margin cannot promote
+        // the incumbent into itself, and that a refusal says what is missing
+        // rather than calling the rule bad. `advance()` calls `evaluateShadow`
+        // when a rule moves to approval.
+        //
+        // `canTransition` in the ladder that is actually in use is
+        // `NEXT_STAGE[from].includes(to)` — the order of the names — and
+        // `promote()` checks that its `evidence` string is not empty and
+        // nothing else. So the gate on self-promotion is a vocabulary, and the
+        // only code that gates it on evidence was sitting in this list, unused.
+        //
+        // The entry stays in the pinned list because the module is still
+        // unwired. What is not unwired is the finding, which is written up in
+        // docs/roadmap-v2-status.md.
     });
 
     it('still finds the promotion subsystem when the graph says every layer is fine', () => {
