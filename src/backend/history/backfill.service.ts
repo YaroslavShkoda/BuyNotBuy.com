@@ -50,6 +50,25 @@ export interface BackfillRequest {
 export interface BackfillProgress {
     /** Bars written by this run, counting rewrites of existing bars. */
     readonly written: number;
+    /**
+     * Of those, bars that were **already stored** and have just been
+     * overwritten.
+     *
+     * `bulkUpsert` cannot tell the two apart — it issues one
+     * `ON CONFLICT ... DO UPDATE` and returns a single number — so this is
+     * counted before the write, by asking which of the fetched timestamps the
+     * series already holds.
+     *
+     * **Why it is worth a query per page.** A backfill is supposed to fill
+     * gaps. A bar that was already there is not a gap, and overwriting it
+     * changes the inputs under every measurement ever computed from it: the
+     * signals, the outcomes, the backtests, the calibration. A run that quietly
+     * rewrote four hundred stored bars would leave all of them looking like
+     * ordinary history, and nothing downstream could tell that the ground moved
+     * under them. A number that cannot distinguish filling a hole from replacing
+     * a record understates the difference between the two.
+     */
+    readonly overwritten: number;
     /** Pages fetched, including the one that came back empty. */
     readonly pages: number;
     /** Newest oldest bar in the table, or null when the series is empty. */
@@ -158,6 +177,7 @@ export async function runBackfill(
     const budget = request.maxCandles;
 
     let written = 0;
+    let overwritten = 0;
     let pages = 0;
     let rejected = 0;
     let reason: BackfillStopReason = 'target_reached';
@@ -197,6 +217,38 @@ export async function runBackfill(
         rejected += usable.rejected;
 
         if (usable.bars.length > 0) {
+            // Asked before the write: afterwards every bar is present, and the
+            // question would answer "all of them" every time.
+            //
+            // The bounds are a min and a max, **not** the first and last bar.
+            // A backfill walks backwards, so a page arrives newest-first, and
+            // `[newest, oldest]` is an inverted range: `getRange` returned
+            // nothing, the overlap came back as zero, and the report said
+            // "0 overwritten" over three bars it had just replaced. A counter
+            // that reads zero when the thing it measures happened is worse than
+            // no counter, because it is believed.
+            let lowest = usable.bars[0]?.timestamp ?? 0;
+            let highest = lowest;
+
+            for (const bar of usable.bars) {
+                if (bar.timestamp < lowest) {
+                    lowest = bar.timestamp;
+                }
+
+                if (bar.timestamp > highest) {
+                    highest = bar.timestamp;
+                }
+            }
+
+            const already = await repository.getRange(request.key, lowest, highest);
+            const present = new Set(already.map((bar) => bar.timestamp));
+
+            for (const bar of usable.bars) {
+                if (present.has(bar.timestamp)) {
+                    overwritten += 1;
+                }
+            }
+
             written += await repository.bulkUpsert(request.key, usable.bars);
         }
 
@@ -206,6 +258,7 @@ export async function runBackfill(
 
         request.onProgress?.({
             written,
+            overwritten,
             pages,
             oldestStored: afterPage,
             done,
@@ -233,6 +286,7 @@ export async function runBackfill(
 
     return {
         written,
+        overwritten,
         pages,
         oldestStored: await oldestStored(repository, request.key),
         done: true,

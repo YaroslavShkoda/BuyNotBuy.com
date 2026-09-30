@@ -86,10 +86,7 @@ describe('production modules with no production caller', () => {
         // expected value in a more meaningful order than the thing under test
         // fails on every run for a reason that has nothing to do with the
         // finding. The commentary on what each entry means is below.
-        expect(stranded).toEqual([
-            'history/backfill.service.ts',
-            'strategy/rule-registry.ts',
-        ]);
+        expect(stranded).toEqual(['strategy/rule-registry.ts']);
 
         // **Everything the roadmap asked for in M1 is now connected.**
         //
@@ -165,6 +162,22 @@ describe('production modules with no production caller', () => {
         // spike" means the number is not an artefact; it says nothing about the
         // number being positive, and the report was ending on a reassuring line
         // after a passing check. It now says which of the two it found.
+
+        // **`history/backfill.service.ts` left this list, and wiring it up found
+        // the one write in this system that can change stored history.**
+        //
+        // `bulkUpsert` issues `ON CONFLICT ... DO UPDATE` and returns a single
+        // number, so filling a gap and replacing a bar that was already stored
+        // are the same event from the write's side. They are not the same thing:
+        // the second moves the inputs under every signal, outcome and backtest
+        // already computed from those bars, and nothing downstream would show
+        // it. The progress object now counts the two separately, and the report
+        // warns when the second is non-zero.
+        //
+        // The caller is a command, not a scheduler. The ingestion scheduler
+        // already keeps the table filled going forward; walking backwards
+        // through time is an operator's decision about whose corrections to
+        // accept over bars everything else is measured against.
 
         // `rule-registry.ts` is still in the list, and **I nearly took it out for
         // the wrong reason.** What round 23 changed was the finding behind it,

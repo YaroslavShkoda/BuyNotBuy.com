@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import Fastify from 'fastify';
 
 // The analysis route is exercised for real, but its controller is stubbed:
@@ -78,9 +78,38 @@ afterEach(async () => {
 });
 
 describe('error envelope', () => {
-    it('answers an unknown route in the same shape as every other error', async () => {
-        const app = await tracked(createApp());
+    /**
+     * One application for the whole block.
+     *
+     * `createApp()` measured 756ms on an idle machine; the assertion it exists
+     * to support measured 43ms. Sixteen fresh applications across this file is
+     * about twelve seconds of pure boot, every one of it paid inside a test's
+     * own 5-second budget — and this file's first error-envelope test timed out
+     * in the full parallel run for exactly that reason, while passing three
+     * times in isolation. The timeout was measuring boot time under load, not
+     * the contract this file exists to pin.
+     *
+     * Sharing is safe here because nothing in the block mutates the app: these
+     * are request/response assertions against routing and the error handler,
+     * and `inject` leaves no state behind that a later request can see.
+     */
+    let app: FastifyInstance;
 
+    beforeAll(async () => {
+        // Built with `createApp()` and **not** `tracked()`. The file's
+        // `afterEach` closes everything registered there, and my first version
+        // registered the shared instance — so the second test in the block
+        // injected into an already-closed app and failed with "Fastify has
+        // already been closed and cannot be reopened". The per-test cleanup is
+        // right; the shared instance must not be its subject.
+        app = await createApp();
+    });
+
+    afterAll(async () => {
+        await app.close();
+    });
+
+    it('answers an unknown route in the same shape as every other error', async () => {
         const response = await app.inject({ method: 'GET', url: '/api/nope' });
 
         expect(response.statusCode).toBe(404);
@@ -96,8 +125,6 @@ describe('error envelope', () => {
     });
 
     it('answers an unknown path under a known prefix the same way', async () => {
-        const app = await tracked(createApp());
-
         const response = await app.inject({ method: 'GET', url: '/api/analysis/extra' });
 
         expect(response.statusCode).toBe(404);
@@ -105,8 +132,6 @@ describe('error envelope', () => {
     });
 
     it('answers an unsupported method as 404 rather than inventing one', async () => {
-        const app = await tracked(createApp());
-
         const response = await app.inject({ method: 'POST', url: '/api/analysis' });
 
         expect(response.statusCode).toBe(404);
@@ -114,9 +139,9 @@ describe('error envelope', () => {
     });
 
     it('rejects a malformed JSON body as a client error, not a server one', async () => {
-        const app = await appWithBodyRoute();
+        const body = await appWithBodyRoute();
 
-        const response = await app.inject({
+        const response = await body.inject({
             method: 'POST',
             url: '/echo',
             payload: '{not json',
