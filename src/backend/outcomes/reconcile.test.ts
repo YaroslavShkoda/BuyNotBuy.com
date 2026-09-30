@@ -192,6 +192,36 @@ describe('reconciling closed signals into measurements', () => {
         expect(report).toEqual({ examined: 0, rows: 0, stillWaiting: 0 });
         expect(store.calls).toEqual([]);
     });
+
+    it('attributes the measurement to the rule that produced it', async () => {
+        // **This is the link the promotion gate hangs on.**
+        //
+        // `evaluateShadow` needs signals, resolved and correct *for one rule*.
+        // `signal_outcome.strategy_version_id` is the only column that can say
+        // which rule, and it is written from this argument. When the poller
+        // does not supply one — and today it does not, because the analysis
+        // discards the snapshot id at `void storeSnapshot(...)` — every outcome
+        // row carries NULL and no outcome can ever be joined to a rule, so the
+        // gate has nothing to gate on.
+        //
+        // The test pins the plumbing rather than the gap: it passes when the
+        // caller supplies a version, and the open item in
+        // docs/roadmap-v2-status.md is what supplies it.
+        const store = outcomes();
+
+        await reconcileSignalOutcomes(
+            {
+                key: KEY,
+                candles: candles(40),
+                now: BASE + 40 * HOUR,
+                strategyVersionId: 77,
+            },
+            lifecycle([state()]),
+            store.repository,
+        );
+
+        expect(store.calls[0]?.strategyVersionId).toBe(77);
+    });
 });
 
 describe('why a signal ended', () => {
