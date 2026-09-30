@@ -3,6 +3,7 @@ import { appConfig } from './config/app.config.js';
 import { historyConfig } from './config/history.config.js';
 import { marketConfig } from './config/market.config.js';
 import { assertSignalHistorySchemaReady } from './history/signal-history.repository.js';
+import { reconcileSignalOutcomes } from './outcomes/reconcile.js';
 import { closePool } from './db/pool.js';
 import {
     flushSignalHistoryBacklog,
@@ -207,6 +208,25 @@ async function startServer() {
                         app.log.info(
                             { event: 'indicator_votes_settled', ...settled },
                             'indicator_votes_settled',
+                        );
+                    }
+
+                    // The same reasoning as above, applied to the outcome the
+                    // system makes about its own accuracy. Indicator votes were
+                    // being settled on this cycle and signal outcomes were not:
+                    // `signal_outcome` had a repository and no caller, so the
+                    // performance table, the calibration curve and every
+                    // promotion decision were reading a table nothing wrote.
+                    const measured = await reconcileSignalOutcomes({
+                        key: configuredSeries(),
+                        candles,
+                        limit: historyConfig.maxEntries,
+                    });
+
+                    if (measured.examined > 0) {
+                        app.log.info(
+                            { event: 'signal_outcomes_reconciled', ...measured },
+                            'signal_outcomes_reconciled',
                         );
                     }
                 },

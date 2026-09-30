@@ -93,27 +93,30 @@ describe('production modules with no production caller', () => {
             'instruments/asset.repository.ts',
             'instruments/classify.ts',
             'observability/health.registry.ts',
-            'outcomes/outcome.repository.ts',
             'signals/explanation.ts',
-            'signals/lifecycle.repository.ts',
             'signals/lifecycle.ts',
             'strategy/rule-registry.ts',
         ]);
 
-        // **The live signal chain does not exist.**
+        // **The measuring end is connected; the two ends that feed it are not.**
         //
-        // `outcomes/outcome.repository.ts` is the only writer of
-        // `signal_outcome`, which every performance number, every calibration
-        // curve and every promotion decision in this system reads — and nothing
-        // in production imports it. `signals/lifecycle.ts` and
-        // `signals/lifecycle.repository.ts` import each other and nothing else.
-        // `signal_state` and `signal_transition` have no production writer at
-        // all: not a wrong one, none.
+        // `outcomes/outcome.repository.ts` and `signals/lifecycle.repository.ts`
+        // left this list when the poller started reconciling, and that is what
+        // this test is for: it fails when something is wired, so the change is
+        // made deliberately rather than noticed in a report a year later.
         //
-        // **PHASE 14 is already written and not switched on.** `classify.ts` is
-        // the data-learned asset classifier, and `asset.repository.ts` is the
-        // registry migration 15 was written to move the code onto. Both have
-        // tests. Neither has a caller.
+        // **What is still missing is more serious than what was fixed.**
+        // `reconcileSignalOutcomes` asks the lifecycle for closed signals, and
+        // nothing publishes a signal or closes one — `signals/lifecycle.ts` is
+        // right there in this list, importing the repository and being imported
+        // by nobody. So the loop now runs on every poll and will find nothing,
+        // because `closed()` can only return rows that a closer wrote, and
+        // there is no closer. A wired settler over an empty source is a
+        // different failure from an unwired one, and it is much harder to see.
+        //
+        // `instruments/classify.ts` — PHASE 14's data-learned asset classifier —
+        // and `instruments/asset.repository.ts` — the registry migration 15 was
+        // written to move the code onto — still have tests and no callers.
         //
         // **The second promotion ladder.** `rule-registry.ts` holds 312 lines
         // and disagrees with the ladder in use about whether a rule may be
