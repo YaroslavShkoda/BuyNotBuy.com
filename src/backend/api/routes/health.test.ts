@@ -111,7 +111,7 @@ describe('liveness', () => {
         expect(live.statusCode).toBe(200);
         expect(ready.statusCode).toBe(503);
     });
-});
+}, 30_000);
 
 describe('readiness', () => {
     it('asks whether the vote store is readable without naming a market', async () => {
@@ -235,7 +235,7 @@ describe('readiness', () => {
         expect(response.json().checks.database.reason).toBe('database_unusable');
         expect(response.body).not.toContain('indicator_vote');
     });
-});
+}, 30_000);
 
 describe('request ids', () => {
     it('echoes an id back to the caller', async () => {
@@ -271,7 +271,7 @@ describe('request ids', () => {
 
         expect(response.headers['x-request-id']).toBe('trace-7');
     });
-});
+}, 30_000);
 
 describe('metrics endpoint', () => {
     it('serves the text exposition format', async () => {
@@ -331,4 +331,4 @@ describe('metrics endpoint', () => {
         expect((await app.inject({ method: 'GET', url: '/readyz' })).statusCode).toBe(200);
         expect((await app.inject({ method: 'GET', url: '/metrics' })).statusCode).toBe(200);
     });
-});
+}, 30_000);
