@@ -160,3 +160,98 @@ describe('the shadow period, read back', () => {
         expect(report.agreement).toBe(0);
     });
 });
+
+describe('a shadow report can be asked about one asset', () => {
+    /**
+     * The table has carried `symbol` since it was created and `record()` writes
+     * it on every row. The reader had no way to use it: `shadowReport` counted
+     * agreement across every asset the system trades. That is the same shape as
+     * `evidenceFor`, the defect `strategy/cross-asset-isolation.test.ts`
+     * documents, and here it is not merely present — it is the number a rule
+     * would be judged by before publishing.
+     *
+     * The blend is still reachable by omitting the symbol, and that is the
+     * decision rather than an oversight: a mandatory filter would delete the
+     * system-wide view instead of labelling it, and a view that cannot be asked
+     * for gets asked for through a second hand-written query within a month.
+     * The blend is now something a caller chooses.
+     */
+    const repository = createDecisionLogRepository();
+
+    /** One asset where the fallback is heard and always agrees. */
+    const agreeing = (symbol: string): DecisionEntry =>
+        entry({
+            symbol,
+            suppressed: false,
+            primary: { rule: 'consensus-primary', direction: 'LONG' as const, confidence: 40 },
+            fallback: { rule: 'donchian-20' as const, direction: 'LONG' as const, confidence: 60 },
+            publishedRule: 'donchian-20',
+            publishedDirection: 'LONG' as const,
+        });
+
+    /** One asset where it is heard and never agrees. */
+    const disagreeing = (symbol: string): DecisionEntry =>
+        entry({
+            symbol,
+            suppressed: false,
+            primary: { rule: 'consensus-primary', direction: 'NEUTRAL' as const, confidence: 40 },
+            fallback: { rule: 'donchian-20' as const, direction: 'SHORT' as const, confidence: 60 },
+            publishedRule: 'consensus-primary',
+            publishedDirection: 'NEUTRAL' as const,
+        });
+
+    beforeEach(async () => {
+        await truncateSignalTables();
+
+        for (const at of [NOW, NOW + 1]) {
+            await repository.record({ ...agreeing('BTCUSDT'), at });
+            await repository.record({ ...disagreeing('ETHUSDT'), at });
+        }
+    });
+
+    it('counts only the cycles of the asset it was asked about', async () => {
+        // The property. Two assets, two cycles each, and the answer for one is
+        // 2 rather than 4. Before the filter this was 4 for both, and a
+        // blended agreement of 0.5 — a figure no asset produced, since one was
+        // at 1.0 and the other at 0.0.
+        const btc = await repository.shadowReport(NOW, 'BTCUSDT');
+        const eth = await repository.shadowReport(NOW, 'ETHUSDT');
+
+        expect(btc.cycles).toBe(2);
+        expect(eth.cycles).toBe(2);
+        expect(btc.agreement).toBe(1);
+        expect(eth.agreement).toBe(0);
+    });
+
+    it('narrows the direction tally along with the breakdown', async () => {
+        // Left unscoped while the breakdown was scoped, the report would answer
+        // "for this asset" with a breakdown that agreed and a tally that did
+        // not, and the two are read side by side.
+        const btc = await repository.shadowReport(NOW, 'BTCUSDT');
+
+        // BTC's fallback said LONG twice; ETH's said SHORT twice. SHORT is
+        // reported as zero rather than absent, which is the better of the two:
+        // "no SHORT cycles happened" and "SHORT was not counted" are different
+        // answers, and only the first of them is true.
+        expect(btc.byDirection.LONG).toBe(2);
+        expect(btc.byDirection.SHORT).toBe(0);
+    });
+
+    it('reports nothing for an asset that never traded', async () => {
+        // Zero cycles must read as zero rather than as the blend, which is the
+        // failure a default would reintroduce.
+        const report = await repository.shadowReport(NOW, 'SOLUSDT');
+
+        expect(report.cycles).toBe(0);
+        expect(report.agreement).toBe(0);
+    });
+
+    it('still blends every asset when no asset is named', async () => {
+        // The blend stays reachable, and it is stated rather than inherited.
+        const report = await repository.shadowReport(NOW);
+
+        expect(report.cycles).toBe(4);
+        expect(report.byDirection.LONG).toBe(2);
+        expect(report.byDirection.SHORT).toBe(2);
+    });
+});
