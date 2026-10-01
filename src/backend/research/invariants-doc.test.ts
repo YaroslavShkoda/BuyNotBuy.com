@@ -263,7 +263,10 @@ describe('the constitution names objects that exist', () => {
               WHERE table_schema = current_schema()
              UNION ALL
              SELECT conname FROM pg_constraint
-              WHERE connamespace = current_schema()::regnamespace`,
+              WHERE connamespace = current_schema()::regnamespace
+             UNION ALL
+             SELECT indexname FROM pg_indexes
+              WHERE schemaname = current_schema()`,
         );
 
         const known = new Set(built.rows.map((row) => row.object_name));
@@ -273,15 +276,26 @@ describe('the constitution names objects that exist', () => {
         for (const line of document.split('\n')) {
             if (!ENFORCEMENT_ROW.test(line)) continue;
 
-            for (const match of line.matchAll(/`([a-zA-Z_][a-zA-Z0-9_.]*)`/g)) {
-                const name = match[1]!;
+            // Every backticked span, split into identifiers rather than matched
+            // as one name.
+            //
+            // The first version of this looked for a backtick immediately
+            // followed by a name, and so could not see an index named inside a
+            // quoted SQL fragment: `UNIQUE INDEX idx_strategy_version_active ON
+            // strategy_version (config_hash)` has a space after the first
+            // backtick, so the span failed to match and a claim about an index
+            // migration 16 had already deleted passed unnoticed. A schema claim
+            // written as a quotation instead of a name is the same shape as the
+            // one that produced `strategy_rule`.
+            for (const span of line.matchAll(/`([^`]+)`/g)) {
+                for (const name of span[1]!.split(/[^a-zA-Z0-9_.]+/)) {
+                    // `signal_strategy_version.stage` is a column of a named
+                    // table; the base name is what has to exist first.
+                    const base = name.split('.')[0]!;
 
-                // `signal_strategy_version.stage` is a column of a named table;
-                // the base name is what has to exist first.
-                const base = name.split('.')[0]!;
-
-                if (looksLikeSchemaObject(name) || looksLikeSchemaObject(base)) {
-                    cited.add(name);
+                    if (looksLikeSchemaObject(name) || looksLikeSchemaObject(base)) {
+                        cited.add(name);
+                    }
                 }
             }
         }

@@ -17,7 +17,7 @@
 |---|---|---|---|---|
 | `types` | 4 | 76 | 3 | сквозной лист |
 | `errors` | 3 | 18 | 0 | сквозной лист |
-| `config` | 13 | 81 | 5 | сквозной лист |
+| `config` | 13 | 83 | 5 | сквозной лист |
 | `instruments` | 3 | 8 | 2 | сквозной лист |
 | `db` | 4 | 30 | 2 | ядро |
 | `market` | 15 | 26 | 36 | ядро |
@@ -27,9 +27,9 @@
 | `history` | 11 | 13 | 28 | ядро |
 | `outcomes` | 3 | 4 | 11 | ядро |
 | `performance` | 6 | 6 | 4 | ядро |
-| `analysis` | 2 | 4 | 5 | ядро |
+| `analysis` | 2 | 4 | 6 | ядро |
 | `backtest` | 14 | 23 | 28 | ядро |
-| `services` | 6 | 9 | 40 | составляющий |
+| `services` | 6 | 9 | 41 | составляющий |
 | `api` | 25 | 12 | 39 | составляющий |
 | `research` | 42 | 0 | 116 | составляющий |
 | `observability` | 6 | 18 | 3 | сквозной лист |
@@ -47,9 +47,9 @@
 - `history` → `config` (7), `db` (3), `errors` (1), `market` (7), `observability` (5), `signals` (1), `types` (4)
 - `outcomes` → `config` (4), `db` (1), `signals` (3), `types` (3)
 - `performance` → `db` (1), `outcomes` (3)
-- `analysis` → `config` (2), `db` (2), `types` (1)
+- `analysis` → `config` (3), `db` (2), `types` (1)
 - `backtest` → `config` (14), `indicators` (2), `market` (5), `observability` (1), `signals` (2), `types` (4)
-- `services` → `analysis` (3), `config` (3), `db` (2), `history` (7), `indicators` (7), `market` (3), `observability` (1), `signals` (6), `strategies` (3), `strategy` (2), `types` (3)
+- `services` → `analysis` (3), `config` (4), `db` (2), `history` (7), `indicators` (7), `market` (3), `observability` (1), `signals` (6), `strategies` (3), `strategy` (2), `types` (3)
 - `api` → `config` (9), `db` (1), `errors` (4), `history` (3), `indicators` (3), `instruments` (4), `market` (9), `observability` (2), `services` (2), `signals` (1), `types` (1)
 - `research` → `backtest` (23), `config` (4), `db` (10), `indicators` (6), `observability` (1), `performance` (6), `strategies` (39), `types` (27)
 - `observability` → `config` (1), `db` (2)

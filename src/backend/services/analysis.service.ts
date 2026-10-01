@@ -25,7 +25,7 @@ import { explainSignal } from '../signals/explanation.js';
 import { consensusConfig } from '../config/consensus.config.js';
 import {
     indicatorConfig,
-    INDICATOR_SIGNAL_CONFIG,
+    signalConfigFor,
 } from '../config/indicator.config.js';
 import {
     attachAnalysisErrorContext,
@@ -213,7 +213,9 @@ async function recordStrategyDecisions(input: {
     published: ReturnType<typeof resolveSignal>;
 }): Promise<void> {
     try {
-        const strategyVersion = await getStrategyVersionRepository().resolveActive();
+        const strategyVersion = await getStrategyVersionRepository().resolveActive(
+            input.symbol,
+        );
         const { published } = input;
         const fallback = published.fallbackDecision;
 
@@ -373,6 +375,15 @@ async function computeAnalysis(): Promise<AnalysisComputation> {
         throw error;
     }
 
+    // The thresholds in force for the market that actually answered, resolved
+    // once and used by both the signal and the fallback below.
+    //
+    // `marketData.price.symbol` rather than the configured symbol: the market
+    // layer routes by capability and refuses what no venue serves, so the market
+    // in hand is the served one, and that is the market whose configuration a
+    // signal and a strategy version have to agree about.
+    const signalConfig = signalConfigFor(marketData.price.symbol);
+
     let signal: SignalResult;
     let fallbackSuppressed = false;
     let fallbackFailure: FallbackFailureContext | null = null;
@@ -384,8 +395,9 @@ async function computeAnalysis(): Promise<AnalysisComputation> {
             // The EMA vote needs several consecutive closes on one side, not
             // just the latest print, so it cannot be read off a single value.
             marketData.candles
-                .slice(-(INDICATOR_SIGNAL_CONFIG.ema.confirmBars + 1))
+                .slice(-(signalConfig.ema.confirmBars + 1))
                 .map((candle) => candle.close),
+            signalConfig,
         ));
         signal = signalMeasured.result;
         completedDurations.signalDurationMs = signalMeasured.durationMs;
@@ -410,7 +422,11 @@ async function computeAnalysis(): Promise<AnalysisComputation> {
         // the indicators and therefore eventually two answers.
         const registry = createRegistry({
             consensus: (price, emaCloses) => {
-                const consensus = calculateSignal(price, indicators, emaCloses);
+                // The same thresholds the primary used. The fallback exists to
+                // cover for the consensus, not to answer a different question,
+                // and resolving the configuration twice would be one more place
+                // for the two paths to disagree.
+                const consensus = calculateSignal(price, indicators, emaCloses, signalConfig);
 
                 return {
                     direction: consensus.signal,
@@ -419,7 +435,7 @@ async function computeAnalysis(): Promise<AnalysisComputation> {
                     warm: false,
                 };
             },
-            emaConfirmBars: INDICATOR_SIGNAL_CONFIG.ema.confirmBars,
+            emaConfirmBars: signalConfig.ema.confirmBars,
         });
 
         const resolved = resolveSignal(registry, {
@@ -797,7 +813,9 @@ export async function storeSnapshot(
     logger?: SignalHistoryLogger,
 ): Promise<number | null> {
     try {
-        const strategyVersion = await getStrategyVersionRepository().resolveActive();
+        const strategyVersion = await getStrategyVersionRepository().resolveActive(
+            input.symbol,
+        );
 
         const stored = await getSignalSnapshotRepository().record({
             symbol: input.symbol,

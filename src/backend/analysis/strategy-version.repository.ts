@@ -1,4 +1,5 @@
 import { fingerprintStrategy, hashValue } from '../config/strategy-fingerprint.js';
+import { signalConfigFor } from '../config/indicator.config.js';
 import { query } from '../db/pool.js';
 
 import type { PoolClient } from 'pg';
@@ -34,10 +35,18 @@ export interface StrategyVersion {
 
 export interface StrategyVersionRepository {
     /**
-     * The version the running configuration belongs to, creating it the first
-     * time that configuration is seen.
+     * The version this market's running configuration belongs to, creating it
+     * the first time that configuration is seen.
+     *
+     * The market is a parameter, not an absence, because the thresholds it runs
+     * are: `signalConfigFor` resolves what the market has been taught, and a
+     * market with no override of its own resolves to the shipped configuration
+     * and therefore to the same version as every other such market. A market
+     * with its own thresholds gets its own version — which is what
+     * `fingerprintStrategy` takes its argument for, and what calling it without
+     * one silently threw away.
      */
-    resolveActive(): Promise<StrategyVersion>;
+    resolveActive(instrument: string): Promise<StrategyVersion>;
     byId(id: number): Promise<StrategyVersion | null>;
 }
 
@@ -62,7 +71,8 @@ function toVersion(row: StrategyVersionRow): StrategyVersion {
 const SELECT_COLUMNS = 'id, name, description, config_hash, created_at';
 
 /**
- * The version the running configuration belongs to, created on first sight.
+ * The version a market's running configuration belongs to, created on first
+ * sight.
  *
  * There is deliberately no pre-version row. A placeholder would have been the
  * tidy answer — give every existing measurement a version to point at — but
@@ -73,8 +83,8 @@ const SELECT_COLUMNS = 'id, name, description, config_hash, created_at';
  */
 export function createStrategyVersionRepository(): StrategyVersionRepository {
     return {
-        async resolveActive(): Promise<StrategyVersion> {
-            const fingerprint = fingerprintStrategy();
+        async resolveActive(instrument: string): Promise<StrategyVersion> {
+            const fingerprint = fingerprintStrategy(signalConfigFor(instrument));
 
             const existing = await query<StrategyVersionRow>(
                 `SELECT ${SELECT_COLUMNS} FROM strategy_version WHERE config_hash = $1`,

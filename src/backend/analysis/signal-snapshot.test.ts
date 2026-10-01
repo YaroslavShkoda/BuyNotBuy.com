@@ -40,7 +40,7 @@ beforeEach(async () => {
 
 describe('signal snapshot', () => {
     it('stores a snapshot and reads it back unchanged', async () => {
-        const version = await createStrategyVersionRepository().resolveActive();
+        const version = await createStrategyVersionRepository().resolveActive('BTCUSDT');
         const repository = createSignalSnapshotRepository();
 
         const { id, created } = await repository.record({
@@ -71,7 +71,7 @@ describe('signal snapshot', () => {
         // the *first* row with `created: false` — so the second venue was not
         // refused, it was silently folded into the first, and nothing anywhere
         // said which venue had actually been measured.
-        const version = await createStrategyVersionRepository().resolveActive();
+        const version = await createStrategyVersionRepository().resolveActive('BTCUSDT');
         const repository = createSignalSnapshotRepository();
 
         const fromBinance = await repository.record({
@@ -105,7 +105,7 @@ describe('signal snapshot', () => {
     });
 
     it('reads back which venue a snapshot came from', async () => {
-        const version = await createStrategyVersionRepository().resolveActive();
+        const version = await createStrategyVersionRepository().resolveActive('BTCUSDT');
         const repository = createSignalSnapshotRepository();
 
         const { id } = await repository.record({
@@ -125,7 +125,7 @@ describe('signal snapshot', () => {
     });
 
     it('stores the same inputs once, however many times it is called', async () => {
-        const version = await createStrategyVersionRepository().resolveActive();
+        const version = await createStrategyVersionRepository().resolveActive('ETHUSDT');
         const repository = createSignalSnapshotRepository();
 
         const first = await repository.record({
@@ -163,7 +163,7 @@ describe('signal snapshot', () => {
     });
 
     it('distinguishes a revised price from an unchanged one', async () => {
-        const version = await createStrategyVersionRepository().resolveActive();
+        const version = await createStrategyVersionRepository().resolveActive('BTCUSDT');
         const repository = createSignalSnapshotRepository();
 
         const first = await repository.record({
@@ -193,7 +193,7 @@ describe('signal snapshot', () => {
     });
 
     it('distinguishes revised candle contents from unchanged ones', async () => {
-        const version = await createStrategyVersionRepository().resolveActive();
+        const version = await createStrategyVersionRepository().resolveActive('BTCUSDT');
         const repository = createSignalSnapshotRepository();
 
         const first = await repository.record({
@@ -230,7 +230,7 @@ describe('signal snapshot', () => {
         const versions = createStrategyVersionRepository();
         const repository = createSignalSnapshotRepository();
 
-        const first = await versions.resolveActive();
+        const first = await versions.resolveActive('BTCUSDT');
 
         // A real second version. A fabricated id would have been simpler and
         // would have failed on the foreign key instead — which is the
@@ -273,7 +273,7 @@ describe('signal snapshot', () => {
     });
 
     it('refuses to delete a strategy version a snapshot depends on', async () => {
-        const version = await createStrategyVersionRepository().resolveActive();
+        const version = await createStrategyVersionRepository().resolveActive('BTCUSDT');
 
         await createSignalSnapshotRepository().record({
             symbol: 'BTCUSDT',
@@ -314,7 +314,7 @@ describe('signal snapshot', () => {
     });
 
     it('returns snapshots newest first', async () => {
-        const version = await createStrategyVersionRepository().resolveActive();
+        const version = await createStrategyVersionRepository().resolveActive('BTCUSDT');
         const repository = createSignalSnapshotRepository();
 
         for (const price of [100, 101, 102]) {
@@ -402,8 +402,8 @@ describe('strategy version', () => {
     it('reuses the version for a configuration it has already seen', async () => {
         const repository = createStrategyVersionRepository();
 
-        const first = await repository.resolveActive();
-        const second = await repository.resolveActive();
+        const first = await repository.resolveActive('BTCUSDT');
+        const second = await repository.resolveActive('BTCUSDT');
 
         // A second version describing identical settings would leave a
         // snapshot stored under one of them claiming provenance the other
@@ -454,7 +454,7 @@ describe('strategy version', () => {
         // The part that must not have been lost with the column. A version is
         // identified by its hash and nothing else; removing a status that never
         // participated must leave that exactly as it was.
-        const version = await createStrategyVersionRepository().resolveActive();
+        const version = await createStrategyVersionRepository().resolveActive('BTCUSDT');
 
         expect(version.configHash).toMatch(/^[0-9a-f]+$/);
         expect(version.id).toBeGreaterThan(0);
@@ -467,7 +467,7 @@ describe('strategy version', () => {
     });
 
     it('names the configuration it describes', async () => {
-        const version = await createStrategyVersionRepository().resolveActive();
+        const version = await createStrategyVersionRepository().resolveActive('BTCUSDT');
 
         const row = await query<{ config: unknown }>(
             'SELECT config FROM strategy_version WHERE id = $1',

@@ -216,10 +216,20 @@ function analyzeMomentum(
 }
 
 /**
- * @param overrides Threshold overrides, merged over the shipped
- * configuration. Only the walk-forward search passes these; the live pipeline
- * never does, so the dashboard's signals are the configured ones and not a
- * fitted variant.
+ * @param overrides Thresholds merged over the shipped configuration.
+ *
+ * Two kinds of caller, and the comment above used to deny the second existed.
+ * The walk-forward search passes a *partial* pair it chose from the grid; the
+ * live pipeline passes the market's *resolved* configuration from
+ * `signalConfigFor`, which is already merged and is accepted here because
+ * spreading a complete configuration over the shipped one yields itself.
+ *
+ * So the live pipeline's signals are the configured ones and not a fitted
+ * variant — that part was true — but the claim rested on "never passes these",
+ * which stopped being true the moment a market could have thresholds of its own.
+ * A market configured with its own thresholds is not a fitted variant, and
+ * saying the pipeline never overrides anything was a way of not having to say
+ * whose thresholds it uses.
  */
 export function calculateSignal(
     price: number,

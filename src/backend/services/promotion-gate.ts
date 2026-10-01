@@ -1,6 +1,7 @@
 import { createEvidenceReader } from '../strategy/evidence.repository.js';
 import { DEFAULT_PROMOTION_CONFIG, evaluateShadow } from '../strategy/promotion.config.js';
 import { getStrategyVersionRepository } from '../analysis/strategy-version.repository.js';
+import { marketConfig } from '../config/market.config.js';
 
 import type { PromotionGate } from '../strategies/candidate.repository.js';
 
@@ -39,7 +40,22 @@ export function createEvidenceGate(
                 );
             }
 
-            const incumbent = await getStrategyVersionRepository().resolveActive();
+            // The incumbent is the configuration currently running, and the gate
+            // is not told which market it is judging — `PromotionGate.check`
+            // carries a rule, a stage and a version, and nothing else. So this
+            // asks for the shipped configuration rather than guessing a market:
+            // a gate that silently picked one of several running markets would
+            // compare a candidate against whichever configuration happened to be
+            // named first.
+            //
+            // That the question is unanswered is recorded as an open decision
+            // rather than left implied. The moment the gate carries a market, this
+            // becomes `resolveActive(instrument)` and the comparison is per market,
+            // which is the only form of it that means anything once two markets
+            // run different thresholds.
+            const incumbent = await getStrategyVersionRepository().resolveActive(
+                marketConfig.symbol,
+            );
             const evidence = await reader.evidenceFor(
                 strategyVersionId,
                 DEFAULT_PROMOTION_CONFIG.evaluationHorizonBars,
