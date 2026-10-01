@@ -10,6 +10,7 @@ import { getRetentionStore } from './db/retention.store.js';
 import { getSignalSnapshotRepository } from './analysis/signal-snapshot.repository.js';
 import { observeNewestBar } from './observability/health.registry.js';
 import { getAssetRepository } from './instruments/asset.repository.js';
+import { seedConfiguredRegistry } from './instruments/seed-registry.js';
 import { classifyByTradingWeek } from './instruments/classify.js';
 import { knownAssets, resolveInstrument } from './config/asset.registry.js';
 import { reconcileSignalOutcomes } from './outcomes/reconcile.js';
@@ -187,16 +188,30 @@ async function startServer() {
         // somebody typed. It runs before the socket opens for the same reason
         // the schema check does — a database that cannot answer "is this asset
         // tradable" should be found at boot, not on the first order.
-        const seeded = await getAssetRepository().seedFromConfiguration(
-            knownAssets.map((entry) => ({
-                symbol: entry.symbol,
-                category: entry.category,
-            })),
+        // The registry the configuration declares, assets and instrument
+        // together, before the socket opens for the same reason the schema check
+        // is there: a database that cannot answer "is this asset tradable" should
+        // be found at boot, not on the first order.
+        //
+        // The instrument is written by the same call as the assets on purpose.
+        // Seeding only the assets was the live bug: nothing else in the running
+        // service wrote `instrument`, so the registry route answered empty beside
+        // a correct asset list, and the correctness of that list is what made the
+        // emptiness look like an answer.
+        const seeded = await seedConfiguredRegistry(
+            getAssetRepository(),
+            knownAssets,
+            marketConfig.symbol,
         );
 
         app.log.info(
-            { event: 'asset_registry_seeded', inserted: seeded.inserted },
-            'asset_registry_seeded',
+            {
+                event: 'registry_seeded',
+                assetsInserted: seeded.assetsInserted,
+                instrument: seeded.instrument,
+                instrumentInserted: seeded.instrumentInserted,
+            },
+            'registry_seeded',
         );
 
         const address = await app.listen({

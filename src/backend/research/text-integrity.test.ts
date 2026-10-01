@@ -296,4 +296,18 @@ describe('no text in the repository is damaged', () => {
             ),
         ).toContain('U+0402');
     });
-});
+
+    // A budget of thirty seconds, which is the convention in this repository
+    // for a test that does real work, and is here for a measured reason.
+    //
+    // The first test in this file is the only one that reads every file in
+    // `src`, `docs` and `.github`, so its cost is proportional to the tree and
+    // it gets slower as the project grows. Isolated it runs in 179 ms; inside a
+    // 211-file parallel run it was measured past the 5 s default, because every
+    // worker is competing for the same disk.
+    //
+    // The number is not chosen to make a failure quiet. A guard that scans the
+    // repository cannot be a five-millisecond test, and the alternative to
+    // stating the budget is a check that fails about one run in three and is
+    // then ignored — which is how the two detectors this file replaced died.
+}, 30_000);

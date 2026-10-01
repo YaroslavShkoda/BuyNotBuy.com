@@ -228,11 +228,24 @@ export class AssetRepository {
      * Records an instrument and both of its halves, if the halves are not there
      * yet.
      *
-     * The halves are inserted as `unknown` rather than as crypto. A pair whose
-     * base nobody has classified is a pair whose kind is not known, and the
-     * first version of this codebase had no way to say that — so it said
-     * `crypto`, and BTCBRL was a crypto market until the type grew a third
-     * answer.
+     * The halves are written with `status: 'unknown'` and `source: 'learned'`,
+     * because a half nobody classified is a half the database has not been told
+     * about. What it is *not* written with is a guessed category, and the
+     * distinction is worth being exact about, because the previous version of
+     * this comment claimed the category was `unknown` and it has never been:
+     * `unknownAsset` answers `category: 'crypto'`, because
+     * `ASSET_CATEGORIES` has two answers and a third would be a schema change.
+     * So the "do not guess" intent is carried by `status`, and the category comes
+     * from the registry — which is a declaration, and for every symbol the
+     * registry knows, including `BRL` as fiat, it is the right one. A base the
+     * registry has never heard of lands on `crypto`, which is why it also lands
+     * on `status: 'unknown'`: the two fields together say "treated as crypto
+     * because there is no third answer, and nobody has confirmed it".
+     *
+     * That is also the only combination available. A pair whose quote is outside
+     * `quoteCurrencies` never reaches this method at all: `splitTicker` refuses
+     * it, `resolveInstrument` answers `null`, and the method returns `false`
+     * rather than inventing a split.
      */
     async recordInstrument(ticker: string): Promise<boolean> {
         const resolved = resolveInstrument(ticker);
