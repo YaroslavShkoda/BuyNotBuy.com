@@ -130,11 +130,35 @@ export function isUsableForSignal(freshness: MarketFreshness): boolean {
     return freshness === 'fresh' || freshness === 'provider_failed';
 }
 
-/** Whether the snapshot was served from cache rather than fetched. */
-export function isCached(freshness: MarketFreshness): boolean {
-    return (
-        freshness === 'stale' ||
-        freshness === 'provider_failed' ||
-        freshness === 'partially_available'
-    );
-}
+/**
+ * Removed: `isCached`.
+ *
+ * It answered "was this snapshot served from cache rather than fetched", and the
+ * argument it was given could not carry the answer. `MarketFreshness` is a
+ * function of three things — age, whether a venue could answer, and the health
+ * of the series — and none of them distinguishes memory from the wire. The
+ * cache-hit branch of `getMarketData` is the proof: it classifies with
+ * `providerAnswered: false` and an age inside the TTL and gets `fresh`, which is
+ * the same word the successful-fetch branch writes by hand. So the predicate
+ * returned `false` for the commonest cache hit in the system.
+ *
+ * Three tests held it up, and two of their names asserted distinctions their own
+ * arguments could not make: one said `provider_failed` was "not a cache hit" and
+ * asserted that it was; another said a "freshly fetched snapshot" was not cached
+ * and asserted only on the word `fresh`, which a cache hit also produces. The
+ * defect was pinned as intent, which is how it survived.
+ *
+ * **Why deletion rather than repair.** Repair is possible and would be small: the
+ * three return sites in `getMarketData` each know which they are, so a
+ * `fromCache: boolean` on the result would make the question answerable. It was
+ * not done here because there is no reader to answer it. `/api/market` already
+ * returns `ageMs`, which is zero for a fetch and non-zero for both cache paths, so
+ * a client can already tell — and a field nobody reads is the same
+ * mechanism-built-and-wired-nowhere that this round's predecessor spent its whole
+ * budget closing. `docs/invariants.md` §17 is the rule: code with no path is not
+ * working code.
+ *
+ * If somebody later needs the fact, the honest place is a field on the result
+ * carrying it, and `research/uncalled-exports.pinned.ts` should then be asked to
+ * fail, which is the moment to delete that pin having used the code.
+ */

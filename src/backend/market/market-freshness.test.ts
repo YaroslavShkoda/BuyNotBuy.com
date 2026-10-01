@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { classifyFreshness, isCached, isUsableForSignal } from './market-freshness.js';
+import { classifyFreshness, isUsableForSignal } from './market-freshness.js';
 import { marketConfig } from '../config/market.config.js';
 
 import type { MarketFreshness } from './market-freshness.js';
@@ -176,52 +176,21 @@ describe('freshness predicates', () => {
         expect(usable).toEqual(['fresh', 'provider_failed']);
     });
 
-    it('treats provider_failed as usable but not as a cache hit', () => {
-        // It is a cache hit in the sense that nothing was fetched, but calling
-        // it "not cached" would be wrong too. What matters for the caller is
-        // that the data is current, which is what the first predicate says.
-        expect(isUsableForSignal('provider_failed')).toBe(true);
-        expect(isCached('provider_failed')).toBe(true);
-    });
-
-    it('never marks a freshly fetched snapshot as cached', () => {
-        expect(isCached('fresh')).toBe(false);
-    });
-
-    it('never marks a refused snapshot as cached', () => {
-        expect(isCached('expired')).toBe(false);
-        expect(isCached('unavailable')).toBe(false);
-    });
-
     /**
-     * `it.fails`, and deliberately: the assertion is what the name promises, and
-     * it is false today.
+     * The fact underneath all of it: inside the TTL, a cache hit and a fetch are
+     * the same state.
      *
-     * `isCached` reports "the snapshot was served from cache rather than
-     * fetched", and the commonest path through `market.service.ts` is a cache
-     * hit inside the TTL with a live venue — which `classifyFreshness` returns
-     * as `fresh`. By the time a snapshot is classified, the fetch that filled
-     * the cache has nothing left to say about it, and neither branch of
-     * `getMarketData` passes "came from cache" in. So the predicate is not wrong
-     * by accident in one state: in the state that happens most often it has no
-     * answer to give, and the three tests above it pass without noticing.
-     *
-     * It is also unreachable in production —
-     * `research/uncalled-exports.sweep.ts` lists it among the exports with no
-     * production call site — which is the only reason this has stayed quiet.
-     *
-     * The first version of this test asserted what the code does, and passed:
-     * a guard that pins the defect reads as a description of the defect and
-     * turns green the day someone depends on `isCached`. This one asserts the
-     * promise, so it fails; `it.fails` holds the suite green while the defect
-     * lives and turns it red the moment either side changes — which is the
-     * owner's decision, not mine. Either the snapshot carries whether it came
-     * from cache and the predicate becomes real, or the predicate goes and the
-     * three tests above it go with it.
+     * This is decision-independent. Whether the predicate is repaired by carrying
+     * the fact on the result or deleted for having no reader, this stays true —
+     * `MarketFreshness` is a function of age, provider reachability and series
+     * health, and none of those three distinguishes "answered from memory" from
+     * "answered just now". The cache-hit branch of `getMarketData` proves it: it
+     * calls `classifyFreshness` with `providerAnswered: false` and an age inside
+     * the TTL, and gets `fresh` — the same word the fetch branch writes
+     * literally.
      */
-    it.fails('cannot report a cache hit as cached, which is what its name promises', () => {
-        // The exact inputs of the cache-hit branch, market.service.ts:139.
-        const fromCache = classifyFreshness(
+    it('cannot tell a cache hit from a fetch, because the state is the same', () => {
+        const cacheHit = classifyFreshness(
             input({
                 ageMs: 60_000,
                 providerAnswered: false,
@@ -231,7 +200,10 @@ describe('freshness predicates', () => {
             }),
         );
 
-        expect(fromCache).toBe('fresh');
-        expect(isCached(fromCache)).toBe(true);
+        // What `fetchMarketData` returns after a successful fetch, verbatim.
+        const fetched: MarketFreshness = 'fresh';
+
+        expect(cacheHit).toBe(fetched);
     });
+
 });
