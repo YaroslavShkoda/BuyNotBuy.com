@@ -302,6 +302,22 @@ describe('the reasons a market may not be traded', () => {
         ).toEqual([...TRADABILITY_REASONS]);
     });
 
+    it('holds for the other vocabularies the wire retypes too', async () => {
+        // The measurement behind this found twelve sets written in more than one
+        // file, six of them this shape: a domain vocabulary retyped inside
+        // `api/schemas.ts` because a union type is erased at runtime and
+        // `z.enum` wants values. Three are fixed. The rest are recorded in the
+        // status document rather than swept.
+        const { IndicatorSignalSchema, IndicatorKeySchema } = await import(
+            '../api/schemas.js'
+        );
+        const { SIGNAL_DIRECTIONS } = await import('../types/direction.js');
+        const { INDICATOR_KEYS } = await import('../signals/signal.types.js');
+
+        expect(IndicatorSignalSchema.options).toEqual([...SIGNAL_DIRECTIONS]);
+        expect(IndicatorKeySchema.options).toEqual([...INDICATOR_KEYS]);
+    });
+
     it('has a sentence for every one of them', async () => {
         // `DESCRIBE` is a `Record` over the type, so a new reason does not
         // compile without a sentence. A refusal with no explanation is a

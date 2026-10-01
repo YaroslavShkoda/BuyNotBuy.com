@@ -1,6 +1,8 @@
 import { z } from 'zod';
 
 import { TRADABILITY_REASONS } from '../instruments/domain.js';
+import { SIGNAL_DIRECTIONS } from '../types/direction.js';
+import { INDICATOR_KEYS } from '../signals/signal.types.js';
 
 /**
  * The refusals, built from the domain's list rather than retyped.
@@ -10,16 +12,19 @@ import { TRADABILITY_REASONS } from '../instruments/domain.js';
  * union type is erased at runtime, which is exactly why the list had to be
  * written four times over: there was no value for a validator to be made from.
  * There is now.
+ *
+ * **The same argument covers every vocabulary below.** A measurement over the
+ * tree found twelve sets of three or more strings written in more than one file,
+ * and six of them had this shape — a domain vocabulary retyped here because the
+ * type alone could not feed a validator. These three are fixed; the rest are
+ * recorded rather than swept, because a wide refactor of a frozen module is not
+ * a cleanup.
  */
 const TradabilityReasonSchema = z.enum(TRADABILITY_REASONS);
 
-export const IndicatorSignalSchema = z.enum([
-    'LONG',
-    'SHORT',
-    'NEUTRAL',
-]);
+export const IndicatorSignalSchema = z.enum(SIGNAL_DIRECTIONS);
 
-export const IndicatorKeySchema = z.enum(['ema', 'stochastic', 'momentum']);
+export const IndicatorKeySchema = z.enum(INDICATOR_KEYS);
 
 export const IndicatorAnalysisSchema = z.object({
     key: IndicatorKeySchema,

@@ -24,8 +24,28 @@ import { fileURLToPath } from 'node:url';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const TYPES_DIR = 'types';
 
-/** The one form the vocabulary may take in production source. */
-const DECLARATION = "'LONG' | 'SHORT' | 'NEUTRAL'";
+/**
+ * The forms the vocabulary may take in production source.
+ *
+ * **Two, not one, and the second exists because a type has no value.** Until
+ * round 47 this file forbade a single spelling — the union — which was right
+ * about the property and wrong about the forms: `api/schemas.ts` needs a
+ * `z.enum`, a union is erased at compile time, and that module had gone on
+ * retyping the three literals rather than live without the word. Fixing that by
+ * changing the declaration to a tuple then broke this test, which is what a test
+ * pinned to a spelling does: it fails when the code is fixed.
+ *
+ * What matters is that the vocabulary is written down once, not in which shape.
+ * Both spellings below declare it; a file that contains either is a declaration.
+ */
+const DECLARATIONS = [
+    "'LONG' | 'SHORT' | 'NEUTRAL'",
+    "['LONG', 'SHORT', 'NEUTRAL']",
+];
+
+/** Whether a file spells the vocabulary out, in any accepted form. */
+const declares = (source: string): boolean =>
+    DECLARATIONS.some((form) => source.includes(form));
 
 /**
  * Files whose content is not production code.
@@ -79,7 +99,7 @@ describe('the direction vocabulary has exactly one declaration', () => {
         // existed only because `signals/` had claimed a word that all of them
         // use.
         const declaring = sources(join(root, TYPES_DIR))
-            .filter((file) => readFileSync(file, 'utf8').includes(DECLARATION))
+            .filter((file) => declares(readFileSync(file, 'utf8')))
             .map((file) => relative(root, file).split(sep).join('/'))
             .sort();
 
@@ -97,7 +117,7 @@ describe('the direction vocabulary has exactly one declaration', () => {
             .filter((path) => !NOT_SOURCE(path))
             .filter((path) => path !== 'types/direction.ts')
             .filter((path) =>
-                readFileSync(join(root, path), 'utf8').includes(DECLARATION),
+                declares(readFileSync(join(root, path), 'utf8')),
             )
             .sort();
 
@@ -116,6 +136,6 @@ describe('the direction vocabulary has exactly one declaration', () => {
         );
 
         expect(signals).toContain('export type IndicatorSignal = SignalDirection;');
-        expect(signals).not.toContain(DECLARATION);
+        expect(declares(signals)).toBe(false);
     });
 });

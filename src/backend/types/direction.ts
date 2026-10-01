@@ -26,5 +26,16 @@
  * 'NEUTRAL'))` is inside a migration string and is the schema of record;
  * generating it from this type would couple an old migration to today's source
  * file, and old results are not rewritten.
+ *
+ * **The tuple was added in round 47, and the type below should have been one.**
+ * The comment above says the duplication was what produced a layering
+ * violation, and then leaves the duplication standing for the one consumer that
+ * cannot live without it at runtime: `api/schemas.ts` needs a `z.enum`, and a
+ * union type is erased at compile time, so that module went on retyping the
+ * three literals. A type with no value behind it cannot be the single owner of
+ * anything that anybody validates — it is the source of the fifth copy, not the
+ * end of them.
  */
-export type SignalDirection = 'LONG' | 'SHORT' | 'NEUTRAL';
+export const SIGNAL_DIRECTIONS = ['LONG', 'SHORT', 'NEUTRAL'] as const;
+
+export type SignalDirection = (typeof SIGNAL_DIRECTIONS)[number];

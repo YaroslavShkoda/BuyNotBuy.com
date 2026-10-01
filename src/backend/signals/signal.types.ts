@@ -24,7 +24,9 @@ export type IndicatorSignal = SignalDirection;
  * renamed indicator starts a new series and orphans every vote already
  * recorded under the old one — history silently split in two.
  */
-export type IndicatorKey = 'ema' | 'stochastic' | 'momentum';
+export const INDICATOR_KEYS = ['ema', 'stochastic', 'momentum'] as const;
+
+export type IndicatorKey = (typeof INDICATOR_KEYS)[number];
 
 export interface IndicatorAnalysis {
     /** Stable across renames and period changes. Never shown to a person. */
