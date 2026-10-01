@@ -351,3 +351,41 @@ describe('a new indicator is one file', () => {
         }
     });
 });
+
+/**
+ * What an indicator is given, and nothing more.
+ *
+ * The context used to carry a third input, `price`, documented as the close of
+ * the bar in progress. No indicator read it, and the only production call passed
+ * nothing, so what the documentation described and what the running system
+ * delivered were two different things: a field that announced an input and
+ * handed over `null`. That is the defect an optional logger causes one layer
+ * earlier, and the next indicator written would have reached for it and got a
+ * plausible-looking number with no error anywhere.
+ *
+ * **This is the guard for that class, and it is behavioural on purpose.** A check
+ * that greps the sources for `context.<field>` cannot tell a read from a mention
+ * in a comment — the first version of this idea counted the word `price` in the
+ * very comment that explained removing the field, and reported the file as still
+ * depending on it. Reading the keys off the value that is actually built needs no
+ * parser and cannot be fooled by prose.
+ */
+describe('what an indicator is computed from', () => {
+    it('is exactly the inputs something reads', () => {
+        const context = indicatorContext([], 0);
+
+        expect(Object.keys(context).sort()).toEqual(['candles', 'closes', 'now', 'series']);
+    });
+
+    it('and none of them is a null waiting to be read', () => {
+        const context = indicatorContext([], 0);
+
+        // A nullable input in a context is legal TypeScript and an illegal
+        // thing to hand an indicator: the calculator cannot tell "not
+        // available" from "available and zero", and it will produce a number
+        // either way.
+        for (const [field, value] of Object.entries(context)) {
+            expect(value, `${field} is null`).not.toBeNull();
+        }
+    });
+});

@@ -31,8 +31,6 @@ export interface IndicatorContext {
     readonly candles: Candle[];
     /** `candles.map(c => c.close)`, built once for the whole run. */
     readonly closes: number[];
-    /** The close of the bar in progress, or null when there is none. */
-    readonly price: number | null;
     readonly now: number;
     /**
      * Named intermediate series this indicator declared it needs, already
@@ -176,17 +174,37 @@ export function createIndicatorRegistry(): IndicatorRegistry {
     };
 }
 
-/** Builds the context an indicator is computed from, once per run. */
+/**
+ * Builds the context an indicator is computed from, once per run.
+ *
+ * **There used to be a third input, `price`, described as the close of the bar
+ * in progress. It is gone, and its own description is the reason.**
+ *
+ * No indicator read it — checked by counting the context fields that are read at
+ * all, which is `candles`, `closes` and `series` — while the only production
+ * construction passed nothing and got `null`. So the field's documentation could
+ * not be true of the system: no call site in the running service was able to
+ * deliver the close of the bar in progress, and a context that advertises an
+ * input and hands over null is the same defect as the one an optional logger
+ * causes, one layer earlier. An indicator written tomorrow would reach for
+ * `context.price` and get null, with no error and a plausible number out the
+ * other side.
+ *
+ * It was removed rather than wired because the question it would have answered
+ * is already answered deliberately and the answer is written down: %B is "where
+ * the last close sits" between the bands, in `bollinger.ts`, using
+ * `candles[candles.length - 1].close`. Making it the live price instead is a
+ * change to what that indicator means, not a bug fix, and it belongs to whoever
+ * decides that — the same owner as the other two open questions.
+ */
 export function indicatorContext(
     candles: readonly Candle[],
     now: number,
-    price: number | null = null,
     series: ReadonlyMap<string, unknown> = new Map(),
 ): IndicatorContext {
     return {
         candles: [...candles],
         closes: candles.map((candle) => candle.close),
-        price,
         now,
         series,
     };
