@@ -26,6 +26,23 @@ import { z } from 'zod';
  * happened here for as long as `intrabar` was the default.
  */
 
+/**
+ * The three models, as one list.
+ *
+ * **Declared above the schema because the schema is built from it.** The three
+ * strings were written twice — once inside `z.enum([...])` and once as
+ * `EXECUTION_MODELS` below — and `ExecutionModel` was derived from the schema,
+ * not from the tuple. So adding a fourth model to `EXECUTION_MODELS` compiled
+ * cleanly, changed no type, and was rejected by the validator: the list you
+ * would read to discover what models exist was the one place that could be
+ * wrong without anything saying so.
+ *
+ * Declared here rather than kept below because `z.enum` needs the values at
+ * module evaluation, and a `const` below its own use is a temporal dead zone
+ * rather than a stylistic choice.
+ */
+export const EXECUTION_MODELS = ['next_open', 'next_close', 'intrabar'] as const;
+
 const ExecutionConfigSchema = z
     .object({
         /**
@@ -62,7 +79,7 @@ const ExecutionConfigSchema = z
          * both post and cross needs two settings to say so.
          */
         liquidity: z.enum(['maker', 'taker']),
-        model: z.enum(['next_open', 'next_close', 'intrabar']),
+        model: z.enum(EXECUTION_MODELS),
     })
     .refine((config) => config.makerFeeRate <= config.takerFeeRate, {
         // Not a hard law — some venues invert it for maker rebates — but the
@@ -122,13 +139,12 @@ export const EXECUTION_CONFIG: ExecutionConfig = ExecutionConfigSchema.parse({
 
 export const ExecutionConfigParser = ExecutionConfigSchema;
 
-export const EXECUTION_MODELS = [
-    'next_open',
-    'next_close',
-    'intrabar',
-] as const;
-
-export type ExecutionModel = ExecutionConfig['model'];
+/**
+ * Derived from the tuple the validator is built from, so the type a caller
+ * writes against and the values the configuration accepts cannot name different
+ * sets of models.
+ */
+export type ExecutionModel = (typeof EXECUTION_MODELS)[number];
 
 /**
  * The round trip, for the case where somebody needs one number.
