@@ -253,7 +253,13 @@ export function renderMetrics(): string {
     return lines.join('\n');
 }
 
-/** The thirteen promised metrics, in the registry's own text exposition. */
+/**
+ * The promised metrics, in the registry's own text exposition.
+ *
+ * The count is not written here: the catalogue in `observability/registry.ts`
+ * is the promise, and a number in a comment about a closed list is one more
+ * thing to forget when the list grows.
+ */
 function roadmapExposition(): string {
     return currentRegistry().render({ namespace: 'buynotbuy_' });
 }

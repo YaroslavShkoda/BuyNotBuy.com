@@ -270,6 +270,7 @@ export const METRIC_COUNTERS = [
     'market_stale_served',
     'signal_generation_total',
     'signal_changes_total',
+    'strategy_decision_write_failures',
 ] as const;
 
 export const METRIC_GAUGES = ['provider_circuit_open'] as const;
@@ -301,6 +302,7 @@ export const METRIC_KIND: Readonly<Record<MetricName, MetricKind>> = {
     market_stale_served: 'counter',
     signal_generation_total: 'counter',
     signal_changes_total: 'counter',
+    strategy_decision_write_failures: 'counter',
     provider_circuit_open: 'gauge',
     provider_latency: 'distribution',
     indicator_calculation_duration: 'distribution',

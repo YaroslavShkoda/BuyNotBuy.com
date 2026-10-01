@@ -18,7 +18,7 @@ import {
     metricKind,
 } from './metrics.js';
 
-describe('the thirteen metrics the roadmap named are the thirteen we publish', () => {
+describe('the metrics the roadmap named are the metrics we publish', () => {
     const EXPECTED = [
         'provider_requests_total',
         'provider_errors_total',
@@ -33,6 +33,7 @@ describe('the thirteen metrics the roadmap named are the thirteen we publish', (
         'signal_changes_total',
         'database_query_duration',
         'backtest_duration',
+        'strategy_decision_write_failures',
     ];
 
     it('publishes exactly those, in one list, without duplicates', () => {

@@ -7,6 +7,7 @@ import type { DivergenceAnalysis } from '../indicators/divergence.service.js';
 import type { SignalResult } from '../signals/signal.types.js';
 import { recordPublishedSignal } from '../signals/signal-publication.js';
 import { createKeyedSingleFlight } from '../observability/single-flight.js';
+import { currentRegistry } from '../observability/registry.js';
 
 import { getMarketData, marketKey, resolveRequest } from '../market/market.service.js';
 import { calculateMarketIndicators, toWireIndicators } from '../indicators/indicator.service.js';
@@ -287,6 +288,12 @@ async function recordStrategyDecisions(input: {
         // that is the difference between this and the version that hid a dead
         // server behind a plausible-looking empty table.
         strategyDecisionWriteFailures += 1;
+
+        // The module counter above is read by nobody outside this file, so a
+        // lost row was counted and invisible — a silent failure wearing the
+        // costume of an observed one. This is the count an operator can see,
+        // and it is the same event, not a second reading of it.
+        currentRegistry().counter('strategy_decision_write_failures');
     }
 }
 

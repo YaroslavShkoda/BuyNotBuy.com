@@ -402,6 +402,18 @@ export const METRIC_CATALOGUE: readonly ObservabilityMetric[] = z
             description: 'Случаев, когда сигнал сменился, — то, что действительно интересно.',
         },
         {
+            name: 'strategy_decision_write_failures',
+            kind: 'counter',
+            // Worth stating plainly in the catalogue, because the failure is
+            // swallowed on purpose: the analysis answers correctly even when this
+            // write fails, and a reader seeing a healthy service with a rising
+            // counter should know that means the decision-log table is losing
+            // rows, not that the strategy is fine.
+            description:
+                'Потерянных строк журнала решений. Анализ при этом не падает — ' +
+                'потеря видна только здесь.',
+        },
+        {
             name: 'database_query_duration',
             kind: 'distribution',
             description: 'Время каждого запроса к базе, по имени операции.',
