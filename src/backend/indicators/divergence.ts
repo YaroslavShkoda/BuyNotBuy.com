@@ -1,7 +1,20 @@
-export type DivergenceType =
-    | 'BULLISH'
-    | 'BEARISH'
-    | 'NONE';
+/**
+ * Which way a divergence points, and the answer when there is none.
+ *
+ * A tuple, so the wire can validate it. `api/schemas.ts` retyped these three
+ * because `z.enum` wants values and a union is erased at compile time — the same
+ * reason every other vocabulary in this project grew a value before a validator
+ * could be built from it. `DivergenceService` used to spell out the narrower
+ * `'BULLISH' | 'BEARISH'` for the polarity it expected; that is now `Exclude` of
+ * this list, which says what it is — two of the three, never `NONE` — instead of
+ * saying it by typing the strings out a third time.
+ */
+export const DIVERGENCE_TYPES = ['BULLISH', 'BEARISH', 'NONE'] as const;
+
+export type DivergenceType = (typeof DIVERGENCE_TYPES)[number];
+
+/** A polarity to look for. `NONE` is an answer, never an expectation. */
+export type DivergencePolarity = Exclude<DivergenceType, 'NONE'>;
 
 export interface DivergencePoint {
     index: number;

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { TRADABILITY_REASONS, ASSET_CATEGORIES, ASSET_STATUSES, MARKET_KINDS } from '../instruments/domain.js';
 import { SIGNAL_DIRECTIONS } from '../types/direction.js';
 import { INDICATOR_KEYS } from '../signals/signal.types.js';
+import { DIVERGENCE_TYPES } from '../indicators/divergence.js';
 
 /**
  * The refusals, built from the domain's list rather than retyped.
@@ -88,7 +89,7 @@ export const DivergencePointSchema = z.object({
 });
 
 export const DivergenceResultSchema = z.object({
-    type: z.enum(['BULLISH', 'BEARISH', 'NONE']),
+    type: z.enum(DIVERGENCE_TYPES),
     previous: DivergencePointSchema,
     current: DivergencePointSchema,
 });

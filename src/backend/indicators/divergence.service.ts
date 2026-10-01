@@ -14,6 +14,7 @@ import {
 import {
     detectDivergence,
     type DivergencePoint,
+    type DivergencePolarity,
     type DivergenceResult,
 } from './divergence.js';
 
@@ -96,7 +97,7 @@ function findFirstDivergence(
     candles: Candle[],
     momentum: Array<number | null>,
     side: PriceSide,
-    expectedType: 'BULLISH' | 'BEARISH',
+    expectedType: DivergencePolarity,
     rightWindow: number,
     lastIndex: number,
 ): DivergenceResult | null {
