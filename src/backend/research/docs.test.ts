@@ -112,3 +112,46 @@ describe('the generator is deterministic', () => {
         60_000,
     );
 });
+
+describe('the generator cannot quietly emit less', () => {
+    /**
+     * The comparison test above cannot see this class, and the round that added
+     * the generator fell into it.
+     *
+     * `collectSchemaFacts` was refactored to accumulate columns and constraints
+     * in two maps, and the constraints loop kept a guard that skipped a table it
+     * had never seen — against a map nothing wrote to yet. Every constraint
+     * disappeared from `database.md`, and regenerating would have committed the
+     * loss with a green test, because the file and the generator would have
+     * agreed on being wrong.
+     *
+     * So this asks the question a comparison cannot: is every constraint that
+     * exists in the schema named in the document? It fails when the generator
+     * drops one, whether or not the file was regenerated to match.
+     */
+    it('names every CHECK constraint the schema has', async () => {
+        const constraints = await query<{ constraint: string }>(
+            `SELECT conname AS constraint FROM pg_constraint
+              WHERE contype = 'c' AND connamespace = current_schema()::regnamespace
+              ORDER BY conname`,
+        );
+
+        const document = await build('database.md', facts);
+
+        const missing = constraints.rows
+            .map((row) => row.constraint)
+            .filter((name) => !document.includes(name));
+
+        expect(missing).toEqual([]);
+    });
+
+    it('names every table the schema has', async () => {
+        const document = await build('database.md', facts);
+
+        const missing = facts.schema.tables
+            .map((table) => table.name)
+            .filter((name) => !document.includes(name));
+
+        expect(missing).toEqual([]);
+    });
+});

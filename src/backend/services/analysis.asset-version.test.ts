@@ -41,6 +41,30 @@ const { signalConfigFor } = await import('../config/indicator.config.js');
  */
 const signalUnderTest = signalService.calculateSignal;
 
+/**
+ * The configuration argument, typed as what it is.
+ *
+ * The first version collected it as `unknown[] | undefined` and cast at the
+ * assertion, which is two places to be wrong and one that the compiler refuses.
+ * Naming the type at the point of capture says what is being watched — that the
+ * fourth argument is the market's thresholds and not an absent one.
+ */
+type CapturedConfig = ReturnType<typeof signalConfigFor>;
+
+function captureArguments(): CapturedConfig[] {
+    const seen: CapturedConfig[] = [];
+
+    vi.spyOn(signalService, 'calculateSignal').mockImplementation(
+        (...args: Parameters<typeof signalService.calculateSignal>) => {
+            seen.push(args[3] as CapturedConfig | undefined as CapturedConfig);
+
+            return signalUnderTest(...args);
+        },
+    );
+
+    return seen;
+}
+
 type Mock = ReturnType<typeof vi.spyOn>;
 
 /** Enough bars for the warm-up, and a series flat enough to change no verdict. */
@@ -275,13 +299,7 @@ describe('the live computation is handed the market configuration', () => {
         serving('ETHUSDT');
 
         const override = signalConfigFor('ETHUSDT');
-        const seen: (unknown[] | undefined)[] = [];
-
-        vi.spyOn(signalService, 'calculateSignal').mockImplementation((...args) => {
-            seen.push(args[3] as unknown[] | undefined);
-
-            return signalUnderTest(...args);
-        });
+        const seen = captureArguments();
 
         await analyzeMarket(logger, 'req-eth-arguments');
 
@@ -291,8 +309,7 @@ describe('the live computation is handed the market configuration', () => {
         // result.
         for (const argument of seen) {
             expect(argument).toBeDefined();
-            expect((argument as { stochastic: { longThreshold: number } }).stochastic)
-                .toEqual(override.stochastic);
+            expect(argument.stochastic).toEqual(override.stochastic);
         }
     });
 
@@ -300,21 +317,14 @@ describe('the live computation is handed the market configuration', () => {
         serving('BTCUSDT');
 
         const shipped = signalConfigFor('BTCUSDT');
-        const seen: (unknown[] | undefined)[] = [];
-
-        vi.spyOn(signalService, 'calculateSignal').mockImplementation((...args) => {
-            seen.push(args[3] as unknown[] | undefined);
-
-            return signalUnderTest(...args);
-        });
+        const seen = captureArguments();
 
         await analyzeMarket(logger, 'req-btc-arguments');
 
         expect(seen.length).toBeGreaterThan(0);
 
         for (const argument of seen) {
-            expect((argument as { stochastic: { longThreshold: number } }).stochastic)
-                .toEqual(shipped.stochastic);
+            expect(argument.stochastic).toEqual(shipped.stochastic);
         }
     });
 });

@@ -36,19 +36,25 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import type { QueryResultRow } from 'pg';
+
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..');
 
 /**
- * The statement runner the generator reads the schema through.
+ * The statement runner the generator reads the schema through, with the same
+ * row parameter the project's own `query` has.
  *
- * Typed as the project's own `query` rather than a hand-written shape: a
- * narrower local signature is one more copy of the truth, and the first version
- * of this file cast `{ rows }` to an array and failed at the first `for..of`.
+ * Generic rather than a hand-written shape, and that is the whole point of this
+ * type: the first version returned `Record<string, unknown>[]`, every statement
+ * needed a cast to get its rows back, and each cast was a place where the
+ * compiler would have caught a renamed column and no longer could. The real
+ * `query` is assignable to this — its `values` parameter has a default — so
+ * nothing has to be wrapped to satisfy it.
  */
-export type Query = (
+export type Query = <Row extends QueryResultRow = QueryResultRow>(
     text: string,
-) => Promise<{ rows: Record<string, unknown>[] }>;
+) => Promise<{ rows: Row[] }>;
 
 /* ------------------------------------------------------------------ schema */
 
@@ -102,67 +108,70 @@ export interface SchemaFacts {
  * are about.
  */
 export async function collectSchemaFacts(run: Query): Promise<SchemaFacts> {
-    const tables = (
-        await run(
-            `SELECT c.relname AS name, a.attname AS column, format_type(a.atttypid, a.atttypmod) AS type,
-                    NOT a.attnotnull AS nullable
-               FROM pg_class c
-               JOIN pg_namespace n ON n.oid = c.relnamespace
-               JOIN pg_attribute a ON a.attrelid = c.oid
-              WHERE n.nspname = current_schema() AND c.relkind = 'r'
-                AND a.attnum > 0 AND NOT a.attisdropped
-              ORDER BY c.relname, a.attnum`,
-        )
-    ).rows as ColumnRow[];
+    const tables = await run<ColumnRow>(
+        `SELECT c.relname AS name, a.attname AS column, format_type(a.atttypid, a.atttypmod) AS type,
+                NOT a.attnotnull AS nullable
+           FROM pg_class c
+           JOIN pg_namespace n ON n.oid = c.relnamespace
+           JOIN pg_attribute a ON a.attrelid = c.oid
+          WHERE n.nspname = current_schema() AND c.relkind = 'r'
+            AND a.attnum > 0 AND NOT a.attisdropped
+          ORDER BY c.relname, a.attnum`,
+    );
 
-    const checks = (
-        await run(
-            `SELECT c.relname AS name, con.conname AS constraint,
-                    pg_get_constraintdef(con.oid) AS definition
-               FROM pg_constraint con
-               JOIN pg_class c ON c.oid = con.conrelid
-               JOIN pg_namespace n ON n.oid = c.relnamespace
-              WHERE con.contype = 'c' AND n.nspname = current_schema()
-              ORDER BY c.relname, con.conname`,
-        )
-    ).rows as CheckRow[];
+    const checks = await run<CheckRow>(
+        `SELECT c.relname AS name, con.conname AS constraint,
+                pg_get_constraintdef(con.oid) AS definition
+           FROM pg_constraint con
+           JOIN pg_class c ON c.oid = con.conrelid
+           JOIN pg_namespace n ON n.oid = c.relnamespace
+          WHERE con.contype = 'c' AND n.nspname = current_schema()
+          ORDER BY c.relname, con.conname`,
+    );
 
-    const indexes = (
-        await run(
-            `SELECT tablename AS table, indexname AS name, indexdef AS definition
-               FROM pg_indexes WHERE schemaname = current_schema()
-              ORDER BY tablename, indexname`,
-        )
-    ).rows as IndexRow[];
+    const indexes = await run<IndexRow>(
+        `SELECT tablename AS table, indexname AS name, indexdef AS definition
+           FROM pg_indexes WHERE schemaname = current_schema()
+          ORDER BY tablename, indexname`,
+    );
 
-    const byTable = new Map<string, TableFact>();
+    // Accumulated in maps of mutable arrays and frozen at the end. `TableFact`
+    // is readonly, which is right for what callers see and wrong for the builder
+    // that fills it: pushing into a `readonly ColumnFact[]` is the error that
+    // started this, and the honest fix is a builder type rather than a cast.
+    const columnsByTable = new Map<string, ColumnFact[]>();
+    const checksByTable = new Map<string, string[]>();
 
-    for (const row of tables) {
-        const existing = byTable.get(row.name) ?? {
-            name: row.name,
-            columns: [],
-            checks: [],
-        };
+    for (const row of tables.rows) {
+        const columns = columnsByTable.get(row.name) ?? [];
 
-        existing.columns.push({
-            name: row.column,
-            type: row.type,
-            nullable: row.nullable,
-        });
-        byTable.set(row.name, existing);
+        columns.push({ name: row.column, type: row.type, nullable: row.nullable });
+        columnsByTable.set(row.name, columns);
     }
 
-    for (const row of checks) {
-        const table = byTable.get(row.name);
+    for (const row of checks.rows) {
+        // Created on demand, not read and skipped when absent. The first version
+        // guarded on `!== undefined` against a map that nothing had written to
+        // yet, so every constraint was dropped and `database.md` quietly lost
+        // all of them — a generator that reports success while emitting less,
+        // which is the shape this project has been catching all session.
+        const named = checksByTable.get(row.name) ?? [];
 
-        if (table !== undefined) {
-            table.checks.push(`${row.constraint}: ${row.definition}`);
-        }
+        named.push(`${row.constraint}: ${row.definition}`);
+        checksByTable.set(row.name, named);
     }
 
     return {
-        tables: [...byTable.values()].sort((a, b) => a.name.localeCompare(b.name)),
-        indexes: indexes.map((row) => ({
+        tables: [...columnsByTable.keys()]
+            .map(
+                (name): TableFact => ({
+                    name,
+                    columns: columnsByTable.get(name) ?? [],
+                    checks: checksByTable.get(name) ?? [],
+                }),
+            )
+            .sort((a, b) => a.name.localeCompare(b.name)),
+        indexes: indexes.rows.map((row) => ({
             name: row.name,
             table: row.table,
             definition: row.definition,
