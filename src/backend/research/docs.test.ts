@@ -77,7 +77,22 @@ describe('generated documents match a rebuild', () => {
             expect(committed).toBe(rebuilt);
         });
     }
-});
+
+    // Thirty seconds, the budget this repository already uses for tests that
+    // do real work, and here for a measured reason.
+    //
+    // `architecture.md` is the expensive one: its build recomputes the
+    // dependency graph over every module, so the cost is proportional to the
+    // tree. Measured at 1118 ms and 1069 ms on two isolated runs — consistent,
+    // not variable — against a 5000 ms default, so there are under five times
+    // the headroom, and it shares that headroom with 210 other files competing
+    // for the same disk. It failed that way twice in one session.
+    //
+    // The other three documents build in 60-80 ms. They are under the same
+    // budget because they share the loop with the one that needs it, and
+    // splitting the loop so that only one case gets a longer timeout would be
+    // a test whose time depends on which document it is checking.
+}, 30_000);
 
 /**
  * One test rather than four, and with the limit stated.
