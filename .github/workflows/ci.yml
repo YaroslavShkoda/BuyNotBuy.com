@@ -58,6 +58,12 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      # Before the type checks, not after: this asks the compiler to fail on a
+      # file it must not be able to miss. A check that has stopped looking at the
+      # backend reports success, and nothing else in this workflow can tell.
+      - name: The type checks can see the backend
+        run: npm run canary:typecheck
+
       - name: Types
         run: |
           npm run typecheck

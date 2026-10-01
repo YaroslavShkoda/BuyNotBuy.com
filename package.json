@@ -18,10 +18,12 @@
     "start": "next start",
     "start:backend": "node --env-file-if-exists=.env dist/backend/server.js",
     "typecheck": "tsc --noEmit",
+    "canary:typecheck": "node --env-file=.env --import=tsx src/backend/research/typecheck-canary.cli.ts",
+    "verify:real": "npm run canary:typecheck && npm run typecheck && npm run typecheck:backend && npm run lint && npm test",
     "typecheck:backend": "tsc -p src/backend/tsconfig.json --noEmit",
     "test": "vitest run",
     "lint": "biome lint",
-    "verify": "npm run lint && npm run typecheck && npm run typecheck:backend && npm test"
+    "verify": "npm run canary:typecheck && npm run lint && npm run typecheck && npm run typecheck:backend && npm test"
   },
   "dependencies": {
     "fastify": "^5.12.5",
