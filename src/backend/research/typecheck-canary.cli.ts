@@ -2,7 +2,7 @@
  * Proves that the type checks actually check something.
  *
  * ```
- * node --env-file=.env --import=tsx src/backend/research/typecheck-canary.cli.ts
+ * node --import=tsx src/backend/research/typecheck-canary.cli.ts
  * ```
  *
  * On a machine whose `ComSpec` points at a terminal emulator, every `npm run`
@@ -22,6 +22,14 @@
  * command must exit non-zero, and its output must name the canary file — because
  * a compiler that fails for an unrelated reason, or on a file nobody can find,
  * has not proved that it is looking at the backend at all.
+ *
+ * **No `--env-file`.** The first version in CI asked for one and died with
+ * `node: .env: not found`, because `.env` is gitignored and does not exist on the
+ * runner. That failure was the check working: it refused to certify a guarantee
+ * it could not establish, on the one machine where the answer matters most. The
+ * canary needs no environment — it runs the compiler on a project file — and the
+ * rest of the project's CLI scripts keep their `--env-file`, which is right for
+ * them and was simply never exercised by CI.
  *
  * It is a command rather than a test on purpose. It must run *before* the thing
  * it audits, in the same breath as the type check it is verifying, and a test
