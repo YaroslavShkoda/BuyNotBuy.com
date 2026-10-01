@@ -60,6 +60,37 @@ export interface Calibration {
     readonly worstGap: number | null;
     /** True when the sample could not support any of the above. */
     readonly unmeasured: boolean;
+    /**
+     * Which markets the numbers above are about.
+     *
+     * `null` when nothing was measured, otherwise every market in the sample,
+     * sorted and comma-separated — so a calibration of two markets says so in the
+     * report itself rather than leaving the question to whoever guesses.
+     *
+     * The bucket this report builds is keyed `'all'`, and that key used to be the
+     * whole of what a reader knew about its reach: the score and the mean
+     * claimed confidence were printed under a heading that never named a market.
+     * Refusing a mixed sample is the wrong fix — PHASE 44 asks for a
+     * portfolio-shaped aggregate eventually, and that is a fair question — so the
+     * answer is made to name what it covers instead.
+     */
+    readonly scope: string | null;
+}
+
+/** Every market in a sample, named, sorted, and capped so it stays readable. */
+export function describeScope(
+    samples: readonly PerformanceSample[],
+    limit = 4,
+): string | null {
+    const markets = [...new Set(samples.map((sample) => sample.symbol))].sort();
+
+    if (markets.length === 0) return null;
+
+    const named = markets.slice(0, limit);
+
+    return markets.length > limit
+        ? `${named.join(', ')} + ещё ${markets.length - limit}`
+        : named.join(', ');
 }
 
 export const UNMEASURED: Calibration = {
@@ -68,6 +99,7 @@ export const UNMEASURED: Calibration = {
     meanClaimed: null,
     meanActual: null,
     worstGap: null,
+    scope: null,
     unmeasured: true,
 };
 
@@ -107,6 +139,10 @@ export function calibrate(
     );
 
     const allSamples = groupBy(samples, () => 'all', config).get('all');
+    // Computed once, beside the bucket it describes. The bucket key is still
+    // `'all'` — the label was never the problem, the label was the *only* thing
+    // the reader had.
+    const scope = describeScope(samples);
 
     if (measured.length === 0 || allSamples === undefined) {
         return {
@@ -116,6 +152,7 @@ export function calibrate(
             meanActual: null,
             worstGap: null,
             unmeasured: true,
+            scope,
         };
     }
 
@@ -138,6 +175,7 @@ export function calibrate(
         score: Math.min(1, Math.max(0, 1 - score)),
         meanClaimed,
         meanActual: allSamples.accuracy,
+        scope,
         worstGap: measured.reduce(
             (worst, point) =>
                 Math.abs(point.gap) > Math.abs(worst) ? point.gap : worst,

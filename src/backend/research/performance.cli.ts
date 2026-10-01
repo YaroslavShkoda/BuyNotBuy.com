@@ -127,7 +127,11 @@ async function render(options: Options, asOf: number): Promise<string> {
         `  ожидание            ${percent(metrics.expectancy)}`,
         `  проф-фактор         ${ratio(metrics.profitFactor)}`,
         '',
-        'Калибровка: сколько заявляли и сколько сбылось',
+        // The scope line is the answer's own account of what it covers. Without
+        // it the calibration below is a number about an unnamed set of markets,
+        // and a reader has no way to tell a single-market figure from a blend.
+        `Калибровка: сколько заявляли и сколько сбылось` +
+            `${calibration.scope === null ? '' : ` (${calibration.scope})`}`,
         `  ${'корзина'.padEnd(12)} ${'сигналов'.padStart(8)} ${'заявлено'.padStart(9)} ${'сбылось'.padStart(9)} ${'разрыв'.padStart(9)}`,
     ];
 

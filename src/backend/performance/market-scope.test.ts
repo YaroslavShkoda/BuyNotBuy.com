@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { calibrate } from './calibration.js';
 import { groupBy } from './performance.js';
 import { toPerformanceSamples } from './samples.js';
 
@@ -126,5 +127,41 @@ describe('the sample type refuses a row without a market', () => {
         const typed: PerformanceSample = withoutMarket;
 
         expect(typed.symbol).toBeUndefined();
+    });
+});
+
+/**
+ * A calibration report has to say which markets it measured.
+ *
+ * `calibrate` gathers every sample into one bucket keyed `'all'`, and that key
+ * reaches a reader: the CLI prints the calibration's score and its mean claimed
+ * confidence under the heading "Калибровка: сколько заявляли и сколько сбылось"
+ * without ever naming a market. With one market that is a missing label; with two
+ * it is a calibration of both presented under one set of numbers, and every
+ * number in it is true.
+ *
+ * Refusing the blend is not the fix — PHASE 44 asks for a portfolio-shaped
+ * aggregate eventually, and that is a legitimate question. The fix is that the
+ * answer names its own scope, so the question asked is legible in the answer.
+ */
+describe('a calibration report names its scope', () => {
+    it('names the single market it measured', () => {
+        const report = calibrate(samplesFor(['BTCUSDT', 0.02], ['BTCUSDT', 0.01]));
+
+        expect((report as unknown as { scope?: string }).scope).toBe('BTCUSDT');
+    });
+
+    it('names every market when the set is mixed', () => {
+        const report = calibrate(samplesFor(['ETHUSDT', 0.02], ['BTCUSDT', 0.01]));
+
+        expect((report as unknown as { scope?: string }).scope).toBe(
+            'BTCUSDT, ETHUSDT',
+        );
+    });
+
+    it('and says so when there is nothing measured', () => {
+        const report = calibrate([]);
+
+        expect((report as unknown as { scope?: string }).scope).toBeNull();
     });
 });
