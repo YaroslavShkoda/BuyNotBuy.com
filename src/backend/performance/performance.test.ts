@@ -29,6 +29,7 @@ function sample(
     overrides: Partial<PerformanceSample> = {},
 ): PerformanceSample {
     return {
+        symbol: 'BTCUSDT',
         timestamp: BASE + index * HOUR,
         direction: 'LONG',
         verdict: 'correct',

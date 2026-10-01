@@ -19,6 +19,22 @@ import type { OutcomeVerdict } from '../outcomes/outcome.js';
 
 /** One resolved signal, as the performance layer sees it. */
 export interface PerformanceSample {
+    /**
+     * The market this row was measured on.
+     *
+     * Required rather than optional, which is the whole content of the field.
+     * It used to be absent entirely, and everything downstream — the metrics,
+     * the confidence buckets, the regime and indicator cuts — computed over a
+     * set that no longer knew which market each row came from. The blend was
+     * live in the type and latent only because the single caller loaded one
+     * market: a report over two markets would have had every individual number
+     * correct and answered a question nobody asked.
+     *
+     * PHASE 13 lists an asset cut among the slices of a performance table, and
+     * `groupBy` already takes an arbitrary key, so with this field the cut is
+     * `groupBy(samples, (sample) => sample.symbol)`.
+     */
+    readonly symbol: string;
     readonly timestamp: number;
     readonly direction: 'LONG' | 'SHORT';
     readonly verdict: OutcomeVerdict;

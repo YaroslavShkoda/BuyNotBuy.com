@@ -26,6 +26,7 @@ function rows(
         const right = index < Math.round(count * rate);
 
         return {
+            symbol: 'BTCUSDT',
             timestamp: BASE + (start + index) * HOUR,
             direction: 'LONG',
             verdict: right ? 'correct' : 'incorrect',
@@ -137,6 +138,7 @@ describe('the breakdown always adds up to the sample it came from', () => {
                 (regimes) => {
                     const result = byRegime(
                         regimes.map((regime, index) => ({
+                            symbol: 'BTCUSDT',
                             timestamp: BASE + index * HOUR,
                             direction: 'LONG' as const,
                             verdict: 'correct' as const,

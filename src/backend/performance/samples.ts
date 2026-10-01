@@ -188,6 +188,10 @@ export function toPerformanceSamples(
         }
 
         samples.push({
+            // Carried, not inferred. `SignalOutcome` knows the market and it is
+            // the only place that does; a sample that did not carry it would
+            // make every aggregate below a blend that no caller could see.
+            symbol: outcome.symbol,
             timestamp: outcome.entryTimestamp,
             direction: outcome.direction,
             verdict: resolved.outcome.verdict,
