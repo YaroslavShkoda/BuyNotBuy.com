@@ -192,4 +192,46 @@ describe('freshness predicates', () => {
         expect(isCached('expired')).toBe(false);
         expect(isCached('unavailable')).toBe(false);
     });
+
+    /**
+     * `it.fails`, and deliberately: the assertion is what the name promises, and
+     * it is false today.
+     *
+     * `isCached` reports "the snapshot was served from cache rather than
+     * fetched", and the commonest path through `market.service.ts` is a cache
+     * hit inside the TTL with a live venue — which `classifyFreshness` returns
+     * as `fresh`. By the time a snapshot is classified, the fetch that filled
+     * the cache has nothing left to say about it, and neither branch of
+     * `getMarketData` passes "came from cache" in. So the predicate is not wrong
+     * by accident in one state: in the state that happens most often it has no
+     * answer to give, and the three tests above it pass without noticing.
+     *
+     * It is also unreachable in production —
+     * `research/uncalled-exports.sweep.ts` lists it among the exports with no
+     * production call site — which is the only reason this has stayed quiet.
+     *
+     * The first version of this test asserted what the code does, and passed:
+     * a guard that pins the defect reads as a description of the defect and
+     * turns green the day someone depends on `isCached`. This one asserts the
+     * promise, so it fails; `it.fails` holds the suite green while the defect
+     * lives and turns it red the moment either side changes — which is the
+     * owner's decision, not mine. Either the snapshot carries whether it came
+     * from cache and the predicate becomes real, or the predicate goes and the
+     * three tests above it go with it.
+     */
+    it.fails('cannot report a cache hit as cached, which is what its name promises', () => {
+        // The exact inputs of the cache-hit branch, market.service.ts:139.
+        const fromCache = classifyFreshness(
+            input({
+                ageMs: 60_000,
+                providerAnswered: false,
+                anyProviderAvailable: true,
+                requiredCandles: 400,
+                actualCandles: 500,
+            }),
+        );
+
+        expect(fromCache).toBe('fresh');
+        expect(isCached(fromCache)).toBe(true);
+    });
 });

@@ -423,12 +423,31 @@ describe('strategy version', () => {
         // where the claim used to live. Against the old column this fails on the
         // first query; it is a test about the database, not about the
         // repository's return value.
+        //
+        // `current_schema()`, not `public`. This file's tests run in their own
+        // schema, applied by the setup file, and naming `public` asked the real
+        // database a question about the developer's production schema instead:
+        // the assertion then passed or failed according to how far that database
+        // had been migrated, and nothing about the code under test. CI builds a
+        // fresh database every run, so it agreed there by accident and failed on
+        // a workstation whose `public` had not been migrated past version 16.
+        // Every other query in this file goes through the connection's own
+        // `search_path`; this one opted out of the isolation the harness built.
         const columns = await query<{ column_name: string }>(
             `SELECT column_name FROM information_schema.columns
-              WHERE table_schema = 'public' AND table_name = 'strategy_version'`,
+              WHERE table_schema = current_schema() AND table_name = 'strategy_version'`,
         );
 
-        expect(columns.rows.map((row) => row.column_name)).not.toContain('status');
+        const names = columns.rows.map((row) => row.column_name);
+
+        // The table has to have been found, or the assertion below is satisfied
+        // by an empty array and the test measures nothing. `config_hash` is here
+        // because it is what identifies a version, and it was never optional in
+        // any migration: its absence would mean the schema under test is not the
+        // one this code creates.
+        expect(names).toContain('config_hash');
+
+        expect(names).not.toContain('status');
     });
 
     it('still resolves a version by the configuration it describes', async () => {
