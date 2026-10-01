@@ -106,6 +106,12 @@ function toAsset(row: AssetRow): Asset {
 /**
  * The rule, with no database underneath it.
  *
+ * **Not exported, although round 42 wrote it as an export "for the tests".**
+ * The tests ended up comparing the two call paths against each other through
+ * the public surface, so nothing ever imported this. An export written for an
+ * imagined consumer is the same defect as a table written for an imagined
+ * reader: it costs a public surface and answers nothing.
+ *
  * **It was a loop body, and a loop body that decides whether a market may be
  * traded cannot stay one.** `tradability()` does two queries per call, and the
  * `/api/instruments` route added last round called it once per instrument —
@@ -131,7 +137,7 @@ function toAsset(row: AssetRow): Asset {
  * That is a loud failure rather than a wrong answer, and it is the correct
  * order: the loud one takes a maintenance action.
  */
-export function judgeTradability(
+function judgeTradability(
     instrumentRow: InstrumentRow | undefined,
     bySymbol: ReadonlyMap<string, AssetRow>,
 ): Tradability {

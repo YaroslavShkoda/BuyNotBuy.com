@@ -196,22 +196,35 @@ export const InstrumentsResponseSchema = z.object({
 
 export const InstrumentResponseSchema = InstrumentSchema;
 
-/** An instrument that exists but may not be traded, or one that does not. */
+/**
+ * An instrument that exists but may not be traded, or one that does not.
+ *
+ * **Strict on purpose, and that is the only reason this schema earns its
+ * existence.** Written in round 41 and then not used: the route built its 404
+ * body by hand while this sat exported and unread, which is a contract nobody
+ * checks. A non-strict object would have fixed that by appearing — it passes any
+ * body, including one with a field nobody declared. `.strict()` makes the route
+ * and the schema fail together instead: adding a field to the response without
+ * deciding whether it is part of the contract becomes a failing test rather than
+ * a silent addition.
+ */
 export const InstrumentProblemSchema = z.object({
-    error: z.object({
-        code: z.string(),
-        message: z.string(),
-        reason: z
-            .enum([
-                'unknown_instrument',
-                'base_inactive',
-                'quote_inactive',
-                'instrument_inactive',
-                'base_unknown',
-                'quote_unknown',
-            ])
-            .nullable(),
-    }),
+    error: z
+        .object({
+            code: z.string(),
+            message: z.string(),
+            reason: z
+                .enum([
+                    'unknown_instrument',
+                    'base_inactive',
+                    'quote_inactive',
+                    'instrument_inactive',
+                    'base_unknown',
+                    'quote_unknown',
+                ])
+                .nullable(),
+        })
+        .strict(),
 });
 
 export const ApiErrorResponseSchema = z.object({
@@ -221,9 +234,7 @@ export const ApiErrorResponseSchema = z.object({
     }),
 });
 
-export type InstrumentAssetDto = z.infer<typeof InstrumentAssetSchema>;
 export type InstrumentDto = z.infer<typeof InstrumentSchema>;
-export type InstrumentsResponseDto = z.infer<typeof InstrumentsResponseSchema>;
 
 export type IndicatorSignalDto = z.infer<typeof IndicatorSignalSchema>;
 export type IndicatorAnalysisDto = z.infer<typeof IndicatorAnalysisSchema>;

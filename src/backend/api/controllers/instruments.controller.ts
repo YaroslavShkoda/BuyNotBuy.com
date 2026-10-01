@@ -107,12 +107,17 @@ export async function listInstruments(): Promise<InstrumentDto[]> {
 /**
  * One instrument, or the reason it cannot be answered.
  *
+ * Not exported: `instrumentPayload` below is its only caller, and an export with
+ * no importer is a promise to a module that does not exist. A measurement over
+ * the tree found this one three days after it was written, which is the point of
+ * running the measurement rather than reading the file.
+ *
  * `null` for a ticker the registry has never heard of, which is not the same as
  * a refusal: an instrument that exists and may not be traded comes back with
  * `tradable: false` and a reason, because that is a decision somebody made. A
  * ticker that does not exist has no decision behind it and gets a 404.
  */
-export async function getInstrument(ticker: string): Promise<InstrumentDto | null> {
+async function getInstrument(ticker: string): Promise<InstrumentDto | null> {
     const repository = getAssetRepository();
     const instruments = await repository.listInstruments();
     const assets = await repository.listAssets();

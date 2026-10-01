@@ -4,7 +4,7 @@ import { createApp } from '../../app.js';
 import { getAssetRepository } from '../../instruments/asset.repository.js';
 import { truncateSignalTables } from '../../test-support/test-database.js';
 
-import { InstrumentResponseSchema, InstrumentsResponseSchema } from '../schemas.js';
+import { InstrumentProblemSchema, InstrumentResponseSchema, InstrumentsResponseSchema } from '../schemas.js';
 
 /**
  * `/api/instruments`, and the claim that it is additive.
@@ -151,6 +151,27 @@ describe('the registry can be read', () => {
         expect(response.json()).toMatchObject({
             error: { code: 'INSTRUMENT_NOT_FOUND' },
         });
+
+        // The declared error contract, checked against the bytes on the wire.
+        // The schema is strict, so this also fails if a field is added to the
+        // response without a decision about whether it belongs to the contract
+        // — which is the whole reason the schema exists rather than a comment.
+        expect(() => InstrumentProblemSchema.parse(response.json())).not.toThrow();
+    });
+
+    it('answers a question it cannot with a declared body, not an invented one', async () => {
+        // The refusal and the absence are different answers and both are typed.
+        // A non-strict schema would pass either, which is why the parse above
+        // would be decoration without `.strict()`.
+        const response = await app.inject({
+            method: 'GET',
+            url: '/api/instruments/NOSUCH',
+        });
+
+        const body = InstrumentProblemSchema.parse(response.json());
+
+        expect(body.error.reason).toBeNull();
+        expect(body.error.message).toContain('NOSUCH');
     });
 });
 
