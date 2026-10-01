@@ -34,7 +34,7 @@
 import { query, withTransaction } from '../db/pool.js';
 import { resolveInstrument } from '../config/asset.registry.js';
 
-import type { Asset, Instrument } from './domain.js';
+import type { Asset, Instrument, TradabilityReason } from './domain.js';
 
 export type AssetStatus = 'active' | 'inactive' | 'unknown';
 
@@ -66,13 +66,8 @@ export type Tradability =
     | { readonly tradable: true; readonly instrument: Instrument }
     | { readonly tradable: false; readonly reason: TradabilityReason };
 
-export type TradabilityReason =
-    | 'unknown_instrument'
-    | 'base_inactive'
-    | 'quote_inactive'
-    | 'instrument_inactive'
-    | 'base_unknown'
-    | 'quote_unknown';
+/** Re-exported, not redefined. The list itself lives in the domain vocabulary. */
+export type { TradabilityReason } from './domain.js';
 
 const DESCRIBE: Readonly<Record<TradabilityReason, string>> = {
     unknown_instrument: 'no such instrument in the registry',

@@ -1,5 +1,18 @@
 import { z } from 'zod';
 
+import { TRADABILITY_REASONS } from '../instruments/domain.js';
+
+/**
+ * The refusals, built from the domain's list rather than retyped.
+ *
+ * The wire has to carry the reason, and the reason is domain vocabulary — so it
+ * is read from where the domain keeps it. `z.enum` wants a runtime tuple and a
+ * union type is erased at runtime, which is exactly why the list had to be
+ * written four times over: there was no value for a validator to be made from.
+ * There is now.
+ */
+const TradabilityReasonSchema = z.enum(TRADABILITY_REASONS);
+
 export const IndicatorSignalSchema = z.enum([
     'LONG',
     'SHORT',
@@ -178,16 +191,7 @@ export const InstrumentSchema = z.object({
      * receives `false` has to ask a second endpoint to find out which.
      */
     tradable: z.boolean(),
-    reason: z
-        .enum([
-            'unknown_instrument',
-            'base_inactive',
-            'quote_inactive',
-            'instrument_inactive',
-            'base_unknown',
-            'quote_unknown',
-        ])
-        .nullable(),
+    reason: TradabilityReasonSchema.nullable(),
 });
 
 export const InstrumentsResponseSchema = z.object({
@@ -213,16 +217,7 @@ export const InstrumentProblemSchema = z.object({
         .object({
             code: z.string(),
             message: z.string(),
-            reason: z
-                .enum([
-                    'unknown_instrument',
-                    'base_inactive',
-                    'quote_inactive',
-                    'instrument_inactive',
-                    'base_unknown',
-                    'quote_unknown',
-                ])
-                .nullable(),
+            reason: TradabilityReasonSchema.nullable(),
         })
         .strict(),
 });

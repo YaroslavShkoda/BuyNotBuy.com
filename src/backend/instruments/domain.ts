@@ -49,6 +49,34 @@ export type AssetCategory = 'crypto' | 'fiat';
 export type AssetStatus = 'active' | 'inactive' | 'unknown';
 
 /**
+ * Why a market may not be traded, as a value rather than as a union.
+ *
+ * **These six strings were written down four times.** The union type, the
+ * `DESCRIBE` record beside it, and two Zod enums in the API schemas — four
+ * declarations that agreed on the day they were written and that nothing held
+ * together afterwards. A type does not survive at runtime, so a validator cannot
+ * be derived from it; every consumer that needs to validate rather than annotate
+ * has to retype the list, and a reason added to the domain without being added
+ * to both schemas would be **accepted by the compiler and rejected by the
+ * request**, which is the worst of the two failures: a defect that only appears
+ * in production, on the one instrument somebody suspended.
+ *
+ * So the list is a tuple, the type is derived from it, and the schemas are built
+ * from it. Adding a reason is now one edit, and the compiler refuses the change
+ * if anything still has a `Record` over the old set.
+ */
+export const TRADABILITY_REASONS = [
+    'unknown_instrument',
+    'base_inactive',
+    'quote_inactive',
+    'instrument_inactive',
+    'base_unknown',
+    'quote_unknown',
+] as const;
+
+export type TradabilityReason = (typeof TRADABILITY_REASONS)[number];
+
+/**
  * Something that can be bought and sold: a base asset and what it is priced
  * in. The pair is the tradable thing, and it is a different thing from either
  * half — which is the whole reason the roadmap wants two types.

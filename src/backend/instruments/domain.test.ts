@@ -7,6 +7,7 @@ import {
     looksLikeTicker,
     marketKind,
     splitTicker,
+    TRADABILITY_REASONS,
 } from './domain.js';
 
 import type { Asset } from './domain.js';
@@ -275,5 +276,41 @@ describe('label', () => {
         // BTCEUR is not a ticker. The venues that list it do, some of them, but
         // a symbol shown in a dashboard as `BTCEUR` tells a reader nothing.
         expect(label(instrumentFrom('BTCEUR', REGISTRY, QUOTES)!)).toBe('BTC/EUR');
+    });
+});
+
+/**
+ * One list of refusals, checked from every side that needs one.
+ *
+ * The failure this prevents is silent and late. A union type does not survive to
+ * runtime, so a consumer that needs to *validate* rather than annotate has to
+ * retype the six strings — and a reason added to the domain but missed in a
+ * schema compiles cleanly and then rejects the request, on the one instrument
+ * somebody suspended. Those six strings were written four times over before
+ * this; they are written once now.
+ */
+describe('the reasons a market may not be traded', () => {
+    it('is exactly what both API validators accept', async () => {
+        const { InstrumentResponseSchema, InstrumentProblemSchema } =
+            await import('../api/schemas.js');
+
+        expect(InstrumentResponseSchema.shape.reason.unwrap().options).toEqual([
+            ...TRADABILITY_REASONS,
+        ]);
+        expect(
+            InstrumentProblemSchema.shape.error.shape.reason.unwrap().options,
+        ).toEqual([...TRADABILITY_REASONS]);
+    });
+
+    it('has a sentence for every one of them', async () => {
+        // `DESCRIBE` is a `Record` over the type, so a new reason does not
+        // compile without a sentence. A refusal with no explanation is a
+        // refusal with nothing to act on, and the six are fixed by different
+        // people.
+        const { AssetRepository } = await import('./asset.repository.js');
+
+        for (const reason of TRADABILITY_REASONS) {
+            expect(AssetRepository.describeReason(reason).length).toBeGreaterThan(4);
+        }
     });
 });
