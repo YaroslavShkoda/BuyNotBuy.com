@@ -75,8 +75,22 @@ function numericEnv(name: string): number | undefined {
     return Number.isFinite(value) ? value : undefined;
 }
 
-function overridesFromEnv(): Partial<WalkForwardOptions> {
-    const overrides: Partial<WalkForwardOptions> = {};
+/**
+ * A staging object for the environment overrides.
+ *
+ * `WalkForwardOptions` is readonly, and rightly: nothing reshapes a run after it
+ * has started. This builder is a different thing — it is assembled field by
+ * field from the environment and handed over once complete, and it is not the
+ * shared default. Stripping the modifier here rather than on the interface is
+ * the difference between a run that cannot change and a scratchpad that has not
+ * been filled in yet.
+ */
+type OptionOverrides = {
+    -readonly [Key in keyof WalkForwardOptions]?: WalkForwardOptions[Key];
+};
+
+function overridesFromEnv(): OptionOverrides {
+    const overrides: OptionOverrides = {};
 
     const feeRate = numericEnv('BACKTEST_FEE_RATE');
     const slippageRate = numericEnv('BACKTEST_SLIPPAGE_RATE');

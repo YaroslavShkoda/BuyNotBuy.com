@@ -113,7 +113,7 @@ function toAsset(row: AssetRow): Asset {
  *
  * **It was a loop body, and a loop body that decides whether a market may be
  * traded cannot stay one.** `tradability()` does two queries per call, and the
- * `/api/instruments` route added last round called it once per instrument вЂ”
+ * `/api/instruments` route added last round called it once per instrument —
  * twenty-odd round trips to answer a question about ten rows. The obvious fix
  * is to write the rule a second time in the controller against rows it already
  * has, and that is the fix that would have bitten: two copies of a rule with
@@ -129,7 +129,7 @@ function toAsset(row: AssetRow): Asset {
  *
  * `unknown` and *absent* are different, and the schema is what makes them the
  * same. Both halves are `REFERENCES asset (symbol)`, so an instrument cannot
- * name an asset the table has never heard of вЂ” which is why the optional
+ * name an asset the table has never heard of — which is why the optional
  * chaining below does not treat absence as `unknown`, and why `toAsset(base!)`
  * is safe. If that foreign key is ever dropped, this function will answer
  * `tradable: true` for a pair with no assets and then throw inside `toAsset`.
@@ -201,7 +201,7 @@ export class AssetRepository {
      * re-activate an asset somebody suspended, and one that overwrote
      * `category` would discard a classification learned from data. Both are
      * exactly the "old results never rewritten" rule, and both would be invisible
-     * вЂ” the row would simply be wrong again, forever, with nothing saying so.
+     * — the row would simply be wrong again, forever, with nothing saying so.
      */
     async seedFromConfiguration(
         entries: readonly { symbol: string; category: AssetCategory }[],
@@ -230,7 +230,7 @@ export class AssetRepository {
      *
      * The halves are inserted as `unknown` rather than as crypto. A pair whose
      * base nobody has classified is a pair whose kind is not known, and the
-     * first version of this codebase had no way to say that вЂ” so it said
+     * first version of this codebase had no way to say that — so it said
      * `crypto`, and BTCBRL was a crypto market until the type grew a third
      * answer.
      */
@@ -266,8 +266,8 @@ export class AssetRepository {
      * Every instrument judged against rows the caller already has.
      *
      * The batch form, for the caller that read the whole registry in order to
-     * list it. Two queries instead of two per instrument, and вЂ” the reason this
-     * is worth a method rather than a loop in a controller вЂ” the same
+     * list it. Two queries instead of two per instrument, and — the reason this
+     * is worth a method rather than a loop in a controller — the same
      * `judgeTradability` that the single-instrument path uses, so the two cannot
      * answer differently.
      */

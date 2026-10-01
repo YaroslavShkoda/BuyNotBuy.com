@@ -1,7 +1,5 @@
 import { requiredCandleCount } from '../config/indicator.config.js';
 
-import type { WalkForwardOptions } from './walk-forward.js';
-
 /**
  * The windows a walk-forward is allowed to use, expressed as data.
  *
@@ -74,9 +72,33 @@ export interface PlanOptions {
     validationRatio?: number;
 }
 
+/**
+ * The three numbers a plan is shaped by, and nothing else.
+ *
+ * This is what the plan is, and it is smaller than the run's options on purpose.
+ *
+ * The function used to accept the whole `WalkForwardOptions` and read three
+ * fields off it, which meant this module imported the runner's types and the two
+ * of them formed a cycle — the only cycle inside a layer anywhere in the
+ * project, and the one the architecture report names. Moving the type to a third
+ * file would have made the report go quiet without making the coupling go away.
+ *
+ * Declaring what is actually used does the opposite. The plan now says it needs
+ * three lengths, the runner's options satisfy it, and the direction of the
+ * dependency is one way because there is nothing left to point back.
+ */
+export interface PlanShape {
+    /** Length of each evaluation window. */
+    readonly foldBars: number;
+    /** Length of the window that precedes it and is used for fitting. */
+    readonly trainingBars: number;
+    /** Evaluated windows to keep, newest first. */
+    readonly maxFolds: number;
+}
+
 export function buildWalkForwardPlan(
     candleCount: number,
-    options: WalkForwardOptions,
+    options: PlanShape,
     planOptions: PlanOptions = {},
 ): WalkForwardPlan {
     const ratio = planOptions.validationRatio ?? DEFAULT_VALIDATION_RATIO;

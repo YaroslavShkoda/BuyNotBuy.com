@@ -94,5 +94,3 @@ export interface IndicatorLogger {
     warn(context: Record<string, unknown>, message: string): void;
     info?(context: Record<string, unknown>, message: string): void;
 }
-
-export type { IndicatorVoteRepository } from './indicator-vote.repository.js';

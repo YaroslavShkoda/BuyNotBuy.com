@@ -22,16 +22,30 @@ import { describe, expect, it } from 'vitest';
  *    top triggers were U+00AB and U+00BB — « and », which is how this project
  *    quotes Russian, and is correct.
  *
- * **What is deliberately not here.** Detecting CP1251 mojibake of Russian by
- * pattern does not work, because UTF-8 bytes read as CP1251 mostly produce
- * *valid-looking Cyrillic*: «Привет» comes back as «РџРёРІРµС‚», every character
- * of it a real Cyrillic letter. No cheap rule separates that from Russian. A
- * check claiming to detect it would be a check that eventually reports the whole
- * documentation as broken.
+ * **A fourth signal, added after this file's own first version was proved
+ * insufficient.** The comment above used to say that detecting CP1251 mojibake
+ * by pattern does not work. That is true of mojibake in general and false of the
+ * part that actually mattered here, and the difference is one codepoint wide.
  *
- * So these three remain, and each is a fact rather than a guess: a byte sequence
- * that is not UTF-8, a replacement character where a decoder gave up, and a C1
- * control byte that was read as text when it was not.
+ * `instruments/asset.repository.ts` carried six copies of one artifact: the
+ * em-dash, UTF-8 bytes read as CP1251, arriving as U+0432 U+0402 U+201D. Two of
+ * those three characters are Cyrillic, so the mixed-script rules missed it, and
+ * U+201D is outside the Latin-1 range, so the widened one missed it too. The
+ * file passed a scan that had just reported the repository clean.
+ *
+ * The rule that does catch it is not a heuristic and has no tuning dial: **the
+ * Russian alphabet is U+0410–U+044F, plus U+0401 and U+0451 for Yo, and no other
+ * character in the Cyrillic block is a letter of this language.** U+0402 is not
+ * Russian. Not "unlikely in Russian" — not Russian. That is a fact about a
+ * character set, so it cannot be tuned down to make a file look clean, and it
+ * has no false-positive dial because there is nothing to trade away.
+ *
+ * What is still true, and is why the rule above is narrower than the ambition:
+ * mojibake that lands entirely on *valid* Russian letters remains undetectable
+ * by any rule of this kind. The example in this file's own comment is such a
+ * case, and that is precisely why it is exempt by name below — the one place the
+ * repository is allowed to contain the thing it is being checked for, named
+ * rather than skipped quietly.
  *
  * Character codes are spelled out below instead of written as literals. A
  * replacement character typed into this file's source would be the very thing
@@ -71,6 +85,66 @@ function hasAsciiLetterNextToNonAscii(text: string): boolean {
 
         return isAsciiLetter && character.charCodeAt(0) > LAST_ASCII;
     });
+}
+
+/**
+ * Every character in the Cyrillic block that is not a letter of Russian.
+ *
+ * The Russian alphabet is U+0410–U+044F, plus U+0401 and U+0451 for Yo. Anything
+ * else in U+0400–U+04FF is Ukrainian, Serbian, Macedonian, or a CP1251 decoding
+ * accident — and none of them is something this project's prose or identifiers
+ * legitimately contain.
+ *
+ * Built by subtraction from the whole block so that the rule states what it
+ * excludes. Written as a positive list of ranges instead, it would need a
+ * comment saying which ranges are safe, and that comment is what a future
+ * codepoint would not get updated for.
+ */
+// Written as subtraction, because a hand-written range list is how U+0402 got
+// missed the first time: Ё is U+0401 and is Russian, and it sits one codepoint
+// below the damage. The complement of {U+0401, U+0410-U+044F, U+0451} cannot
+// drift when someone adds a letter to the alphabet.
+//
+// Joined with `|`, not ``: ``. Concatenating the classes makes a *sequence* of
+// four required characters, which matches nothing at all and reports a clean
+// repository — a rule that cannot fire is worse than no rule, because it is
+// believed.
+const NOT_RUSSIAN = new RegExp(
+    [range(0x400, 0x400), range(0x402, 0x40f), range(0x450, 0x450), range(0x452, 0x4ff)].join('|'),
+    'u',
+);
+
+/**
+ * The only text in the repository allowed to contain non-Russian Cyrillic: the
+ * worked example of what mojibake looks like, quoted on purpose, in the
+ * documentation of the damage itself.
+ *
+ * Named rather than skipped. A whole-file skip would have been the same silent
+ * hole the two discarded detectors were, only with a file in it instead of ten:
+ * anything that later landed in either of these files would go unreported. This
+ * exempts the example and nothing else, so the files are still checked.
+ */
+const QUOTED_EXAMPLES: ReadonlyArray<{ file: string; why: string }> = [
+    {
+        file: 'docs/roadmap-v2-status.md',
+        why: 'round 68 records what CP1251 does to Russian, so it has to show it',
+    },
+    {
+        file: 'src/backend/research/text-integrity.test.ts',
+        why: "this file's own comment on why the rule cannot be wider",
+    },
+];
+
+function nonRussianCyrillic(text: string, file: string): string | null {
+    if (QUOTED_EXAMPLES.some((example) => example.file === file)) return null;
+
+    const found = [...text.matchAll(new RegExp(NOT_RUSSIAN, 'gu'))];
+
+    if (found.length === 0) return null;
+
+    const codes = [...new Set(found.map((entry) => `U+${(entry[0] as string).codePointAt(0)!.toString(16).toUpperCase().padStart(4, '0')}`))];
+
+    return `non-Russian Cyrillic ${codes.join(', ')}`;
 }
 
 interface Damage {
@@ -137,6 +211,12 @@ function scan(): Damage[] {
                 found.push('C1 control byte read as text');
             }
 
+            const letters = nonRussianCyrillic(text, shown);
+
+            if (letters !== null) {
+                found.push(letters);
+            }
+
             if (found.length > 0) {
                 damage.push({ file: shown, what: found.join('; ') });
             }
@@ -182,5 +262,38 @@ describe('no text in the repository is damaged', () => {
         );
 
         expect(mixedScript.test(quoteThenRussian)).toBe(true);
+    });
+
+    it('and a Cyrillic letter that is not a letter of Russian is reported', () => {
+        // The artifact as it arrived: an em-dash, UTF-8 read as CP1251. Built
+        // from codes so this file does not commit the thing it reports.
+        const artifact = 'список' + String.fromCharCode(0x432, 0x402, 0x201d) + ' конец';
+        const russian = 'список ' + String.fromCharCode(0x2014) + ' конец';
+
+        expect(nonRussianCyrillic(artifact, 'src/backend/anything.ts')).toContain('U+0402');
+        expect(nonRussianCyrillic(russian, 'src/backend/anything.ts')).toBeNull();
+
+        // Ё is Russian and sits one codepoint below the damage that was missed.
+        expect(nonRussianCyrillic('Ёлка и ёлка', 'src/backend/anything.ts')).toBeNull();
+
+        // A whole Cyrillic word that is a real word.
+        expect(nonRussianCyrillic('слово', 'src/backend/anything.ts')).toBeNull();
+    });
+
+    it('and the one quoted example is exempt by name, not by skipping the file', () => {
+        for (const example of QUOTED_EXAMPLES) {
+            const artifact = 'список' + String.fromCharCode(0x432, 0x402, 0x201d);
+
+            expect(nonRussianCyrillic(artifact, example.file)).toBeNull();
+            expect(example.why.length).toBeGreaterThan(0);
+        }
+
+        // A path that merely resembles an exempt one is not exempt.
+        expect(
+            nonRussianCyrillic(
+                'список' + String.fromCharCode(0x432, 0x402, 0x201d),
+                'docs/roadmap-v2-status.md.bak',
+            ),
+        ).toContain('U+0402');
     });
 });

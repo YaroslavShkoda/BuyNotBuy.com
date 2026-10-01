@@ -10,7 +10,7 @@ import {
 } from '../config/indicator.config.js';
 
 import type { ExecutionConfig } from './execution.js';
-import type { FoldPlan, Window } from './walk-forward.plan.js';
+import type { FoldPlan, PlanShape, Window } from './walk-forward.plan.js';
 import type { Candle } from '../types/market.js';
 import type { BacktestMetrics, BenchmarkMetrics, Trade } from './metrics.js';
 import type {
@@ -18,7 +18,7 @@ import type {
     ResolvedIndicatorSignalConfig,
 } from '../config/indicator.config.js';
 
-export interface WalkForwardOptions {
+export interface WalkForwardOptions extends PlanShape {
     /**
      * Bars a position is held before it is closed. Matching the analysis
      * interval is what makes the result comparable with what the dashboard
@@ -35,12 +35,6 @@ export interface WalkForwardOptions {
      * quietly answered a question nobody asked it.
      */
     execution: ExecutionConfig;
-    /** Length of each evaluation window. */
-    foldBars: number;
-    /** Length of the window that precedes it and is used for fitting. */
-    trainingBars: number;
-    /** Evaluated windows to keep, newest first. */
-    maxFolds: number;
     /**
      * Whether each fold's thresholds are chosen on its own training window.
      *
