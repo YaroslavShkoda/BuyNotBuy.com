@@ -19,6 +19,47 @@ import { requiredCandleCount } from '../config/indicator.config.js';
  * The warm-up prefix is part of the plan and is explicitly *not* a window. It
  * is the bars the indicators need before they have an opinion, and folding it
  * into training would let a fit be scored on a hundred bars of EMA seed.
+ *
+ * **`buildWalkForwardPlan` and `auditWalkForwardPlan` have no production caller,
+ * and that is the design rather than an oversight — but the reason lives in
+ * `walk-forward.ts`, so it is repeated here where a reader of this module will
+ * actually find it.**
+ *
+ * The runner does not build a plan with this function. `runWalkForward` builds
+ * `foldPlan` inline at each fold, from `fitThresholds` — the only place the
+ * training/validation split is known — and carries it out on the result, so the
+ * windows the run reported are the windows the run used. Its own comments give
+ * three reasons, and they are the reason: a plan rebuilt from the same
+ * arithmetic that produced the bug describes the windows the code intends, not
+ * the ones it visited; a plan that re-derives its own split can disagree with
+ * the run it describes, which is the one thing the plan exists to prevent; and a
+ * claim about the run that the run does not report can only be taken on trust.
+ *
+ * So this module is the *statement* of what the windows should be, and
+ * `walk-forward.windows.test.ts` checks the run against its own reported plan
+ * while `walk-forward.plan.test.ts` checks this statement against its stated
+ * properties. The two agreeing is the guarantee, and it is reached by the run
+ * carrying its plan out, not by this function being called from the run.
+ *
+ * `judgeFold` in this module is the exception and is called from both.
+ *
+ * If you are wiring these in, drop them from the list in
+ * `research/uncalled-exports.sweep.ts`'s report in the same commit, having
+ * decided whether the runner should keep building its own plan — because wiring
+ * them without answering that is how the two would drift into disagreeing,
+ * silently, which is the failure this module documents.
+ *
+ * **There is deliberately no pinned test for this, and that is worth saying.**
+ * The obvious guard is a list of exports with no production caller, pinned the
+ * way `stranded-modules.test.ts` pins modules, and the obvious way to build it is
+ * the analysis `uncalled-exports.sweep.ts` already does. That analysis says
+ * itself that it cannot attribute a member call — `service.promote()` — without
+ * type information, and reports thirteen exports as an acknowledged blind spot
+ * for exactly that reason. A pinned list built on it would be wrong in the same
+ * way the sweep is, and it would fail the first time somebody wired a function
+ * the analysis could not see being wired, at which point it gets switched off.
+ * `recordInstrument` and the `logger` on `recordIndicatorVotes` both sat behind
+ * exactly that gap. The reason is written here instead, where it is read.
  */
 
 export interface Window {
