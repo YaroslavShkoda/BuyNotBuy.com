@@ -16,9 +16,14 @@ export interface ControllerResult<T> {
     provider: string;
 }
 
+/**
+ * `instrument` is optional and defaults to the configured market, so the frozen
+ * `/api/analysis` is a call with nothing extra rather than a separate code path.
+ */
 export async function getAnalysis(
     logger?: FastifyBaseLogger,
     requestId?: string,
+    instrument?: string | undefined,
 ): Promise<ControllerResult<ReturnType<typeof MarketAnalysisSchema.parse>>> {
     const adapter = logger === undefined
         ? undefined
@@ -46,6 +51,7 @@ export async function getAnalysis(
             adapter,
             requestId,
             logger,
+            instrument,
         );
 
     return {

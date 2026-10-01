@@ -1,8 +1,10 @@
 import type { FastifyInstance } from 'fastify';
 
 import { instrumentPayload, instrumentsPayload } from '../controllers/instruments.controller.js';
+import { getAnalysis } from '../controllers/analysis.controller.js';
 import { InstrumentProblemSchema } from '../schemas.js';
 import { sendWithEtag } from '../lib/conditional-get.js';
+import { setDataFreshnessHeaders } from '../lib/data-freshness.js';
 
 /**
  * `/api/instruments`, added alongside the frozen endpoints and in front of
@@ -22,6 +24,40 @@ import { sendWithEtag } from '../lib/conditional-get.js';
 export async function instrumentRoutes(app: FastifyInstance): Promise<void> {
     app.get('/api/instruments', async (request, reply) => {
         return sendWithEtag(request, reply, await instrumentsPayload());
+    });
+
+    /**
+     * PHASE 22: `/api/instruments/:ticker/analysis`.
+     *
+     * The route the whole market-axis work exists to make possible. The frozen
+     * `/api/analysis` has no market parameter and never will, so a client that
+     * wants to know about ETH has no way to ask — and the answer it would get
+     * from `/api/analysis` is BTC's, under its own request's name, with a
+     * plausible price and a correct shape.
+     *
+     * Additive, like every other route here: the frozen surface is not changed,
+     * and a client that knows which instrument it wants reads this one.
+     */
+    app.get('/api/instruments/:ticker/analysis', async (request, reply) => {
+        const { ticker } = request.params as { ticker: string };
+        const result = await getAnalysis(
+            request.log,
+            request.id,
+            ticker.trim().toUpperCase(),
+        );
+
+        // Freshness headers before the conditional check, exactly as
+        // `/api/analysis` does it, and for the same reason: a 304 that does not
+        // say whether the answer behind it is old leaves the client unable to
+        // tell "unchanged and fresh" from "unchanged and stale". The body is the
+        // same shape too — a client that can read one can read the other, which
+        // is the whole point of adding a route beside a frozen one rather than
+        // beside a different contract.
+        setDataFreshnessHeaders(reply, result);
+
+        return sendWithEtag(request, reply, result.payload, {
+            volatileFields: ['timestamp'],
+        });
     });
 
     app.get('/api/instruments/:ticker', async (request, reply) => {

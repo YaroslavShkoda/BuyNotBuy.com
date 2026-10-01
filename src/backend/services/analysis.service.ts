@@ -1,13 +1,14 @@
 import type { SignalExplanation } from '../signals/explanation.js';
+import type { MarketRequest } from '../market/capability.js';
 import type { MarketAnalysis } from '../types/analysis.js';
 import type { Candle, MarketData } from '../types/market.js';
 import type { MarketIndicators } from '../indicators/indicator.service.js';
 import type { DivergenceAnalysis } from '../indicators/divergence.service.js';
 import type { SignalResult } from '../signals/signal.types.js';
 import { recordPublishedSignal } from '../signals/signal-publication.js';
-import { createSingleFlight } from '../observability/single-flight.js';
+import { createKeyedSingleFlight } from '../observability/single-flight.js';
 
-import { getMarketData } from '../market/market.service.js';
+import { getMarketData, marketKey, resolveRequest } from '../market/market.service.js';
 import { calculateMarketIndicators, toWireIndicators } from '../indicators/indicator.service.js';
 import { calculateSignal } from '../signals/signal.service.js';
 import { calculateMomentumSeries } from '../indicators/momentum-series.js';
@@ -73,11 +74,13 @@ export async function analyzeMarket(
     logger?: AnalysisTelemetryLogger,
     requestId?: string,
     historyLogger?: SignalHistoryLogger,
+    instrument?: string | undefined,
 ): Promise<MarketAnalysis> {
     const { analysis } = await analyzeMarketWithStatus(
         logger,
         requestId,
         historyLogger,
+        instrument,
     );
 
     return analysis;
@@ -107,12 +110,25 @@ export async function analyzeMarketWithStatus(
     logger?: AnalysisTelemetryLogger,
     requestId?: string,
     historyLogger?: SignalHistoryLogger,
+    /**
+     * Which market to analyse, or the configured one.
+     *
+     * Optional rather than required so the frozen `/api/analysis` and the poller
+     * keep working unchanged, and passed by the per-instrument route that names
+     * one. The interval comes along with the request because it is part of what
+     * makes two markets different markets: two intervals of one symbol are two
+     * series, and `marketKey` says so.
+     */
+    instrument?: string | undefined,
 ): Promise<AnalysisWithStatus> {
+    const request = resolveRequest({ instrument, interval: marketConfig.candleInterval });
     let result: AnalysisComputation;
     let leader: boolean;
 
     try {
-        ({ result, leader } = await analysisFlight.run(() => computeAnalysis()));
+        ({ result, leader } = await analysisFlights
+            .forMarket(marketKey(request))
+            .run(() => computeAnalysis(request)));
     } catch (error) {
         // The request id is stamped here, per caller, rather than inside the
         // computation. It is safe to mutate the error because a caller that
@@ -174,7 +190,28 @@ export async function analyzeMarketWithStatus(
     };
 }
 
-const analysisFlight = createSingleFlight<AnalysisComputation>();
+/**
+ * One coalescer per market, not one for the process.
+ *
+ * `createKeyedSingleFlight` already existed and is used by `getPrice` — the
+ * market layer learned this lesson first. The analysis path had the unkeyed one
+ * and was correct only because `computeAnalysis` took no market at all: two
+ * analyses for two markets would have joined one flight, and the second caller
+ * would have been handed the first market's analysis with a plausible price and
+ * a correct shape. `research/market-axis.test.ts` is what pointed at the line.
+ */
+const analysisFlights = createKeyedSingleFlight<AnalysisComputation>();
+
+/**
+ * Markets with a coalescer, for the test that asserts there is one per market.
+ *
+ * A read-only view rather than the object itself: what is worth checking is that
+ * two markets end up on two coalescers, and handing out the map would let a test
+ * depend on the thing it is auditing.
+ */
+export function analysisFlightKeys(): readonly string[] {
+    return analysisFlights.keys;
+}
 
 /**
  * Persists what both strategies said, and never fails the analysis over it.
@@ -296,7 +333,7 @@ interface AnalysisComputation {
     record(historyLogger?: SignalHistoryLogger): void;
 }
 
-async function computeAnalysis(): Promise<AnalysisComputation> {
+async function computeAnalysis(request: MarketRequest): Promise<AnalysisComputation> {
     const totalStart = performance.now();
     const completedDurations: {
         marketDataDurationMs?: number;
@@ -329,7 +366,11 @@ async function computeAnalysis(): Promise<AnalysisComputation> {
 
     try {
         const marketDataMeasured = await measureAsync(
-            () => getMarketData(),
+            // The market the caller named, not the configured one. Everything
+            // downstream already keys on the market that answered — the
+            // thresholds, the strategy version, the history rows — so this is the
+            // one place that had no way to be told.
+            () => getMarketData(request),
         );
 
         marketData = marketDataMeasured.result.data;

@@ -72,16 +72,24 @@ const inFlight = new Map<string, Promise<MarketDataResult>>();
  * API, the poller, the backtest — working unchanged while the parameter exists
  * only where a caller already knows which market it wants.
  *
+ * **Per field, not per request.** The first version took `MarketRequest | undefined`
+ * and fell back only when the whole object was missing, so a caller that named
+ * an interval and no instrument — the first production caller to want exactly
+ * that is the analysis, which is asked for a market and always takes the
+ * configured interval — got an object whose `instrument` was `undefined` and
+ * blew up on `toUpperCase`. A partial default is the ordinary case; a total one
+ * is the rare case, and it is the rare one that was handled.
+ *
  * Exported because the backtest asks the same question, and two copies of this
  * default would be two places where a change has to be remembered.
  */
-export function resolveRequest(request?: MarketRequest): MarketRequest {
-    return (
-        request ?? {
-            instrument: marketConfig.symbol,
-            interval: marketConfig.candleInterval,
-        }
-    );
+export function resolveRequest(
+    request?: { instrument?: string | undefined; interval?: string | undefined },
+): MarketRequest {
+    return {
+        instrument: request?.instrument ?? marketConfig.symbol,
+        interval: request?.interval ?? marketConfig.candleInterval,
+    };
 }
 
 const priceFlights = createKeyedSingleFlight<AssetPrice>();
