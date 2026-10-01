@@ -299,12 +299,33 @@ describe('the constitution names objects that exist', () => {
         });
     });
 
-    it('quotes the constraint counts the current migrations produce', () => {
+    it('quotes the constraint counts the current migrations produce', async () => {
         // §7 tells the reader that a closed set of values is the most reliable
         // class of invariant in the project, and backs the claim with a count.
-        // The count was 28 on 16 tables; the schema the migrations build has 37
-        // on 17. A number in prose, checked against nothing, decays until it is
-        // a lie that looks like evidence.
-        expect(document).toContain('37 ограничений `CHECK` на 17 таблицах');
+        // The count was 28 on 16 tables, quoted from a database nobody re-ran.
+        //
+        // Measured rather than matched: this compares the numbers written in the
+        // document with the numbers the migrated schema has, so the failure says
+        // what to write instead of only that something is wrong. Asserting the
+        // literal sentence instead would have kept the same decay one level down
+        // — a checked string is still a string.
+        const counted = await query<{ checks: string; tables: string }>(
+            `SELECT
+                (SELECT count(*) FROM pg_constraint
+                  WHERE contype = 'c' AND connamespace = current_schema()::regnamespace) AS checks,
+                (SELECT count(*) FROM pg_class c
+                   JOIN pg_namespace n ON n.oid = c.relnamespace
+                  WHERE n.nspname = current_schema() AND c.relkind = 'r') AS tables`,
+        );
+
+        const checks = Number(counted.rows[0]?.checks ?? -1);
+        const tables = Number(counted.rows[0]?.tables ?? -1);
+
+        const stated = /(\d+) ограничений `CHECK` на (\d+) таблицах/.exec(document);
+
+        expect({
+            statedChecks: Number(stated?.[1] ?? -1),
+            statedTables: Number(stated?.[2] ?? -1),
+        }).toEqual({ statedChecks: checks, statedTables: tables });
     });
 });
