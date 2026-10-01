@@ -23,7 +23,17 @@ import type { ProviderFailureKind } from '../../errors/provider.error.js';
  * one shared breaker would do the moment the first venue goes dark.
  */
 
-export type MarketProviderName = 'binance' | 'bitget' | 'mock';
+import type { MarketProviderName } from '../../types/venue.js';
+
+/**
+ * Re-exported, not redeclared.
+ *
+ * This union was written out here and, separately, inferred from a Zod enum in
+ * `config/market.config.ts` — two exported types of the same name that happened
+ * to be structurally identical, so nothing ever complained. The vocabulary lives
+ * in `types/venue.ts` now, where the configuration layer can reach it too.
+ */
+export type { MarketProviderName };
 
 const breakers = new Map<string, CircuitBreaker>();
 

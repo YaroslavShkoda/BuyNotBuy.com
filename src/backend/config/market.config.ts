@@ -2,6 +2,9 @@ import { z } from 'zod';
 
 import { describeUnresolved, resolveInstrument } from './asset.registry.js';
 
+import { MARKET_VENUES } from '../types/venue.js';
+import type { MarketProviderName } from '../types/venue.js';
+
 /** Binance /api/v3/klines silently caps the limit at 1000 per request. */
 export const MAX_CANDLE_LIMIT = 1000;
 
@@ -26,8 +29,15 @@ function resolvableSymbol(symbol: string): string {
     return symbol;
 }
 
-/** A venue this application knows how to read. */
-const MarketProviderSchema = z.enum(['binance', 'bitget', 'mock']);
+/**
+ * A venue this application knows how to read.
+ *
+ * Built from the vocabulary rather than retyped, for the reason the whole file
+ * is here: `z.enum` needs values and the type it infers does not survive to
+ * runtime, so writing the three strings here separately is how a fourth venue
+ * ends up accepted by the configuration and unknown to every provider.
+ */
+export const MarketProviderSchema = z.enum(MARKET_VENUES);
 
 /**
  * What each venue is declared to serve, PHASE 3.1.
@@ -72,7 +82,12 @@ function parseVenueCapabilities(
                 intervals: [interval],
             },
             {
-                venue: MarketProviderSchema.parse('bitget') as MarketProviderName,
+                // Was `MarketProviderSchema.parse('bitget') as MarketProviderName`:
+                // a constant string parsed through a validator and cast back to
+                // the type the validator was built from, so the whole expression
+                // was `'bitget'`. It existed because the two declarations of the
+                // vocabulary were separate.
+                venue: 'bitget' as const,
                 instruments: [fallbackSymbol],
                 intervals: [interval],
             },
@@ -156,7 +171,16 @@ function defaultFallbackProviders(
     return primary === 'mock' ? '' : 'bitget';
 }
 
-export type MarketProviderName = z.infer<typeof MarketProviderSchema>;
+/**
+ * Re-exported rather than inferred here.
+ *
+ * This type used to be `z.infer<typeof MarketProviderSchema>`, which made the
+ * configuration's idea of a venue and `provider-http.ts`'s idea of a venue two
+ * separately declared types of the same name — structurally identical, so
+ * nothing complained, and divergent the day a fourth venue was added to one of
+ * them. The vocabulary lives in `types/venue.ts`.
+ */
+export type { MarketProviderName };
 
 /**
  * Read through the schema rather than cast, so an unsupported venue is named in
