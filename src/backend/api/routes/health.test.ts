@@ -2,9 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createApp } from '../../app.js';
 import { resetMetrics } from '../lib/metrics.js';
+import { HEALTH_PATHS } from '../lib/health-paths.js';
+import { registerHealthRoutes } from './health.js';
 import { LATEST_SCHEMA_VERSION } from '../../db/migrations.js';
 import { healthRegistry, observeNewestBar } from '../../observability/health.registry.js';
 
+import Fastify from 'fastify';
 import type { FastifyInstance } from 'fastify';
 
 /**
@@ -422,5 +425,35 @@ describe('metrics endpoint', () => {
         expect((await app.inject({ method: 'GET', url: '/healthz' })).statusCode).toBe(200);
         expect((await app.inject({ method: 'GET', url: '/readyz' })).statusCode).toBe(200);
         expect((await app.inject({ method: 'GET', url: '/metrics' })).statusCode).toBe(200);
+    });
+
+    /**
+     * The list and the routes it describes, held to each other.
+     *
+     * The exemption above is written out as three literals, so it keeps passing
+     * when a fourth probe is added and the fourth probe is rate-limited — which
+     * is the failure the list exists to prevent, arriving through the
+     * documented way of extending it. This asserts the two sets are the same
+     * set, so the failure is a failing test rather than a probe that answers
+     * 429 until the orchestrator gives up on the instance.
+     *
+     * The routes are read from a bare instance rather than from the
+     * application, because what matters is what `registerHealthRoutes`
+     * *declares* — not what survived the rest of the wiring.
+     */
+    it('exempts exactly the health routes it registers', async () => {
+        const declared: string[] = [];
+        const bare = Fastify();
+
+        bare.addHook('onRoute', (route) => {
+            declared.push(route.url);
+        });
+
+        registerHealthRoutes(bare);
+        await bare.ready();
+
+        // `onRoute` fires once per method and Fastify adds HEAD beside every
+        // GET, so the set is taken rather than the list.
+        expect([...new Set(declared)].sort()).toEqual([...HEALTH_PATHS].sort());
     });
 }, 30_000);

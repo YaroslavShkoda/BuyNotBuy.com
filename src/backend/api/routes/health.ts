@@ -228,11 +228,3 @@ export function registerHealthRoutes(app: FastifyInstance): void {
         return reply.status(200).send(renderMetrics());
     });
 }
-
-/**
- * Routes that must stay answerable while everything else is failing.
- *
- * A load balancer polling a rate-limited `/healthz` would take every instance
- * out of rotation at once — the probe traffic alone would be what broke it.
- */
-export const HEALTH_PATHS = ['/healthz', '/readyz', '/metrics'] as const;

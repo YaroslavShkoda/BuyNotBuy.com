@@ -3,6 +3,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { appConfig } from '../../config/app.config.js';
 
 import { FixedWindowRateLimiter, rateLimitError } from './rate-limit.js';
+import { EXEMPT_PATHS } from '../lib/health-paths.js';
 
 export const rateLimiter = new FixedWindowRateLimiter({
     max: appConfig.rateLimitMax,
@@ -16,8 +17,13 @@ export const rateLimiter = new FixedWindowRateLimiter({
  * budget meant for real users, and would do it from one address — the probe —
  * so every instance could be taken out of rotation by traffic that exists only
  * to ask whether they are up.
+ *
+ * **The list itself is not written here.** It used to be, as a private literal
+ * beside this note while an exported copy stood unused in `routes/health.ts` —
+ * two copies of the same three strings with nothing making them agree. It now
+ * comes from `lib/health-paths.ts`, which both sides read and a test checks
+ * against the routes actually registered.
  */
-const EXEMPT_PATHS = new Set(['/healthz', '/readyz', '/metrics']);
 
 /**
  * Caps how much work a single client can queue.
