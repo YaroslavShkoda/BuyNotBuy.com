@@ -9,6 +9,18 @@ import {
 import type { MarketAnalysis } from '../../types/analysis.js';
 import type { IndicatorVoteRepository } from './indicator-vote.repository.js';
 
+/**
+ * The one logger this file needs, and named.
+ *
+ * `reporting` exists because of what this file now asserts: a refused write is
+ * reported, and reporting is not optional. While the logger parameter had a
+ * default of nothing, the production call in `analysis.service.ts` omitted it and
+ * every one of these cases was a *silent* one — the vote was buffered correctly
+ * in all four tests and the failure was announced in none of them, which is what
+ * a green suite over a broken guarantee looks like.
+ */
+const reporting = { warn: vi.fn() };
+
 function analysis(): MarketAnalysis {
     return {
         timestamp: 1_700_000_000_000,
@@ -73,6 +85,7 @@ describe('indicator vote write backlog', () => {
     // succeeds gives every test a known-empty starting point, which is what
     // lets the counts below be exact instead of relative.
     beforeEach(async () => {
+        reporting.warn.mockClear();
         await flushIndicatorVoteBacklog(undefined, {
             record: async () => undefined,
         } as unknown as IndicatorVoteRepository);
@@ -81,7 +94,7 @@ describe('indicator vote write backlog', () => {
     it('holds a vote that could not be written instead of losing it', async () => {
         const { repository } = repositoryThatFails(1);
 
-        await recordIndicatorVotes(analysis(), 'BTCUSDT', undefined, repository);
+        await recordIndicatorVotes(analysis(), 'BTCUSDT', reporting, repository);
 
         // A vote lost to a full connection pool is not a neutral vote, it is a
         // missing observation — and the per-indicator hit rate is computed
@@ -89,10 +102,34 @@ describe('indicator vote write backlog', () => {
         expect(indicatorVoteBacklog().buffered).toBe(1);
     });
 
+    it('and says so, which is the half that was missing', async () => {
+        const { repository } = repositoryThatFails(Number.POSITIVE_INFINITY);
+
+        await recordIndicatorVotes(analysis(), 'BTCUSDT', reporting, repository);
+
+        // All four tests above buffered correctly while the production call
+        // passed no logger at all, and every one of them was green. Buffering
+        // without announcing is the shape of a system that loses observations
+        // quietly, and the per-indicator hit rate is computed from this table —
+        // so a table that quietly stops accepting writes becomes a table that
+        // quietly reports the wrong hit rate, and reports it as a fact about the
+        // indicator rather than as a fact about the database.
+        expect(reporting.warn).toHaveBeenCalledTimes(1);
+
+        const [context, message] = reporting.warn.mock.calls[0] as [
+            Record<string, unknown>,
+            string,
+        ];
+
+        expect(message).toBe('indicator_vote_record_failed');
+        expect(context.event).toBe('indicator_vote_record_failed');
+        expect(context.buffered).toBe(1);
+    });
+
     it('writes the held votes on the next flush', async () => {
         const { repository, written } = repositoryThatFails(1);
 
-        await recordIndicatorVotes(analysis(), 'BTCUSDT', undefined, repository);
+        await recordIndicatorVotes(analysis(), 'BTCUSDT', reporting, repository);
         await flushIndicatorVoteBacklog(undefined, repository);
 
         expect(written()).toBe(2);
@@ -102,8 +139,8 @@ describe('indicator vote write backlog', () => {
     it('re-queues the whole tail when a flush fails part way', async () => {
         const { repository } = repositoryThatFails(Number.POSITIVE_INFINITY);
 
-        await recordIndicatorVotes(analysis(), 'BTCUSDT', undefined, repository);
-        await recordIndicatorVotes(analysis(), 'BTCUSDT', undefined, repository);
+        await recordIndicatorVotes(analysis(), 'BTCUSDT', reporting, repository);
+        await recordIndicatorVotes(analysis(), 'BTCUSDT', reporting, repository);
 
         expect(indicatorVoteBacklog().buffered).toBe(2);
 
@@ -118,7 +155,7 @@ describe('indicator vote write backlog', () => {
         const { repository } = repositoryThatFails(Number.POSITIVE_INFINITY);
 
         await expect(
-            recordIndicatorVotes(analysis(), 'BTCUSDT', undefined, repository),
+            recordIndicatorVotes(analysis(), 'BTCUSDT', reporting, repository),
         ).resolves.toBeUndefined();
     });
 });

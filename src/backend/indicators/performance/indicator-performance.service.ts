@@ -78,11 +78,27 @@ export interface SettleSummary {
  * afterwards which of the three indicators earned the signal and which merely
  * came along. Storing the votes individually is what makes "is the EMA
  * actually any good?" a question with an answer instead of a matter of faith.
+ *
+ * **`logger` is required, and that is the point of it.** It used to be optional
+ * with a default of nothing, and the production call in `analysis.service.ts`
+ * omitted it — so when the database refused the write the votes went into the
+ * backlog and the entire catch block, `logger?.warn`, did nothing at all. The
+ * failure was total and silent, in a module whose whole reason to exist is to
+ * make "how good is the EMA" answerable, and it was invisible for as long as
+ * nothing was broken, which is exactly when nobody looks.
+ *
+ * Required is the honest signature, because omitting this argument turns
+ * reporting off rather than choosing a default: a caller that cannot be told
+ * about a lost vote should not be recording one. The one place allowed to stay
+ * silent is the one that says so by name — `SILENT_HISTORY_LOGGER` in
+ * `writeHistory`, which is a test's and an embedding's choice, made once, at the
+ * boundary, where it is visible — rather than a default that applies itself
+ * quietly at the bottom of a call.
  */
 export async function recordIndicatorVotes(
     analysis: MarketAnalysis,
     symbol: string,
-    logger?: IndicatorLogger,
+    logger: IndicatorLogger,
     repository: IndicatorVoteRepository = getIndicatorVoteRepository(),
 ): Promise<void> {
     const votes: IndicatorVote[] = analysis.signal.indicators.map(

@@ -157,7 +157,11 @@ describe('indicator vote storage', () => {
                 { key: 'momentum', name: 'Momentum 100', signal: 'LONG', reason: 'c', weight: 0.4 },
             ]),
             'BTCUSDT',
-            undefined,
+            // A write that succeeds has nothing to report, and this test is
+            // about what was stored rather than about reporting. The refusal
+            // case below passes a logger that counts, because that is the one
+            // where saying nothing was the defect.
+            { warn: () => undefined },
             repository,
         );
 

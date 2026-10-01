@@ -683,10 +683,23 @@ async function computeAnalysis(request: MarketRequest): Promise<AnalysisComputat
  * calls swallow their own errors, so the discarded promises cannot reject into
  * an unhandled rejection.
  */
+/**
+ * The one logger that says nothing, named so that saying nothing is a choice.
+ *
+ * `writeHistory` is reached from paths that have a logger and from ones that do
+ * not, and the ones that do not are tests and embeddings. Rather than let the
+ * optional parameter apply itself quietly at the bottom of the chain — which is
+ * what made the vote write silent for as long as it was — the silence is written
+ * down here, in one place, and everything below it can take a logger as given.
+ */
+const SILENT_HISTORY_LOGGER: SignalHistoryLogger = {
+    warn: () => undefined,
+};
+
 function writeHistory(
     analysis: MarketAnalysis,
     marketData: MarketData,
-    historyLogger?: SignalHistoryLogger,
+    historyLogger: SignalHistoryLogger = SILENT_HISTORY_LOGGER,
     /**
      * The context, already measured by whoever built the explanation.
      *
@@ -720,7 +733,15 @@ function writeHistory(
     // own vote is stored next to it. This is what later answers "was the EMA
     // actually right?" instead of leaving it a matter of faith. Also
     // fail-open, and it does not belong in the response either way.
-    void recordIndicatorVotes(analysis, marketData.price.symbol);
+    //
+    // **The logger is passed, and it used not to be.** `recordIndicatorVotes`
+    // reported a refused write through `logger?.warn`, and with no argument that
+    // was a no-op: the votes went into the backlog and the failure was
+    // completely silent, in the module that exists so the question "is the EMA
+    // any good" has an answer. The sweep of omitted optional parameters is what
+    // named it — `recordIndicatorVotes()` called with 2 of 3 arguments — and it
+    // is the only production call site, so there was nothing else to check.
+    void recordIndicatorVotes(analysis, marketData.price.symbol, historyLogger);
 
     // The full analysis, stored immutably, under the version of the strategy
     // that produced it.
