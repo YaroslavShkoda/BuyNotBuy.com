@@ -476,4 +476,29 @@ describe('error observability & diagnostics (task 17)', () => {
             }
         });
     });
-});
+
+    // Thirty seconds, the budget the rest of this repository states for tests
+    // that do real work — and I said for two rounds that this file did not
+    // deserve one, on the grounds that 184 ms is not real work. That was a
+    // single observation generalised into a rule, which is the thing this project
+    // keeps refusing to do to itself, so the rule got measured instead.
+    //
+    // Timed across four full runs on this machine, the boundary test below took
+    // 184 ms isolated, 875 ms inside a 212-file run, and 5465 ms inside another —
+    // and that last one failed against the 5 s default. The work is not thirty
+    // times slower under load; the contention factor is, and it belongs to the
+    // machine rather than to the assertion.
+    //
+    // What tipped it over my own objection is which test this is. This describe
+    // asserts that an unexpected internal error and its causes stay out of the
+    // public response — the boundary where a stack trace becomes a disclosure.
+    // A guard that fails for being slow is a guard that gets re-run, and a
+    // re-run that comes back green is read as "the response does not leak". A
+    // cosmetic test that flakes costs a rerun; this one costs the habit that
+    // makes reruns meaningless.
+    //
+    // The budget is therefore here to be exceeded, not to be hit. The number is
+    // far above the observed 5.4 s for the same reason the tree-scanning guards
+    // got one: the measurement is of the machine, and the assertion is what the
+    // file is for.
+}, 30_000);
