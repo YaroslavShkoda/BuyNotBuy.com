@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import fc from 'fast-check';
 
 import type { MarketRequest } from '../market/capability.js';
+import { marketConfig } from '../config/market.config.js';
 
 /**
  * What the market is a parameter for.
@@ -21,6 +22,7 @@ const mocks = vi.hoisted(() => ({
     getMarketData: vi.fn(),
     marketProviderFor: vi.fn(),
     runWalkForward: vi.fn(),
+    assertHistoricalCandleSeries: vi.fn(),
     manifestFor: vi.fn((..._args: unknown[]) => ({ experiment: 'stub' })),
     currentRegistry: {
         observe: vi.fn(),
@@ -56,7 +58,13 @@ vi.mock('../observability/registry.js', () => ({
 }));
 
 vi.mock('../market/candle-validation.js', () => ({
-    assertCandleSeries: vi.fn(),
+    // The backtest calls the historical variant, not the live one: it cannot ask
+    // for freshness, because a backtest measures a market that stopped updating
+    // long ago — and asking for both at once also cost it the gap check. This
+    // mock is a reminder of that: the name changed, and a mock that still named
+    // only the old export failed eleven tests with "no export is defined on the
+    // mock", which says nothing about the code.
+    assertHistoricalCandleSeries: mocks.assertHistoricalCandleSeries,
 }));
 
 // The per-asset thresholds resolve through the real configuration, because the
@@ -114,6 +122,29 @@ describe('which market a backtest measures', () => {
 
         expect(mocks.marketProviderFor).toHaveBeenCalledWith('ETHUSDT');
         expect(report.symbol).toBe('ETHUSDT');
+    });
+
+    it('asks the historical check about continuity, not just well-formedness', async () => {
+        // The guard belongs at the call site, and the first version of it did
+        // not.
+        //
+        // `candle-validation.historical.test.ts` proves the function refuses a
+        // gapped series — and it stayed green the whole time the backtest had
+        // been reverted to calling it with no interval at all, because a test
+        // of a function cannot notice that its caller stopped using it. The
+        // argument is what switches continuity on; omitting it was the defect,
+        // so omitting it is what has to fail here.
+        await runBacktest({}, { instrument: 'BTCUSDT', interval: '1h' });
+
+        expect(mocks.assertHistoricalCandleSeries).toHaveBeenCalledTimes(1);
+
+        const call = mocks.assertHistoricalCandleSeries.mock.calls[0] ?? [];
+
+        // The interval is present and is the one the configuration names — not
+        // merely `undefined`, which is what the old call passed and what made
+        // the check a no-op that still looked like a check.
+        expect(call[4]).toBe(marketConfig.candleIntervalMs);
+        expect(call[4]).toBeDefined();
     });
 
     it('names the report after what it measured, not after the configuration', async () => {

@@ -3,7 +3,7 @@ import { getMarketData, resolveRequest } from '../market/market.service.js';
 import { marketProviderFor } from '../market/market.provider.js';
 import { marketConfig } from '../config/market.config.js';
 import { requiredCandleCount, signalConfigFor } from '../config/indicator.config.js';
-import { assertCandleSeries } from '../market/candle-validation.js';
+import { assertHistoricalCandleSeries } from '../market/candle-validation.js';
 
 import { runWalkForward, DEFAULT_WALK_FORWARD_OPTIONS } from './walk-forward.js';
 import { manifestFor } from './manifest.js';
@@ -116,11 +116,22 @@ async function runBacktestMeasured(
     // quietly measure a series the live service would have rejected. The cap
     // is raised because a multi-page history is larger than any single
     // response the provider is allowed to return.
-    assertCandleSeries(
+    //
+    // **Freshness is the one check this cannot apply, and saying so used to cost
+    // the check that mattered.** This call used to pass no interval at all, which
+    // switched off *both* the gap check and the staleness check behind that
+    // argument — so a series with a hole in the middle of it was measured
+    // across the hole, and every indicator here is a function of the distance
+    // between bars. The series was still checked for being sorted, unique,
+    // finite and range-consistent, and all four of those pass a gapped series.
+    // The comment above claimed parity with the live path; there was no call
+    // that could deliver it, because continuity and freshness were one argument.
+    assertHistoricalCandleSeries(
         candles,
         Date.now(),
         marketConfig.provider,
         needed + 1,
+        marketConfig.candleIntervalMs,
     );
 
     // Resolved once, here, for the market this run is about, and handed to the
