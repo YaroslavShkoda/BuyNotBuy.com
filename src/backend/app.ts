@@ -4,6 +4,7 @@ import { priceRoutes } from './api/routes/price.js';
 import { marketRoutes } from './api/routes/market.js';
 import { analysisRoutes } from './api/routes/analysis.js';
 import { signalHistoryRoutes } from './api/routes/signal-history.js';
+import { instrumentRoutes } from './api/routes/instruments.js';
 import { registerHealthRoutes } from './api/routes/health.js';
 import { registerErrorHandler } from './api/error-handler.js';
 import { registerRateLimit } from './api/middleware/rate-limit.plugin.js';
@@ -59,6 +60,9 @@ export function createApp(logDestination?: NodeJS.WritableStream) {
     app.register(marketRoutes);
     app.register(analysisRoutes);
     app.register(signalHistoryRoutes);
+    // Additive. The four above are the frozen contract and are untouched; this
+    // one names an instrument, which none of them can do.
+    app.register(instrumentRoutes);
 
     registerHealthRoutes(app);
 

@@ -141,12 +141,89 @@ export const SignalHistoryResponseSchema = z.object({
 
 export const PriceResponseSchema = AssetPriceSchema;
 
+/**
+ * The registry, as a client sees it.
+ *
+ * **Additive, and that is the whole point.** `/api/analysis` and friends are
+ * the frozen contract and stay exactly as they are; these endpoints carry what
+ * the asset domain learned and the frozen surface has no room for. Nothing here
+ * changes a response the dashboard already draws.
+ *
+ * `source` is the field worth having. `configured` means a person wrote the
+ * asset into the configuration; `learned` means the classification came out of
+ * observed data. Collapsing them into a boolean "classified" would make a rule
+ * nobody tested indistinguishable from one that was asked for by name, which is
+ * exactly what PHASE 14 keeps honest and what an operator reading this needs to
+ * see before trusting it.
+ */
+export const InstrumentAssetSchema = z.object({
+    symbol: z.string(),
+    category: z.enum(['crypto', 'fiat']),
+    status: z.enum(['active', 'inactive', 'unknown']),
+    source: z.enum(['configured', 'learned']),
+});
+
+export const InstrumentSchema = z.object({
+    ticker: z.string(),
+    base: InstrumentAssetSchema,
+    quote: InstrumentAssetSchema,
+    market: z.enum(['crypto', 'fiat', 'mixed', 'unknown']),
+    status: z.enum(['active', 'inactive']),
+    /**
+     * Whether this market may be traded, and why not when it may not.
+     *
+     * A bare boolean here would be one thing too few — the repository says so
+     * where the reason is defined. `unknown_instrument` and `base_inactive` are
+     * different incidents fixed by different people, and a client that only
+     * receives `false` has to ask a second endpoint to find out which.
+     */
+    tradable: z.boolean(),
+    reason: z
+        .enum([
+            'unknown_instrument',
+            'base_inactive',
+            'quote_inactive',
+            'instrument_inactive',
+            'base_unknown',
+            'quote_unknown',
+        ])
+        .nullable(),
+});
+
+export const InstrumentsResponseSchema = z.object({
+    instruments: z.array(InstrumentSchema),
+});
+
+export const InstrumentResponseSchema = InstrumentSchema;
+
+/** An instrument that exists but may not be traded, or one that does not. */
+export const InstrumentProblemSchema = z.object({
+    error: z.object({
+        code: z.string(),
+        message: z.string(),
+        reason: z
+            .enum([
+                'unknown_instrument',
+                'base_inactive',
+                'quote_inactive',
+                'instrument_inactive',
+                'base_unknown',
+                'quote_unknown',
+            ])
+            .nullable(),
+    }),
+});
+
 export const ApiErrorResponseSchema = z.object({
     error: z.object({
         code: z.string(),
         message: z.string(),
     }),
 });
+
+export type InstrumentAssetDto = z.infer<typeof InstrumentAssetSchema>;
+export type InstrumentDto = z.infer<typeof InstrumentSchema>;
+export type InstrumentsResponseDto = z.infer<typeof InstrumentsResponseSchema>;
 
 export type IndicatorSignalDto = z.infer<typeof IndicatorSignalSchema>;
 export type IndicatorAnalysisDto = z.infer<typeof IndicatorAnalysisSchema>;
