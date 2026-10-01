@@ -281,4 +281,105 @@ describe('AssetRepository', () => {
             expect((await repository.tradability('BTCUSDT')).tradable).toBe(true);
         });
     });
+
+    describe('the batch path and the single one', () => {
+        /**
+         * The risk of extracting a rule out of a loop body is that two copies
+         * agree today and diverge the day one is edited. So this does not check
+         * that the batch is fast or that it returns something — it checks that
+         * the two paths give **the same answer for every state the schema can
+         * produce**, including the ones where the precedence decides.
+         *
+         * The states are driven into the database rather than built as literals,
+         * so the two implementations are compared on real rows and the
+         * `REFERENCES` constraint is doing its job throughout.
+         */
+        const reasonOf = (verdict: unknown): string | null => {
+            const typed = verdict as { tradable: boolean; reason?: string };
+
+            return typed.tradable ? null : (typed.reason ?? null);
+        };
+
+        /** The two paths, side by side, for the pair this file seeds. */
+        const bothPaths = async (): Promise<[string | null, string | null]> => {
+            const [instruments, assets] = await Promise.all([
+                repository.listInstruments(),
+                repository.listAssets(),
+            ]);
+
+            const batch = repository.tradabilities(instruments, assets);
+
+            return [
+                reasonOf(await repository.tradability('BTCUSDT')),
+                reasonOf(batch.get('BTCUSDT')),
+            ];
+        };
+
+        it('answers the same for every state, including the precedence ties', async () => {
+            // The base suspended.
+            await repository.suspendAsset('BTC');
+            await expect(bothPaths()).resolves.toEqual(['base_inactive', 'base_inactive']);
+            await query(`UPDATE asset SET status = 'active' WHERE symbol = 'BTC'`);
+
+            // The quote unclassified, which the base shares — so this is the
+            // precedence under test rather than the categories themselves.
+            await query(`UPDATE asset SET status = 'unknown' WHERE symbol = 'USDT'`);
+            await expect(bothPaths()).resolves.toEqual(['quote_unknown', 'quote_unknown']);
+
+            // Both unclassified: the base must be named, not the quote.
+            await query(`UPDATE asset SET status = 'unknown' WHERE symbol = 'BTC'`);
+            await expect(bothPaths()).resolves.toEqual(['base_unknown', 'base_unknown']);
+
+            // Both suspended, which must report the base rather than the quote:
+            // an inactive asset outranks an unclassified one because somebody
+            // made that decision and nobody has made this one.
+            await query(`UPDATE asset SET status = 'inactive'`);
+            await expect(bothPaths()).resolves.toEqual(['base_inactive', 'base_inactive']);
+            await query(`UPDATE asset SET status = 'active'`);
+
+            // **The state that decides the cross-precedence.** One half suspended
+            // and the other unclassified is the only state where "inactive before
+            // unknown" and "unknown before inactive" give different answers, so
+            // without it the claim in the docstring is untested — the batch and
+            // the single path can agree perfectly on states that never collide.
+            await query(`UPDATE asset SET status = 'active' WHERE symbol = 'BTC'`);
+            await query(`UPDATE asset SET status = 'unknown' WHERE symbol = 'USDT'`);
+            await query(`UPDATE asset SET status = 'inactive' WHERE symbol = 'BTC'`);
+            await expect(bothPaths()).resolves.toEqual(['base_inactive', 'base_inactive']);
+
+            // And the mirror: the suspension is on the quote, so it must win over
+            // the base being unclassified. Reporting `base_unknown` here would
+            // send the reader to the asset nobody suspended.
+            await query(`UPDATE asset SET status = 'active' WHERE symbol = 'BTC'`);
+            await query(`UPDATE asset SET status = 'unknown' WHERE symbol = 'BTC'`);
+            await query(`UPDATE asset SET status = 'inactive' WHERE symbol = 'USDT'`);
+            await expect(bothPaths()).resolves.toEqual(['quote_inactive', 'quote_inactive']);
+            await query(`UPDATE asset SET status = 'active'`);
+
+            // The instrument itself suspended, which outranks both halves.
+            await query(
+                `UPDATE instrument SET status = 'inactive' WHERE ticker = 'BTCUSDT'`,
+            );
+            await expect(bothPaths()).resolves.toEqual([
+                'instrument_inactive',
+                'instrument_inactive',
+            ]);
+        });
+
+        it('answers "unknown" for a ticker it has never heard of', async () => {
+            // The one case with no row at all, where the batch has nothing to
+            // look up and the single path has to survive an empty result.
+            const [instruments, assets] = await Promise.all([
+                repository.listInstruments(),
+                repository.listAssets(),
+            ]);
+            const batch = repository.tradabilities(instruments, assets);
+
+            expect(await repository.tradability('NOSUCH')).toEqual({
+                tradable: false,
+                reason: 'unknown_instrument',
+            });
+            expect(batch.has('NOSUCH')).toBe(false);
+        });
+    });
 });

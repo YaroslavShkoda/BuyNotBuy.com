@@ -103,6 +103,75 @@ function toAsset(row: AssetRow): Asset {
     };
 }
 
+/**
+ * The rule, with no database underneath it.
+ *
+ * **It was a loop body, and a loop body that decides whether a market may be
+ * traded cannot stay one.** `tradability()` does two queries per call, and the
+ * `/api/instruments` route added last round called it once per instrument —
+ * twenty-odd round trips to answer a question about ten rows. The obvious fix
+ * is to write the rule a second time in the controller against rows it already
+ * has, and that is the fix that would have bitten: two copies of a rule with
+ * six branches and a specific precedence, agreeing today and diverging the day
+ * one of them is edited.
+ *
+ * So the rule lives here, once, and both callers use it. The precedence is
+ * deliberate and is the part worth stating: **inactive before unknown**, and
+ * **base before quote** in both. A suspended asset is a decision somebody made
+ * and an unclassified one is a gap in what the system knows; reporting the gap
+ * to somebody who has already suspended the market hides the decision behind
+ * the gap.
+ *
+ * `unknown` and *absent* are different, and the schema is what makes them the
+ * same. Both halves are `REFERENCES asset (symbol)`, so an instrument cannot
+ * name an asset the table has never heard of — which is why the optional
+ * chaining below does not treat absence as `unknown`, and why `toAsset(base!)`
+ * is safe. If that foreign key is ever dropped, this function will answer
+ * `tradable: true` for a pair with no assets and then throw inside `toAsset`.
+ * That is a loud failure rather than a wrong answer, and it is the correct
+ * order: the loud one takes a maintenance action.
+ */
+export function judgeTradability(
+    instrumentRow: InstrumentRow | undefined,
+    bySymbol: ReadonlyMap<string, AssetRow>,
+): Tradability {
+    if (!instrumentRow) {
+        return { tradable: false, reason: 'unknown_instrument' };
+    }
+
+    if (instrumentRow.status !== 'active') {
+        return { tradable: false, reason: 'instrument_inactive' };
+    }
+
+    const base = bySymbol.get(instrumentRow.baseAsset);
+    const quote = bySymbol.get(instrumentRow.quoteAsset);
+
+    if (base?.status === 'inactive') {
+        return { tradable: false, reason: 'base_inactive' };
+    }
+
+    if (quote?.status === 'inactive') {
+        return { tradable: false, reason: 'quote_inactive' };
+    }
+
+    if (base?.status === 'unknown' || quote?.status === 'unknown') {
+        return {
+            tradable: false,
+            reason: base?.status === 'unknown' ? 'base_unknown' : 'quote_unknown',
+        };
+    }
+
+    return {
+        tradable: true,
+        instrument: {
+            ticker: instrumentRow.ticker,
+            base: toAsset(base!),
+            quote: toAsset(quote!),
+            market: instrumentRow.marketKind,
+        },
+    };
+}
+
 export class AssetRepository {
     async listAssets(): Promise<AssetRow[]> {
         const { rows } = await query<AssetRow>(`${ASSET_SELECT} ORDER BY symbol`);
@@ -189,6 +258,32 @@ export class AssetRepository {
     }
 
     /**
+     * Every instrument judged against rows the caller already has.
+     *
+     * The batch form, for the caller that read the whole registry in order to
+     * list it. Two queries instead of two per instrument, and — the reason this
+     * is worth a method rather than a loop in a controller — the same
+     * `judgeTradability` that the single-instrument path uses, so the two cannot
+     * answer differently.
+     */
+    tradabilities(
+        instruments: readonly InstrumentRow[],
+        assets: readonly AssetRow[],
+    ): ReadonlyMap<string, Tradability> {
+        const bySymbol = new Map(assets.map((row) => [row.symbol, row]));
+        const judged = new Map<string, Tradability>();
+
+        for (const instrument of instruments) {
+            judged.set(
+                instrument.ticker,
+                judgeTradability(instrument, bySymbol),
+            );
+        }
+
+        return judged;
+    }
+
+    /**
      * Whether this process may trade a market right now.
      *
      * Checked against the database rather than against configuration, which is
@@ -201,45 +296,15 @@ export class AssetRepository {
             [ticker],
         );
 
-        const instrumentRow = rows[0];
-
-        if (!instrumentRow) {
-            return { tradable: false, reason: 'unknown_instrument' };
-        }
-
-        if (instrumentRow.status !== 'active') {
-            return { tradable: false, reason: 'instrument_inactive' };
-        }
-
         const { rows: halves } = await query<AssetRow>(
             `${ASSET_SELECT} WHERE symbol = ANY($1::text[])`,
-            [[instrumentRow.baseAsset, instrumentRow.quoteAsset]],
+            [[rows[0]?.baseAsset ?? '', rows[0]?.quoteAsset ?? '']],
         );
-        const bySymbol = new Map(halves.map((row) => [row.symbol, row]));
-        const base = bySymbol.get(instrumentRow.baseAsset);
-        const quote = bySymbol.get(instrumentRow.quoteAsset);
 
-        if (base?.status === 'inactive') {
-            return { tradable: false, reason: 'base_inactive' };
-        }
-
-        if (quote?.status === 'inactive') {
-            return { tradable: false, reason: 'quote_inactive' };
-        }
-
-        if (base?.status === 'unknown' || quote?.status === 'unknown') {
-            return { tradable: false, reason: base?.status === 'unknown' ? 'base_unknown' : 'quote_unknown' };
-        }
-
-        return {
-            tradable: true,
-            instrument: {
-                ticker: instrumentRow.ticker,
-                base: toAsset(base!),
-                quote: toAsset(quote!),
-                market: instrumentRow.marketKind,
-            },
-        };
+        return judgeTradability(
+            rows[0],
+            new Map(halves.map((row) => [row.symbol, row])),
+        );
     }
 
     /**

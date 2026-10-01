@@ -78,6 +78,7 @@ export async function listInstruments(): Promise<InstrumentDto[]> {
     ]);
 
     const bySymbol = indexAssets(assets);
+    const judged = repository.tradabilities(instruments, assets);
     const answers: InstrumentDto[] = [];
 
     for (const instrument of instruments) {
@@ -88,14 +89,14 @@ export async function listInstruments(): Promise<InstrumentDto[]> {
             continue;
         }
 
-        const tradability = await repository.tradability(instrument.ticker);
+        const verdict = judged.get(instrument.ticker);
 
         answers.push(
             toDto(
                 instrument,
                 base,
                 quote,
-                tradability.tradable ? null : tradability.reason,
+                verdict === undefined || verdict.tradable ? null : verdict.reason,
             ),
         );
     }
@@ -130,6 +131,9 @@ export async function getInstrument(ticker: string): Promise<InstrumentDto | nul
         return null;
     }
 
+    // The single-instrument path, not a lookup in the batch map: one ticker
+    // asked for on its own is two queries, and reusing `tradability` here means
+    // this endpoint and the batch one cannot answer differently.
     const tradability = await repository.tradability(instrument.ticker);
 
     return toDto(
