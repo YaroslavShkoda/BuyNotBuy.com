@@ -1,5 +1,5 @@
 import { getIndicatorVoteRepository } from './indicator-vote.repository.js';
-import { FORWARD_HORIZONS } from './indicator-performance.types.js';
+import { FORWARD_HORIZON_NAMES, FORWARD_HORIZONS } from './indicator-performance.types.js';
 import { historyConfig } from '../../config/history.config.js';
 import {
     createBoundedWriteBuffer,
@@ -46,7 +46,17 @@ const runVoteFlush = createFlushGuard();
  */
 const ROUND_TRIP_COST = 0.002;
 
-const HOUR_MS_BY_HORIZON: Record<string, number> = {
+/**
+ * Typed as `Record<ForwardHorizon, number>` rather than `Record<string, number>`.
+ *
+ * It was the latter, which means a horizon missing from the table below was not
+ * a compile error — it was a lookup that returned `undefined` and multiplied
+ * into `NaN` further down, on a measurement rather than on a request. The
+ * `horizonMsByName` parameter stays a string map on purpose: it is a test seam,
+ * and a seam that tests cannot use is a seam that will be removed by whoever
+ * needs it.
+ */
+const HOUR_MS_BY_HORIZON: Record<ForwardHorizon, number> = {
     '1h': FORWARD_HORIZONS['1h'] * HOUR_MS,
     '4h': FORWARD_HORIZONS['4h'] * HOUR_MS,
     '24h': FORWARD_HORIZONS['24h'] * HOUR_MS,
@@ -418,7 +428,7 @@ export async function settleForwardReturns(
  */
 export async function summarizeIndicatorPerformance(
     symbol: string,
-    horizons: ForwardHorizon[] = ['1h', '4h', '24h'],
+    horizons: ForwardHorizon[] = [...FORWARD_HORIZON_NAMES],
     repository: IndicatorVoteRepository = getIndicatorVoteRepository(),
 ): Promise<IndicatorPerformance[]> {
     const votes = await repository.list(

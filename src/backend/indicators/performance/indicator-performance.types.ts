@@ -1,6 +1,25 @@
 import type { SignalDirection } from '../../types/direction.js';
 
-export type ForwardHorizon = '1h' | '4h' | '24h';
+/**
+ * The horizons a forward return can be measured over.
+ *
+ * **A tuple, because the list used to exist only as a cast.** `FORWARD_HORIZON_NAMES`
+ * was `Object.keys(FORWARD_HORIZONS) as ForwardHorizon[]` — a `string[]` wearing
+ * a horizon's name, with the cast standing in for the proof. Everything that
+ * iterates horizons, builds a SQL column per horizon or settles by name took
+ * that array on trust, and a fourth horizon added to the record without the cast
+ * being revisited would have produced a `string` where the code expected a
+ * horizon. The cast was not needed because the record was keyed; it was there
+ * because the vocabulary had no form of its own to read at runtime.
+ *
+ * `FORWARD_HORIZONS` still enumerates its own keys — a record of hours cannot be
+ * built from a bare list — but the list is declared here now, and the type is
+ * derived from it rather than written beside it.
+ */
+export const FORWARD_HORIZON_KEYS = ['1h', '4h', '24h'] as const;
+
+export type ForwardHorizon = (typeof FORWARD_HORIZON_KEYS)[number];
+
 /** Hours each horizon spans. Kept as data so a new one is a single entry. */
 export const FORWARD_HORIZONS: Record<ForwardHorizon, number> = {
     '1h': 1,
@@ -8,7 +27,9 @@ export const FORWARD_HORIZONS: Record<ForwardHorizon, number> = {
     '24h': 24,
 };
 
-export const FORWARD_HORIZON_NAMES = Object.keys(FORWARD_HORIZONS) as ForwardHorizon[];
+export const FORWARD_HORIZON_NAMES: readonly ForwardHorizon[] = [
+    ...FORWARD_HORIZON_KEYS,
+];
 
 export interface IndicatorVote {
     timestamp: number;
