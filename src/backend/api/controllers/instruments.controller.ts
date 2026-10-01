@@ -6,6 +6,7 @@ import {
 
 import type { InstrumentDto } from '../schemas.js';
 import type { AssetRow, InstrumentRow, TradabilityReason } from '../../instruments/asset.repository.js';
+import type { AssetCategory, AssetStatus } from '../../instruments/domain.js';
 
 /**
  * The registry, read.
@@ -47,8 +48,8 @@ function indexAssets(
 
 interface InstrumentAsset {
     readonly symbol: string;
-    readonly category: 'crypto' | 'fiat';
-    readonly status: 'active' | 'inactive' | 'unknown';
+    readonly category: AssetCategory;
+    readonly status: AssetStatus;
     readonly source: 'configured' | 'learned';
 }
 

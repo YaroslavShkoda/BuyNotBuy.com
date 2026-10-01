@@ -45,8 +45,11 @@ export interface Asset {
     readonly status: AssetStatus;
 }
 
-export type AssetCategory = 'crypto' | 'fiat';
-export type AssetStatus = 'active' | 'inactive' | 'unknown';
+export const ASSET_CATEGORIES = ['crypto', 'fiat'] as const;
+export type AssetCategory = (typeof ASSET_CATEGORIES)[number];
+
+export const ASSET_STATUSES = ['active', 'inactive', 'unknown'] as const;
+export type AssetStatus = (typeof ASSET_STATUSES)[number];
 
 /**
  * Why a market may not be traded, as a value rather than as a union.
@@ -107,7 +110,8 @@ export interface Instrument {
     readonly market: MarketKind;
 }
 
-export type MarketKind = 'crypto' | 'fiat' | 'mixed' | 'unknown';
+export const MARKET_KINDS = ['crypto', 'fiat', 'mixed', 'unknown'] as const;
+export type MarketKind = (typeof MARKET_KINDS)[number];
 
 /**
  * Splits a ticker into base and quote.

@@ -318,6 +318,48 @@ describe('the reasons a market may not be traded', () => {
         expect(IndicatorKeySchema.options).toEqual([...INDICATOR_KEYS]);
     });
 
+    it('holds for the asset vocabulary the wire retypes as well', async () => {
+        // `AssetStatus` was declared four times and `AssetCategory` five — once
+        // of which was an exported duplicate inside the repository that nothing
+        // imported. The domain owns both, and the wire validates against the
+        // domain's own tuples.
+        const { InstrumentAssetSchema, InstrumentSchema } = await import(
+            '../api/schemas.js'
+        );
+        const { ASSET_CATEGORIES, ASSET_STATUSES, MARKET_KINDS } = await import(
+            './domain.js'
+        );
+
+        expect(ASSET_CATEGORIES).toContain('crypto');
+        expect(ASSET_STATUSES).toContain('unknown');
+
+        expect(InstrumentAssetSchema.shape.category.options).toEqual([
+            ...ASSET_CATEGORIES,
+        ]);
+        expect(InstrumentAssetSchema.shape.status.options).toEqual([
+            ...ASSET_STATUSES,
+        ]);
+        expect(InstrumentSchema.shape.market.options).toEqual([...MARKET_KINDS]);
+    });
+
+    it('does not widen the instrument status to match the asset one', async () => {
+        const { ASSET_STATUSES } = await import('./domain.js');
+        const { InstrumentSchema } = await import('../api/schemas.js');
+
+        // Asserted against the schema's own options, and the first version was
+        // not: it compared two constants — `['active', 'inactive']` written in
+        // the test against `ASSET_STATUSES` imported from the domain — and so
+        // kept passing after `status` was widened to `z.enum(ASSET_STATUSES)`,
+        // which is the exact mistake the test claims to forbid. A test that
+        // never looks at the code cannot notice the code changing.
+        expect(InstrumentSchema.shape.status.options).toEqual(['active', 'inactive']);
+
+        // And the reason, stated as a fact rather than as the assertion: an
+        // instrument has no third state. It is not that nobody classified it,
+        // it is that the pair refuses to exist without a kind.
+        expect([...ASSET_STATUSES]).toContain('unknown');
+    });
+
     it('has a sentence for every one of them', async () => {
         // `DESCRIBE` is a `Record` over the type, so a new reason does not
         // compile without a sentence. A refusal with no explanation is a

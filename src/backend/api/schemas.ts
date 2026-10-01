@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { TRADABILITY_REASONS } from '../instruments/domain.js';
+import { TRADABILITY_REASONS, ASSET_CATEGORIES, ASSET_STATUSES, MARKET_KINDS } from '../instruments/domain.js';
 import { SIGNAL_DIRECTIONS } from '../types/direction.js';
 import { INDICATOR_KEYS } from '../signals/signal.types.js';
 
@@ -176,8 +176,8 @@ export const PriceResponseSchema = AssetPriceSchema;
  */
 export const InstrumentAssetSchema = z.object({
     symbol: z.string(),
-    category: z.enum(['crypto', 'fiat']),
-    status: z.enum(['active', 'inactive', 'unknown']),
+    category: z.enum(ASSET_CATEGORIES),
+    status: z.enum(ASSET_STATUSES),
     source: z.enum(['configured', 'learned']),
 });
 
@@ -185,7 +185,13 @@ export const InstrumentSchema = z.object({
     ticker: z.string(),
     base: InstrumentAssetSchema,
     quote: InstrumentAssetSchema,
-    market: z.enum(['crypto', 'fiat', 'mixed', 'unknown']),
+    market: z.enum(MARKET_KINDS),
+    /**
+     * The instrument's own status, which is a narrower vocabulary than an
+     * asset's: an unclassified asset is a gap, an unclassified instrument has no
+     * kind to be unknown about and the schema forbids it. So this is not the
+     * domain's `AssetStatus` — it is its own list, deliberately.
+     */
     status: z.enum(['active', 'inactive']),
     /**
      * Whether this market may be traded, and why not when it may not.
