@@ -402,6 +402,20 @@ export const METRIC_CATALOGUE: readonly ObservabilityMetric[] = z
             description: 'Случаев, когда сигнал сменился, — то, что действительно интересно.',
         },
         {
+            name: 'market_cycle_failures',
+            kind: 'counter',
+            // Labelled by market, and the label is the point: the other
+            // failure counter on this list is deliberately not fatal, while this
+            // one means a market stopped being observed — silently, if the only
+            // record were a log line nobody scrapes. A rising series here is a
+            // market that has produced no signals, no snapshots and no settled
+            // returns, and the process still reports itself healthy.
+            description:
+                'Циклов наблюдения, сорвавшихся по рынку. Метка `market` ' +
+                'обязательна: без неё нельзя отличить один умерший рынок от ' +
+                'двух, чередующихся сбоев.',
+        },
+        {
             name: 'strategy_decision_write_failures',
             kind: 'counter',
             // Worth stating plainly in the catalogue, because the failure is

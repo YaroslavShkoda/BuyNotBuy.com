@@ -34,6 +34,7 @@ describe('the metrics the roadmap named are the metrics we publish', () => {
         'database_query_duration',
         'backtest_duration',
         'strategy_decision_write_failures',
+        'market_cycle_failures',
     ];
 
     it('publishes exactly those, in one list, without duplicates', () => {

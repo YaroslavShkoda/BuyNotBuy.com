@@ -300,3 +300,63 @@ export async function observeMarket(
         learnedCategory,
     };
 }
+
+/** One market whose cycle did not finish, and what it threw. */
+export interface MarketFailure {
+    readonly market: string;
+    readonly error: unknown;
+}
+
+export interface MarketsResult {
+    /** Markets whose cycle ran to the end, in the order given. */
+    readonly observed: readonly string[];
+    /** Markets that threw, in the order they failed. */
+    readonly failures: readonly MarketFailure[];
+}
+
+/**
+ * Runs one cycle per market, where a market that throws does not stop the rest.
+ *
+ * **This is the second thing that was single-market, and it was not the loop.**
+ * The loop in `server.ts` awaited each market in turn with nothing between the
+ * calls, so one venue answering 500 took the remaining markets down with it and
+ * then skipped `retention.maybeRun` — which does not come back. Not "slowly
+ * stops": stops, permanently, with no `retention_run` line ever printed again
+ * and `Poller.completedRuns` still climbing, so the process reports itself
+ * healthy while its history grows forever.
+ *
+ * Two failures share one shape and neither was caught by reading the loop:
+ *
+ * 1. **The other markets.** A dead market is a fact about a market. It is not a
+ *    fact about the process, and a process that stops observing because one of
+ *    its subjects is unavailable has turned a partial outage into a total one.
+ * 2. **Retention, silently.** It sits after the loop precisely because it is
+ *    per-process, which is also what makes it fragile: being after the loop is
+ *    only safe while nothing in the loop can throw.
+ *
+ * **It returns rather than logging**, because the two things a caller does with a
+ * failure are different and neither belongs here: the poller records it as a log
+ * line naming the market, and the metrics record it as a counted series. Logging
+ * it in here would make the failure visible in one place and unmeasurable in
+ * another, and a failure visible only in a log is a failure whose absence nobody
+ * can prove.
+ */
+export async function runPerMarket(
+    markets: readonly string[],
+    run: (market: string) => Promise<void>,
+): Promise<MarketsResult> {
+    const observed: string[] = [];
+    const failures: MarketFailure[] = [];
+
+    for (const market of markets) {
+        try {
+            await run(market);
+
+            observed.push(market);
+        } catch (error) {
+            failures.push({ market, error });
+        }
+    }
+
+    return { observed, failures };
+}

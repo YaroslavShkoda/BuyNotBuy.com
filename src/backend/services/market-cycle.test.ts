@@ -146,3 +146,92 @@ describe('the cycle over more than one market', () => {
         expect(rows.rows.map((row) => row.symbol)).toEqual(['BTCUSDT']);
     });
 });
+
+describe('one market that throws', () => {
+    it('does not take the markets after it with it', async () => {
+        const { runPerMarket } = await import('./market-cycle.js');
+
+        const ran: string[] = [];
+
+        const outcome = await runPerMarket(['BTCUSDT', 'ETHUSDT', 'SOLUSDT'], async (market) => {
+            ran.push(market);
+
+            if (market === 'ETHUSDT') {
+                throw new Error('venue answered 500');
+            }
+        });
+
+        // The order is the whole claim. A loop that stopped at the first throw
+        // would report SOLUSDT as unobserved and never call it at all — and a
+        // test that only checked `failures` would be satisfied by both versions.
+        expect(ran).toEqual(['BTCUSDT', 'ETHUSDT', 'SOLUSDT']);
+        expect(outcome.observed).toEqual(['BTCUSDT', 'SOLUSDT']);
+    });
+
+    it('names the market that failed, so the log line can and so can the metric', async () => {
+        const { runPerMarket } = await import('./market-cycle.js');
+
+        const outcome = await runPerMarket(['BTCUSDT', 'ETHUSDT'], async (market) => {
+            if (market === 'ETHUSDT') {
+                throw new Error('no configured venue does not serve ETHUSDT');
+            }
+        });
+
+        // Attributed, not counted. A failure without a market is the failure
+        // mode of the whole item: the poller logs one line per market and the
+        // metric carries a `market` label, and both need the name from here.
+        expect(outcome.failures).toHaveLength(1);
+        expect(outcome.failures[0]!.market).toBe('ETHUSDT');
+        expect((outcome.failures[0]!.error as Error).message).toContain('ETHUSDT');
+    });
+
+    it('carries the failure through instead of swallowing it', async () => {
+        const { runPerMarket } = await import('./market-cycle.js');
+
+        const thrown = new TypeError('cannot read candles of undefined');
+
+        const outcome = await runPerMarket(['BTCUSDT'], async () => {
+            throw thrown;
+        });
+
+        // A caught-and-discarded error would pass both assertions above and turn
+        // every cause into "market_cycle_failed", which is a message nobody can
+        // act on. The cause is the only part that names the broken thing.
+        expect(outcome.failures[0]!.error).toBe(thrown);
+    });
+
+    it('reports every market when all of them fail, and still returns', async () => {
+        const { runPerMarket } = await import('./market-cycle.js');
+
+        const outcome = await runPerMarket(
+            ['BTCUSDT', 'ETHUSDT', 'SOLUSDT'],
+            async (market) => {
+                throw new Error(`${market} is down`);
+            },
+        );
+
+        // The `and still returns` is the part that matters for retention. It sits
+        // after this call in `server.ts` and nothing reschedules it, so a helper
+        // that rejected would turn one dead venue into history that is never
+        // pruned again — with no `retention_run` line to show for it.
+        expect(outcome.observed).toEqual([]);
+        expect(outcome.failures.map((failure) => failure.market)).toEqual([
+            'BTCUSDT',
+            'ETHUSDT',
+            'SOLUSDT',
+        ]);
+    });
+
+    it('observes nothing, and fails nothing, when no market is configured', async () => {
+        const { runPerMarket } = await import('./market-cycle.js');
+
+        let called = false;
+
+        const outcome = await runPerMarket([], async () => {
+            called = true;
+        });
+
+        expect(called).toBe(false);
+        expect(outcome).toEqual({ observed: [], failures: [] });
+    });
+});

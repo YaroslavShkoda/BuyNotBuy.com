@@ -23,7 +23,8 @@ import { createVenueWatcher } from './market/market.provider.js';
 import { configuredSeries } from './history/ingestion.service.js';
 import { startIngestionScheduler } from './services/ingestion.scheduler.js';
 import { startPoller } from './services/poller.js';
-import { observeMarket } from './services/market-cycle.js';
+import { observeMarket, runPerMarket } from './services/market-cycle.js';
+import { currentRegistry } from './observability/registry.js';
 
 import type { IngestionScheduler } from './services/ingestion.scheduler.js';
 import type { Poller } from './services/poller.js';
@@ -239,10 +240,39 @@ async function startServer() {
                     // own clock, once a day. Inside the loop it would prune once
                     // per market, and a second prune of the same rows looks in a
                     // log like nothing at all.
-                    for (const market of marketConfig.symbols) {
-                        await observeMarket(market, {
-                            logger: app.log,
-                            reportVenueChange,
+                    //
+                    // `runPerMarket` rather than a bare loop: a venue answering
+                    // 500 must cost that market its cycle and nothing else. In
+                    // the bare loop it also cost every market after it, and the
+                    // retention call below — which does not come back once it is
+                    // skipped, because nothing reschedules it.
+                    const markets = await runPerMarket(
+                        marketConfig.symbols,
+                        async (market) => {
+                            await observeMarket(market, {
+                                logger: app.log,
+                                reportVenueChange,
+                            });
+                        },
+                    );
+
+                    // Recorded twice on purpose: once where an operator reads it,
+                    // once where a dashboard can prove it stopped. The counter is
+                    // labelled by market, so a permanently dead market is a
+                    // growing series rather than a number mixed into all of them.
+                    for (const failure of markets.failures) {
+                        app.log.error(
+                            {
+                                event: 'market_cycle_failed',
+                                market: failure.market,
+                                observed: markets.observed.length,
+                                err: failure.error,
+                            },
+                            'market_cycle_failed',
+                        );
+
+                        currentRegistry().counter('market_cycle_failures', 1, {
+                            market: failure.market,
                         });
                     }
 
