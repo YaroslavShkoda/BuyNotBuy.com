@@ -75,8 +75,30 @@ export interface OutcomeRepository {
      * the same trade twice.
      */
     settle(input: SettleInput): Promise<OutcomeRow[]>;
-    /** Everything still waiting for bars, oldest first. */
-    unresolved(limit?: number): Promise<OutcomeRow[]>;
+    /**
+     * How many signals of this series are still waiting for bars.
+     *
+     * **A count, counted.** This used to be a length of a limited list: `SELECT
+     * DISTINCT ON (...) ... LIMIT 500`, with the caller taking `.length` and
+     * reporting it as a number. Two things were wrong with that and neither was
+     * about the limit itself.
+     *
+     * The query had **no predicate on the market at all**, so a scan running for
+     * BTCUSDT reported ETHUSDT's waiting signals in `stillWaiting` — a field
+     * logged per market, `{ market, ...measured }`, next to `examined` and `rows`,
+     * which were that market's alone. One line of a report had no market in it.
+     *
+     * And the `LIMIT` combined with `ORDER BY symbol` decided *which* markets
+     * appeared: the tail past 500 rows was dropped, alphabetically, without a
+     * word. So the same deployment reported a different number for the same market
+     * depending on what other markets existed — not slightly different, since
+     * `stillWaiting` is a whole-number gauge read as a backlog.
+     *
+     * Counting distinct `signal_state_id` rather than rows is deliberate and was
+     * the point of the old `DISTINCT ON`: one signal waiting on several horizons
+     * is one signal waiting, not seven.
+     */
+    countUnresolved(key: OutcomeSeriesKey): Promise<number>;
     /** Every measurement for one series at one horizon. */
     forSeries(
         key: OutcomeSeriesKey,
@@ -233,25 +255,21 @@ export function createOutcomeRepository(
             });
         },
 
-        async unresolved(limit = 500) {
-            // Grouped by signal rather than returned row by row, because what
-            // the settlement scan needs is "the bars are ready for this
-            // signal", and a list of nine rows for the same three signals makes
-            // the caller rediscover that.
+        async countUnresolved(key) {
+            // Scoped to the series, and with no `LIMIT`: this is a count, and a
+            // limited count is a count of whatever the planner returned first.
             const result = await query(
-                `SELECT DISTINCT ON (symbol, provider, interval, signal_state_id)
-                    symbol, provider, interval, signal_state_id,
-                    MIN(entry_timestamp) AS entry_timestamp
+                `SELECT COUNT(DISTINCT signal_state_id) AS count
                  FROM signal_outcome
-                 WHERE verdict IN ('unknown', 'expired')
-                 GROUP BY symbol, provider, interval, signal_state_id
-                 ORDER BY symbol, provider, interval, signal_state_id,
-                          entry_timestamp ASC
-                 LIMIT $1`,
-                [limit],
+                 WHERE symbol = $1 AND provider = $2 AND interval = $3
+                   AND verdict IN ('unknown', 'expired')`,
+                [key.symbol, key.provider, key.interval],
             );
 
-            return result.rows.map(toRow);
+            // Postgres returns `COUNT` as text, and a JS number is what every
+            // caller and every gauge wants; a string here would compare unequal to
+            // the number it printed as.
+            return Number((result.rows[0] as QueryResultRow | undefined)?.count ?? 0);
         },
 
         async forSeries(key, horizonBars, limit = 10_000) {

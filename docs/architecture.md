@@ -17,7 +17,7 @@
 |---|---|---|---|---|
 | `types` | 4 | 83 | 0 | сквозной лист |
 | `errors` | 3 | 19 | 0 | сквозной лист |
-| `config` | 13 | 88 | 5 | сквозной лист |
+| `config` | 13 | 87 | 5 | сквозной лист |
 | `instruments` | 4 | 10 | 2 | сквозной лист |
 | `db` | 4 | 30 | 2 | ядро |
 | `market` | 16 | 26 | 41 | ядро |
@@ -25,7 +25,7 @@
 | `strategies` | 11 | 44 | 6 | ядро |
 | `signals` | 8 | 14 | 14 | ядро |
 | `history` | 11 | 17 | 29 | ядро |
-| `outcomes` | 3 | 4 | 11 | ядро |
+| `outcomes` | 3 | 4 | 10 | ядро |
 | `performance` | 6 | 6 | 4 | ядро |
 | `analysis` | 2 | 4 | 6 | ядро |
 | `backtest` | 14 | 23 | 28 | ядро |
@@ -44,7 +44,7 @@
 - `strategies` → `db` (2), `types` (4)
 - `signals` → `config` (8), `db` (1), `indicators` (1), `observability` (1), `types` (3)
 - `history` → `config` (7), `db` (3), `errors` (1), `market` (8), `observability` (5), `signals` (1), `types` (4)
-- `outcomes` → `config` (4), `db` (1), `signals` (3), `types` (3)
+- `outcomes` → `config` (3), `db` (1), `signals` (3), `types` (3)
 - `performance` → `db` (1), `outcomes` (3)
 - `analysis` → `config` (3), `db` (2), `types` (1)
 - `backtest` → `config` (14), `indicators` (2), `market` (5), `observability` (1), `signals` (2), `types` (4)
@@ -67,7 +67,7 @@
 
 ## Зашитый рынок
 
-Упоминаний в комментариях (записи измерений): 163.
+Упоминаний в комментариях (записи измерений): 165.
 
 Строковых литералов в коде, разрешённый слой: 26.
 

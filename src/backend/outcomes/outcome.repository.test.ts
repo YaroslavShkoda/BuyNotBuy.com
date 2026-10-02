@@ -225,21 +225,72 @@ describe('a stored measurement is the one that was computed', () => {
 });
 
 describe('the settlement queue', () => {
-    it('lists each waiting signal once, not once per horizon', async () => {
+    const KEY = { symbol: 'BTCUSDT', provider: 'binance', interval: '1h' };
+
+    it('counts each waiting signal once, not once per horizon', async () => {
         await settle(rising(2));
 
-        const queue = await repository.unresolved();
-
-        // What the scan needs is "the bars are ready for this signal". A list
-        // of seven rows for the same one makes the caller rediscover that.
-        expect(queue).toHaveLength(1);
-        expect(queue[0]?.symbol).toBe('BTCUSDT');
+        // What the scan needs is "the bars are ready for this signal". A count of
+        // seven rows for the same one would report a backlog seven times too
+        // large, and a gauge read as a backlog is read as work remaining.
+        expect(await repository.countUnresolved(KEY)).toBe(1);
     });
 
     it('leaves a settled signal out', async () => {
         await settle(rising(200));
 
-        expect(await repository.unresolved()).toHaveLength(0);
+        expect(await repository.countUnresolved(KEY)).toBe(0);
+    });
+
+    it('counts only the market it was asked about', async () => {
+        // **The finding, at the level it lives.** Two markets, one waiting signal
+        // each. The old query had no predicate on the market, so BTCUSDT's scan
+        // read both — and with `LIMIT` and `ORDER BY symbol` it decided
+        // alphabetically which markets were counted at all, so the same market
+        // reported a different backlog depending on what else existed.
+        await settle(rising(2));
+        await settle(rising(2), {
+            key: { symbol: 'ETHUSDT', provider: 'binance', interval: '1h' },
+        });
+
+        expect(await repository.countUnresolved(KEY)).toBe(1);
+        expect(
+            await repository.countUnresolved({
+                symbol: 'ETHUSDT',
+                provider: 'binance',
+                interval: '1h',
+            }),
+        ).toBe(1);
+        expect(
+            await repository.countUnresolved({
+                symbol: 'SOLUSDT',
+                provider: 'binance',
+                interval: '1h',
+            }),
+        ).toBe(0);
+    });
+
+    it('does not count another market under a venue that serves both', async () => {
+        // Same venue, different market. The market is part of the key for a
+        // reason, and this is the assertion that keeps it part of it.
+        await settle(rising(2), {
+            key: { symbol: 'ETHUSDT', provider: 'binance', interval: '1h' },
+        });
+
+        expect(
+            await repository.countUnresolved({
+                symbol: 'ETHUSDT',
+                provider: 'binance',
+                interval: '1h',
+            }),
+        ).toBe(1);
+        expect(
+            await repository.countUnresolved({
+                symbol: 'BTCUSDT',
+                provider: 'binance',
+                interval: '1h',
+            }),
+        ).toBe(0);
     });
 });
 

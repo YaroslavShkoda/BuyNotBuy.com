@@ -1,4 +1,3 @@
-import { outcomeConfig } from '../config/outcome.config.js';
 import { signalLifecycleRepository } from '../signals/lifecycle.repository.js';
 import { outcomeRepository } from '../outcomes/outcome.repository.js';
 
@@ -156,13 +155,15 @@ export async function reconcileSignalOutcomes(
         rows += settled.length;
     }
 
-    const waiting = await outcomes.unresolved(
-        series.limit ?? outcomeConfig.horizons.length * 100,
-    );
+    // Scoped to this series, because the report is this market's and the field
+    // beside it — `market`, added by the caller — says so. It used to count every
+    // market's backlog and report it as this one's, truncated at a limit it no
+    // longer needs.
+    const waiting = await outcomes.countUnresolved(series.key);
 
     return {
         examined: closed.length,
         rows,
-        stillWaiting: waiting.length,
+        stillWaiting: waiting,
     };
 }

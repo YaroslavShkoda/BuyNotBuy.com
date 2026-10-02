@@ -66,7 +66,7 @@ function outcomes(rowsPerSettle = 7): {
                 id: `${calls.length}-${index}`,
             })) as Awaited<ReturnType<OutcomeRepository['settle']>>;
         }),
-        unresolved: vi.fn(async () => []),
+        countUnresolved: vi.fn(async () => 0),
         forSeries: vi.fn(async () => []),
         deleteBefore: vi.fn(async () => 0),
     } as unknown as OutcomeRepository;
@@ -168,7 +168,7 @@ describe('reconciling closed signals into measurements', () => {
         // and a settler that reported only what it finished would look broken
         // for the first day of every run.
         const store = outcomes();
-        store.repository.unresolved = vi.fn(async () => [{ id: 'a' }, { id: 'b' }]) as never;
+        store.repository.countUnresolved = vi.fn(async () => 2) as never;
 
         const report = await reconcileSignalOutcomes(
             { key: KEY, candles: candles(4), now: BASE + 4 * HOUR },
@@ -178,6 +178,31 @@ describe('reconciling closed signals into measurements', () => {
 
         expect(report.stillWaiting).toBe(2);
         expect(report.examined).toBe(1);
+    });
+
+    it('asks about its own market, because the caller logs this report with one', async () => {
+        // **The finding.** `stillWaiting` sat next to `market` in the log line —
+        // `{ market, ...measured }` — while `examined` and `rows` were that
+        // market's alone and this field counted every market's backlog.
+        //
+        // The old query had no predicate on the market at all, so BTCUSDT's scan
+        // reported ETHUSDT's backlog as its own. And `LIMIT` with `ORDER BY
+        // symbol` decided which markets were counted at all, alphabetically, so
+        // the same market reported a different backlog depending on what else
+        // existed.
+        const store = outcomes();
+        store.repository.countUnresolved = vi.fn(async () => 0) as never;
+
+        await reconcileSignalOutcomes(
+            { key: KEY, candles: candles(4), now: BASE + 4 * HOUR },
+            lifecycle([state()]),
+            store.repository,
+        );
+
+        // Asked for this series, and once — not "up to 500 rows, possibly
+        // including someone else's".
+        expect(store.repository.countUnresolved).toHaveBeenCalledWith(KEY);
+        expect(store.repository.countUnresolved).toHaveBeenCalledTimes(1);
     });
 
     it('does nothing at all when nothing has closed', async () => {
