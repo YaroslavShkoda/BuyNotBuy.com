@@ -5,7 +5,7 @@ import { BitgetProvider } from './providers/bitget.provider.js';
 import { MockProvider } from './providers/mock.provider.js';
 import { FailoverProvider } from './failover.provider.js';
 import { isVenueAvailable } from './providers/provider-http.js';
-import { describeRoute, route } from './capability.js';
+import { describeRoute, route, serves } from './capability.js';
 import { MarketDataError } from '../errors/market-data.error.js';
 
 import type { MarketProviderName } from '../config/market.config.js';
@@ -79,15 +79,17 @@ function createVenue(
 }
 
 /**
- * Venues built for a routed market, keyed by venue and market.
+ * The chain serving a routed market, keyed by market.
  *
- * Memoised because a provider carries state worth keeping: a circuit breaker
- * that resets every request cannot open, and a failover chain that forgets which
- * venue failed would try the one that just timed out. Keyed by market as well as
- * venue, because a provider is bound to one market — reusing the BTCUSDT venue
- * for ETHUSDT would be the bug this function was changed to remove.
+ * Memoised because a chain carries state worth keeping: a circuit breaker that
+ * resets every request cannot open, a recovery counter that starts over cannot
+ * complete, and a failover chain that forgets which venue just timed out will try
+ * it again first.
+ *
+ * Keyed by market alone, because the value *is* the market's chain — venue order
+ * inside it comes from the capability table, not from the key.
  */
-const routedVenues = new Map<string, MarketDataProvider>();
+const routedChains = new Map<string, MarketDataProvider>();
 
 function createMarketDataProvider(): MarketDataProvider {
     const primary = createVenue(marketConfig.provider, marketConfig.symbol);
@@ -211,22 +213,67 @@ export function marketProviderFor(instrument: string): MarketDataProvider {
         );
     }
 
-    const venue = createVenue(found.venue as MarketProviderName, wanted);
-
-    // Built for `wanted`, so the cache key has to name the market as well: one
-    // entry per venue would hand the primary market's venue to every other
-    // request, which is the bug in a different disguise.
-    const key = `${String(found.venue).toUpperCase()}:${wanted}`;
-
-    const cached = routedVenues.get(key);
+    // **A chain per market, from the venues that declare that market.**
+    //
+    // This used to return the bare venue the route picked, so failover existed
+    // for exactly one market: the primary, which is the only one with a
+    // `FailoverProvider` around it. `MARKET_FALLBACK_PROVIDERS` — the setting
+    // that exists because a primary venue is unreachable from some networks — was
+    // a no-op for every market but one. A routed market whose venue was down got
+    // an immediate 503 while a healthy, declared backup sat unused.
+    //
+    // The chain's backups are filtered by the capability table, which is the part
+    // that makes it safe. `FailoverProvider` asks each venue in order and does not
+    // check what that venue serves — so an unfiltered chain would fail over from
+    // a dead ETHUSDT venue to one that does not trade ETHUSDT, and the only thing
+    // standing between that and a table of one asset's prices filed under
+    // another's name is the symbol check further downstream. A backup here is one
+    // that has said it serves this market.
+    //
+    // Cached per market, not per venue: the cache now holds chains, and a chain
+    // is a property of a market. The circuit breaker and the recovery counter
+    // live inside it, so a fresh chain per request would reset both on every
+    // request — a breaker that cannot stay open and a recovery that can never
+    // complete.
+    const cached = routedChains.get(wanted);
 
     if (cached !== undefined) {
         return cached;
     }
 
-    routedVenues.set(key, venue.provider);
+    const request = { instrument: wanted, interval: marketConfig.candleInterval };
+    const capabilities = configuredVenueCapabilities();
 
-    return venue.provider;
+    const declared = (name: string): boolean => {
+        const entry = capabilities.find((capability) => capability.venue === name);
+
+        // A venue with no declaration at all cannot be a backup for anything. The
+        // table is the deployment's own statement of what it serves, so "not
+        // declared" means "not offered", not "assumed available".
+        return entry !== undefined && serves(entry, request);
+    };
+
+    // The routed venue leads, not the configured primary: it is the one the route
+    // chose for this market. The rest are the configured venues that declare the
+    // same market, in configured preference order.
+    const ordered: MarketProviderName[] = [
+        found.venue as MarketProviderName,
+        ...configuredMarketVenues().filter(
+            (name) => name !== found.venue && declared(name),
+        ) as MarketProviderName[],
+    ];
+
+    const chain = new FailoverProvider(
+        { name: ordered[0]!, provider: createVenue(ordered[0]!, wanted).provider },
+        ordered.slice(1).map((name) => ({
+            name,
+            provider: createVenue(name, wanted).provider,
+        })),
+    );
+
+    routedChains.set(wanted, chain);
+
+    return chain;
 }
 
 /**
@@ -268,6 +315,23 @@ export function anyMarketProviderAvailable(): boolean {
     return configuredMarketVenues().some((venue) => isVenueAvailable(venue));
 }
 
+/**
+ * The venue currently answering for one market, or null when there is nothing to
+ * switch.
+ *
+ * The process-wide `activeMarketVenue` answers for the primary only, because the
+ * only process-wide chain is the primary's. With a chain per market (see
+ * `marketProviderFor`) each market has its own `activeVenue`, and a caller asking
+ * about one market must not be handed another's answer — the entire reason this
+ * module exists to report a switch loudly is that a service quietly running on the
+ * backup looks like a market move.
+ */
+export function activeVenueForMarket(instrument: string): string | null {
+    const provider = marketProviderFor(instrument);
+
+    return provider instanceof FailoverProvider ? provider.activeVenue : provider.name;
+}
+
 /** The symbol the chain was asked for, regardless of which venue answers. */
 export function requestedMarketSymbol(): string {
     return marketConfig.symbol;
@@ -294,6 +358,7 @@ export function createVenueWatcher(
     logger: VenueWatcherLogger,
     currentVenue: () => string | null = activeMarketVenue,
     configuredPrimary: string = marketConfig.provider,
+    market?: string,
 ): () => void {
     let last: string | null | undefined;
 
@@ -319,6 +384,7 @@ export function createVenueWatcher(
                     {
                         event: 'market_venue_active',
                         venue,
+                        ...(market === undefined ? {} : { market }),
                         primary: configuredPrimary,
                         onBackup: venue !== configuredPrimary,
                     },
@@ -334,7 +400,15 @@ export function createVenueWatcher(
         }
 
         logger.warn(
-            { event: 'market_venue_switched', from, to: venue },
+            {
+                event: 'market_venue_switched',
+                from,
+                to: venue,
+                // A switch without a market is unreadable the moment there is more
+                // than one: two venues changing at once produce two identical
+                // lines, and an operator cannot tell which series moved.
+                ...(market === undefined ? {} : { market }),
+            },
             'market_venue_switched',
         );
     };

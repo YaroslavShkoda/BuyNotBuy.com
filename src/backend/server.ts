@@ -19,7 +19,7 @@ import {
     flushIndicatorVoteBacklog,
     indicatorVoteBacklog,
 } from './indicators/performance/indicator-performance.service.js';
-import { createVenueWatcher } from './market/market.provider.js';
+import { activeVenueForMarket, createVenueWatcher } from './market/market.provider.js';
 import { configuredSeries } from './history/ingestion.service.js';
 import { startIngestionScheduler } from './services/ingestion.scheduler.js';
 import { startPoller } from './services/poller.js';
@@ -37,7 +37,28 @@ const app = createApp();
  * Created here because this is the first point with a logger; the provider was
  * built at import time and knows nothing about one.
  */
-const reportVenueChange = createVenueWatcher(app.log);
+/**
+ * One venue watcher per market, not one for the process.
+ *
+ * It used to be a single watcher reading the process-wide chain, which is the
+ * primary market's — so a switch on any other market was invisible, and a switch
+ * on the primary produced a line naming no market. Per market means the watcher's
+ * `last` state is per market too, which is what makes "changed" mean anything:
+ * two markets that happen to sit on the same venue are not a change for either.
+ */
+const noop = (): void => undefined;
+
+const venueWatchers = new Map<string, () => void>(
+    marketConfig.symbols.map((market) => [
+        market,
+        createVenueWatcher(
+            app.log,
+            () => activeVenueForMarket(market),
+            marketConfig.provider,
+            market,
+        ),
+    ]),
+);
 
 let isShuttingDown = false;
 
@@ -257,7 +278,11 @@ async function startServer() {
                         async (market) => {
                             await observeMarket(market, {
                                 logger: app.log,
-                                reportVenueChange,
+                                // The watcher for *this* market. A process-wide
+                                // one would report the primary's chain after every
+                                // market's read, so the line would name a venue
+                                // that had just served a different series.
+                                reportVenueChange: venueWatchers.get(market) ?? noop,
                             });
                         },
                     );

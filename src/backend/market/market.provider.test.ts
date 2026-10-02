@@ -311,3 +311,165 @@ describe('the venue a market is stored under', () => {
         expect(() => configuredVenueFor('ETHUSDT')).toThrow(/ETHUSDT/);
     });
 });
+
+describe('failover for a market that is not the primary', () => {
+    /**
+     * With `MARKET_FALLBACK_PROVIDERS=bitget` and bitget declaring ETHUSDT, the
+     * second market used to be served by a bare venue: `FailoverProvider` was
+     * built once, for the process, around the primary market. So the setting
+     * exists because a primary venue is unreachable from some networks, and it
+     * did nothing for every market but one.
+     */
+    it('gives a routed market a chain instead of a bare venue', async () => {
+        vi.resetModules();
+
+        vi.stubEnv('MARKET_PROVIDER', 'binance');
+        vi.stubEnv('MARKET_FALLBACK_PROVIDERS', 'bitget');
+        vi.stubEnv('MARKET_VENUE_CAPABILITIES', 'binance=BTCUSDT@1h;bitget=ETHUSDT@1h');
+
+        const { marketProviderFor } = await import('./market.provider');
+
+        const eth = marketProviderFor('ETHUSDT');
+
+        // Bitget is the only venue declaring ETHUSDT, so the chain is one long.
+        // The claim is not "there is a chain" but "there is something to fail
+        // over to" — asserted on the venue list, which is what a failover would
+        // actually walk.
+        expect(eth.name).toBe('failover');
+        expect((eth as FailoverProvider).venues).toEqual(['bitget']);
+    });
+
+    it('keeps a declared backup in the chain, in configured preference order', async () => {
+        vi.resetModules();
+
+        vi.stubEnv('MARKET_PROVIDER', 'binance');
+        vi.stubEnv('MARKET_FALLBACK_PROVIDERS', 'bitget');
+        vi.stubEnv('MARKET_VENUE_CAPABILITIES', 'binance=BTCUSDT,ETHUSDT@1h;bitget=ETHUSDT@1h');
+
+        const { marketProviderFor } = await import('./market.provider');
+
+        // Both declare ETHUSDT, so both are in the chain — and the routed venue
+        // leads, because it is the one `route()` picked for this market.
+        expect((marketProviderFor('ETHUSDT') as FailoverProvider).venues).toEqual([
+            'binance',
+            'bitget',
+        ]);
+    });
+
+    it('excludes a backup that does not declare the market', async () => {
+        // **The half that makes the chain safe.** `FailoverProvider` asks each
+        // venue in order and never checks what that venue serves, so an
+        // unfiltered chain would fail over from a dead ETHUSDT venue to one that
+        // does not trade ETHUSDT. Nothing inside the chain would notice; the only
+        // thing between that and one asset's prices filed under another's name is
+        // a symbol check further downstream.
+        vi.resetModules();
+
+        vi.stubEnv('MARKET_PROVIDER', 'binance');
+        vi.stubEnv('MARKET_FALLBACK_PROVIDERS', 'bitget');
+        vi.stubEnv('MARKET_VENUE_CAPABILITIES', 'binance=BTCUSDT,ETHUSDT@1h;bitget=BTCUSDT@1h');
+
+        const { marketProviderFor } = await import('./market.provider');
+
+        // Bitget does not declare ETHUSDT, so the chain for ETHUSDT is binance
+        // alone — and a chain of one is honest: there is nowhere to go.
+        expect((marketProviderFor('ETHUSDT') as FailoverProvider).venues).toEqual(['binance']);
+
+        // The mirror image, so the exclusion is not "the second entry is always
+        // dropped": for BTCUSDT, bitget is a declared backup.
+        expect((marketProviderFor('BTCUSDT') as unknown as FailoverProvider).venues).toEqual([
+            'binance',
+            'bitget',
+        ]);
+    });
+
+    it('keeps one chain per market, so its breaker and recovery survive between calls', async () => {
+        vi.resetModules();
+
+        vi.stubEnv('MARKET_PROVIDER', 'binance');
+        vi.stubEnv('MARKET_FALLBACK_PROVIDERS', 'bitget');
+        vi.stubEnv('MARKET_VENUE_CAPABILITIES', 'binance=BTCUSDT@1h;bitget=ETHUSDT@1h');
+
+        const { marketProviderFor } = await import('./market.provider');
+
+        // A fresh chain per request would reset the circuit breaker every time —
+        // so it could never stay open — and the recovery counter every time, so
+        // it could never complete. Both of those are the reason a chain exists.
+        expect(marketProviderFor('ETHUSDT')).toBe(marketProviderFor('ETHUSDT'));
+        expect(marketProviderFor('ETHUSDT')).not.toBe(marketProviderFor('BTCUSDT'));
+    });
+});
+
+describe('a venue switch that names its market', () => {
+    it('reports the switch of the market it was asked about, not the process one', async () => {
+        // The second half of the item. The watcher used to be one for the whole
+        // process, reading the process-wide chain — which is the primary market's.
+        // So a switch on any other market was invisible, and a switch on the
+        // primary produced a line naming no market at all.
+        vi.resetModules();
+
+        vi.stubEnv('MARKET_PROVIDER', 'binance');
+        vi.stubEnv('MARKET_VENUE_CAPABILITIES', 'binance=BTCUSDT,ETHUSDT@1h;bitget=BTCUSDT,ETHUSDT@1h');
+
+        const { activeVenueForMarket, createVenueWatcher } = await import('./market.provider');
+
+        const warn = vi.fn();
+        const info = vi.fn();
+
+        let venue = 'binance';
+
+        const report = createVenueWatcher(
+            { warn, info },
+            () => venue,
+            'binance',
+            'ETHUSDT',
+        );
+
+        // The first observation is the process starting, not a failover.
+        report();
+        expect(warn).not.toHaveBeenCalled();
+
+        venue = 'bitget';
+        report();
+
+        expect(warn).toHaveBeenCalledTimes(1);
+        expect(warn.mock.calls[0]![0]).toMatchObject({
+            event: 'market_venue_switched',
+            from: 'binance',
+            to: 'bitget',
+            // The market is the whole difference between a readable line and two
+            // identical ones when two venues change at once.
+            market: 'ETHUSDT',
+        });
+
+        expect(activeVenueForMarket('ETHUSDT')).toBe('binance');
+    });
+
+    it('does not report a change for a market that did not change', async () => {
+        // Two markets sitting on the same venue is not a change for either of
+        // them. A process-wide `last` would call the second one's report a
+        // switch, because the first one's watch had already been updated.
+        vi.resetModules();
+
+        vi.stubEnv('MARKET_PROVIDER', 'binance');
+        vi.stubEnv('MARKET_VENUE_CAPABILITIES', 'binance=BTCUSDT,ETHUSDT@1h;bitget=BTCUSDT,ETHUSDT@1h');
+
+        const { createVenueWatcher } = await import('./market.provider');
+
+        const warn = vi.fn();
+        const info = vi.fn();
+
+        const btc = createVenueWatcher({ warn, info }, () => 'binance', 'binance', 'BTCUSDT');
+        const eth = createVenueWatcher({ warn, info }, () => 'binance', 'binance', 'ETHUSDT');
+
+        btc();
+        eth();
+        btc();
+        eth();
+
+        // No switches happened, so `warn` was never called — only the two
+        // "process starting" lines at info level.
+        expect(warn).not.toHaveBeenCalled();
+        expect(info).toHaveBeenCalledTimes(2);
+    });
+});
