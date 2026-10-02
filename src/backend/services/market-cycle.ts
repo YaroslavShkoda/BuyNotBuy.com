@@ -127,7 +127,7 @@ export async function observeMarket(
     // answered `ageMs: () => 0` and `stale: false` — a check that said «снимок
     // получен напрямую» at every instant of the process's life, including every
     // instant it served week-old candles.
-    observeNewestBar(lastBar?.timestamp ?? 0, now());
+    observeNewestBar(market, lastBar?.timestamp ?? 0);
 
     let snapshotId: string | null = null;
     let published = false;

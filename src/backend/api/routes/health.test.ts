@@ -5,7 +5,7 @@ import { resetMetrics } from '../lib/metrics.js';
 import { HEALTH_PATHS } from '../lib/health-paths.js';
 import { registerHealthRoutes } from './health.js';
 import { LATEST_SCHEMA_VERSION } from '../../db/migrations.js';
-import { healthRegistry, observeNewestBar } from '../../observability/health.registry.js';
+import { createHealthRegistry, observeNewestBar } from '../../observability/health.registry.js';
 
 import Fastify from 'fastify';
 import type { FastifyInstance } from 'fastify';
@@ -183,7 +183,7 @@ describe('readiness', () => {
         // asserting on the aggregate here would be asserting on whatever the
         // test database happens to hold, which is exactly the flake this suite
         // does not need.
-        observeNewestBar(NOW - 3 * DAY, NOW);
+        observeNewestBar('BTCUSDT', NOW - 3 * DAY);
 
         const response = await track(createApp()).inject({
             method: 'GET',
@@ -206,7 +206,7 @@ describe('readiness', () => {
         // registry is right to call it failing. Readiness is still 200, because
         // the instance can serve the data it already has and restarting it
         // would not make the exchange send bars.
-        observeNewestBar(NOW - 40 * DAY, NOW);
+        observeNewestBar('BTCUSDT', NOW - 40 * DAY);
 
         const response = await track(createApp()).inject({
             method: 'GET',
@@ -225,9 +225,29 @@ describe('readiness', () => {
         // including the instants it served week-old candles — and did so
         // without a database call, which is the cheapest possible way to be
         // confidently wrong.
-        observeNewestBar(NOW - 40 * DAY, NOW);
+        // A registry of our own with a **frozen clock**, because the age is now
+        // read at report time rather than frozen at write time. That change is
+        // the point of the item, and this assertion used to depend on the old
+        // behaviour: with the age computed where it is stored, `observeNewestBar
+        // (…, NOW)` produced an age of zero by construction and the assertion
+        // below was true for the wrong reason.
+        //
+        // The observation map is module state, so a registry built here sees the
+        // same bars the singleton does — only its clock differs.
+        const registry = createHealthRegistry({
+            database: { async ping() {/* healthy */} },
+            // Only the database check and the clock. The probes are the
+            // registry's own, which is the point: a stubbed probe would have made
+            // this test assert that the stub works, and this test is about what the
+            // registry says.
+            now: () => NOW,
+            freshWithinMs: 2 * DAY,
+            candleIntervalMs: DAY,
+        });
 
-        const report = await healthRegistry.report();
+        observeNewestBar('BTCUSDT', NOW - 40 * DAY);
+
+        const report = await registry.report();
         const freshness = report.components.find(
             (component) => component.name === 'market-freshness',
         );
@@ -235,13 +255,52 @@ describe('readiness', () => {
         expect(freshness?.state).toBe('degraded');
         expect(freshness?.dataAgeMs).toBe(40 * DAY);
 
-        observeNewestBar(NOW, NOW);
+        observeNewestBar('BTCUSDT', NOW);
 
-        const fresh = await healthRegistry.report();
+        const fresh = await registry.report();
 
         expect(
             fresh.components.find((c) => c.name === 'market-freshness')?.state,
         ).toBe('ok');
+    });
+
+    it('grows the reported age between two reports without a new observation', async () => {
+        // The half of the fix with nothing to do with markets: the age used to be
+        // computed when the bar was observed and returned verbatim, so a snapshot
+        // that went stale at 03:00 and was asked about at 05:00 reported its age
+        // as of 03:00 — and before the first observation it reported `0`, which
+        // reads as «снимок получен напрямую».
+        //
+        // Asserted through the registry rather than through the helper, because
+        // the helper is module-private and the claim is about what a report says.
+        // Two reports, one observation, and a clock that moved: the second has to
+        // be a minute older than the first, or the number is frozen at write time
+        // again.
+        let clock = 1_000_000;
+
+        const registry = createHealthRegistry({
+            database: { async ping() {/* healthy */} },
+            now: () => clock,
+            freshWithinMs: 2 * DAY,
+            candleIntervalMs: DAY,
+        });
+
+        observeNewestBar('BTCUSDT', 1_000_000);
+
+        const first = await registry.report();
+        const firstAge = first.components.find(
+            (component) => component.name === 'market-freshness',
+        )?.dataAgeMs;
+
+        clock = 1_060_000;
+
+        const second = await registry.report();
+        const secondAge = second.components.find(
+            (component) => component.name === 'market-freshness',
+        )?.dataAgeMs;
+
+        expect(firstAge).toBe(0);
+        expect(secondAge).toBe(60_000);
     });
 
     it('reports market-data venues without making readiness flap', async () => {
