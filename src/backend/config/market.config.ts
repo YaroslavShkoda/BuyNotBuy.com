@@ -631,3 +631,56 @@ export const marketConfig: MarketConfig = MarketConfigSchema.parse({
      */
     symbols: configuredSymbols,
 });
+
+/**
+ * Every configured market has to be a market some configured venue says it serves.
+ *
+ * **This was checked once per poll, on every poll, and nowhere else.** `symbols`
+ * and `venueCapabilities` were parsed from two different settings and validated
+ * independently, so a market configured but not declared produced a process that
+ * started cleanly, logged a healthy `registry_seeded`, and then threw
+ * `No configured venue does not serve ETHUSDT` on every cycle — for a
+ * configuration that was wrong before the first request was made.
+ *
+ * The refusal itself was always right. What was wrong was its **timing** and its
+ * **blast radius**: at boot the operator could not have known, and with two markets
+ * the throw ended the cycle, skipped every market after it, and stopped retention
+ * (which is why round 86's isolation is the thing that made this survivable
+ * rather than this check).
+ *
+ * A boot refusal is the honest place for it. A market nobody will answer for is a
+ * deployment mistake, and the whole design of this file is mistakes caught at the
+ * moment the setting is read: an unresolvable ticker, a typo in a venue name, a
+ * fallback that mocks the primary.
+ *
+ * **The message names both sides.** "ETHUSDT is configured but no venue declares
+ * it" is a fixable sentence; "venue mismatch" is a search.
+ */
+function assertEveryMarketIsServed(configured: MarketConfig): void {
+    const undeclared = configured.symbols.filter(
+        (market) =>
+            !configured.venueCapabilities.some((entry) =>
+                entry.instruments.some(
+                    (instrument) => instrument.trim().toUpperCase() === market.toUpperCase(),
+                ),
+            ),
+    );
+
+    if (undeclared.length === 0) {
+        return;
+    }
+
+    const served = configured.venueCapabilities
+        .map((entry) => `${entry.venue}: ${entry.instruments.join(', ')}`)
+        .join('; ');
+
+    throw new Error(
+        `Рынки настроены, но ни одна площадка их не обслуживает: ` +
+            `${undeclared.join(', ')}. Объявлено — ${served}. ` +
+            'Добавьте рынок в MARKET_VENUE_CAPABILITIES в формате ' +
+            '`площадка=РЫНОКИ@интервалы` через `;`, например ' +
+            '`binance=BTCUSDT,ETHUSDT@1h`.',
+    );
+}
+
+assertEveryMarketIsServed(marketConfig);

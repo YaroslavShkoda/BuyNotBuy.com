@@ -355,10 +355,57 @@ describe('the markets this process observes', () => {
         expect(await symbolsWith({ MARKET_SYMBOL: undefined })).toEqual(['BTCUSDT']);
     });
 
+    it('refuses at load a market that no venue declares', async () => {
+        // **This is the item.** The two settings are parsed independently, so a
+        // market configured but not declared used to produce a process that started
+        // cleanly, logged a healthy `registry_seeded`, and then threw
+        // `No configured venue does not serve ETHUSDT` on every cycle.
+        //
+        // The refusal was always right. What was wrong was its timing and its
+        // blast radius: at boot the operator could not have known, and with two
+        // markets the throw ended the cycle, skipped every market after it and
+        // stopped retention.
+        vi.resetModules();
+
+        vi.stubEnv('MARKET_SYMBOL', 'BTCUSDT');
+        vi.stubEnv('MARKET_SYMBOLS', 'ETHUSDT');
+        vi.stubEnv('MARKET_VENUE_CAPABILITIES', 'binance=BTCUSDT@1h');
+
+        await expect(import('./market.config')).rejects.toThrow(/ETHUSDT/);
+    });
+
+    it('names both sides of the mismatch, because "venue mismatch" is a search', async () => {
+        vi.resetModules();
+
+        vi.stubEnv('MARKET_SYMBOL', 'BTCUSDT');
+        vi.stubEnv('MARKET_SYMBOLS', 'ETHUSDT');
+        vi.stubEnv('MARKET_VENUE_CAPABILITIES', 'binance=BTCUSDT@1h');
+
+        // The market that is undeclared, and what the table actually says — so the
+        // message is a fixable sentence rather than something to grep for.
+        await expect(import('./market.config')).rejects.toThrow(/ETHUSDT.*binance: BTCUSDT/s);
+    });
+
+    it('loads when the venues do declare every configured market', async () => {
+        const symbols = await symbolsWith({
+            MARKET_SYMBOL: 'BTCUSDT',
+            MARKET_SYMBOLS: 'ETHUSDT',
+            MARKET_VENUE_CAPABILITIES: 'binance=BTCUSDT@1h;bitget=ETHUSDT@1h',
+        });
+
+        // Two venues, two markets, and neither refuses — the shape the round-90
+        // chain is built for.
+        expect(symbols).toEqual(['BTCUSDT', 'ETHUSDT']);
+    });
+
     it('keeps the primary first and adds the rest in the order written', async () => {
         const symbols = await symbolsWith({
             MARKET_SYMBOL: 'BTCUSDT',
             MARKET_SYMBOLS: 'ethusdt,solusdt',
+            // The boot check from round 96 is why this line exists: a market with
+            // no venue declaring it is refused at load, and a test that named one
+            // would now fail on the refusal rather than on the order.
+            MARKET_VENUE_CAPABILITIES: 'binance=BTCUSDT,ETHUSDT,SOLUSDT@1h',
         });
 
         // Order is meaning here, not cosmetics: the loop runs in it, and the
@@ -399,6 +446,7 @@ describe('the markets this process observes', () => {
         const symbols = await symbolsWith({
             MARKET_SYMBOL: 'BTCUSDT',
             MARKET_SYMBOLS: 'ETHUSDT,ETHUSDT,SOLUSDT,ETHUSDT',
+            MARKET_VENUE_CAPABILITIES: 'binance=BTCUSDT,ETHUSDT,SOLUSDT@1h',
         });
 
         expect(symbols).toEqual(['BTCUSDT', 'ETHUSDT', 'SOLUSDT']);

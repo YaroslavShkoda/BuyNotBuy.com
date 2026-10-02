@@ -1,6 +1,23 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { FailoverProvider } from './failover.provider.js';
+
+/**
+ * Cleanup in a hook, not at the end of each test.
+ *
+ * `vi.unstubAllEnvs()` was the last statement of every test, which means a test
+ * that threw left its environment stubbed and the next test inherited it. The
+ * round-96 boot check turned that into a visible failure — a test that named
+ * `MARKET_SYMBOLS` for one case made the next one refuse to load — but the leak
+ * was there before it, invisible, and only now had a symptom.
+ *
+ * The same shape as the `mockClear()` in the signal-history suite: cleanup in
+ * the body is cleanup that a failure skips.
+ */
+afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+});
 import { createVenueWatcher } from './market.provider.js';
 
 describe('marketDataProvider', () => {
@@ -31,7 +48,6 @@ describe('marketDataProvider', () => {
             typeof marketDataProvider.getCandles,
         ).toBe('function');
 
-        vi.unstubAllEnvs();
     });
 
     it('returns the primary unwrapped when no backup is configured', async () => {
@@ -47,7 +63,6 @@ describe('marketDataProvider', () => {
             marketDataProvider.constructor.name,
         ).toBe('BinanceProvider');
 
-        vi.unstubAllEnvs();
     });
 
     it('creates MockProvider for the mock configuration', async () => {
@@ -72,7 +87,6 @@ describe('marketDataProvider', () => {
             typeof marketDataProvider.getCandles,
         ).toBe('function');
 
-        vi.unstubAllEnvs();
     });
 });
 
@@ -93,7 +107,6 @@ describe('reporting which venue is answering', () => {
         expect(activeMarketVenue()).toBe('mock');
         expect(configuredMarketVenues()).toEqual(['mock']);
 
-        vi.unstubAllEnvs();
     });
 
     it('names the primary while it is healthy', async () => {
@@ -108,7 +121,6 @@ describe('reporting which venue is answering', () => {
         expect(activeMarketVenue()).toBe('binance');
         expect(configuredMarketVenues()).toEqual(['binance', 'bitget']);
 
-        vi.unstubAllEnvs();
     });
 });
 

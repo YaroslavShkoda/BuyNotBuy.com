@@ -213,6 +213,9 @@ describe('freshness across more than one market', () => {
 
         vi.stubEnv('MARKET_SYMBOL', 'BTCUSDT');
         vi.stubEnv('MARKET_SYMBOLS', 'ETHUSDT');
+        // A configured market no venue declares is refused at load (round 96), and
+        // the harness configures one on purpose.
+        vi.stubEnv('MARKET_VENUE_CAPABILITIES', 'binance=BTCUSDT,ETHUSDT@1h');
 
         const { createHealthRegistry, observeNewestBar } = await import('./health.registry.js');
 

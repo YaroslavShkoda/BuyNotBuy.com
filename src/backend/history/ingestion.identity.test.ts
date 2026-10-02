@@ -186,7 +186,10 @@ describe('the series a market is stored under, with no provider named', () => {
         // catch was that nobody was storing those bars at all.
         vi.resetModules();
         vi.stubEnv('MARKET_PROVIDER', 'mock');
-        vi.stubEnv('MARKET_VENUE_CAPABILITIES', 'mock=ETHUSDT@1h');
+        // Both markets. Declaring only the second one leaves the default
+        // BTCUSDT undeclared, and the round-96 boot check refuses that — which is
+        // the check working, not the test being wrong about what it means.
+        vi.stubEnv('MARKET_VENUE_CAPABILITIES', 'mock=BTCUSDT,ETHUSDT@1h');
 
         const { ingestOnce: ingest } = await import('./ingestion.service.js');
 
