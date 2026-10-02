@@ -173,7 +173,13 @@ export const LAYERS: readonly Layer[] = [
 export const UNPLACED: Readonly<Record<string, 'composition' | 'core'>> = {
     'app.ts': 'composition',
     'server.ts': 'composition',
-    'strategy': 'core',
+    // Renamed from `strategy` to `lifecycle`, and the rename is the whole entry:
+    // it was never a declared layer, so nothing in LAYERS moves and no edge
+    // changes. What it holds is what happens to a record of a rule — the ladder
+    // engine, the promotion policy, the evidence a promotion requires — and
+    // that is not a rule, which is what `strategies/` is. Two directories one
+    // letter apart, each with a registry of rules in it, was the trap.
+    'lifecycle': 'core',
     'properties': 'core',
 };
 

@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const evidenceFor = vi.fn();
 const resolveActive = vi.fn();
 
-vi.mock('../strategy/evidence.repository.js', () => ({
+vi.mock('../lifecycle/evidence.repository.js', () => ({
     createEvidenceReader: () => ({ evidenceFor }),
 }));
 
@@ -13,10 +13,10 @@ vi.mock('../analysis/strategy-version.repository.js', () => ({
 
 const { createEvidenceGate } = await import('./promotion-gate.js');
 const { DEFAULT_PROMOTION_CONFIG } = await import(
-    '../strategy/promotion.config.js'
+    '../lifecycle/promotion.config.js'
 );
 
-import type { RuleEvidence } from '../strategy/promotion.config.js';
+import type { RuleEvidence } from '../lifecycle/promotion.config.js';
 import type { CandidateStage } from '../strategies/candidate.repository.js';
 
 const DAY = 24 * 3_600_000;

@@ -185,7 +185,7 @@ npx vitest run src/backend/research/invariants-doc.test.ts
 
 Что в комментарии — утверждение, что лестницы **одна**, а их было три:
 `CandidateStage` (`strategies/candidate.repository.ts`, семь ступеней) и `RuleStage`
-(`strategy/promotion.config.ts`, восемь) — **у обоих есть свои переходы**,
+(`lifecycle/promotion.config.ts`, восемь) — **у обоих есть свои переходы**,
 `canTransition` у каждого свой, и обе охраняют порядок. Третий,
 `StrategyVersion.status`, удалён.
 

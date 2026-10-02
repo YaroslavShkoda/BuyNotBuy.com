@@ -820,7 +820,7 @@ export const MIGRATIONS: readonly Migration[] = [
             -- The seven values are exactly CANDIDATE_STAGES in
             -- strategies/candidate.repository.ts, in that order. That vocabulary
             -- is authoritative here because it is the one with a table behind it;
-            -- RuleStage in strategy/promotion.config.ts is a different, larger
+            -- RuleStage in lifecycle/promotion.config.ts is a different, larger
             -- set that reaches no storage at all. Recorded rather than merged —
             -- the two disagree on policy, and that disagreement is a decision
             -- about what a retired rule means, not a spelling fix.

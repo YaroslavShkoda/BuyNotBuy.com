@@ -48,7 +48,7 @@
 - `performance` → `db` (1), `outcomes` (3)
 - `analysis` → `config` (3), `db` (2), `types` (1)
 - `backtest` → `config` (14), `indicators` (2), `market` (5), `observability` (1), `signals` (2), `types` (4)
-- `services` → `analysis` (3), `config` (4), `db` (2), `history` (7), `indicators` (7), `market` (4), `observability` (2), `signals` (6), `strategies` (3), `strategy` (2), `types` (3)
+- `services` → `analysis` (3), `config` (4), `db` (2), `history` (7), `indicators` (7), `lifecycle` (2), `market` (4), `observability` (2), `signals` (6), `strategies` (3), `types` (3)
 - `api` → `config` (9), `db` (1), `errors` (4), `history` (3), `indicators` (3), `instruments` (4), `market` (9), `observability` (2), `services` (2), `signals` (1), `types` (1)
 - `research` → `backtest` (23), `config` (4), `db` (10), `indicators` (6), `observability` (1), `performance` (6), `strategies` (39), `types` (27)
 - `observability` → `config` (1), `db` (2)

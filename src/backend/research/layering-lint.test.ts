@@ -135,7 +135,7 @@ describe('this codebase, measured', () => {
         // **This list is a tripwire, and it has now caught something twice.**
         // Adding `performance/performance-load.repository.ts` to read outcomes
         // made this test fail with eleven instead of ten; adding
-        // `strategy/evidence.repository.ts` to read measurements made it fail
+        // `lifecycle/evidence.repository.ts` to read measurements made it fail
         // with twelve instead of eleven. Both are the moment it exists for: a
         // new seam is a thing a person agreed to, not a thing that appeared.
         // The name is written here so the agreement is on the record.
@@ -148,12 +148,12 @@ describe('this codebase, measured', () => {
             'history/signal-history.repository.ts',
             'indicators/performance/indicator-vote.repository.ts',
             'instruments/asset.repository.ts',
+            'lifecycle/evidence.repository.ts',
             'outcomes/outcome.repository.ts',
             'performance/performance-load.repository.ts',
             'signals/lifecycle.repository.ts',
             'strategies/candidate.repository.ts',
             'strategies/decision-log.repository.ts',
-            'strategy/evidence.repository.ts',
         ]);
     }, 30000);
 

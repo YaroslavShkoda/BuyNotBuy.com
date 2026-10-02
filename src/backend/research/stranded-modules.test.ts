@@ -11,8 +11,8 @@ const realRoot = join(fileURLToPath(new URL('.', import.meta.url)), '..');
  *
  * This is the module-level counterpart to the layer-level `unreachable` check
  * in the dependency graph, and it exists because a whole promotion subsystem
- * turned out to be invisible from this side. `strategy/rule-registry.ts` and
- * `strategy/promotion.config.ts` together hold 572 lines of rule lifecycle —
+ * turned out to be invisible from this side. `lifecycle/rule-registry.ts` and
+ * `lifecycle/promotion.config.ts` together hold 572 lines of rule lifecycle —
  * `createRule`, `productionRules`, `activeRule`, `auditProduction`, `advance`,
  * `planRollback` and the whole `RuleStage` ladder — and the only file in the
  * repository that imports either of them is their own test, 545 lines long.
@@ -86,7 +86,7 @@ describe('production modules with no production caller', () => {
         // expected value in a more meaningful order than the thing under test
         // fails on every run for a reason that has nothing to do with the
         // finding. The commentary on what each entry means is below.
-        expect(stranded).toEqual(['strategy/rule-registry.ts']);
+        expect(stranded).toEqual(['lifecycle/rule-registry.ts']);
 
         // **Everything the roadmap asked for in M1 is now connected.**
         //
@@ -182,13 +182,13 @@ describe('production modules with no production caller', () => {
         // `rule-registry.ts` is still in the list, and **I nearly took it out for
         // the wrong reason.** What round 23 changed was the finding behind it,
         // not the module: the gate it implements now runs, through
-        // `strategy/evidence.repository.ts` and `services/promotion-gate.ts`,
+        // `lifecycle/evidence.repository.ts` and `services/promotion-gate.ts`,
         // attached to the shared repository so that every entry point —
         // including both research CLIs — reaches it. The second ladder still has
         // no caller, and that is now a written decision rather than an
         // oversight: `RuleStage` is a vocabulary the database cannot hold, and
         // the mismatch is enumerated transition by transition in
-        // `strategy/stage-vocabulary.test.ts`. It stays on this list because
+        // `lifecycle/stage-vocabulary.test.ts`. It stays on this list because
         // nobody has decided what a retired rule means, and a module should not
         // be wired up to a model the schema contradicts just to shorten a list.
         //
@@ -212,7 +212,7 @@ describe('production modules with no production caller', () => {
 
         const productionImporters = graph.edges.filter(
             (edge) =>
-                !edge.from.includes('.test.') && edge.to.includes('strategy/rule-registry'),
+                !edge.from.includes('.test.') && edge.to.includes('lifecycle/rule-registry'),
         );
 
         expect(productionImporters).toEqual([]);

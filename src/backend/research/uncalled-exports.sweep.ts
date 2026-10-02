@@ -3,7 +3,7 @@
  *
  * **The module-level check cannot see this, and the gap is not academic.**
  * `research/stranded-modules.test.ts` pins the production modules with no
- * production caller — `strategy/rule-registry.ts` and `strategy/promotion.config.ts`,
+ * production caller — `lifecycle/rule-registry.ts` and `lifecycle/promotion.config.ts`,
  * 572 lines of rule lifecycle — and that is exactly the right unit for what
  * stranded: a whole file nobody reaches. The dependency graph reports zero
  * unreachable layers for the same reason.
