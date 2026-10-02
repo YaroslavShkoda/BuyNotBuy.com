@@ -272,9 +272,16 @@ export const METRIC_COUNTERS = [
     'signal_changes_total',
     'strategy_decision_write_failures',
     'market_cycle_failures',
+    'provider_retries',
 ] as const;
 
-export const METRIC_GAUGES = ['provider_circuit_open'] as const;
+export const METRIC_GAUGES = [
+    'provider_circuit_open',
+    'provider_error_rate',
+    'provider_health',
+    'provider_consecutive_failures',
+    'metric_series_limit',
+] as const;
 
 export const METRIC_DISTRIBUTIONS = [
     'provider_latency',
@@ -295,6 +302,11 @@ export const MetricKindSchema = z.enum(['counter', 'gauge', 'distribution']);
 export type MetricKind = z.infer<typeof MetricKindSchema>;
 
 export const METRIC_KIND: Readonly<Record<MetricName, MetricKind>> = {
+    provider_retries: 'counter',
+    provider_error_rate: 'gauge',
+    provider_health: 'gauge',
+    provider_consecutive_failures: 'gauge',
+    metric_series_limit: 'gauge',
     provider_requests_total: 'counter',
     provider_errors_total: 'counter',
     provider_rate_limits: 'counter',

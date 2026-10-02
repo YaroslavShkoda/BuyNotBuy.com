@@ -35,6 +35,14 @@ describe('the metrics the roadmap named are the metrics we publish', () => {
         'backtest_duration',
         'strategy_decision_write_failures',
         'market_cycle_failures',
+        // Declared because the exposition already published them from outside the
+        // registry, under names and kinds the catalogue disagreed with. The list is
+        // the promise; these were in the exposition and not in it.
+        'provider_retries',
+        'provider_error_rate',
+        'provider_health',
+        'provider_consecutive_failures',
+        'metric_series_limit',
     ];
 
     it('publishes exactly those, in one list, without duplicates', () => {

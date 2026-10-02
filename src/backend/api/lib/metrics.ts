@@ -1,13 +1,6 @@
-import { observabilityConfig } from '../../config/observability.config.js';
+import { publishProviderGauges } from '../../market/providers/provider-metrics.js';
 import { signalHistoryBacklog } from '../../history/signal-history.service.js';
 import { indicatorVoteBacklog } from '../../indicators/performance/indicator-performance.service.js';
-import { marketConfig } from '../../config/market.config.js';
-import { configuredMarketVenues } from '../../market/market.provider.js';
-import { venueHealthSummary } from '../../market/providers/provider-http.js';
-import {
-    providerTelemetry,
-    providerTelemetryAll,
-} from '../../market/providers/provider-telemetry.js';
 import { currentRegistry } from '../../observability/registry.js';
 
 import type { FastifyReply, FastifyRequest } from 'fastify';
@@ -113,6 +106,15 @@ function escapeLabel(value: string): string {
  * without it makes that difference invisible.
  */
 export function renderMetrics(): string {
+    // The provider gauges, set immediately before they are read back.
+    //
+    // This is the pull half of the registry working as intended: a counter or a
+    // distribution is written where the event happens and accumulated, while a
+    // gauge is a statement about now and can only be computed by somebody looking.
+    // Calling it here — rather than at some tick — is what makes `provider_health`
+    // mean the state at scrape time instead of the state at the last request.
+    publishProviderGauges();
+
     const now = Date.now();
     const uptimeSeconds = Math.max(0, Math.round((now - snapshot.startedAt) / 1000));
     const lines: string[] = [
@@ -175,108 +177,21 @@ export function renderMetrics(): string {
         );
     }
 
-    /**
- * Every configured venue/market pair, plus any pair telemetry has seen.
- *
- * The configured pairs come first and are always present, so a market that has
- * never been called renders as a zero rather than as a gap. The telemetry pairs
- * catch a market that was called and is no longer configured — which should not
- * happen, and if it does, hiding it would be worse than showing it.
- */
-function venueMarketPairs(): [string, string][] {
-    const pairs = new Map<string, [string, string]>();
-
-    for (const venue of configuredMarketVenues()) {
-        for (const market of marketConfig.symbols) {
-            pairs.set(`${venue}:${market}`, [venue, market]);
-        }
-    }
-
-    for (const entry of providerTelemetryAll()) {
-        pairs.set(`${entry.provider}:${entry.market}`, [entry.provider, entry.market]);
-    }
-
-    return [...pairs.values()];
-}
-
-// Provider telemetry. Labelled by **venue and market**.
+    // Provider metrics are no longer written here.
     //
-    // The venue alone was enough while there was one market, and the reason the
-    // old comment gave was sound: the pair is bounded by configuration, not by
-    // traffic, so it cannot grow a series per request the way a path or a request
-    // id would. The market is bounded the same way — it is `MARKET_SYMBOLS` — so
-    // the cardinality argument survives adding it.
+    // **This block used to be ten hand-written names**, and it disagreed with the
+    // closed catalogue about every one of them the catalogue mentioned: a counter
+    // where the catalogue declares a gauge (`provider_circuit_open`), a mean where
+    // it declares a distribution (`provider_latency`), and a different name again
+    // for the rate-limit counter.
     //
-    // What did not survive it is the *meaning*: a p95 over two markets is a number
-    // about neither. `buynotbuy_provider_latency_p95_ms{provider="binance"}` used
-    // to be the 95th percentile of BTCUSDT and ETHUSDT together, so a p95 that
-    // crossed the alert threshold could not be attributed to a series, and a
-    // second market with a normal 4-second response would move the p95 of the
-    // first.
-    //
-    // Rendered for every configured venue/market pair even before the first call,
-    // so a scraper sees a zero rather than a gap. A gap and a zero look identical
-    // on a graph and mean opposite things: "no traffic" and "no data".
-    for (const [venue, market] of venueMarketPairs()) {
-        const stats = providerTelemetry(venue, market);
-        const healthState = venueHealthSummary(venue);
-        const label =
-            `{provider="${escapeLabel(venue)}",market="${escapeLabel(market)}"}`;
-
-        lines.push(
-            '',
-            `# HELP buynotbuy_provider_requests_total Provider calls attempted.`,
-            '# TYPE buynotbuy_provider_requests_total counter',
-            `buynotbuy_provider_requests_total${label} ${stats?.requests ?? 0}`,
-            '',
-            '# HELP buynotbuy_provider_errors_total Provider calls that failed.',
-            '# TYPE buynotbuy_provider_errors_total counter',
-            `buynotbuy_provider_errors_total${label} ${stats?.failures ?? 0}`,
-            '',
-            '# HELP buynotbuy_provider_rate_limits_total Rate-limit responses received.',
-            '# TYPE buynotbuy_provider_rate_limits_total counter',
-            `buynotbuy_provider_rate_limits_total${label} ${stats?.rateLimits ?? 0}`,
-            '',
-            '# HELP buynotbuy_provider_retries_total Provider calls retried.',
-            '# TYPE buynotbuy_provider_retries_total counter',
-            `buynotbuy_provider_retries_total${label} ${stats?.retries ?? 0}`,
-            '',
-            '# HELP buynotbuy_provider_circuit_open_total Calls refused by an open breaker.',
-            '# TYPE buynotbuy_provider_circuit_open_total counter',
-            `buynotbuy_provider_circuit_open_total${label} ${stats?.circuitOpens ?? 0}`,
-            '',
-            '# HELP buynotbuy_provider_latency_ms Provider call latency percentiles over the recent sample.',
-            '# TYPE buynotbuy_provider_latency_ms gauge',
-            `buynotbuy_provider_latency_ms${label} ${stats?.lastLatencyMs ?? 0}`,
-            `buynotbuy_provider_latency_p50_ms${label} ${stats?.latencyP50Ms ?? 0}`,
-            `buynotbuy_provider_latency_p95_ms${label} ${stats?.latencyP95Ms ?? 0}`,
-            `buynotbuy_provider_latency_p99_ms${label} ${stats?.latencyP99Ms ?? 0}`,
-            '',
-            '# HELP buynotbuy_provider_error_rate Share of provider calls that failed, in [0, 1].',
-            '# TYPE buynotbuy_provider_error_rate gauge',
-            // No traffic is rendered as 0 rather than as a NaN, which is what an
-            // absent sample would produce and which no scraper can graph.
-            `buynotbuy_provider_error_rate${label} ${stats?.errorRate ?? 0}`,
-            '',
-            '# HELP buynotbuy_provider_health 1 when the venue can be asked, 0 when it cannot.',
-            '# TYPE buynotbuy_provider_health gauge',
-            `buynotbuy_provider_health${label} ${healthState.available ? 1 : 0}`,
-            '',
-            '# HELP buynotbuy_provider_consecutive_failures Failures since the last success.',
-            '# TYPE buynotbuy_provider_consecutive_failures gauge',
-            `buynotbuy_provider_consecutive_failures${label} ${healthState.consecutiveFailures}`,
-        );
-    }
-
-    // The limit is reported so a reader can see whether the route table has
-    // outgrown what the endpoint is prepared to keep.
-    lines.push(
-        '',
-        '# HELP buynotbuy_metric_series_limit Maximum distinct series kept per group.',
-        '# TYPE buynotbuy_metric_series_limit gauge',
-        `buynotbuy_metric_series_limit ${observabilityConfig.metricLabelLimit}`,
-        '',
-    );
+    // That is the bypass the closed list exists to prevent — a name in the
+    // exposition that no declaration promised, so nothing could notice it changing
+    // or vanishing. The five counters and the latency distribution are now written
+    // where the event happens (`providers/provider-http.ts`), and the five gauges
+    // are derived at read time (`providers/provider-metrics.ts`), because a gauge is
+    // a statement about the present and the present is only knowable when somebody
+    // looks.
 
     // The metrics the roadmap named, from the registry that records them at the
     // call sites. Appended rather than merged into the blocks above, because

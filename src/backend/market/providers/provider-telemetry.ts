@@ -1,4 +1,5 @@
 import { marketConfig } from '../../config/market.config.js';
+import { currentRegistry } from '../../observability/registry.js';
 
 /**
  * Latency and error-rate telemetry for outbound provider calls.
@@ -76,6 +77,22 @@ function emptySeries(): ProviderSeries {
 }
 
 /**
+ * The declared counters, written beside the telemetry that counts the same events.
+ *
+ * They live here rather than in the HTTP layer above so that one event is counted
+ * in one place. Both stores count the same calls; when the counters were written by
+ * the caller instead, a second call site that recorded telemetry and forgot the
+ * registry would have produced a series that quietly stopped growing — and the
+ * telemetry, which is not part of the exposition, would have kept looking right.
+ *
+ * Labels are the same venue and market the telemetry is keyed by, so the two cannot
+ * disagree about which market a number belongs to.
+ */
+function labelsFor(provider: string, market: string): Record<string, string> {
+    return { provider, market };
+}
+
+/**
  * One series per **venue and market**.
  *
  * A venue's p95 over two markets is a number about neither of them: the alert
@@ -145,6 +162,17 @@ export function recordProviderRequest(
     latencyMs: number,
     httpStatus: number | null,
 ): void {
+    const registry = currentRegistry();
+    const labels = labelsFor(provider, market);
+
+    registry.counter('provider_requests_total', 1, labels);
+
+    if (Number.isFinite(latencyMs)) {
+        // The distribution rather than a mean, because the tail is the part an
+        // operator is waiting on and a mean is the part that hides it.
+        registry.observe('provider_latency', latencyMs, labels);
+    }
+
     const current = seriesFor(provider, market);
 
     current.requests += 1;
@@ -177,6 +205,8 @@ export function recordProviderError(
     market: string,
     endpoint: string,
 ): void {
+    currentRegistry().counter('provider_errors_total', 1, labelsFor(provider, market));
+
     const current = seriesFor(provider, market);
 
     current.failures += 1;
@@ -191,10 +221,14 @@ export function recordProviderError(
 }
 
 export function recordProviderRateLimited(provider: string, market: string): void {
+    currentRegistry().counter('provider_rate_limits', 1, labelsFor(provider, market));
+
     seriesFor(provider, market).rateLimits += 1;
 }
 
 export function recordProviderRetry(provider: string, market: string): void {
+    currentRegistry().counter('provider_retries', 1, labelsFor(provider, market));
+
     seriesFor(provider, market).retries += 1;
 }
 

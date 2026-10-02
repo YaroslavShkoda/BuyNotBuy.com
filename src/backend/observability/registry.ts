@@ -372,6 +372,44 @@ export const METRIC_CATALOGUE: readonly ObservabilityMetric[] = z
             description: 'Время ответа провайдера. Среднее здесь бесполезно — нужен хвост.',
         },
         {
+            name: 'provider_retries',
+            kind: 'counter',
+            // Declared because it was already being published, from outside the
+            // registry. A name in the exposition that the catalogue does not
+            // mention is the same bypass in the other direction: nothing promised
+            // it, so nothing could notice it disappear.
+            description: 'Повторов одного и того же запроса провайдеру.',
+        },
+        {
+            name: 'provider_error_rate',
+            kind: 'gauge',
+            // A gauge and not a derived expression on the far side, because the
+            // far side would have to divide two counters of different label sets
+            // and get the label join right — the mistake this project has
+            // already made once with a labelled counter.
+            description: 'Доля неудавшихся вызовов провайдера, в [0, 1].',
+        },
+        {
+            name: 'provider_health',
+            kind: 'gauge',
+            description: '1, если площадку можно спросить по этому рынку, иначе 0.',
+        },
+        {
+            name: 'provider_consecutive_failures',
+            kind: 'gauge',
+            // A gauge because it goes back down: a success resets it, and a counter
+            // that reset would make `rate()` produce a negative slope.
+            description: 'Сбоев подряд с последнего успеха.',
+        },
+        {
+            name: 'metric_series_limit',
+            kind: 'gauge',
+            // The only hand-written line in this exposition, and now it is not:
+            // a statement about the exposition itself, published so a reader can
+            // see whether it has outgrown what the endpoint keeps.
+            description: 'Предел различных серий на группу метрик.',
+        },
+        {
             name: 'market_cache_hits',
             kind: 'counter',
             description: 'Ответов из кэша без обращения к провайдеру.',

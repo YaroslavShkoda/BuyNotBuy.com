@@ -20,7 +20,7 @@
 | `config` | 13 | 89 | 5 | сквозной лист |
 | `instruments` | 4 | 10 | 2 | сквозной лист |
 | `db` | 4 | 30 | 2 | ядро |
-| `market` | 15 | 27 | 36 | ядро |
+| `market` | 16 | 25 | 41 | ядро |
 | `indicators` | 21 | 24 | 35 | ядро |
 | `strategies` | 11 | 44 | 6 | ядро |
 | `signals` | 8 | 14 | 14 | ядро |
@@ -30,16 +30,16 @@
 | `analysis` | 2 | 4 | 6 | ядро |
 | `backtest` | 14 | 23 | 28 | ядро |
 | `services` | 8 | 10 | 61 | составляющий |
-| `api` | 25 | 12 | 42 | составляющий |
+| `api` | 25 | 12 | 38 | составляющий |
 | `research` | 42 | 0 | 116 | составляющий |
-| `observability` | 6 | 20 | 3 | сквозной лист |
+| `observability` | 6 | 23 | 3 | сквозной лист |
 
 ### Куда каждый слой импортирует
 
 - `config` → `instruments` (2), `strategies` (1), `types` (2)
 - `instruments` → `config` (1), `db` (1)
 - `db` → `config` (1), `observability` (1)
-- `market` → `config` (14), `errors` (12), `observability` (2), `types` (8)
+- `market` → `config` (16), `errors` (12), `observability` (5), `types` (8)
 - `indicators` → `config` (7), `db` (1), `errors` (1), `observability` (3), `types` (23)
 - `strategies` → `db` (2), `types` (4)
 - `signals` → `config` (8), `db` (1), `indicators` (1), `observability` (1), `types` (3)
@@ -49,7 +49,7 @@
 - `analysis` → `config` (3), `db` (2), `types` (1)
 - `backtest` → `config` (14), `indicators` (2), `market` (5), `observability` (1), `signals` (2), `types` (4)
 - `services` → `analysis` (4), `config` (7), `db` (2), `history` (11), `indicators` (11), `instruments` (2), `lifecycle` (2), `market` (5), `observability` (3), `outcomes` (1), `signals` (7), `strategies` (3), `types` (3)
-- `api` → `config` (12), `db` (1), `errors` (4), `history` (3), `indicators` (3), `instruments` (4), `market` (9), `observability` (2), `services` (2), `signals` (1), `types` (1)
+- `api` → `config` (10), `db` (1), `errors` (4), `history` (3), `indicators` (3), `instruments` (4), `market` (7), `observability` (2), `services` (2), `signals` (1), `types` (1)
 - `research` → `backtest` (23), `config` (4), `db` (10), `indicators` (6), `observability` (1), `performance` (6), `strategies` (39), `types` (27)
 - `observability` → `config` (1), `db` (2)
 
@@ -67,7 +67,7 @@
 
 ## Зашитый рынок
 
-Упоминаний в комментариях (записи измерений): 136.
+Упоминаний в комментариях (записи измерений): 134.
 
 Строковых литералов в коде, разрешённый слой: 26.
 
