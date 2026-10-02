@@ -6,7 +6,10 @@ import { getSignalHistoryRepository } from './signal-history.repository.js';
 import { createSignalHistoryWriteBuffer } from './signal-history.write-buffer.js';
 import { createFlushGuard } from '../observability/bounded-write-buffer.js';
 
-import type { BacklogState } from '../observability/bounded-write-buffer.js';
+import type {
+    BacklogState,
+    BacklogStateByMarket,
+} from '../observability/bounded-write-buffer.js';
 import type {
     SignalHistoryEntry,
     SignalHistoryLastTransition,
@@ -184,6 +187,12 @@ export async function recordSignalHistory(
         logger?.warn(
             {
                 event: 'signal_history_record_failed',
+                // Named, because the two counters below are the process's and not
+                // this market's: with a second market running, "buffered: 400"
+                // says only that somebody is behind, and the failure being
+                // diagnosed is per market — one market, one configured venue, one
+                // series. The symbol was in scope the whole time.
+                market: entry.symbol,
                 buffered: writeBuffer.size,
                 dropped: writeBuffer.droppedCount,
                 err: error,
@@ -357,8 +366,14 @@ export function getSignalHistoryBacklogSize(): number {
     return writeBuffer.size;
 }
 
-export function signalHistoryBacklog(): BacklogState {
-    return { buffered: writeBuffer.size, dropped: writeBuffer.droppedCount };
+export function signalHistoryBacklog(): BacklogState & {
+    byMarket: BacklogStateByMarket;
+} {
+    return {
+        buffered: writeBuffer.size,
+        dropped: writeBuffer.droppedCount,
+        byMarket: writeBuffer.byMarket,
+    };
 }
 
 /**

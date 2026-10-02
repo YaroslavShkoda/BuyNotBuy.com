@@ -43,6 +43,14 @@ describe('the metrics the roadmap named are the metrics we publish', () => {
         'provider_health',
         'provider_consecutive_failures',
         'metric_series_limit',
+        // Absent from the promise until round 107, which is how they stayed out
+        // of the catalogue: the list is closed, and a name nothing declared could
+        // not be diffed against anything. These four were being exposed by hand
+        // the whole time.
+        'write_backlog_signal_history_buffered',
+        'write_backlog_signal_history_dropped_total',
+        'write_backlog_indicator_vote_buffered',
+        'write_backlog_indicator_vote_dropped_total',
     ];
 
     it('publishes exactly those, in one list, without duplicates', () => {

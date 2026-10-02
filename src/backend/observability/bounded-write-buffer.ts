@@ -35,14 +35,41 @@ export interface BoundedWriteBuffer<T> {
     readonly size: number;
     /** Entries dropped because the buffer was full, over the buffer's lifetime. */
     readonly droppedCount: number;
+    /**
+     * The same two counts, split by market.
+     *
+     * **The buffer is one queue, but what an operator needs is per market.** With
+     * `MARKET_SYMBOLS` naming a second market, a total says only that *someone*
+     * is losing records — and the failure it has to diagnose is per market by
+     * construction, since one market's series is written by one configured venue.
+     *
+     * A total also hides which market a drop belonged to, and that attribution
+     * matters more than the count: a full buffer drops the **oldest** entry, so a
+     * market in a long outage can evict a healthy market's records, and the
+     * healthy market is the one whose series will show a hole nobody wrote about.
+     * Splitting the counters is what makes that visible. It does not stop it —
+     * the ceiling stays one ceiling for the process, and per-market buffers would
+     * multiply the memory bound by the number of markets, which is the trade this
+     * is deliberately not making.
+     */
+    readonly byMarket: Readonly<Record<string, BacklogState>>;
     clear(): void;
 }
 
-export interface BoundedWriteBufferOptions {
+export interface BoundedWriteBufferOptions<T> {
     /** Hard ceiling on buffered entries; oldest are dropped past this. */
     maxSize: number;
     /** Which record this buffer holds, for the operator reading a counter. */
     label: string;
+    /**
+     * The market an entry belongs to, for the per-market counters.
+     *
+     * Required rather than optional: a buffer that could not attribute its drops
+     * would make `byMarket` silently empty, and an empty object reads exactly
+     * like "no market has ever dropped anything". Failing to compile is the
+     * better outcome, and both call sites have a symbol in hand.
+     */
+    marketOf: (entry: T) => string;
 }
 
 /**
@@ -61,20 +88,37 @@ export interface BacklogState {
     dropped: number;
 }
 
+/** The per-market split of a buffer, keyed by market. */
+export type BacklogStateByMarket = Readonly<Record<string, BacklogState>>;
+
 export function createBoundedWriteBuffer<T>(
-    options: BoundedWriteBufferOptions,
+    options: BoundedWriteBufferOptions<T>,
 ): BoundedWriteBuffer<T> {
     const entries: T[] = [];
 
     let dropped = 0;
+
+    // Two tallies rather than a recount of the queue, and deliberately:
+    // `drained` exists precisely because a drop is not observable any other way.
+    // A drop happens when an entry is *evicted*, so by the time anyone asks, the
+    // entry is gone — there is nothing left to count it from. And it is a drop,
+    // not a success, so it must not survive a drain as a retry either.
+    const droppedByMarket = new Map<string, number>();
 
     return {
         push(entry: T): void {
             entries.push(entry);
 
             while (entries.length > options.maxSize) {
-                entries.shift();
+                const evicted = entries.shift();
+
                 dropped += 1;
+
+                if (evicted !== undefined) {
+                    const market = options.marketOf(evicted);
+
+                    droppedByMarket.set(market, (droppedByMarket.get(market) ?? 0) + 1);
+                }
             }
         },
 
@@ -88,6 +132,35 @@ export function createBoundedWriteBuffer<T>(
 
         get droppedCount(): number {
             return dropped;
+        },
+
+        get byMarket(): BacklogStateByMarket {
+            // Counted from what is *in* the queue, not remembered: a market that
+            // drained cleanly must read as 0 buffered, and a remembered count
+            // would have to be decremented on every drain path to stay honest.
+            const buffered = new Map<string, number>();
+
+            for (const entry of entries) {
+                const market = options.marketOf(entry);
+
+                buffered.set(market, (buffered.get(market) ?? 0) + 1);
+            }
+
+            const markets = new Set<string>([
+                ...buffered.keys(),
+                ...droppedByMarket.keys(),
+            ]);
+
+            const state: Record<string, BacklogState> = {};
+
+            for (const market of [...markets].sort()) {
+                state[market] = {
+                    buffered: buffered.get(market) ?? 0,
+                    dropped: droppedByMarket.get(market) ?? 0,
+                };
+            }
+
+            return state;
         },
 
         clear(): void {

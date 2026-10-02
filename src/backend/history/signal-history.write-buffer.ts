@@ -1,6 +1,9 @@
 import { createBoundedWriteBuffer } from '../observability/bounded-write-buffer.js';
 
-import type { BoundedWriteBuffer } from '../observability/bounded-write-buffer.js';
+import type {
+    BacklogStateByMarket,
+    BoundedWriteBuffer,
+} from '../observability/bounded-write-buffer.js';
 import type { SignalHistoryEntry } from './signal-history.types.js';
 
 export interface SignalHistoryWriteBufferOptions {
@@ -16,6 +19,8 @@ export interface SignalHistoryWriteBuffer {
     readonly size: number;
     /** Entries dropped because the buffer was full. */
     readonly droppedCount: number;
+    /** The same two counts, split by market. */
+    readonly byMarket: BacklogStateByMarket;
     clear(): void;
 }
 
@@ -37,5 +42,6 @@ export function createSignalHistoryWriteBuffer(
     return createBoundedWriteBuffer<SignalHistoryEntry>({
         maxSize: options.maxSize,
         label: 'signal_history',
+        marketOf: (entry) => entry.symbol,
     }) as BoundedWriteBuffer<SignalHistoryEntry>;
 }

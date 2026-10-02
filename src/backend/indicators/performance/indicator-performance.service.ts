@@ -6,7 +6,10 @@ import {
     createFlushGuard,
 } from '../../observability/bounded-write-buffer.js';
 
-import type { BacklogState } from '../../observability/bounded-write-buffer.js';
+import type {
+    BacklogState,
+    BacklogStateByMarket,
+} from '../../observability/bounded-write-buffer.js';
 import type { SignalDirection } from '../../types/direction.js';
 import type { IndicatorVoteRepository } from './indicator-vote.repository.js';
 import type { Candle } from '../../types/market.js';
@@ -33,6 +36,9 @@ const HOUR_MS = 3_600_000;
 const voteBacklog = createBoundedWriteBuffer<IndicatorVote[]>({
     maxSize: historyConfig.maxBufferedEntries,
     label: 'indicator_vote',
+    // A batch is one market's votes: the whole batch is written under one series,
+    // and buffering it whole is what makes the retry replay the same rows.
+    marketOf: (batch) => batch[0]?.symbol ?? '',
 });
 
 const runVoteFlush = createFlushGuard();
@@ -143,6 +149,9 @@ export async function recordIndicatorVotes(
         logger?.warn(
             {
                 event: 'indicator_vote_record_failed',
+                // As in signal history: the counters are the process's, the
+                // failure is the market's. A batch holds one market's votes.
+                market: symbol,
                 buffered: voteBacklog.size,
                 dropped: voteBacklog.droppedCount,
                 err: error,
@@ -261,8 +270,14 @@ export function flushIndicatorVoteBacklog(
     return runVoteFlush(() => writeVoteBacklog(logger, repository));
 }
 
-export function indicatorVoteBacklog(): BacklogState {
-    return { buffered: voteBacklog.size, dropped: voteBacklog.droppedCount };
+export function indicatorVoteBacklog(): BacklogState & {
+    byMarket: BacklogStateByMarket;
+} {
+    return {
+        buffered: voteBacklog.size,
+        dropped: voteBacklog.droppedCount,
+        byMarket: voteBacklog.byMarket,
+    };
 }
 
 type CandleLookup =

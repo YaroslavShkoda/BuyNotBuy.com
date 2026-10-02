@@ -454,6 +454,40 @@ export const METRIC_CATALOGUE: readonly ObservabilityMetric[] = z
                 'двух, чередующихся сбоев.',
         },
         {
+            // Declared in round 107, and late: these four were hand-written in
+            // `api/lib/metrics.ts` and had never been in the catalogue at all,
+            // which is the same omission round 99 removed for the provider
+            // metrics. Nothing checked them because the check only asks about
+            // names the catalogue mentions.
+            name: 'write_backlog_signal_history_buffered',
+            kind: 'gauge',
+            description:
+                'Снимков сигнала, ждущих повторной записи. Без метки `market` — ' +
+                'итог по процессу; с меткой — по рынку.',
+        },
+        {
+            name: 'write_backlog_signal_history_dropped_total',
+            kind: 'counter',
+            description:
+                'Снимков сигнала, потерянных из-за переполненного буфера. Число ' +
+                'растёт только вверх: это потерянные записи, а не текущий ' +
+                'очередь.',
+        },
+        {
+            name: 'write_backlog_indicator_vote_buffered',
+            kind: 'gauge',
+            description:
+                'Пакетов голосов индикаторов, ждущих повторной записи. Без ' +
+                'метки `market` — итог по процессу; с меткой — по рынку.',
+        },
+        {
+            name: 'write_backlog_indicator_vote_dropped_total',
+            kind: 'counter',
+            description:
+                'Пакетов голосов индикаторов, потерянных из-за переполненного ' +
+                'буфера.',
+        },
+        {
             name: 'strategy_decision_write_failures',
             kind: 'counter',
             // Worth stating plainly in the catalogue, because the failure is

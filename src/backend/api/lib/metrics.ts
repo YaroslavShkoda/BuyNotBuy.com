@@ -175,6 +175,32 @@ export function renderMetrics(): string {
             `# TYPE buynotbuy_write_backlog_${name}_dropped_total counter`,
             `buynotbuy_write_backlog_${name}_dropped_total ${state.dropped}`,
         );
+
+        // **Per market as well, and the unlabelled series stays.**
+        //
+        // The totals above were the only family in the exposition with no market
+        // to read them against, and the counts they summarise cannot even be
+        // attributed: one queue serves every market, so a drop says nothing about
+        // which one lost the record. That matters more than the count, because a
+        // full buffer evicts the **oldest** entry — a market in a long outage can
+        // take out a healthy market's records, and the hole appears in a series
+        // nobody logged a failure for.
+        //
+        // The totals are kept rather than replaced, because they are the question
+        // "is anything being lost at all", and dropping them would take a working
+        // dashboard offline to fix an attribution problem.
+        for (const [market, perMarket] of Object.entries(state.byMarket)) {
+            lines.push(
+                '',
+                `# HELP buynotbuy_write_backlog_${name}_buffered Records held for a retry, by market.`,
+                `# TYPE buynotbuy_write_backlog_${name}_buffered gauge`,
+                `buynotbuy_write_backlog_${name}_buffered{market="${escapeLabel(market)}"} ${perMarket.buffered}`,
+                '',
+                `# HELP buynotbuy_write_backlog_${name}_dropped_total Records lost to a full buffer, by market.`,
+                `# TYPE buynotbuy_write_backlog_${name}_dropped_total counter`,
+                `buynotbuy_write_backlog_${name}_dropped_total{market="${escapeLabel(market)}"} ${perMarket.dropped}`,
+            );
+        }
     }
 
     // Provider metrics are no longer written here.

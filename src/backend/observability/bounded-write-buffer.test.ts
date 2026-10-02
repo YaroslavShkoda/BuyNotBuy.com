@@ -6,7 +6,13 @@ import {
 } from './bounded-write-buffer.js';
 
 function buffer(maxSize = 3) {
-    return createBoundedWriteBuffer<number>({ maxSize, label: 'test' });
+    // The market of a number is the number itself: these tests are about the
+    // queue, and one symbol per entry keeps them honest about `byMarket` too.
+    return createBoundedWriteBuffer<number>({
+        maxSize,
+        label: 'test',
+        marketOf: (entry) => `M${entry}`,
+    });
 }
 
 describe('bounded write buffer', () => {
@@ -112,5 +118,93 @@ describe('flush guard', () => {
         // A guard held forever by a failed flush would turn one transient
         // error into a permanent silent backlog.
         expect(failing).toHaveBeenCalledTimes(2);
+    });
+});
+
+describe('a buffer that serves more than one market', () => {
+    const marketBuffer = (maxSize: number) =>
+        createBoundedWriteBuffer<{ symbol: string }>({
+            maxSize,
+            label: 'test',
+            marketOf: (entry) => entry.symbol,
+        });
+
+    it('counts each market separately', () => {
+        // **The finding.** Both write paths feed one queue from every market, and
+        // the counters were process-wide, so "buffered: 400" named a process and
+        // not a market — while the failure being diagnosed is per market by
+        // construction.
+        const queue = marketBuffer(10);
+
+        queue.push({ symbol: 'BTCUSDT' });
+        queue.push({ symbol: 'BTCUSDT' });
+        queue.push({ symbol: 'ETHUSDT' });
+
+        expect(queue.byMarket).toEqual({
+            BTCUSDT: { buffered: 2, dropped: 0 },
+            ETHUSDT: { buffered: 1, dropped: 0 },
+        });
+    });
+
+    it('says which market lost records to a full buffer', () => {
+        // The attribution matters more than the count. A full buffer drops the
+        // **oldest** entry, so a market in a long outage can evict a healthy
+        // market's records — and the hole then appears in a series nobody logged
+        // a failure for. Without this the drop counter cannot name either.
+        const queue = marketBuffer(2);
+
+        queue.push({ symbol: 'BTCUSDT' });
+        queue.push({ symbol: 'BTCUSDT' });
+        queue.push({ symbol: 'ETHUSDT' });
+
+        // The third push overflowed a buffer of two, so the oldest — a BTCUSDT
+        // entry — was evicted. One BTCUSDT record is gone and one is still held;
+        // ETHUSDT is untouched, which is the fact that used to be unavailable.
+        expect(queue.byMarket).toEqual({
+            BTCUSDT: { buffered: 1, dropped: 1 },
+            ETHUSDT: { buffered: 1, dropped: 0 },
+        });
+        expect(queue.droppedCount).toBe(1);
+    });
+
+    it('reads a market as dropped even when nothing of it is left', () => {
+        // A market whose every record was evicted still appears, with its drop
+        // count. Dropping the key instead would make the worst case — the market
+        // that lost the most — the one that disappears from the report.
+        const queue = marketBuffer(1);
+
+        queue.push({ symbol: 'BTCUSDT' });
+        queue.push({ symbol: 'ETHUSDT' });
+
+        expect(queue.byMarket['BTCUSDT']).toEqual({ buffered: 0, dropped: 1 });
+        expect(Object.keys(queue.byMarket).sort()).toEqual(['BTCUSDT', 'ETHUSDT']);
+    });
+
+    it('reports nothing once everything has been written, and keeps every drop', () => {
+        // A drain is a success: buffered goes to nothing, and the drop count
+        // survives it — because a drop already happened and no later write can
+        // undo it. That is why `dropped` is a remembered tally rather than a
+        // recount: an evicted entry is gone by the time anyone could count it.
+        const queue = marketBuffer(2);
+
+        queue.push({ symbol: 'BTCUSDT' });
+        queue.push({ symbol: 'ETHUSDT' });
+        queue.push({ symbol: 'SOLUSDT' });
+
+        queue.drain();
+
+        expect(queue.size).toBe(0);
+        expect(queue.droppedCount).toBe(1);
+        // SOLUSDT evicted BTCUSDT; the tally names who lost, not who filled.
+        //
+        // ETHUSDT and SOLUSDT are **absent**, not present-and-zero: they hold
+        // nothing and have dropped nothing, so there is nothing to say about
+        // them. Counting from the queue rather than remembering every market ever
+        // seen is what keeps this from becoming a map that only grows — and a
+        // permanent `{market="…"} 0` for markets that were fine is noise in a
+        // scrape.
+        expect(queue.byMarket).toEqual({
+            BTCUSDT: { buffered: 0, dropped: 1 },
+        });
     });
 });

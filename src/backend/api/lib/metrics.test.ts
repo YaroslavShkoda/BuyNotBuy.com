@@ -134,4 +134,21 @@ describe('metrics exposition', () => {
             expect(text).toContain(name);
         }
     });
+
+    it('declares the write backlog families, which were exposed without ever being declared', () => {
+        // They were hand-written in `renderMetrics` and in neither list, so
+        // nothing could say what kind they were or check the exposition against
+        // anything. Round 107 closed the omission; this pins that a name in the
+        // exposition is a name somebody promised.
+        const text = renderMetrics();
+
+        for (const name of [
+            'buynotbuy_write_backlog_signal_history_buffered',
+            'buynotbuy_write_backlog_signal_history_dropped_total',
+            'buynotbuy_write_backlog_indicator_vote_buffered',
+            'buynotbuy_write_backlog_indicator_vote_dropped_total',
+        ]) {
+            expect(text).toContain(`# TYPE ${name}`);
+        }
+    });
 });

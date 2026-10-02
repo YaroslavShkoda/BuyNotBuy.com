@@ -273,6 +273,11 @@ export const METRIC_COUNTERS = [
     'strategy_decision_write_failures',
     'market_cycle_failures',
     'provider_retries',
+    // Declared in round 107. These were being exposed by hand from
+    // `api/lib/metrics.ts` and were in neither list, so nothing could say what
+    // kind they were or check that the exposition agreed with anything.
+    'write_backlog_signal_history_dropped_total',
+    'write_backlog_indicator_vote_dropped_total',
 ] as const;
 
 export const METRIC_GAUGES = [
@@ -281,6 +286,8 @@ export const METRIC_GAUGES = [
     'provider_health',
     'provider_consecutive_failures',
     'metric_series_limit',
+    'write_backlog_signal_history_buffered',
+    'write_backlog_indicator_vote_buffered',
 ] as const;
 
 export const METRIC_DISTRIBUTIONS = [
@@ -322,6 +329,10 @@ export const METRIC_KIND: Readonly<Record<MetricName, MetricKind>> = {
     indicator_calculation_duration: 'distribution',
     database_query_duration: 'distribution',
     backtest_duration: 'distribution',
+    write_backlog_signal_history_buffered: 'gauge',
+    write_backlog_signal_history_dropped_total: 'counter',
+    write_backlog_indicator_vote_buffered: 'gauge',
+    write_backlog_indicator_vote_dropped_total: 'counter',
 };
 
 export function metricKind(name: string): MetricKind | null {
