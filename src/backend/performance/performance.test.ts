@@ -5,7 +5,7 @@ import {
     computeMetrics,
     confidenceBuckets,
     groupBy,
-    EMPTY_METRICS,
+    EMPTY_PERFORMANCE,
 } from './performance.js';
 import { PerformanceConfigParser } from './performance.config.js';
 
@@ -205,7 +205,7 @@ describe('a small sample reports counts, not rates', () => {
     });
 
     it('is empty rather than zero for an empty set', () => {
-        expect(computeMetrics([], CONFIG)).toEqual(EMPTY_METRICS);
+        expect(computeMetrics([], CONFIG)).toEqual(EMPTY_PERFORMANCE);
     });
 
     it('does not pretend a sample of unresolved signals was scored', () => {

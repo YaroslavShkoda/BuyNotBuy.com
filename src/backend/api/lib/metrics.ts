@@ -21,7 +21,7 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
  * bounds. That is the cheapest way to make unbounded cardinality structurally
  * impossible rather than merely unlikely.
  */
-export interface MetricsSnapshot {
+export interface HttpMetricsSnapshot {
     requests: number;
     failures: number;
     inFlight: number;
@@ -30,7 +30,7 @@ export interface MetricsSnapshot {
     byStatusClass: Map<string, number>;
 }
 
-function emptySnapshot(): MetricsSnapshot {
+function emptySnapshot(): HttpMetricsSnapshot {
     return {
         requests: 0,
         failures: 0,
@@ -41,7 +41,7 @@ function emptySnapshot(): MetricsSnapshot {
     };
 }
 
-const snapshot: MetricsSnapshot = emptySnapshot();
+const snapshot: HttpMetricsSnapshot = emptySnapshot();
 
 /**
  * Route label for a request.
@@ -87,7 +87,7 @@ export function recordRequestFinished(
     );
 }
 
-export function getMetricsSnapshot(): MetricsSnapshot {
+export function getMetricsSnapshot(): HttpMetricsSnapshot {
     return snapshot;
 }
 

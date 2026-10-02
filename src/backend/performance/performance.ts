@@ -97,7 +97,7 @@ export interface Metrics {
     readonly undersampled: boolean;
 }
 
-export const EMPTY_METRICS: Metrics = {
+export const EMPTY_PERFORMANCE: Metrics = {
     total: 0,
     correct: 0,
     incorrect: 0,
@@ -162,7 +162,7 @@ export function computeMetrics(
         // up, and a performance table whose parts do not sum to its sample
         // cannot be checked by anyone reading it.
         return {
-            ...EMPTY_METRICS,
+            ...EMPTY_PERFORMANCE,
             total,
             correct,
             incorrect,
