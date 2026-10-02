@@ -193,6 +193,34 @@ export function configuredVenueFor(instrument: string): string {
     return String(found.venue);
 }
 
+/**
+ * The configured venues that declare this market, in configured preference order.
+ *
+ * Two callers need the same answer and must not answer it differently: the chain
+ * builder, which may only fail over to a venue that serves the market, and the
+ * availability probe, which decides whether a stale answer is `provider_failed`.
+ * A chain filtered one way and a freshness check filtered another is how a market
+ * gets a backup it cannot reach and a health verdict that says the backup exists.
+ *
+ * A venue with no declaration is not in the list at all. The table is the
+ * deployment's own statement of what it serves, so "not declared" means "not
+ * offered" rather than "assumed available".
+ */
+export function venuesServing(instrument: string): MarketProviderName[] {
+    const request = {
+        instrument: instrument.trim().toUpperCase(),
+        interval: marketConfig.candleInterval,
+    };
+
+    const capabilities = configuredVenueCapabilities();
+
+    return configuredMarketVenues().filter((name) => {
+        const entry = capabilities.find((capability) => capability.venue === name);
+
+        return entry !== undefined && serves(entry, request);
+    }) as MarketProviderName[];
+}
+
 export function marketProviderFor(instrument: string): MarketDataProvider {
     const wanted = instrument.trim().toUpperCase();
 
@@ -241,26 +269,12 @@ export function marketProviderFor(instrument: string): MarketDataProvider {
         return cached;
     }
 
-    const request = { instrument: wanted, interval: marketConfig.candleInterval };
-    const capabilities = configuredVenueCapabilities();
-
-    const declared = (name: string): boolean => {
-        const entry = capabilities.find((capability) => capability.venue === name);
-
-        // A venue with no declaration at all cannot be a backup for anything. The
-        // table is the deployment's own statement of what it serves, so "not
-        // declared" means "not offered", not "assumed available".
-        return entry !== undefined && serves(entry, request);
-    };
-
     // The routed venue leads, not the configured primary: it is the one the route
     // chose for this market. The rest are the configured venues that declare the
     // same market, in configured preference order.
     const ordered: MarketProviderName[] = [
         found.venue as MarketProviderName,
-        ...configuredMarketVenues().filter(
-            (name) => name !== found.venue && declared(name),
-        ) as MarketProviderName[],
+        ...venuesServing(wanted).filter((name) => name !== found.venue),
     ];
 
     const chain = new FailoverProvider(
@@ -303,16 +317,33 @@ export function configuredMarketVenues(): string[] {
 }
 
 /**
- * Whether any configured venue is currently able to answer.
+ * Whether a venue that serves this market is currently able to answer.
  *
- * The answer the freshness model needs, and the reason it cannot be derived
- * from the snapshot cache: a cache hit means nobody asked anybody, so "the
- * market feed is dead" is invisible to a request that served a perfectly good
- * snapshot from memory. Looking it up here is what lets a cached-but-current
- * response say `provider_failed` instead of `fresh`.
+ * The answer the freshness model needs, and the reason it cannot be derived from
+ * the snapshot cache: a cache hit means nobody asked anybody, so "the market feed
+ * is dead" is invisible to a request that served a perfectly good snapshot from
+ * memory. Looking it up here is what lets a cached-but-current response say
+ * `provider_failed` instead of `fresh`.
+ *
+ * **Per market, and it takes one.** It asked "is any *configured venue* available"
+ * and was called from two places that were both about one market — so with a
+ * deployment where binance serves BTCUSDT and bitget serves ETHUSDT, a cache hit
+ * for ETHUSDT asked about binance, was told yes, and reported `fresh` with
+ * `X-Data-Stale: false` while the only venue that trades ETHUSDT was refusing.
+ *
+ * `provider_failed` exists for exactly that case (`market-freshness.ts:19-24`), and
+ * a process-wide answer made it unreachable for every market but one.
+ *
+ * **What this does not fix, stated plainly.** `isVenueAvailable` is keyed by venue
+ * and not by market, so a failure that belongs to one market still marks the whole
+ * venue unavailable and this answer goes unavailable with it. That is the next
+ * item — the health record and the circuit breaker need the market in their key —
+ * and until then this fixes the *filter*, not the *key*. Both halves are needed for
+ * "an ETHUSDT outage does not mark BTCUSDT dead"; the filter alone covers the case
+ * where the venue is down for everyone, which is the common one.
  */
-export function anyMarketProviderAvailable(): boolean {
-    return configuredMarketVenues().some((venue) => isVenueAvailable(venue));
+export function anyMarketProviderAvailable(instrument: string): boolean {
+    return venuesServing(instrument).some((venue) => isVenueAvailable(venue));
 }
 
 /**

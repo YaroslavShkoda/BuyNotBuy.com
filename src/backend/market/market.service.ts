@@ -136,7 +136,12 @@ export async function getMarketData(request?: MarketRequest): Promise<MarketData
         // to be looked up separately. Without this the dashboard reports a dead
         // market as a healthy one: both venues circuit-open, every page load
         // served from memory, and `X-Data-Stale: false` on all of them.
-        const anyProviderAvailable = anyMarketProviderAvailable();
+        //
+        // **Asked about this market.** It used to ask about the process, so with
+        // binance serving BTCUSDT and bitget serving ETHUSDT, a cache hit for
+        // ETHUSDT was told binance was fine and reported `fresh` with
+        // `X-Data-Stale: false` while the only venue trading ETHUSDT refused.
+        const anyProviderAvailable = anyMarketProviderAvailable(wanted.instrument);
 
         currentRegistry().counter('market_cache_hits');
 
@@ -208,7 +213,7 @@ async function fetchAndCache(request: MarketRequest): Promise<MarketDataResult> 
         const freshness = classifyFreshness({
             ageMs: fallback === null ? null : ageMs,
             providerAnswered: false,
-            anyProviderAvailable: anyMarketProviderAvailable(),
+            anyProviderAvailable: anyMarketProviderAvailable(request.instrument),
             toleratedIssues: [],
             requiredCandles:
                 fallback === null ? undefined : fallback.data.candles.length,
