@@ -101,6 +101,8 @@ function marketDataReport(): {
     detail?: string;
     venues: Array<{
         provider: string;
+        /** The market the aggregate below is about. Null when never called. */
+        market: string | null;
         state: string;
         circuit: string;
         available: boolean;
@@ -111,6 +113,16 @@ function marketDataReport(): {
 
         return {
             provider,
+            // **The market the aggregate is about, and the whole point of the
+            // aggregate.** `venueHealthSummary` takes the worst state across a
+            // venue's markets precisely because a venue-level answer cannot take
+            // one market's record — and then discards which market produced it.
+            //
+            // So `/readyz` reports `bitget circuit_open` with no hint that BTCUSDT
+            // is fine on the same venue, and the operator's first correct-seeming
+            // move — take bitget out of rotation — is the wrong one, taking a
+            // healthy market with it.
+            market: health.market,
             state: health.state,
             circuit: health.circuit,
             available: health.available,

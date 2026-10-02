@@ -398,6 +398,51 @@ describe('the markets this process observes', () => {
         expect(symbols).toEqual(['BTCUSDT', 'ETHUSDT']);
     });
 
+    it('refuses a market declared only at a different interval', async () => {
+        // **The gap this closes.** The check looked at instruments and not at
+        // intervals, while the router looks at both. So
+        // `binance=BTCUSDT,ETHUSDT@1h;bitget=BTCUSDT,ETHUSDT@4h` with
+        // `MARKET_CANDLE_INTERVAL=1h` declared every market on every venue, passed
+        // this check, started the process, seeded the registry — and **bound its
+        // socket** before the first ingest scheduler called `configuredSeries`,
+        // which routes with the real interval, was refused, and exited.
+        //
+        // A crash loop that briefly serves traffic, from a configuration the file's
+        // own docstring promises to catch when the setting is read.
+        vi.resetModules();
+
+        vi.stubEnv('MARKET_CANDLE_INTERVAL', '1h');
+        vi.stubEnv('MARKET_SYMBOL', 'BTCUSDT');
+        vi.stubEnv('MARKET_SYMBOLS', 'ETHUSDT');
+        vi.stubEnv('MARKET_VENUE_CAPABILITIES', 'binance=BTCUSDT@1h;bitget=BTCUSDT,ETHUSDT@4h');
+
+        await expect(import('./market.config')).rejects.toThrow(/1h/);
+    });
+
+    it('names the interval in the declaration, so the message points at the wrong venue', async () => {
+        // A message that printed `bitget: BTCUSDT` while the problem was the `4h`
+        // sends the reader to the venue that was fine.
+        vi.resetModules();
+
+        vi.stubEnv('MARKET_CANDLE_INTERVAL', '1h');
+        vi.stubEnv('MARKET_SYMBOL', 'BTCUSDT');
+        vi.stubEnv('MARKET_SYMBOLS', 'ETHUSDT');
+        vi.stubEnv('MARKET_VENUE_CAPABILITIES', 'binance=BTCUSDT@1h;bitget=BTCUSDT,ETHUSDT@4h');
+
+        await expect(import('./market.config')).rejects.toThrow(/bitget: BTCUSDT, ETHUSDT @ 4h/);
+    });
+
+    it('loads when the intervals line up', async () => {
+        const symbols = await symbolsWith({
+            MARKET_CANDLE_INTERVAL: '1h',
+            MARKET_SYMBOL: 'BTCUSDT',
+            MARKET_SYMBOLS: 'ETHUSDT',
+            MARKET_VENUE_CAPABILITIES: 'binance=BTCUSDT@1h;bitget=ETHUSDT@1h',
+        });
+
+        expect(symbols).toEqual(['BTCUSDT', 'ETHUSDT']);
+    });
+
     it('keeps the primary first and adds the rest in the order written', async () => {
         const symbols = await symbolsWith({
             MARKET_SYMBOL: 'BTCUSDT',

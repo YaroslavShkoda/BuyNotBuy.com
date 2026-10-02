@@ -657,29 +657,53 @@ export const marketConfig: MarketConfig = MarketConfigSchema.parse({
  * it" is a fixable sentence; "venue mismatch" is a search.
  */
 function assertEveryMarketIsServed(configured: MarketConfig): void {
-    const undeclared = configured.symbols.filter(
-        (market) =>
-            !configured.venueCapabilities.some((entry) =>
+    // **Instrument *and* interval**, because that is what `serves()` asks, and
+    // checking only the instrument was a check that passed on a configuration the
+    // router would refuse.
+    //
+    // `binance=BTCUSDT,ETHUSDT@1h;bitget=BTCUSDT,ETHUSDT@4h` with
+    // `MARKET_CANDLE_INTERVAL=1h` declares both markets on both venues, so this
+    // check passed, the process started, seeded the registry, and **bound its
+    // socket** — and then the first ingest scheduler called `configuredSeries`,
+    // which routes through `serves()` with the real interval, got refused, and
+    // exited. A crash loop that briefly serves traffic, from a configuration the
+    // file's own docstring promises to catch at the moment the setting is read.
+    const unserved = configured.symbols.flatMap((market) =>
+        configured.venueCapabilities.some(
+            (entry) =>
                 entry.instruments.some(
                     (instrument) => instrument.trim().toUpperCase() === market.toUpperCase(),
+                ) &&
+                entry.intervals.some(
+                    (step) => step.trim() === configured.candleInterval.trim(),
                 ),
-            ),
+        )
+            ? []
+            : [market],
     );
 
-    if (undeclared.length === 0) {
+    if (unserved.length === 0) {
         return;
     }
 
+    // Both sides again, and the interval is part of what is declared now — a
+    // message that printed `binance: BTCUSDT` while the problem was `bitget: 4h`
+    // sends the reader to the wrong venue.
     const served = configured.venueCapabilities
-        .map((entry) => `${entry.venue}: ${entry.instruments.join(', ')}`)
+        .map(
+            (entry) =>
+                `${entry.venue}: ${entry.instruments.join(', ')} @ ${entry.intervals.join(', ')}`,
+        )
         .join('; ');
 
     throw new Error(
-        `Рынки настроены, но ни одна площадка их не обслуживает: ` +
-            `${undeclared.join(', ')}. Объявлено — ${served}. ` +
+        `Рынки настроены, но ни одна площадка не обслуживает их ` +
+            `на интервале ${configured.candleInterval}: ${unserved.join(', ')}. ` +
+            `Объявлено — ${served}. ` +
             'Добавьте рынок в MARKET_VENUE_CAPABILITIES в формате ' +
             '`площадка=РЫНОКИ@интервалы` через `;`, например ' +
-            '`binance=BTCUSDT,ETHUSDT@1h`.',
+            '`binance=BTCUSDT,ETHUSDT@1h`, — интервал в объявлении должен ' +
+            'совпадать с MARKET_CANDLE_INTERVAL.',
     );
 }
 
