@@ -114,8 +114,19 @@ export function resetProviderTransport(provider: string, market?: string): void 
     // first and a suite wanting a clean slate wants the second, and they are not
     // the same request.
     if (market === undefined) {
-        for (const known of health.knownMarkets(provider)) {
-            breakerFor(provider, known).reset();
+        // **This module's own breakers, not the health records.**
+        //
+        // It iterated `health.knownMarkets`, which is derived from the records the
+        // health store has written — so a breaker with no record survived a
+        // venue-wide reset as an open circuit. A breaker with no record is exactly
+        // the interesting one: it was opened by a run of refusals that never
+        // succeeded, so `lastSuccessAt` is null and no record was ever written for
+        // it, and the market stayed off the roster after a reset said it had been
+        // put back.
+        for (const key of breakers.keys()) {
+            if (key.startsWith(`${provider.toLowerCase()}:`)) {
+                breakers.get(key)?.reset();
+            }
         }
 
         health.resetProviderHealth(provider);

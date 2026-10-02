@@ -36,7 +36,15 @@ function integerEnv(name: string): number | undefined {
 }
 
 async function main(): Promise<void> {
-    const key = configuredSeries();
+    // **The market, which used to be the configured one and nothing said so.**
+    // `docs/improvements.md` named this call site as still primary-only when C9 was
+    // closed, and it was: an operator backfilling a two-market deployment backfilled
+    // BTCUSDT and was told nothing about ETHUSDT. `BACKFILL_MARKET` rather than an
+    // argument, because every other setting this command reads comes from the
+    // environment and a second way in is a second thing to forget.
+    const market = (process.env['BACKFILL_MARKET'] ?? marketConfig.symbol).trim().toUpperCase();
+
+    const key = configuredSeries(market);
     const maxCandles = integerEnv('BACKFILL_MAX_CANDLES');
     const untilRaw = integerEnv('BACKFILL_UNTIL');
     const until = untilRaw === undefined ? undefined : untilRaw * 1_000;

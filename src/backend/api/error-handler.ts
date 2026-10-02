@@ -1,8 +1,8 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 
+import { ProviderError } from '../errors/provider.error.js';
 import { ApplicationError } from '../errors/application.error.js';
-import { marketConfig } from '../config/market.config.js';
 import { readAnalysisErrorContext } from '../services/analysis.telemetry.js';
 
 import type { ErrorCode } from '../errors/application.error.js';
@@ -121,15 +121,40 @@ export function registerErrorHandler(app: FastifyInstance): void {
         });
     });
 
+/**
+ * The venue a market-data error came from, when it says.
+ *
+ * `ProviderError` names its own venue, and for a failover chain that name is
+ * `failover` with the attempted venues in its details — still better than naming a
+ * venue the request never involved, because it is at least about this failure.
+ */
+function venueOf(error: unknown): string | undefined {
+    return error instanceof ProviderError ? error.provider : undefined;
+}
+
     app.setErrorHandler((error: unknown, request: FastifyRequest, reply: FastifyReply) => {
         const diagnostics = readAnalysisErrorContext(error);
         const code = error instanceof ApplicationError ? error.code : 'INTERNAL_ERROR';
+        const venue = venueOf(error);
 
         request.log.error({
             event: diagnostics === undefined
                 ? 'request_failed'
                 : 'market_analysis_failed',
-            provider: marketConfig.provider,
+            // **The venue the error names, and nothing when it names none.**
+            //
+            // This was `marketConfig.provider`, which is the primary venue whatever
+            // failed: a 503 out of `GET /api/instruments/ETHUSDT/analysis` caused
+            // by bitget refusing was logged as `provider: 'binance'`. The evidence
+            // was one level down — the provider error carries its own venue and the
+            // whole attempted chain — but the line a human reads first named the
+            // wrong venue.
+            //
+            // So the field is taken from the error when it carries one and is
+            // **absent otherwise**, rather than filled in with a plausible default.
+            // A field that says "binance" when it does not know is worse than no
+            // field, because it is believed.
+            ...(venue === undefined ? {} : { provider: venue }),
             code,
             ...(diagnostics ?? {}),
             ...(diagnostics?.requestId === undefined ? { requestId: request.id } : {}),

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
     isVenueAvailable,
@@ -110,5 +110,84 @@ describe('a failure on one market, on a venue serving two', () => {
 
         expect(summary.state).toBe('rate_limited');
         expect(summary.market).toBe('ETHUSDT');
+    });
+});
+
+describe('a venue-wide reset reaches a breaker that never got a health record', () => {
+    beforeEach(() => {
+        process.env['MARKET_PROVIDER'] = 'binance';
+        process.env['MARKET_PROVIDER_CIRCUIT_FAILURE_THRESHOLD'] = '2';
+        process.env['MARKET_PROVIDER_CIRCUIT_COOLDOWN_MS'] = '300000';
+
+        resetProviderTransport('binance');
+    });
+
+    afterEach(() => {
+        resetProviderTransport('binance');
+
+        delete process.env['MARKET_PROVIDER_CIRCUIT_FAILURE_THRESHOLD'];
+        delete process.env['MARKET_PROVIDER_CIRCUIT_COOLDOWN_MS'];
+    });
+
+    it('closes a circuit the venue-wide reset opened through real requests', async () => {
+        // **This test cannot show the finding, and saying so is the point.**
+        //
+        // The finding was that the venue-wide reset iterated `health.knownMarkets`
+        // — records the health store has written — rather than the breakers this
+        // module actually holds. So a breaker with no record would survive a reset,
+        // still open.
+        //
+        // **That state is unreachable in the current transport.** Every path that
+        // moves the breaker also writes a health record, so by the time a circuit is
+        // open there is a record behind it and the old reset reached it. The first
+        // version of this test proved exactly that: it passed on the old code too.
+        //
+        // So what is left is a test for the property that is observable — a circuit
+        // earned through four real failing requests is closed by a venue-wide reset —
+        // and the reason for the change is structural rather than behavioural: the
+        // reset now enumerates the map it resets instead of a second registry's
+        // idea of which keys exist. That is the change worth making when the two
+        // lists can drift, and it is not the change worth claiming as a bug fix.
+        //
+        // Driven through real requests because the breaker is only opened there:
+        // writing a health failure moves a counter the breaker does not read.
+        vi.stubEnv('MARKET_PROVIDER_CIRCUIT_FAILURE_THRESHOLD', '2');
+        vi.stubEnv('MARKET_PROVIDER_MAX_RETRIES', '0');
+
+        vi.stubGlobal(
+            'fetch',
+            vi.fn().mockRejectedValue(new TypeError('fetch failed')),
+        );
+
+        const { sendBinanceRequest } = await import('./binance-http.js');
+        const { providerCircuitState } = await import('./provider-http.js');
+
+        for (let attempt = 0; attempt < 4; attempt += 1) {
+            await sendBinanceRequest({
+                market: 'ETHUSDT',
+                url: 'https://example.invalid/klines',
+                endpoint: '/klines',
+            }).catch(() => undefined);
+        }
+
+        expect(providerCircuitState('binance', 'ETHUSDT')).toBe('open');
+
+        resetProviderTransport('binance');
+
+        expect(providerCircuitState('binance', 'ETHUSDT')).toBe('closed');
+
+        vi.unstubAllGlobals();
+        vi.unstubAllEnvs();
+    });
+
+    it('leaves a second market alone when only one is reset', async () => {
+        const { providerCircuitState } = await import('./provider-http.js');
+
+        resetProviderTransport('binance', 'BTCUSDT');
+
+        // Narrowing is the point of the two-argument form and it must not have
+        // become "reset the venue" by accident.
+        expect(providerCircuitState('binance', 'BTCUSDT')).toBe('closed');
+        expect(providerCircuitState('binance', 'ETHUSDT')).toBe('closed');
     });
 });

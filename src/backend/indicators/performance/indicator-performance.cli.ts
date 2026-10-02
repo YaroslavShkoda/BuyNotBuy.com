@@ -30,10 +30,17 @@ function row(performance: IndicatorPerformance): string {
 }
 
 async function main(): Promise<void> {
-    const repository = getIndicatorVoteRepository();
-    const stored = await repository.count(marketConfig.symbol);
+    // Per market, for the same reason as the backfill: this printed the primary's
+    // count and presented it as the only one, so a two-market deployment looked like
+    // it had no second market's indicators rather than like a report about one.
+    const market = (process.env['INDICATOR_MARKET'] ?? marketConfig.symbol)
+        .trim()
+        .toUpperCase();
 
-    console.log(`Символ: ${marketConfig.symbol}, свечи ${marketConfig.candleInterval}`);
+    const repository = getIndicatorVoteRepository();
+    const stored = await repository.count(market);
+
+    console.log(`Символ: ${market}, свечи ${marketConfig.candleInterval}`);
     console.log(`Сохранено голосов: ${stored}`);
 
     if (stored === 0) {
@@ -44,7 +51,7 @@ async function main(): Promise<void> {
         return;
     }
 
-    const performance = await summarizeIndicatorPerformance(marketConfig.symbol);
+    const performance = await summarizeIndicatorPerformance(market);
 
     if (performance.length === 0) {
         console.log(
