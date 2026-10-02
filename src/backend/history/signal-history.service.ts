@@ -34,7 +34,7 @@ const runFlush = createFlushGuard();
 export type { BacklogState } from '../observability/bounded-write-buffer.js';
 
 /**
- * How often retention may run, per process.
+ * How often retention may run, per series.
  *
  * Retention used to run inside every write. With the write happening on each
  * page load and once a minute from the poller, that is a full scan per request
@@ -42,27 +42,54 @@ export type { BacklogState } from '../observability/bounded-write-buffer.js';
  * at all, so the cost was pure and the benefit zero. A cadence keeps the
  * guarantee that the table is bounded while making the cost proportional to
  * how fast the table actually grows.
+ *
+ * **Per series, not per process.** It was one timestamp for the whole process,
+ * and the thing it gates is per-symbol: `trimRetention(symbol)` deletes
+ * `WHERE symbol = $1 AND provider = $2 AND interval = $3`. So the first market
+ * in `marketConfig.symbols` consumed the window on every pass, and every other
+ * market's `signal_history` returned 0 and was never trimmed at all — growing by
+ * one row an hour until the global 1095-day prune, which is the only other thing
+ * that ever removes them.
+ *
+ * Per series is also the shape of the cost the comment above is asking for: "a
+ * cadence keeps the guarantee that the table is bounded" is a promise about each
+ * table, and one window over several tables kept the guarantee for one of them.
  */
 const RETENTION_MIN_INTERVAL_MS = 5 * 60_000;
 
-let lastTrimAt = 0;
+/**
+ * The last trim attempt per symbol.
+ *
+ * A `Map` rather than a number because the window is a property of a series, and
+ * one variable can only hold the property of one. Bounded by the number of
+ * markets the process has ever written, which is the number of markets it was
+ * configured with.
+ */
+const lastTrimAt = new Map<string, number>();
 
 /**
- * Enforces the retention limit, at most once per interval per process.
+ * Enforces the retention limit, at most once per interval per series.
  *
  * A failure is swallowed: retention is housekeeping, and refusing to record
  * history because the trimming statement was slow would trade a bounded table
  * for a missing hour. The next attempt comes round regardless.
+ *
+ * The window is consumed before the attempt, not after, so a database that is
+ * slow or down costs one missed trim and not one trim per write: the alternative
+ * is a failing trim on every successful write, which is the cost the cadence
+ * exists to avoid, arriving through the failure path.
  */
 async function maybeTrimRetention(
     symbol: string,
     now: number = Date.now(),
 ): Promise<number> {
-    if (now - lastTrimAt < RETENTION_MIN_INTERVAL_MS) {
+    const last = lastTrimAt.get(symbol);
+
+    if (last !== undefined && now - last < RETENTION_MIN_INTERVAL_MS) {
         return 0;
     }
 
-    lastTrimAt = now;
+    lastTrimAt.set(symbol, now);
 
     try {
         return await getSignalHistoryRepository().trimRetention(symbol);

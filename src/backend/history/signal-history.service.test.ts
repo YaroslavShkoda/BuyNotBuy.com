@@ -7,6 +7,13 @@ const { mockRepository } = vi.hoisted(() => ({
     mockRepository: {
         record: vi.fn((): Promise<void> => Promise.resolve()),
         list: vi.fn((): Promise<unknown[]> => Promise.resolve([])),
+        // **Added because the mock's absence was hiding the code.** Without it,
+        // every call to `maybeTrimRetention` threw `TypeError: … is not a
+        // function`, the `catch` around it returned 0, and the tests passed. So
+        // the housekeeping path had never run in this file — which is how a
+        // throttle that starved a whole market stayed untested: the only thing
+        // testing it was a mock that could not answer.
+        trimRetention: vi.fn((symbol: string): Promise<number> => Promise.resolve(0)),
     },
 }));
 
@@ -45,6 +52,8 @@ describe('recordSignalHistory', () => {
         mockRepository.record.mockResolvedValue(undefined);
         mockRepository.list.mockReset();
         mockRepository.list.mockResolvedValue([]);
+        mockRepository.trimRetention.mockReset();
+        mockRepository.trimRetention.mockResolvedValue(0);
 
         // The buffer is a module singleton, so anything an earlier test left
         // behind has to go before these tests count on its size or on how many
@@ -101,6 +110,8 @@ describe('history write backlog', () => {
         mockRepository.record.mockResolvedValue(undefined);
         mockRepository.list.mockReset();
         mockRepository.list.mockResolvedValue([]);
+        mockRepository.trimRetention.mockReset();
+        mockRepository.trimRetention.mockResolvedValue(0);
 
         // The buffer is a module singleton, so anything an earlier test left
         // behind has to go before these tests count on its size or on how many
@@ -535,5 +546,105 @@ describe('summarizeHistory', () => {
 
         expect(summary.changes24h).toBe(3);
         expect(summary.sampleHours).toBe(5);
+    });
+});
+
+/**
+ * A fresh service per test, because the throttle window is module state.
+ *
+ * `vi.resetModules()` plus a dynamic import is the only way to get a fresh
+ * `lastTrimAt`, and it works here because the `vi.mock` factory above is
+ * hoisted: the re-imported service still receives the same `mockRepository`.
+ *
+ * This was not the plan. The first version of this block used the file's
+ * top-level `recordSignalHistory` and asserted both markets were trimmed — and
+ * got `[ 'ETHUSDT' ]`. BTCUSDT had been trimmed by an earlier test in the same
+ * file, its window was still open, and the second market in the same test run
+ * was the one that got through.
+ *
+ * That is not a test artefact. **It is the defect, reproduced in miniature**:
+ * within one process the first series consumes the window and the others starve,
+ * which is exactly what happens on the observation loop every minute.
+ */
+async function serviceWithFreshWindow(): Promise<
+    typeof import('./signal-history.service.js')
+> {
+    vi.resetModules();
+
+    return import('./signal-history.service.js');
+}
+
+describe('the retention cadence is per series, not per process', () => {
+    beforeEach(() => {
+        mockRepository.record.mockReset();
+        mockRepository.record.mockResolvedValue(undefined);
+        mockRepository.trimRetention.mockReset();
+        mockRepository.trimRetention.mockResolvedValue(0);
+    });
+
+    it('trims both markets, not only the one that went first', async () => {
+        // **This is the item.** One timestamp for the whole process gated a
+        // per-symbol delete, so the first market in `marketConfig.symbols` took
+        // the window on every pass and every other market's history was never
+        // trimmed — one row an hour, forever, under the limit that exists to
+        // stop exactly that.
+        const { recordSignalHistory: record } = await serviceWithFreshWindow();
+
+        await record(makeEntry({ symbol: 'BTCUSDT' }));
+        await record(makeEntry({ symbol: 'ETHUSDT' }));
+
+        expect(
+            mockRepository.trimRetention.mock.calls.map((call) => call[0]),
+        ).toEqual(['BTCUSDT', 'ETHUSDT']);
+    });
+
+    it('still holds the cadence for one series, so the throttle is not simply removed', async () => {
+        // The reason the cadence exists — a full scan per write to delete at most
+        // one row. A fix that made every market trim on every write would satisfy
+        // the test above while destroying the cost the code was bought with.
+        const { recordSignalHistory: record } = await serviceWithFreshWindow();
+
+        await record(makeEntry({ symbol: 'SOLUSDT' }));
+        await record(makeEntry({ symbol: 'SOLUSDT' }));
+
+        expect(
+            mockRepository.trimRetention.mock.calls.filter((call) => call[0] === 'SOLUSDT'),
+        ).toHaveLength(1);
+    });
+
+    it('consumes the window even when the delete fails, rather than retrying per write', async () => {
+        // The failure is swallowed by design — refusing to record history because
+        // housekeeping was slow trades a bounded table for a missing hour — but a
+        // failing trim on every successful write is exactly the cost the cadence
+        // exists to avoid, arriving through the error path.
+        mockRepository.trimRetention.mockRejectedValue(new Error('statement timeout'));
+
+        const { recordSignalHistory: record } = await serviceWithFreshWindow();
+
+        await record(makeEntry({ symbol: 'DOGEUSDT' }));
+        await record(makeEntry({ symbol: 'DOGEUSDT' }));
+
+        expect(
+            mockRepository.trimRetention.mock.calls.filter((call) => call[0] === 'DOGEUSDT'),
+        ).toHaveLength(1);
+
+        // And the history write still succeeded: the swallow covers the
+        // housekeeping, not the record.
+        expect(mockRepository.record).toHaveBeenCalledTimes(2);
+    });
+
+    it('gives each series its own window, so one market cannot spend the next', async () => {
+        // The sharpest form of the claim, and the one a shared window fails
+        // hardest: if the window were shared, BTCUSDT's first write would close
+        // it and ETHUSDT's would be skipped — the reverse of the previous test.
+        const { recordSignalHistory: record } = await serviceWithFreshWindow();
+
+        await record(makeEntry({ symbol: 'BTCUSDT' }));
+        await record(makeEntry({ symbol: 'BTCUSDT' }));
+        await record(makeEntry({ symbol: 'ETHUSDT' }));
+
+        expect(
+            mockRepository.trimRetention.mock.calls.map((call) => call[0]),
+        ).toEqual(['BTCUSDT', 'ETHUSDT']);
     });
 });
