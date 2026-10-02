@@ -159,3 +159,89 @@ describe('indicator vote write backlog', () => {
         ).resolves.toBeUndefined();
     });
 });
+
+describe('a refused batch does not stop the ones behind it', () => {
+    beforeEach(async () => {
+        reporting.warn.mockClear();
+        await flushIndicatorVoteBacklog(undefined, {
+            record: async () => undefined,
+        } as unknown as IndicatorVoteRepository);
+    });
+
+    it('writes the batches behind a refused one and re-queues only that one', async () => {
+        // **This is the finding.** The loop stopped at the first failure, so one
+        // batch the database refused blocked everything behind it on every flush,
+        // for ever. With two markets the buffer interleaves them, so one market's
+        // bad batch kept the other's votes unwritten — a hole in the sample the
+        // per-indicator hit rate is computed from, which is what this buffer exists
+        // to prevent.
+        //
+        // Safe to continue because the upsert is timestamp-guarded, so a batch
+        // written out of order can only move its rows forward.
+        const down = {
+            record: vi.fn(async () => {
+                throw new Error('down');
+            }),
+        } as unknown as IndicatorVoteRepository;
+
+        await recordIndicatorVotes(analysis(), 'BTCUSDT', reporting, down);
+        await recordIndicatorVotes(analysis(), 'ETHUSDT', reporting, down);
+        await recordIndicatorVotes(analysis(), 'BTCUSDT', reporting, down);
+
+        expect(indicatorVoteBacklog().buffered).toBe(3);
+
+        // This venue refuses the **first** batch and takes the two behind it. The
+        // old loop answered zero written and left all three queued.
+        let seen = 0;
+
+        const picky = {
+            record: vi.fn(async () => {
+                seen += 1;
+
+                if (seen === 1) {
+                    throw new Error('constraint');
+                }
+            }),
+        } as unknown as IndicatorVoteRepository;
+
+        const written = await flushIndicatorVoteBacklog(reporting, picky);
+
+        // All **three** batches are attempted — the refused one first, and the two
+        // behind it after it, which is the whole point. Only the refused one goes
+        // back. The old loop answered one attempt, zero written and three queued,
+        // on this exact input.
+        //
+        // Asserted on batch calls rather than on `written`, because `written`
+        // counts entries and pinning its exact value would fix how many indicators
+        // the fixture happens to produce.
+        expect(seen).toBe(3);
+        expect(written).toBeGreaterThan(0);
+        expect(indicatorVoteBacklog().buffered).toBe(1);
+    });
+
+    it('gives up on a batch that keeps failing, so it cannot evict the ones that would write', async () => {
+        const alwaysRefused = {
+            record: vi.fn(async () => {
+                throw new Error('constraint');
+            }),
+        } as unknown as IndicatorVoteRepository;
+
+        await recordIndicatorVotes(analysis(), 'BTCUSDT', reporting, alwaysRefused);
+
+        expect(indicatorVoteBacklog().buffered).toBe(1);
+
+        for (let round = 0; round < 8; round += 1) {
+            await flushIndicatorVoteBacklog(reporting, alwaysRefused);
+        }
+
+        // A re-queued batch becomes the newest in a buffer that drops its oldest,
+        // so a batch retried for ever would sit there protecting itself while the
+        // observations the hit rate is computed from were dropped.
+        expect(indicatorVoteBacklog().buffered).toBe(0);
+        expect(
+            reporting.warn.mock.calls.some(
+                (call) => call[0]?.event === 'indicator_vote_batch_given_up',
+            ),
+        ).toBe(true);
+    });
+});

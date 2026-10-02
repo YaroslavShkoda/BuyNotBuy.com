@@ -175,22 +175,38 @@ describe('history write backlog', () => {
         expect(getSignalHistoryBacklogSize()).toBe(3);
 
         mockRepository.record.mockClear();
-        mockRepository.record.mockRejectedValueOnce(new Error('locked'));
+        // Every entry refuses, not just the first: this is the database being
+        // down, and the loop has to notice that from the flush itself. Queuing one
+        // refusal would be the other case — a bad row with a working database.
+        for (let pending = 0; pending < 3; pending += 1) {
+            mockRepository.record.mockRejectedValueOnce(new Error('locked'));
+        }
 
         await expect(flushSignalHistoryBacklog()).resolves.toBe(0);
 
-        // One attempt per flush: retrying all three would repeat the same
-        // failing write three times per cycle.
-        expect(mockRepository.record).toHaveBeenCalledTimes(1);
+        // **Two attempts, not one.** Telling "this row is bad" apart from "the
+        // database is down" costs one extra attempt, because at the first entry the
+        // two are indistinguishable. The bound still keeps the load flat — two
+        // statements a cycle instead of one per buffered entry — and it is the
+        // price of not stalling every entry behind a row that never writes.
+        expect(mockRepository.record).toHaveBeenCalledTimes(2);
     });
 
-    // Regression: the loop used to push back only the entry that actually
-    // failed and then break, which discarded everything behind it — no write
-    // and no drop count. While the database was down, a flush of three entries
-    // left one, which is the permanent hole in the record the buffer exists to
-    // prevent. Three entries rather than two, because the entry that fails has
-    // to have another one behind it: losing the tail is what went unnoticed.
-    it('leaves the entries it did not attempt queued for the next flush', async () => {
+    // This test used to say the opposite, and its name was the reason the defect
+    // survived: "leaves the entries it did not attempt queued for the next flush".
+    //
+    // The concern behind it was real — the loop once pushed back only the entry
+    // that failed, broke, and discarded everything behind it with no write and no
+    // drop count. But the answer it encoded was "stop at the first failure", and
+    // that answer is worse than the bug: with two markets in one buffer, one row
+    // the database refuses blocked every entry behind it on every flush, for ever,
+    // including the other market's. Nothing was written and nothing was reported.
+    //
+    // So the loop now distinguishes the two failures. Nothing written yet means the
+    // database is down and the tail is handed back untouched — that is the
+    // hammering case, and the test above pins it. Something written already means
+    // *this row* is the problem, and the entries behind it are not what is broken.
+    it('writes the entries behind a failing one, and re-queues only what failed', async () => {
         const entries = [1, 2, 3].map((price) => makeEntry({ price }));
 
         for (const entry of entries) {
@@ -201,20 +217,47 @@ describe('history write backlog', () => {
 
         expect(getSignalHistoryBacklogSize()).toBe(3);
 
-        // A partial outage: the first retry gets through, the second does not.
+        // The second entry is refused; the first and third go through.
         mockRepository.record.mockResolvedValueOnce(undefined);
-        mockRepository.record.mockRejectedValueOnce(new Error('locked'));
+        mockRepository.record.mockRejectedValueOnce(new Error('constraint'));
+        mockRepository.record.mockResolvedValueOnce(undefined);
 
-        await expect(flushSignalHistoryBacklog()).resolves.toBe(1);
+        await expect(flushSignalHistoryBacklog()).resolves.toBe(2);
 
-        // The one it could not write, and the one it never reached.
-        expect(getSignalHistoryBacklogSize()).toBe(2);
+        // One entry back — the one that failed — rather than the two that the old
+        // loop kept behind it.
+        expect(getSignalHistoryBacklogSize()).toBe(1);
 
         mockRepository.record.mockResolvedValue(undefined);
 
-        await expect(flushSignalHistoryBacklog()).resolves.toBe(2);
+        await expect(flushSignalHistoryBacklog()).resolves.toBe(1);
         expect(getSignalHistoryBacklogSize()).toBe(0);
-        expect(mockRepository.record).toHaveBeenLastCalledWith(entries[2]);
+    });
+
+    it('gives up on an entry that keeps failing, so it cannot evict the ones that would write', async () => {
+        const entries = [1, 2, 3].map((price) => makeEntry({ price }));
+
+        for (const entry of entries) {
+            mockRepository.record.mockRejectedValueOnce(new Error('locked'));
+
+            await recordSignalHistory(entry);
+        }
+
+        // Every flush: the first entry is refused, the second and third are fine.
+        // The first is what is broken, and it must not be what survives.
+        for (let round = 0; round < 8; round += 1) {
+            mockRepository.record.mockRejectedValueOnce(new Error('constraint'));
+            mockRepository.record.mockResolvedValue(undefined);
+            mockRepository.record.mockResolvedValue(undefined);
+
+            await flushSignalHistoryBacklog();
+        }
+
+        // A re-queued entry becomes the **newest** in a buffer that evicts its
+        // oldest, so an entry retried for ever would sit there protecting itself
+        // while real hours were dropped — a failure that had become the mechanism
+        // for losing data, which is the opposite of what a buffer is for.
+        expect(getSignalHistoryBacklogSize()).toBe(0);
     });
 
     it('stays silent about a flush failure rather than throwing at the poller', async () => {

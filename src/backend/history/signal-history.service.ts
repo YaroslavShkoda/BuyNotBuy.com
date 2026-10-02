@@ -14,6 +14,27 @@ import type {
     SignalHistorySummary,
 } from './signal-history.types.js';
 
+/**
+ * Consecutive failed attempts per buffered entry.
+ *
+ * A `WeakMap` keyed by the entry object itself, because the entries are re-queued
+ * **by identity** — the same object comes back out of `drain()` — and a parallel
+ * count keyed by symbol would attribute two markets' attempts to whichever arrived
+ * last. Weak so a given-up entry leaves nothing behind.
+ */
+const attempts = new WeakMap<SignalHistoryEntry, number>();
+
+/**
+ * How many times one entry is retried before the process stops trying.
+ *
+ * Five ticks at the poller's cadence is a few minutes of a database having a bad
+ * time, and long past the point where the same statement will start working. The
+ * ceiling is not about giving up on the entry — it is about the entry becoming the
+ * newest thing in a buffer that drops its oldest, which turns one unwritable row
+ * into a slow eviction of rows that would have been written.
+ */
+const MAX_ATTEMPTS = 5;
+
 const writeBuffer = createSignalHistoryWriteBuffer({
     maxSize: historyConfig.maxBufferedEntries,
 });
@@ -190,36 +211,126 @@ async function writeBacklog(logger?: SignalHistoryLogger): Promise<number> {
     const pending = writeBuffer.drain();
 
     let written = 0;
+    let failed = 0;
+    let givenUp = 0;
+    let consecutiveFailures = 0;
 
+    // Every pending entry is attempted, and only the ones that failed go back.
+    //
+    // **This used to stop at the first failure**, which was a reasonable-looking
+    // choice: everything from the failing entry onward is unwritten, so re-queueing
+    // the tail discards nothing. What it did not consider is that the buffer held
+    // **two markets**. One poisoned entry — a row the database refuses for a reason
+    // that has nothing to do with the other series — blocked every entry behind it,
+    // including the other market's, on every flush, for ever. A stall that was
+    // never retried and never reported, in a mechanism whose whole purpose is not to
+    // lose an hour.
+    //
+    // Continuing is safe because the upsert is guarded by the timestamp:
+    // `ON CONFLICT … DO UPDATE … WHERE EXCLUDED.timestamp > signal_history.timestamp`.
+    // Writing out of order can only move a row forward, never backward, so there is
+    // no ordering to preserve — the tail this loop used to re-queue was unwritten,
+    // not *misordered*.
     for (const [index, entry] of pending.entries()) {
         try {
             await getSignalHistoryRepository().record({
                 ...entry,
                 ...seriesFor(entry.symbol),
             });
+
             written += 1;
+            consecutiveFailures = 0;
+            attempts.delete(entry);
         } catch (error) {
-            // Everything from the failing entry onwards is still unwritten.
-            // Pushing back only the entry that failed — and stopping there —
-            // would discard the rest of the queue with no write and no count,
-            // which is exactly the permanent hole in the record the buffer
-            // exists to prevent. And the hole would be invisible: a gap in a
-            // stability metric reads as "the signal did not change".
-            for (const unprocessed of pending.slice(index)) {
-                writeBuffer.push(unprocessed);
+            failed += 1;
+            consecutiveFailures += 1;
+
+            // **One distinction, and it is the difference between this being right
+            // and this being a second way to lose data.**
+            //
+            // Two failures in a row means the database is not answering, and
+            // repeating the same statement for every entry in the buffer once a cycle
+            // is hammering. So the tail is handed back untouched and the flush stops.
+            //
+            // One failure followed by a success means the database is answering and
+            // **this row** is the problem: a constraint, a shape, a row it will not
+            // take. That row is re-queued with a bounded number of attempts, and the
+            // entries behind it are written now — because they are not what is
+            // broken, and waiting for them behind it is the stall that kept a second
+            // market's history unwritten for ever.
+            //
+            // **The bound moved from one attempt per flush to two, and that is the
+            // price of telling the two apart.** "Nothing written yet" cannot do it: a
+            // bad first row and a dead database look identical at index zero, which
+            // is the version I wrote first and which stalled the very case it was
+            // meant to fix. One extra attempt per cycle, against every hour of a
+            // second market's history that never arrives, is a trade worth making
+            // and worth writing down rather than discovering later.
+            if (consecutiveFailures >= 2) {
+                for (const unprocessed of pending.slice(index)) {
+                    writeBuffer.push(unprocessed);
+                }
+
+                logger?.warn(
+                    {
+                        event: 'signal_history_flush_failed',
+                        // Nothing was written, so the database is the story and the
+                        // rest of the queue is untouched — `written: 0` is what makes
+                        // that distinction readable in the log.
+                        written,
+                        failed,
+                        buffered: writeBuffer.size,
+                        err: error,
+                    },
+                    'signal_history_flush_failed',
+                );
+
+                break;
             }
 
-            logger?.warn(
-                {
-                    event: 'signal_history_flush_failed',
-                    buffered: writeBuffer.size,
-                    err: error,
-                },
-                'signal_history_flush_failed',
-            );
+            // And a bounded number of retries, which the old loop got for free by
+            // never getting past the first failure. Re-queued, an entry becomes the
+            // **newest** in a buffer that evicts its oldest, so one entry that can
+            // never be written would sit there protecting itself while real hours
+            // were dropped — a failure that had become the mechanism for losing
+            // data, which is the opposite of what a buffer is for.
+            const tries = (attempts.get(entry) ?? 0) + 1;
 
-            break;
+            if (tries >= MAX_ATTEMPTS) {
+                attempts.delete(entry);
+                givenUp += 1;
+
+                logger?.warn(
+                    {
+                        event: 'signal_history_entry_given_up',
+                        attempts: tries,
+                        symbol: entry.symbol,
+                        timestamp: entry.timestamp,
+                        buffered: writeBuffer.size,
+                        err: error,
+                    },
+                    'signal_history_entry_given_up',
+                );
+
+                continue;
+            }
+
+            attempts.set(entry, tries);
+            writeBuffer.push(entry);
         }
+    }
+
+    if (failed > 0) {
+        logger?.warn(
+            {
+                event: 'signal_history_flush_failed',
+                failed,
+                givenUp,
+                written,
+                buffered: writeBuffer.size,
+            },
+            'signal_history_flush_failed',
+        );
     }
 
     return written;

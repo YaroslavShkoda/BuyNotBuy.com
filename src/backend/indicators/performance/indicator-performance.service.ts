@@ -38,6 +38,19 @@ const voteBacklog = createBoundedWriteBuffer<IndicatorVote[]>({
 const runVoteFlush = createFlushGuard();
 
 /**
+ * Consecutive failed attempts per buffered batch. A `WeakMap` keyed by the batch
+ * itself, because batches are re-queued by identity.
+ */
+const voteAttempts = new WeakMap<IndicatorVote[], number>();
+
+/**
+ * The same ceiling the history buffer uses, and the same reason: a batch retried
+ * for ever becomes the newest entry in a buffer that drops its oldest, so the
+ * retry protects the thing that is broken at the expense of the thing that is not.
+ */
+const MAX_VOTE_ATTEMPTS = 5;
+
+/**
  * Round-trip cost charged against every settled vote.
  *
  * Same reasoning as the backtest: a vote that only wins by less than it costs
@@ -157,29 +170,84 @@ async function writeVoteBacklog(
 
     let written = 0;
 
+    let consecutiveFailures = 0;
+    let givenUp = 0;
+
+    // Same shape as the history buffer's drain, and for the same reasons: one
+    // refused batch stopped everything behind it on every flush, for ever, and with
+    // two markets the buffer interleaves them, so one market's bad batch kept the
+    // other's votes unwritten.
+    //
+    // Safe to continue because the upsert is timestamp-guarded —
+    // `ON CONFLICT … DO UPDATE … WHERE EXCLUDED.timestamp > indicator_vote.timestamp` —
+    // so a batch written out of order can only move its rows forward.
     for (const [index, batch] of pending.entries()) {
         try {
             await repository.record(batch);
+
             written += batch.length;
+            consecutiveFailures = 0;
+            voteAttempts.delete(batch);
         } catch (error) {
-            // Re-queue the whole tail, not just the batch that failed: the
-            // rest is unwritten too, and a hole here is a missing observation
-            // in the sample the hit rate is computed from.
-            for (const unprocessed of pending.slice(index)) {
-                voteBacklog.push(unprocessed);
+            consecutiveFailures += 1;
+
+            // Two in a row: the database is down, and the tail is handed back
+            // untouched rather than repeating the same refusal for every batch in
+            // the buffer once a cycle. One, followed by a success: **this batch** is
+            // what the database will not take.
+            if (consecutiveFailures >= 2) {
+                for (const unprocessed of pending.slice(index)) {
+                    voteBacklog.push(unprocessed);
+                }
+
+                logger?.warn(
+                    {
+                        event: 'indicator_vote_flush_failed',
+                        written,
+                        buffered: voteBacklog.size,
+                        err: error,
+                    },
+                    'indicator_vote_flush_failed',
+                );
+
+                break;
             }
 
-            logger?.warn(
-                {
-                    event: 'indicator_vote_flush_failed',
-                    buffered: voteBacklog.size,
-                    err: error,
-                },
-                'indicator_vote_flush_failed',
-            );
+            // And a bounded number of retries. Re-queued, a batch becomes the
+            // newest in a buffer that evicts its oldest, so a batch that can never
+            // be written would sit there protecting itself while the observations
+            // the hit rate is computed from were dropped.
+            const tries = (voteAttempts.get(batch) ?? 0) + 1;
 
-            break;
+            if (tries >= MAX_VOTE_ATTEMPTS) {
+                voteAttempts.delete(batch);
+                givenUp += 1;
+
+                logger?.warn(
+                    {
+                        event: 'indicator_vote_batch_given_up',
+                        attempts: tries,
+                        symbol: batch[0]?.symbol,
+                        size: batch.length,
+                        buffered: voteBacklog.size,
+                        err: error,
+                    },
+                    'indicator_vote_batch_given_up',
+                );
+
+                continue;
+            }
+
+            voteAttempts.set(batch, tries);
+            voteBacklog.push(batch);
         }
+    }
+
+    if (givenUp > 0) {
+        logger?.warn(
+            { event: 'indicator_vote_batches_given_up', givenUp },
+            'indicator_vote_batches_given_up',
+        );
     }
 
     return written;
