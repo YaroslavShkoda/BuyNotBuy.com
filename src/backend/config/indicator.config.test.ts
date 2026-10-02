@@ -252,8 +252,8 @@ describe('the fingerprint of a configuration', () => {
         });
         const { fingerprintStrategy } = await import('./strategy-fingerprint.js');
 
-        const btc = fingerprintStrategy(signalConfigFor('BTCUSDT'));
-        const eth = fingerprintStrategy(signalConfigFor('ETHUSDT'));
+        const btc = fingerprintStrategy('BTCUSDT', signalConfigFor('BTCUSDT'));
+        const eth = fingerprintStrategy('ETHUSDT', signalConfigFor('ETHUSDT'));
 
         expect(eth.hash).not.toBe(btc.hash);
     });
@@ -268,19 +268,40 @@ describe('the fingerprint of a configuration', () => {
         const { INDICATOR_SIGNAL_CONFIG } = await import('./indicator.config.js');
         const { fingerprintStrategy } = await import('./strategy-fingerprint.js');
 
-        expect(fingerprintStrategy(signalConfigFor('ETHUSDT')).hash).toBe(
-            fingerprintStrategy(INDICATOR_SIGNAL_CONFIG).hash,
-        );
+        // Same market, so the market named in the fingerprint cannot be what makes
+        // the hashes differ — which is exactly what this test has to keep honest.
+        expect(
+            fingerprintStrategy('BTCUSDT', signalConfigFor('ETHUSDT')).hash,
+        ).toBe(fingerprintStrategy('BTCUSDT', INDICATOR_SIGNAL_CONFIG).hash);
     });
 
-    it('keeps the shipped configuration as the default fingerprint', async () => {
-        // Every existing caller passes nothing, and a change to the default
-        // would re-version every stored snapshot on the next boot.
+    it('keeps the shipped configuration as the default, once a market is named', async () => {
+        // The market became a required parameter in round 109, because a
+        // fingerprint that cannot name its market *is* the defect. The default that
+        // survived is the one this test was really about: naming no signal config
+        // still means the shipped configuration, so a market with no override is
+        // fingerprinted as itself.
+        //
+        // What did not survive is the sentence above about re-versioning every
+        // stored snapshot on the next boot. That re-versioning is now the intended
+        // effect, forward-only: existing rows keep their hashes and their stored
+        // children, and each market resolves to its own version from here on.
         const { INDICATOR_SIGNAL_CONFIG } = await loadConfig();
         const { fingerprintStrategy } = await import('./strategy-fingerprint.js');
 
-        expect(fingerprintStrategy().hash).toBe(
-            fingerprintStrategy(INDICATOR_SIGNAL_CONFIG).hash,
+        expect(fingerprintStrategy('BTCUSDT').hash).toBe(
+            fingerprintStrategy('BTCUSDT', INDICATOR_SIGNAL_CONFIG).hash,
+        );
+    });
+
+    it('and the market is the difference between two otherwise identical hashes', async () => {
+        // The one-line version of the whole round: same settings, same thresholds,
+        // two hashes.
+        const { INDICATOR_SIGNAL_CONFIG } = await loadConfig();
+        const { fingerprintStrategy } = await import('./strategy-fingerprint.js');
+
+        expect(fingerprintStrategy('BTCUSDT').hash).not.toBe(
+            fingerprintStrategy('ETHUSDT').hash,
         );
     });
 });

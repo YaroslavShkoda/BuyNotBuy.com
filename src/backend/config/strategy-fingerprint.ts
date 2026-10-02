@@ -29,10 +29,37 @@ export interface StrategyFingerprint {
     config: Record<string, unknown>;
 }
 
+/**
+ * @param market the market this configuration is running on
+ *
+ * **Required, and that is the round.** It used to default to the shipped signal
+ * config and carry no market at all, which is the whole of the finding in
+ * `lifecycle/cross-asset-isolation.test.ts`: two markets running the same
+ * thresholds produced one `strategy_version`, so every measurement table under it
+ * blended them and the blend was a series no configuration ever produced.
+ *
+ * Making it required rather than optional is the point. A fingerprint that cannot
+ * name its market is the defect, so an optional parameter would let the next call
+ * site reintroduce it silently — and it would look correct, because the blend is
+ * invisible in every individual number.
+ *
+ * **Forward-only, and no history is rewritten.** Existing `strategy_version` rows
+ * keep their hashes and their stored children; nothing is re-attributed, because
+ * old results are never rewritten. What changes is that from here on each market
+ * resolves to its own version, so the ladder starts its shadow window again —
+ * which is exactly what happens on any configuration change, and is what the
+ * gate requires before it will approve anything.
+ */
 export function fingerprintStrategy(
+    market: string,
     signal: ResolvedIndicatorSignalConfig = INDICATOR_SIGNAL_CONFIG,
 ): StrategyFingerprint {
     const config = {
+        // First, and outside every nested block, so that two markets cannot
+        // produce one hash by agreeing about everything else. Normalised, because
+        // `btcusdt` and `BTCUSDT` are the same market and two versions would each
+        // look like a first sighting.
+        market: market.trim().toUpperCase(),
         periods: {
             ema: indicatorConfig.emaPeriod,
             stochastic: indicatorConfig.stochasticPeriod,

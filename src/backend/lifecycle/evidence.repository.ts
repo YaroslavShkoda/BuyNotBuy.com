@@ -30,9 +30,18 @@ export interface EvidenceReader {
      * @param incumbentVersionId what the rule is being compared against, or
      *   null when the system has never resolved an active configuration
      * @param symbol the market to count, or null for every market under the
-     *   version — which is what a version still *is*, since it has no market of
-     *   its own. Passing null keeps that visible and is what
-     *   `cross-asset-isolation.test.ts` asserts.
+     *   version.
+     *
+     *   Still optional, and still worth passing. As of round 109 a fresh
+     *   `strategy_version` belongs to one market, so for anything measured from
+     *   then on the filter is redundant — but the rows already in the table span
+     *   every asset, and those are exactly the ones a promotion would be judged
+     *   on for a while. An unscoped read of them is a blend, and it would be read
+     *   as the version's own record.
+     *
+     *   The redundancy is the point. A defence that stops working when its
+     *   preconditions change is not a defence, and the precondition here is a
+     *   table of historical rows nobody is going to rewrite.
      */
     evidenceFor(
         strategyVersionId: number,

@@ -200,7 +200,7 @@ describe('a market configured with its own thresholds', () => {
 
         const shipped = await query<{ id: number }>(
             `SELECT id FROM strategy_version WHERE config_hash = $1`,
-            [fingerprintStrategy().hash],
+            [fingerprintStrategy('BTCUSDT').hash],
         );
 
         expect(filed).not.toBe(shipped.rows[0]?.id);
@@ -217,7 +217,7 @@ describe('a market nobody configured', () => {
 
         const shipped = await query<{ id: number }>(
             `SELECT id FROM strategy_version WHERE config_hash = $1`,
-            [fingerprintStrategy().hash],
+            [fingerprintStrategy('BTCUSDT').hash],
         );
 
         // Adding a second market must not re-version the first: every snapshot

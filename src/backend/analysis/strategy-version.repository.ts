@@ -84,7 +84,10 @@ const SELECT_COLUMNS = 'id, name, description, config_hash, created_at';
 export function createStrategyVersionRepository(): StrategyVersionRepository {
     return {
         async resolveActive(instrument: string): Promise<StrategyVersion> {
-            const fingerprint = fingerprintStrategy(signalConfigFor(instrument));
+            const fingerprint = fingerprintStrategy(
+                instrument,
+                signalConfigFor(instrument),
+            );
 
             const existing = await query<StrategyVersionRow>(
                 `SELECT ${SELECT_COLUMNS} FROM strategy_version WHERE config_hash = $1`,

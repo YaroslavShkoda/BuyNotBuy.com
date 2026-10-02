@@ -20,12 +20,18 @@ const NOW = 1_760_000_000_000;
  * measurement *means* — every indicator period, every threshold, which rules are
  * installed, which is the fallback — and says why in its own comment: without
  * them "the performance tables would blend them, and the blend would be a series
- * that no rule ever produced". Applied to the asset axis, that same standard is
- * not met. The fingerprint has no symbol, no asset, no instrument, so one
- * `strategy_version` is one row covering every asset the system trades.
+ * that no rule ever produced". Applied to the asset axis, that same standard was
+ * not met: the fingerprint had no symbol, no asset, no instrument, so one
+ * `strategy_version` was one row covering every asset the system trades.
  *
- * The consequence is below, and it is not a hypothetical: `evidenceFor` has no
- * asset parameter at all, and its tally counts every symbol under the version.
+ * **Rounds 106 and 109 closed both halves, and neither rewrote anything.**
+ *
+ * 106 gave `evidenceFor` an optional market, so the promotion gate counts the
+ * market it is approving for. 109 put the market into the fingerprint, so each
+ * market resolves to its own `strategy_version` from now on. The rows already in
+ * the table still span every asset they always spanned, and still are a blend —
+ * this file keeps asserting that, because a fixed gate must not quietly imply the
+ * stored history was fixed too.
  *
  * **This test does not change it, and round 106 did not either.** Splitting the
  * version per asset is a decision with a migration behind it — every stored
@@ -99,18 +105,42 @@ describe('two assets under one strategy version', () => {
         await truncateSignalTables();
     });
 
-    it('fingerprints the same configuration for every asset', () => {
-        // The cause, one layer up from the tally. The fingerprint takes a signal
-        // configuration and returns a hash; there is no parameter through which
-        // an asset could enter it, so every asset shares one version by
-        // construction rather than by accident.
-        const left = fingerprintStrategy();
-        const right = fingerprintStrategy();
+    it('fingerprints a different version for every market, as of round 109', () => {
+        // **This test asserted the opposite for most of the project's life, and
+        // that is recorded here rather than quietly replaced.**
+        //
+        // It read: "there is no parameter through which an asset could enter it,
+        // so every asset shares one version by construction rather than by
+        // accident." True, and the reason the blend existed. The fingerprint takes
+        // a market now — required, because an optional one would let the next call
+        // site reintroduce the blend silently and look correct doing it — so two
+        // markets with identical settings are two versions.
+        //
+        // **Forward-only, and this file is why.** Nothing is re-attributed: the
+        // `strategy_version` rows already in the table keep their hashes and their
+        // stored children, and their measurements are still a blend. The next
+        // snapshot starts a per-market version, and from then on each market's
+        // evidence is its own. Old results are never rewritten — not because it is
+        // convenient, but because a rewritten result is not the result that was
+        // measured.
+        const left = fingerprintStrategy('BTCUSDT');
+        const right = fingerprintStrategy('ETHUSDT');
 
-        expect(right.hash).toBe(left.hash);
-        expect(Object.keys(left.config)).not.toContain('symbol');
+        expect(right.hash).not.toBe(left.hash);
+
+        // And the market is in the fingerprint under a name that says what it is.
+        expect(left.config).toHaveProperty('market', 'BTCUSDT');
         expect(Object.keys(left.config)).not.toContain('asset');
         expect(Object.keys(left.config)).not.toContain('instrument');
+    });
+
+    it('and normalises the market, so case is not a fork', () => {
+        // `BTCUSDT` and `btcusdt` are one market. Two versions would each look
+        // like this market's first sighting, and the ladder would restart shadow
+        // evaluation every time a call site disagreed about capitalisation.
+        expect(fingerprintStrategy('btcusdt').hash).toBe(
+            fingerprintStrategy(' BTCUSDT ').hash,
+        );
     });
 
     it('counts every asset together when nobody says which asset', async () => {

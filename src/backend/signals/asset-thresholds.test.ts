@@ -116,8 +116,8 @@ describe('a configured market runs its own thresholds', () => {
         // filed under it come from the same thresholds. The fingerprint takes the
         // resolved config for exactly this reason, and calling it with none is
         // what gave two markets one version.
-        expect(fingerprintStrategy(signalConfigFor('ETHUSDT')).hash).not.toBe(
-            fingerprintStrategy(signalConfigFor('BTCUSDT')).hash,
+        expect(fingerprintStrategy('ETHUSDT', signalConfigFor('ETHUSDT')).hash).not.toBe(
+            fingerprintStrategy('BTCUSDT', signalConfigFor('BTCUSDT')).hash,
         );
     });
 });
@@ -130,8 +130,10 @@ describe('the shipped configuration is unchanged by an override existing', () =>
         // market must keep resolving to the hash it always resolved to, or
         // adding a second market would silently re-version every stored
         // snapshot — the accident `hashValue` sorts keys to prevent.
-        expect(fingerprintStrategy(signalConfigFor('BTCUSDT')).hash).toBe(
-            fingerprintStrategy().hash,
+        // The market is named on both sides: it is part of the fingerprint now, and a
+        // comparison across markets would prove nothing about the thresholds.
+        expect(fingerprintStrategy('BTCUSDT', signalConfigFor('BTCUSDT')).hash).toBe(
+            fingerprintStrategy('BTCUSDT').hash,
         );
     });
 });

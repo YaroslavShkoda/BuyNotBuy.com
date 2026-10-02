@@ -108,7 +108,25 @@ describe('a market with thresholds of its own gets its own strategy version', ()
 });
 
 describe('a market nobody configured runs the shipped configuration', () => {
-    it('shares the version with every other such market', async () => {
+    it('still gets a version of its own, because the market is part of it', async () => {
+        // **This test used to assert the opposite, and its reason has been
+        // reversed rather than invalidated.**
+        //
+        // It read: "No override means no difference to record, so no difference to
+        // make: inventing one here would give every unconfigured market a version
+        // of its own and make the table unreadable." Two claims, and both were
+        // wrong in the same direction.
+        //
+        // "No difference to record" — a market running BTC's thresholds on ETH is
+        // a different series, and every measurement taken under it belongs to
+        // ETH. Recording that it is not BTC's measurements is not inventing a
+        // difference; it is refusing to lose one. The blend it prevented is the
+        // subject of `lifecycle/cross-asset-isolation.test.ts`.
+        //
+        // "Make the table unreadable" — the table is keyed by `config_hash` and
+        // holds a handful of rows. One row per market is not unreadable; one row
+        // covering every market is a row whose measurements cannot be attributed
+        // to anything. The cost was never tidiness, it was meaning.
         await withOverrides({ INDICATOR_ASSET_CONFIG: ETH_OVERRIDE }, async () => {
             const { createStrategyVersionRepository } = await import(
                 './strategy-version.repository.js'
@@ -116,10 +134,7 @@ describe('a market nobody configured runs the shipped configuration', () => {
 
             const repository = createStrategyVersionRepository();
 
-            // No override means no difference to record, so no difference to
-            // make: inventing one here would give every unconfigured market a
-            // version of its own and make the table unreadable.
-            expect((await repository.resolveActive('BTCUSDT')).id).toBe(
+            expect((await repository.resolveActive('BTCUSDT')).id).not.toBe(
                 (await repository.resolveActive('XRPUSDT')).id,
             );
         });
@@ -137,10 +152,66 @@ describe('a market nobody configured runs the shipped configuration', () => {
             const withOverridePresent = await createStrategyVersionRepository().resolveActive(
                 'BTCUSDT',
             );
-            const fingerprintOfShippedConfig = fingerprintStrategy();
+            // The market is named on both sides, because it is part of the
+            // fingerprint now — so this compares like with like and still asks the
+            // question it was written for: another market's override must not
+            // change *this* market's version.
+            const fingerprintOfShippedConfig = fingerprintStrategy('BTCUSDT');
 
             expect(withOverridePresent.configHash).toBe(fingerprintOfShippedConfig.hash);
             expect(withOverridePresent.configHash).toBe(hashValue(fingerprintOfShippedConfig.config));
+        });
+    });
+
+    it('and two markets with identical settings get two versions', async () => {
+        // **The round.** `strategy_version` had no market in it, so BTCUSDT and
+        // ETHUSDT running the same thresholds shared one row, and every
+        // measurement table under it blended them — a series no configuration
+        // produced, with every individual number correct.
+        //
+        // The repository already took an instrument and already resolved per-market
+        // thresholds. What it did not do was record which market the version was
+        // for, so two markets that resolve to the same settings collapsed onto one
+        // row. Forward-only: nothing is re-attributed, and the rows that already
+        // exist keep their hashes.
+        await withOverrides({}, async () => {
+            const { createStrategyVersionRepository } = await import(
+                './strategy-version.repository.js'
+            );
+            const repository = createStrategyVersionRepository();
+
+            const btc = await repository.resolveActive('BTCUSDT');
+            const eth = await repository.resolveActive('ETHUSDT');
+
+            expect(eth.id).not.toBe(btc.id);
+        });
+
+        // And the same market asked twice is still one version, or the ladder
+        // would never accumulate evidence at all.
+        await withOverrides({}, async () => {
+            const { createStrategyVersionRepository } = await import(
+                './strategy-version.repository.js'
+            );
+            const repository = createStrategyVersionRepository();
+
+            expect((await repository.resolveActive('BTCUSDT')).id).toBe(
+                (await repository.resolveActive('BTCUSDT')).id,
+            );
+        });
+    });
+
+    it('and one market written two ways is still one version', async () => {
+        // Case is not a fork. `BTCUSDT` and `btcusdt` are the same market, and
+        // two versions would each believe they were this market's first sighting.
+        await withOverrides({}, async () => {
+            const { createStrategyVersionRepository } = await import(
+                './strategy-version.repository.js'
+            );
+            const repository = createStrategyVersionRepository();
+
+            expect((await repository.resolveActive('BTCUSDT')).id).toBe(
+                (await repository.resolveActive(' btcusdt ')).id,
+            );
         });
     });
 });
