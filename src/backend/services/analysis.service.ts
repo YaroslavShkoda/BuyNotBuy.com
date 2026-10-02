@@ -299,7 +299,22 @@ async function recordStrategyDecisions(input: {
         // lost row was counted and invisible — a silent failure wearing the
         // costume of an observed one. This is the count an operator can see,
         // and it is the same event, not a second reading of it.
-        currentRegistry().counter('strategy_decision_write_failures');
+        //
+        // **Labelled by market, and this is not the same choice as the two signal
+        // counters next door.** Those stay unlabelled on purpose: their consumers
+        // (`churnRate()` and the calibration code) read a process-wide rate, and
+        // a reader who wants one market's churn filters in the structured log
+        // instead. This counter reports *lost rows*, which is a different kind of
+        // fact: a loss is not a rate, it is a hole in a specific series, and a
+        // total cannot say which series lost one. With two markets running, "we
+        // lost decision rows" and "we lost decision rows for the market whose
+        // accuracy we are about to trust" are different sentences, and the market
+        // was in scope the whole time — it is `input.symbol`.
+        currentRegistry().counter(
+            'strategy_decision_write_failures',
+            1,
+            { market: input.symbol },
+        );
     }
 }
 

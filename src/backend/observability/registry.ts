@@ -497,7 +497,9 @@ export const METRIC_CATALOGUE: readonly ObservabilityMetric[] = z
             // rows, not that the strategy is fine.
             description:
                 'Потерянных строк журнала решений. Анализ при этом не падает — ' +
-                'потеря видна только здесь.',
+                'потеря видна только здесь. Метка `market` обязательна: потеря — ' +
+                'не частота, а дыра в конкретной серии, и итог по процессу не ' +
+                'скажет, какая серия её недополучила.',
         },
         {
             name: 'database_query_duration',

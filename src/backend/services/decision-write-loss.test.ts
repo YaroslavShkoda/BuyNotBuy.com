@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { METRIC_KIND, METRIC_NAMES } from '../observability/metrics.js';
+import {
+    DEFAULT_METRIC_CONFIG,
+    METRIC_KIND,
+    METRIC_NAMES,
+} from '../observability/metrics.js';
+import { MetricRegistry, useRegistry } from '../observability/registry.js';
 
 import type { MarketAnalysis } from '../types/analysis.js';
 
@@ -43,6 +48,16 @@ const LOSS = 'strategy_decision_write_failures';
 
 beforeEach(() => {
     resetStrategyDecisionWriteFailures();
+
+    // A fresh registry per test, and it is needed for one specific promise.
+    //
+    // The registry seeds every declared counter at zero **without labels** until
+    // something writes a labelled series, at which point the labelled series
+    // replace the seed — the same rule `market_cycle_failures` and every provider
+    // metric already live under. So "exposed at zero while nothing has been lost"
+    // is a claim about a registry that has never seen this market, and it cannot
+    // be asserted in a process where a previous test already wrote one.
+    useRegistry(new MetricRegistry(DEFAULT_METRIC_CONFIG));
     vi.spyOn(marketService, 'getMarketData').mockResolvedValue(
         marketDataResult(
             marketData(CANDLES, {
@@ -91,7 +106,43 @@ describe('a lost decision-log row is reported, not only counted', () => {
 
         expect(analysis.signal).toBeDefined();
 
-        expect(await exposureOf(LOSS)).toBeGreaterThan(0);
+        expect(await exposureOf(LOSS, 'BTCUSDT')).toBeGreaterThan(0);
+    });
+
+    it('and the loss names the market whose series lost the row', async () => {
+        // **The round.** The counter was the only one in the codebase written
+        // with no labels at all, while the market sat in scope as `input.symbol`.
+        //
+        // The two signal counters are also unlabelled, and that is a decision with
+        // a reason: their consumers read a process-wide rate. This one reports
+        // *lost rows*, which is a different kind of fact — a loss is not a rate,
+        // it is a hole in one series, and a total cannot say which series lost
+        // one. "We lost decision rows" and "we lost decision rows for the market
+        // whose accuracy we are about to trust" are different sentences.
+        vi.spyOn(decisionLog, 'getDecisionLogRepository').mockReturnValue({
+            record: vi.fn(async () => {
+                throw new Error('database is on fire');
+            }),
+        } as unknown as ReturnType<typeof decisionLog.getDecisionLogRepository>);
+
+        await analyzeMarketWithStatus();
+
+        // The labelled series exists...
+        expect(await exposureOf(LOSS, 'BTCUSDT')).toBeGreaterThan(0);
+
+        // ...and no unlabelled total stands in for it. A sample without a market
+        // would read as "some market lost rows", which is what the round removed.
+        const { renderMetrics } = await import('../api/lib/metrics.js');
+
+        expect(
+            renderMetrics()
+                .split(String.fromCharCode(10))
+                .some(
+                    (one) =>
+                        !one.startsWith('#') &&
+                        one.startsWith(`buynotbuy_${LOSS} `),
+                ),
+        ).toBe(false);
     });
 });
 
@@ -105,8 +156,24 @@ describe('a lost decision-log row is reported, not only counted', () => {
  * exactly that test, and a control proved it: with the increment deleted from the
  * `catch`, it stayed green.
  */
-async function exposureOf(name: string): Promise<number> {
+async function exposureOf(name: string, market?: string): Promise<number> {
     const { renderMetrics } = await import('../api/lib/metrics.js');
+
+    // Which sample line this accepts changed in round 108, and it is worth
+    // recording why. It used to require `buynotbuy_<name> ` — a trailing space,
+    // meaning "no labels" — which is why the metric was unlabelled in the first
+    // place. The loss now carries `market`, so the sample reads
+    // `buynotbuy_<name>{market="BTCUSDT"} 1` and the old prefix stopped matching.
+    //
+    // **The narrower this matcher gets, the more it can be wrong in the quiet
+    // way.** A matcher that accepts any sample of the name would pass on a market
+    // that is not the one under test, which is precisely the failure the label
+    // was added to prevent. So the market is matched when given, and the no-label
+    // form is still accepted when it is not.
+    const prefix =
+        market === undefined
+            ? `buynotbuy_${name} `
+            : `buynotbuy_${name}{market="${market}"} `;
 
     return vi.waitFor(() => {
         const rendered = renderMetrics();
@@ -118,10 +185,8 @@ async function exposureOf(name: string): Promise<number> {
             // reported a metric that was silently working. A parser that matches
             // a prefix it did not mean to match is the same defect as a predicate
             // that matches a substring.
-            .find(
-                (one) =>
-                    !one.startsWith('#') && one.startsWith(`buynotbuy_${name} `),
-            );
+            .find((one) => !one.startsWith('#') && one.startsWith(prefix));
+
 
         expect(line, `${name} never reached the exposition as a sample`).toBeDefined();
 
