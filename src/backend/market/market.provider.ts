@@ -334,16 +334,13 @@ export function configuredMarketVenues(): string[] {
  * `provider_failed` exists for exactly that case (`market-freshness.ts:19-24`), and
  * a process-wide answer made it unreachable for every market but one.
  *
- * **What this does not fix, stated plainly.** `isVenueAvailable` is keyed by venue
- * and not by market, so a failure that belongs to one market still marks the whole
- * venue unavailable and this answer goes unavailable with it. That is the next
- * item — the health record and the circuit breaker need the market in their key —
- * and until then this fixes the *filter*, not the *key*. Both halves are needed for
- * "an ETHUSDT outage does not mark BTCUSDT dead"; the filter alone covers the case
- * where the venue is down for everyone, which is the common one.
+ * Both halves of "an ETHUSDT outage does not mark BTCUSDT dead" are now in place:
+ * this function filters to the venues that serve the market, and `isVenueAvailable`
+ * is keyed by venue **and** market, so a circuit opened by one series refuses that
+ * series alone.
  */
 export function anyMarketProviderAvailable(instrument: string): boolean {
-    return venuesServing(instrument).some((venue) => isVenueAvailable(venue));
+    return venuesServing(instrument).some((venue) => isVenueAvailable(venue, instrument));
 }
 
 /**

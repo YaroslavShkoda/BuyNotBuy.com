@@ -61,6 +61,7 @@ async function settle() {
  */
 async function runToCompletion(signal?: AbortSignal): Promise<unknown> {
     const outcome = sendBinanceRequest({
+                market: 'BTCUSDT',
         url: URL,
         endpoint: ENDPOINT,
         ...(signal === undefined ? {} : { signal }),
@@ -148,7 +149,8 @@ describe('sendBinanceRequest retries', () => {
         const fetchMock = vi.fn().mockResolvedValue(okResponse());
         vi.stubGlobal('fetch', fetchMock);
 
-        const response = await sendBinanceRequest({ url: URL, endpoint: ENDPOINT });
+        const response = await sendBinanceRequest({
+                market: 'BTCUSDT', url: URL, endpoint: ENDPOINT });
 
         expect(response.status).toBe(200);
         expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -160,7 +162,8 @@ describe('sendBinanceRequest retries', () => {
             .mockResolvedValueOnce(okResponse());
         vi.stubGlobal('fetch', fetchMock);
 
-        const promise = sendBinanceRequest({ url: URL, endpoint: ENDPOINT });
+        const promise = sendBinanceRequest({
+                market: 'BTCUSDT', url: URL, endpoint: ENDPOINT });
         await settle();
         const response = await promise;
 
@@ -174,7 +177,8 @@ describe('sendBinanceRequest retries', () => {
             .mockResolvedValueOnce(okResponse());
         vi.stubGlobal('fetch', fetchMock);
 
-        const promise = sendBinanceRequest({ url: URL, endpoint: ENDPOINT });
+        const promise = sendBinanceRequest({
+                market: 'BTCUSDT', url: URL, endpoint: ENDPOINT });
         await settle();
         const response = await promise;
 
@@ -222,7 +226,8 @@ describe('sendBinanceRequest retries', () => {
             .mockResolvedValueOnce(okResponse());
         vi.stubGlobal('fetch', fetchMock);
 
-        const promise = sendBinanceRequest({ url: URL, endpoint: ENDPOINT });
+        const promise = sendBinanceRequest({
+                market: 'BTCUSDT', url: URL, endpoint: ENDPOINT });
         await settle();
         await promise;
 
@@ -324,6 +329,7 @@ describe('sendBinanceRequest rate limiting', () => {
         vi.stubGlobal('fetch', fetchMock);
 
         const error = await sendBinanceRequest({
+                market: 'BTCUSDT',
             url: URL,
             endpoint: ENDPOINT,
         }).catch((e: unknown) => e);
@@ -344,6 +350,7 @@ describe('sendBinanceRequest rate limiting', () => {
         vi.stubGlobal('fetch', vi.fn().mockResolvedValue(statusResponse(429)));
 
         const error = await sendBinanceRequest({
+                market: 'BTCUSDT',
             url: URL,
             endpoint: ENDPOINT,
         }).catch((e: unknown) => e);
@@ -392,7 +399,8 @@ describe('sendBinanceRequest status mapping', () => {
         // write. Four call sites had each grown their own copy of the status
         // mapping, and two of them had already drifted.
         await expect(
-            sendBinanceRequest({ url: URL, endpoint: ENDPOINT }),
+            sendBinanceRequest({
+                market: 'BTCUSDT', url: URL, endpoint: ENDPOINT }),
         ).rejects.toBeInstanceOf(ProviderError);
     });
 });
@@ -406,6 +414,7 @@ describe('sendBinanceRequest cancellation', () => {
         const controller = new AbortController();
 
         await sendBinanceRequest({
+                market: 'BTCUSDT',
             url: URL,
             endpoint: ENDPOINT,
             signal: controller.signal,
@@ -447,8 +456,8 @@ describe('sendBinanceRequest cancellation', () => {
             await outcome;
         }
 
-        expect(providerCircuitState('binance')).toBe('closed');
-        expect(isVenueAvailable('binance')).toBe(true);
+        expect(providerCircuitState('binance', 'BTCUSDT')).toBe('closed');
+        expect(isVenueAvailable('binance', 'BTCUSDT')).toBe(true);
     });
 
     it('still counts a cancelled request as a request that was made', async () => {

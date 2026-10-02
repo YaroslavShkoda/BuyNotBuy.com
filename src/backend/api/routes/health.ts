@@ -7,7 +7,7 @@ import { renderMetrics } from '../lib/metrics.js';
 import { readRequestId } from '../lib/redaction.js';
 import { observabilityConfig } from '../../config/observability.config.js';
 import { configuredMarketVenues } from '../../market/market.provider.js';
-import { venueHealth } from '../../market/providers/provider-http.js';
+import { venueHealthSummary } from '../../market/providers/provider-http.js';
 import { healthRegistry } from '../../observability/health.registry.js';
 
 /** Schema version this build can read. Anything higher is not ours to serve. */
@@ -107,7 +107,7 @@ function marketDataReport(): {
     }>;
 } {
     const venues = configuredMarketVenues().map((provider) => {
-        const health = venueHealth(provider);
+        const health = venueHealthSummary(provider);
 
         return {
             provider,

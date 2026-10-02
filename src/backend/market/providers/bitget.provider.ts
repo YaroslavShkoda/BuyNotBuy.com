@@ -213,6 +213,7 @@ export class BitgetProvider implements MarketDataProvider {
         try {
             const response = await sendProviderRequest({
                 provider: 'bitget',
+                market: this.symbol,
                 url,
                 endpoint: TICKERS_ENDPOINT,
             });
@@ -359,6 +360,7 @@ export class BitgetProvider implements MarketDataProvider {
         try {
             const response = await sendProviderRequest({
                 provider: 'bitget',
+                market: this.symbol,
                 url,
                 endpoint: CANDLES_ENDPOINT,
             });

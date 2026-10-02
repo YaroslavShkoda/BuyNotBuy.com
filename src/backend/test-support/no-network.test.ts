@@ -59,6 +59,7 @@ describe('the network guard', () => {
         // would be matching the transport\'s phrasing — and would have silently
         // stopped proving that the guard is what refused it.
         const error = await sendBinanceRequest({
+                market: 'BTCUSDT',
             url: 'https://data-api.binance.vision/api/v3/klines?symbol=BTCUSDT&interval=1h&limit=10',
             endpoint: '/api/v3/klines',
         }).catch((e: unknown) => e);

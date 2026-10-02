@@ -2,7 +2,7 @@ import { observabilityConfig } from '../../config/observability.config.js';
 import { signalHistoryBacklog } from '../../history/signal-history.service.js';
 import { indicatorVoteBacklog } from '../../indicators/performance/indicator-performance.service.js';
 import { configuredMarketVenues } from '../../market/market.provider.js';
-import { venueHealth } from '../../market/providers/provider-http.js';
+import { venueHealthSummary } from '../../market/providers/provider-http.js';
 import { providerTelemetryAll } from '../../market/providers/provider-telemetry.js';
 import { currentRegistry } from '../../observability/registry.js';
 
@@ -185,7 +185,7 @@ export function renderMetrics(): string {
         const stats = providerTelemetryAll().find(
             (entry) => entry.provider === venue,
         );
-        const healthState = venueHealth(venue);
+        const healthState = venueHealthSummary(venue);
         const label = `{provider="${escapeLabel(venue)}"}`;
 
         lines.push(

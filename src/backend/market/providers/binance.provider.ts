@@ -123,6 +123,7 @@ export class BinanceProvider implements MarketDataProvider {
 
         try {
             const response = await sendBinanceRequest({
+                market: this.symbol,
                 url,
                 endpoint: PRICE_ENDPOINT,
             });
@@ -244,6 +245,7 @@ export class BinanceProvider implements MarketDataProvider {
 
         try {
             const response = await sendBinanceRequest({
+                market: this.symbol,
                 url,
                 endpoint: KLINES_ENDPOINT,
             });

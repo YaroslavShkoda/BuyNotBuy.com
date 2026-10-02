@@ -44,6 +44,7 @@ async function openTheBreaker(): Promise<void> {
     for (let index = 0; index < marketConfig.circuitFailureThreshold; index += 1) {
         const attempt = sendProviderRequest({
             provider: 'binance',
+            market: 'BTCUSDT',
             url: URL,
             endpoint: ENDPOINT,
         }).catch(() => undefined);
@@ -231,6 +232,7 @@ describe('CircuitBreaker through the transport', () => {
         const burst = Array.from({ length: 100 }, () =>
             sendProviderRequest({
                 provider: 'binance',
+                market: 'BTCUSDT',
                 url: URL,
                 endpoint: ENDPOINT,
             }).catch((error: unknown) => error),
@@ -262,6 +264,7 @@ describe('CircuitBreaker through the transport', () => {
         const burst = Array.from({ length: 100 }, () =>
             sendProviderRequest({
                 provider: 'binance',
+                market: 'BTCUSDT',
                 url: URL,
                 endpoint: ENDPOINT,
             }).catch((error: unknown) => error),
@@ -302,6 +305,7 @@ describe('CircuitBreaker through the transport', () => {
         const controller = new AbortController();
         const abandoned = sendProviderRequest({
             provider: 'binance',
+            market: 'BTCUSDT',
             url: URL,
             endpoint: ENDPOINT,
             signal: controller.signal,
@@ -310,7 +314,7 @@ describe('CircuitBreaker through the transport', () => {
         controller.abort();
         await abandoned;
 
-        expect(providerCircuitState('binance')).toBe('probing');
+        expect(providerCircuitState('binance', 'BTCUSDT')).toBe('probing');
 
         // The reservation the abandoned probe was holding is gone, so the next
         // caller can take it. If it is still held, the venue is never asked
@@ -318,6 +322,7 @@ describe('CircuitBreaker through the transport', () => {
         // the rest of the day.
         const next = sendProviderRequest({
             provider: 'binance',
+            market: 'BTCUSDT',
             url: URL,
             endpoint: ENDPOINT,
         }).catch(() => undefined);
@@ -341,16 +346,17 @@ describe('CircuitBreaker through the transport', () => {
 
         await openTheBreaker();
 
-        expect(providerCircuitState('binance')).toBe('open');
-        expect(isVenueAvailable('binance')).toBe(false);
+        expect(providerCircuitState('binance', 'BTCUSDT')).toBe('open');
+        expect(isVenueAvailable('binance', 'BTCUSDT')).toBe(false);
 
         // The whole reason the breaker is per-venue. A shared breaker means the
         // first venue to go dark takes the healthy one out of rotation with it.
-        expect(providerCircuitState('bitget')).toBe('closed');
-        expect(isVenueAvailable('bitget')).toBe(true);
+        expect(providerCircuitState('bitget', 'BTCUSDT')).toBe('closed');
+        expect(isVenueAvailable('bitget', 'BTCUSDT')).toBe(true);
 
         const response = await sendProviderRequest({
             provider: 'bitget',
+            market: 'BTCUSDT',
             url: 'https://api.bitget.com/api/v2/spot/market/candles',
             endpoint: '/candles',
         });
@@ -363,12 +369,12 @@ describe('CircuitBreaker through the transport', () => {
 
         await openTheBreaker();
 
-        expect(isVenueAvailable('binance')).toBe(false);
+        expect(isVenueAvailable('binance', 'BTCUSDT')).toBe(false);
 
         resetProviderTransport('binance');
 
-        expect(providerCircuitState('binance')).toBe('closed');
-        expect(isVenueAvailable('binance')).toBe(true);
+        expect(providerCircuitState('binance', 'BTCUSDT')).toBe('closed');
+        expect(isVenueAvailable('binance', 'BTCUSDT')).toBe(true);
     });
 
     it('reopens a recovered venue for real traffic after the reset', async () => {
@@ -381,6 +387,7 @@ describe('CircuitBreaker through the transport', () => {
 
         await sendProviderRequest({
             provider: 'binance',
+            market: 'BTCUSDT',
             url: URL,
             endpoint: ENDPOINT,
         }).catch(() => undefined);
@@ -392,6 +399,7 @@ describe('CircuitBreaker through the transport', () => {
 
         const reopened = sendProviderRequest({
             provider: 'binance',
+            market: 'BTCUSDT',
             url: URL,
             endpoint: ENDPOINT,
         }).catch(() => undefined);

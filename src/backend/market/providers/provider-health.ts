@@ -29,6 +29,8 @@ export type ProviderHealthState =
 
 export interface ProviderHealthSnapshot {
     provider: string;
+    /** The market this record is about. Not implied by the venue. */
+    market: string;
     state: ProviderHealthState;
     circuit: CircuitBreakerState;
     lastSuccessAt: number | null;
@@ -78,10 +80,39 @@ function emptyRecord(): ProviderRecord {
     };
 }
 
+/**
+ * One record per **venue and market**, and the market is not optional decoration.
+ *
+ * It was keyed by venue alone, which means two markets sharing a venue shared a
+ * `consecutiveFailures` counter, a `rateLimitedUntil` and a `lastSuccessAt`. Both
+ * halves of that are wrong in opposite directions:
+ *
+ * - `recordProviderSuccess('binance')` from a BTCUSDT call cleared
+ *   `consecutiveFailures`, so an ETHUSDT feed that was genuinely failing never
+ *   reached `recovering` and no amount of failing changed its state.
+ * - `recordProviderRateLimit` for one market set `rateLimitedUntil` for the whole
+ *   venue, so a throttle on one series marked the other one unavailable.
+ *
+ * A venue throttling one market harder than another is ordinary — different
+ * symbols, different order books, different rate-limit buckets. A record that
+ * cannot tell them apart is a record about neither.
+ */
 const records = new Map<string, ProviderRecord>();
 
-function recordFor(provider: string): ProviderRecord {
-    const existing = records.get(provider);
+/**
+ * The key a venue's record lives under.
+ *
+ * Normalised, because a ticker arriving in different case from two call sites is
+ * the same market and two records would be indistinguishable from two venues.
+ */
+function recordKey(provider: string, market: string): string {
+    return `${provider.toLowerCase()}:${market.trim().toUpperCase()}`;
+}
+
+function recordFor(provider: string, market: string): ProviderRecord {
+    const key = recordKey(provider, market);
+
+    const existing = records.get(key);
 
     if (existing !== undefined) {
         return existing;
@@ -89,7 +120,7 @@ function recordFor(provider: string): ProviderRecord {
 
     const created = emptyRecord();
 
-    records.set(provider, created);
+    records.set(key, created);
 
     return created;
 }
@@ -103,23 +134,39 @@ function recordFor(provider: string): ProviderRecord {
  * the primary and then reads "every venue is healthy" would be reading a state
  * the production code can never produce.
  */
-export function resetProviderHealth(provider?: string): void {
+export function resetProviderHealth(provider?: string, market?: string): void {
     if (provider === undefined) {
         records.clear();
 
         return;
     }
 
-    records.delete(provider);
+    // Without a market this forgets the venue across every market it has served.
+    // Both are useful and they are different: a suite that wants a clean slate
+    // wants the second, and a suite testing one series' failure wants the first.
+    if (market !== undefined) {
+        records.delete(recordKey(provider, market));
+
+        return;
+    }
+
+    const prefix = `${provider.toLowerCase()}:`;
+
+    for (const key of [...records.keys()]) {
+        if (key.startsWith(prefix)) {
+            records.delete(key);
+        }
+    }
 }
 
 export function recordProviderSuccess(
     provider: string,
+    market: string,
     details: { latencyMs: number; httpStatus?: number | undefined } = {
         latencyMs: 0,
     },
 ): void {
-    const record = recordFor(provider);
+    const record = recordFor(provider, market);
 
     record.lastSuccessAt = Date.now();
     record.consecutiveFailures = 0;
@@ -132,9 +179,10 @@ export function recordProviderSuccess(
 
 export function recordProviderFailure(
     provider: string,
+    market: string,
     details: ProviderFailureReport = {},
 ): void {
-    const record = recordFor(provider);
+    const record = recordFor(provider, market);
 
     record.lastFailureAt = Date.now();
     record.lastLatencyMs = null;
@@ -161,9 +209,10 @@ export function recordProviderFailure(
 
 export function recordProviderRateLimit(
     provider: string,
+    market: string,
     details: { retryAfterMs: number; httpStatus?: number | undefined },
 ): void {
-    const record = recordFor(provider);
+    const record = recordFor(provider, market);
 
     record.lastFailureAt = Date.now();
     record.lastLatencyMs = null;
@@ -194,6 +243,7 @@ export function recordProviderRateLimit(
  */
 export function providerHealthState(
     provider: string,
+    market: string,
     circuit: CircuitBreakerState,
     now: number = Date.now(),
 ): ProviderHealthState {
@@ -202,7 +252,7 @@ export function providerHealthState(
     // to come first, and a short-circuit above it would answer `degraded` for a
     // venue whose breaker is open — reporting as merely unproven a provider
     // this process has already decided not to call.
-    const record = records.get(provider) ?? emptyRecord();
+    const record = records.get(recordKey(provider, market)) ?? emptyRecord();
 
     if (circuit === 'open') {
         return 'circuit_open';
@@ -237,10 +287,11 @@ export function providerHealthState(
 
 export function isProviderAvailable(
     provider: string,
+    market: string,
     circuit: CircuitBreakerState,
     now: number = Date.now(),
 ): boolean {
-    const state = providerHealthState(provider, circuit, now);
+    const state = providerHealthState(provider, market, circuit, now);
 
     return (
         state === 'healthy' || state === 'degraded' || state === 'recovering'
@@ -249,15 +300,20 @@ export function isProviderAvailable(
 
 export function providerHealth(
     provider: string,
+    market: string,
     circuit: CircuitBreakerState,
     now: number = Date.now(),
 ): ProviderHealthSnapshot {
-    const record = records.get(provider) ?? emptyRecord();
-    const state = providerHealthState(provider, circuit, now);
+    const record = records.get(recordKey(provider, market)) ?? emptyRecord();
+    const state = providerHealthState(provider, market, circuit, now);
     const rateLimited = record.rateLimitedUntil > now;
 
     return {
         provider,
+        // Carried on the snapshot so a report cannot print a state belonging to one
+        // market under the name of another. The venue name is no longer enough to
+        // identify the record.
+        market,
         state,
         circuit,
         lastSuccessAt: record.lastSuccessAt,
@@ -273,7 +329,28 @@ export function providerHealth(
     };
 }
 
-/** Every venue this process has ever heard of, in registration order. */
+/**
+ * Every venue this process has ever heard of, in registration order.
+ *
+ * Venues and not keys: a key is `venue:MARKET`, and a caller asking "which
+ * venues exist" wants venues. Two markets on one venue appear once, because the
+ * question is about the venue.
+ */
 export function knownProviders(): string[] {
-    return [...records.keys()];
+    const venues = new Set<string>();
+
+    for (const key of records.keys()) {
+        venues.add(key.slice(0, key.indexOf(':')));
+    }
+
+    return [...venues];
+}
+
+/** Every market this process has held a record for, on one venue. */
+export function knownMarkets(provider: string): string[] {
+    const prefix = `${provider.toLowerCase()}:`;
+
+    return [...records.keys()]
+        .filter((key) => key.startsWith(prefix))
+        .map((key) => key.slice(prefix.length));
 }

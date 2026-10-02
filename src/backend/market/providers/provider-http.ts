@@ -35,10 +35,28 @@ import type { MarketProviderName } from '../../types/venue.js';
  */
 export type { MarketProviderName };
 
+/**
+ * One breaker per **venue and market**.
+ *
+ * It was one per venue, and that is a claim about the venue that the transport
+ * cannot support: an instrument-specific 5xx, or a venue throttling one market
+ * harder than another, opened a circuit that refused **every** market on that venue
+ * for the whole cooldown — before a socket was opened. Symmetrically, one market's
+ * success closed a circuit that another market's failures had earned.
+ *
+ * Keyed by market as well as venue, a failure that belongs to one series stays on
+ * that series, which is what a breaker is for.
+ */
 const breakers = new Map<string, CircuitBreaker>();
 
-function breakerFor(provider: string): CircuitBreaker {
-    const existing = breakers.get(provider);
+function breakerKey(provider: string, market: string): string {
+    return `${provider.toLowerCase()}:${market.trim().toUpperCase()}`;
+}
+
+function breakerFor(provider: string, market: string): CircuitBreaker {
+    const key = breakerKey(provider, market);
+
+    const existing = breakers.get(key);
 
     if (existing !== undefined) {
         return existing;
@@ -49,7 +67,7 @@ function breakerFor(provider: string): CircuitBreaker {
         cooldownMs: marketConfig.circuitCooldownMs,
     });
 
-    breakers.set(provider, created);
+    breakers.set(key, created);
 
     return created;
 }
@@ -64,6 +82,15 @@ export interface ProviderRequestOptions {
      * also be a type change in the layer that only cares about sockets.
      */
     provider: string;
+    /**
+     * The market this call is for.
+     *
+     * Required, because it is half the key the breaker and the health record are
+     * stored under. Left out, the transport would have to invent one — and whatever
+     * it invented would be the venue name or nothing, which is exactly the keying
+     * this removed.
+     */
+    market: string;
     url: string;
     /** Path only, so it is safe to put in logs and never carries a secret. */
     endpoint: string;
@@ -81,9 +108,24 @@ export interface ProviderRequestOptions {
  * that true, and it cannot do so while a previous test's calls are still in
  * the count.
  */
-export function resetProviderTransport(provider: string): void {
-    breakerFor(provider).reset();
-    health.resetProviderHealth(provider);
+export function resetProviderTransport(provider: string, market?: string): void {
+    // A market narrows all three, a bare venue widens them across every market it
+    // has served. Both spellings exist because a suite testing one series wants the
+    // first and a suite wanting a clean slate wants the second, and they are not
+    // the same request.
+    if (market === undefined) {
+        for (const known of health.knownMarkets(provider)) {
+            breakerFor(provider, known).reset();
+        }
+
+        health.resetProviderHealth(provider);
+        telemetry.resetProviderTelemetry(provider);
+
+        return;
+    }
+
+    breakerFor(provider, market).reset();
+    health.resetProviderHealth(provider, market);
     telemetry.resetProviderTelemetry(provider);
 }
 
@@ -95,8 +137,8 @@ export function resetProviderTransport(provider: string): void {
  * "the last call failed" and could not distinguish a venue that is merely
  * unlucky from one this process has deliberately stopped calling.
  */
-export function providerCircuitState(provider: string): CircuitBreakerState {
-    return breakerFor(provider).state;
+export function providerCircuitState(provider: string, market: string): CircuitBreakerState {
+    return breakerFor(provider, market).state;
 }
 
 export function isRateLimited(error: unknown): boolean {
@@ -127,16 +169,85 @@ export function providerFailureKind(
  * re-derived at each call site from a breaker state, a health record and a
  * config value in a slightly different combination.
  */
-export function isVenueAvailable(provider: string): boolean {
+/**
+ * Whether this venue can serve this market right now.
+ *
+ * Per market, because the breaker and the health record it consults are both keyed
+ * by venue and market. Asking it about a venue alone would merge every market on
+ * that venue back into the single answer this pair used to give.
+ */
+export function isVenueAvailable(provider: string, market: string): boolean {
     return health.isProviderAvailable(
         provider,
-        breakerFor(provider).state,
+        market,
+        breakerFor(provider, market).state,
     );
 }
 
-/** Health and telemetry for one venue, for the metrics and health endpoints. */
-export function venueHealth(provider: string) {
-    return health.providerHealth(provider, breakerFor(provider).state);
+/** Health and telemetry for one venue and one market. */
+export function venueHealth(provider: string, market: string) {
+    return health.providerHealth(provider, market, breakerFor(provider, market).state);
+}
+
+/**
+ * Health for a venue across every market it has served, naming the worst one.
+ *
+ * **The reports that iterate venues need this, and it is an aggregate rather than a
+ * convenience.** A venue-level answer has to be an answer about the venue, so it
+ * cannot silently take one market's record: a bitget that is healthy for BTCUSDT and
+ * refusing ETHUSDT is not a healthy bitget. The state returned is the worst across
+ * markets, and `market` says which one produced it — so the report is a summary that
+ * can still be acted on rather than one line about an arbitrary series.
+ *
+ * Markets with no record are counted, as `degraded`: a venue nobody has called for
+ * a market has no evidence, and the existing model already says exactly that about
+ * a venue it has never called.
+ */
+export function venueHealthSummary(provider: string): ReturnType<typeof venueHealth> {
+    const markets = health.knownMarkets(provider);
+
+    if (markets.length === 0) {
+        return health.providerHealth(provider, marketConfig.symbol, 'closed');
+    }
+
+    let worst = venueHealth(provider, markets[0]!);
+
+    for (const market of markets.slice(1)) {
+        const candidate = venueHealth(provider, market);
+
+        if (severity(candidate.state) > severity(worst.state)) {
+            worst = candidate;
+        }
+    }
+
+    return worst;
+}
+
+/**
+ * How bad a health state is, worst last.
+ *
+ * An order rather than a set because "is this worse" is asked constantly and a
+ * caller comparing two states by hand is a caller that will get it wrong for
+ * exactly one pair — which is how `available` and `state` drift apart.
+ */
+const SEVERITY: Record<string, number> = {
+    healthy: 0,
+    recovering: 1,
+    degraded: 2,
+    rate_limited: 3,
+    circuit_open: 4,
+    unavailable: 5,
+};
+
+/**
+ * Ranks a state, with an unknown state ranked worst.
+ *
+ * The fallback matters more than it looks: a state this function has never heard of
+ * must not be treated as harmless, and a missing key from an exhaustive record is
+ * exactly the case where guessing low would produce a healthy-looking summary.
+ */
+function severity(state: string): number {
+    return SEVERITY[state] ?? Number.POSITIVE_INFINITY;
 }
 
 /**
@@ -155,7 +266,7 @@ export function venueHealth(provider: string) {
 export async function sendProviderRequest(
     options: ProviderRequestOptions,
 ): Promise<Response> {
-    const breaker = breakerFor(options.provider);
+    const breaker = breakerFor(options.provider, options.market);
     const maxRetries = marketConfig.maxRetries;
 
     // Read before the attempt, because `tryAcquire` only says yes. Whether the
@@ -172,7 +283,7 @@ export async function sendProviderRequest(
             breaker,
         );
 
-        health.recordProviderFailure(options.provider, {
+        health.recordProviderFailure(options.provider, options.market, {
             // Our own decision, not the venue's answer. Asked of the error
             // rather than restated here so that "what counts as evidence
             // against a venue" has exactly one answer in the codebase.
@@ -255,7 +366,7 @@ export async function sendProviderRequest(
                     null,
                 );
                 telemetry.recordProviderError(options.provider, options.endpoint);
-                health.recordProviderFailure(options.provider);
+                health.recordProviderFailure(options.provider, options.market);
 
                 if (attempt >= maxRetries) {
                     throw transportError(options, error);
@@ -283,7 +394,7 @@ export async function sendProviderRequest(
             probeHeld = false;
             telemetry.recordProviderRateLimited(options.provider);
             telemetry.recordProviderError(options.provider, options.endpoint);
-            health.recordProviderRateLimit(options.provider, {
+            health.recordProviderRateLimit(options.provider, options.market, {
                 retryAfterMs,
                 httpStatus: response.status,
             });
@@ -308,7 +419,7 @@ export async function sendProviderRequest(
         if (response.ok) {
             breaker.recordSuccess();
             probeHeld = false;
-            health.recordProviderSuccess(options.provider, {
+            health.recordProviderSuccess(options.provider, options.market, {
                 latencyMs: elapsedMs,
                 httpStatus: response.status,
             });
@@ -331,13 +442,13 @@ export async function sendProviderRequest(
                     options.provider,
                     options.endpoint,
                 );
-                health.recordProviderFailure(options.provider, {
+                health.recordProviderFailure(options.provider, options.market, {
                     httpStatus: response.status,
                 });
             } else {
                 breaker.recordSuccess();
                 probeHeld = false;
-                health.recordProviderSuccess(options.provider, {
+                health.recordProviderSuccess(options.provider, options.market, {
                     latencyMs: elapsedMs,
                     httpStatus: response.status,
                 });
@@ -354,7 +465,7 @@ export async function sendProviderRequest(
 
         breaker.recordAttemptFailure();
         telemetry.recordProviderError(options.provider, options.endpoint);
-        health.recordProviderFailure(options.provider, {
+        health.recordProviderFailure(options.provider, options.market, {
             httpStatus: response.status,
         });
 
