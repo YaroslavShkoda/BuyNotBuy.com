@@ -156,9 +156,25 @@ export interface TransitionCheck {
 /**
  * Whether a rule may move between stages, and why.
  *
- * Rejection and retirement are always available, including from production:
- * a rule that is losing money has to be stoppable at any moment, and a
- * promotion policy with no way down is not a promotion policy.
+ * **This comment used to claim that rejection and retirement are always
+ * available, including from production, and pointed at a reason — a rule that is
+ * losing money has to be stoppable at any moment. `FORWARD` above does not do
+ * that.** Measured from the table: `retired` is reachable from exactly **one**
+ * stage of eight, `production`, and `rejected` from four. A rule in shadow that
+ * is losing money cannot be retired here; the most it can be is rejected, and
+ * `rejected → candidate` puts it back at the start.
+ *
+ * **And the guarantee the sentence described is implemented — in the other
+ * ladder.** `NEXT_STAGE` in `strategies/candidate.repository.ts` allows `retired`
+ * from every stage including `production`, and `retired` there has no exits, so
+ * it is the single terminal state of the ladder the database actually stores.
+ * That is the sentence below, living two files away from where it was written.
+ *
+ * Which of the two ladders is right is an open decision, and this file is not
+ * the one in force: the `CHECK` on `signal_strategy_version.stage` admits
+ * `CANDIDATE_STAGES` and not one value of this vocabulary. Stated here because
+ * the sentence is what a reader of this file would rely on, and it is the reason
+ * the decision cannot be postponed by not looking at it.
  */
 export function checkTransition(
     from: RuleStage,

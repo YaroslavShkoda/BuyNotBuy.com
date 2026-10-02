@@ -209,6 +209,25 @@ describe('the chain itself', () => {
 
         expect(canTransition('retired', 'candidate')).toBe(false);
         expect(canTransition('production', 'shadow')).toBe(false);
+
+        // **This property is the answer to the open question, and the other ladder
+        // answers it the other way.** Measured from both tables: `NEXT_STAGE`
+        // above allows `retired` from every stage and gives `retired` no exits,
+        // so it is the ladder's single terminal state; `FORWARD` in
+        // `strategy/promotion.config.ts` allows `retired` from `production` only
+        // and has **no terminal state at all**, because `rejected → candidate`
+        // and `retired → candidate` both bring a rule back.
+        //
+        // The question on record is "may a retired rule be run again", and it
+        // reads as a matter of principle. It is not: the ladder the database
+        // enforces — invariants 7 and 8 name this one, and the `CHECK` admits
+        // exactly these seven values — already answers no, and permanently.
+        // Adopting the policy vocabulary is therefore not a rename: it removes
+        // the only state a rule cannot leave.
+        //
+        // Asserted here rather than in a new block because this test already
+        // held the property, and a second one guarding the same two facts is how
+        // two lists of one thing come to disagree.
     });
 });
 
