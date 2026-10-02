@@ -12,6 +12,7 @@ vi.mock('../analysis/strategy-version.repository.js', () => ({
 }));
 
 const { createEvidenceGate } = await import('./promotion-gate.js');
+const { marketConfig } = await import('../config/market.config.js');
 const { DEFAULT_PROMOTION_CONFIG } = await import(
     '../lifecycle/promotion.config.js'
 );
@@ -134,6 +135,7 @@ describe('the evidence gate on the promotion ladder', () => {
             7,
             DEFAULT_PROMOTION_CONFIG.evaluationHorizonBars,
             99,
+            marketConfig.symbol,
         );
     });
 
@@ -161,6 +163,7 @@ describe('the evidence gate on the promotion ladder', () => {
             7,
             DEFAULT_PROMOTION_CONFIG.evaluationHorizonBars,
             null,
+            marketConfig.symbol,
         );
     });
 
@@ -171,5 +174,33 @@ describe('the evidence gate on the promotion ladder', () => {
         evidenceFor.mockResolvedValue(sufficient());
 
         await expect(check('approval', 7)).resolves.toBeUndefined();
+    });
+});
+
+describe('the market the gate judges', () => {
+    it('asks the reader about its own market, not every market under the version', async () => {
+        // **The half of the finding that needed no owner decision.**
+        //
+        // A `strategy_version` has no market — that is structural, it is pinned in
+        // `lifecycle/cross-asset-isolation.test.ts`, and splitting it is a
+        // migration. But a promotion granted on another market's record never
+        // needed that migration: the gate asks about the market it is approving
+        // for, and both halves of the comparison are asked that way.
+        const { marketConfig } = await import('../config/market.config.js');
+
+        evidenceFor.mockResolvedValue(sufficient({ firstSeenAt: NOW - 200 * DAY }));
+
+        await createEvidenceGate(() => NOW).check({
+            ruleId: 'r1',
+            to: 'approval',
+            strategyVersionId: 7,
+        });
+
+        expect(evidenceFor).toHaveBeenCalledWith(
+            7,
+            DEFAULT_PROMOTION_CONFIG.evaluationHorizonBars,
+            null,
+            marketConfig.symbol,
+        );
     });
 });

@@ -48,11 +48,19 @@ export function createEvidenceGate(
             // compare a candidate against whichever configuration happened to be
             // named first.
             //
-            // That the question is unanswered is recorded as an open decision
-            // rather than left implied. The moment the gate carries a market, this
-            // becomes `resolveActive(instrument)` and the comparison is per market,
-            // which is the only form of it that means anything once two markets
-            // run different thresholds.
+            // **The question is still unanswered — what a version *is*, not what the
+            // gate counts.** A `strategy_version` has no market, so one version
+            // covers every asset the system trades; see
+            // `lifecycle/cross-asset-isolation.test.ts`, which pins that structural
+            // fact. Splitting versions per market is a migration and an owner
+            // decision, and it is not what this line is.
+            //
+            // What is here is the half that does not need one: the gate asks the
+            // reader about *this market's* evidence, so a promotion is no longer
+            // granted on the strength of another market's results, and the
+            // comparison is per market — the only form of it that means anything
+            // once two markets run different thresholds. Same market in, same
+            // market out, including the incumbent tally.
             const incumbent = await getStrategyVersionRepository().resolveActive(
                 marketConfig.symbol,
             );
@@ -60,6 +68,7 @@ export function createEvidenceGate(
                 strategyVersionId,
                 DEFAULT_PROMOTION_CONFIG.evaluationHorizonBars,
                 incumbent === null ? null : incumbent.id,
+                marketConfig.symbol,
             );
             const verdict = evaluateShadow(evidence, DEFAULT_PROMOTION_CONFIG, now());
 

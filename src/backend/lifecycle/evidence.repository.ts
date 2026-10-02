@@ -29,11 +29,16 @@ export interface EvidenceReader {
      * @param horizonBars the distance at which signals are judged
      * @param incumbentVersionId what the rule is being compared against, or
      *   null when the system has never resolved an active configuration
+     * @param symbol the market to count, or null for every market under the
+     *   version — which is what a version still *is*, since it has no market of
+     *   its own. Passing null keeps that visible and is what
+     *   `cross-asset-isolation.test.ts` asserts.
      */
     evidenceFor(
         strategyVersionId: number,
         horizonBars: number,
         incumbentVersionId: number | null,
+        symbol?: string,
     ): Promise<RuleEvidence>;
 }
 
@@ -43,12 +48,16 @@ export function createEvidenceReader(): EvidenceReader {
             strategyVersionId: number,
             horizonBars: number,
             incumbentVersionId: number | null,
+            symbol?: string,
         ): Promise<RuleEvidence> {
-            const counts = await tally(strategyVersionId, horizonBars);
+            // The market is threaded into **both** tallies. Passing it only to the
+            // candidate would compare one market's candidate against every
+            // market's incumbent, which is a blend in both halves rather than one.
+            const counts = await tally(strategyVersionId, horizonBars, symbol);
             const incumbent =
                 incumbentVersionId === null
                     ? { correct: 0, resolved: 0 }
-                    : await tally(incumbentVersionId, horizonBars);
+                    : await tally(incumbentVersionId, horizonBars, symbol);
 
             return {
                 signals: counts.signals,
@@ -96,6 +105,7 @@ const UNRESOLVED = "('unknown', 'expired')";
 async function tally(
     strategyVersionId: number,
     horizonBars: number,
+    symbol?: string,
 ): Promise<Tally> {
     const { rows } = await query<Record<string, string | number>>(
         `WITH produced AS (
@@ -103,6 +113,7 @@ async function tally(
                FROM signal_state s
                JOIN signal_snapshot p ON p.id = s.snapshot_id
               WHERE p.strategy_version_id = $1
+                AND ($4::text IS NULL OR s.symbol = $4)
          ),
          judged AS (
              SELECT o.signal_state_id, o.verdict
@@ -110,6 +121,7 @@ async function tally(
               WHERE o.strategy_version_id = $1
                 AND o.horizon_bars = $2
                 AND o.verdict NOT IN ${UNRESOLVED}
+                AND ($4::text IS NULL OR o.symbol = $4)
          )
          SELECT
              (SELECT count(*) FROM produced)::bigint AS signals,
@@ -119,7 +131,7 @@ async function tally(
              (SELECT count(*) FROM judged WHERE verdict = 'flat')::bigint AS flat,
              COALESCE((SELECT min(created_at) FROM produced), $3)::bigint AS first_seen_at,
              COALESCE((SELECT max(created_at) FROM produced), $3)::bigint AS last_seen_at`,
-        [strategyVersionId, horizonBars, Date.now()],
+        [strategyVersionId, horizonBars, Date.now(), symbol ?? null],
     );
 
     const row = rows[0] ?? {};
