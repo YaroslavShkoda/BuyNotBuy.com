@@ -98,18 +98,31 @@ function createMarketDataProvider(): MarketDataProvider {
         return primary.provider;
     }
 
-    // The backup venues are asked for their own configured ticker, which is the
-    // primary's unless `MARKET_FALLBACK_SYMBOL` says otherwise. That is stated
-    // here, in the one place that builds the process-wide provider, rather than
-    // inside `createVenue`: a helper that could name a venue's market would be
-    // callable by the routed path too, and the routed path must never answer
-    // "whatever this venue usually serves" to a request for something else.
-    const backups = marketConfig.fallbackProviders.map((name) =>
-        createVenue(
+    // **Every backup serves this market, and the chain is built from the
+    // capability table like every other chain.**
+    //
+    // It used to ask each backup for "its own configured ticker", which is where
+    // this went wrong: with `MARKET_SYMBOL=BTCUSDT`, `MARKET_FALLBACK_SYMBOL=ETHUSDT`
+    // and both markets declared, the chain for BTCUSDT was
+    // `[binance:BTCUSDT, bitget:ETHUSDT]` — so the moment binance opened, BTCUSDT
+    // was served by a venue that answers ETHUSDT. The refusal came from
+    // `market.service.ts`, which compares the symbol it was handed against the
+    // request, so no wrong price was stored; the failure surfaced as a 503 about
+    // ETHUSDT on a BTCUSDT request, and the operator's first guess would have been
+    // the wrong venue.
+    //
+    // A backup that is not in this list is not usable as one, and saying so is
+    // better than quietly removing it from the rotation: `MARKET_FALLBACK_PROVIDERS`
+    // is a declaration of intent, and silently having one fewer backup than declared
+    // is the same class of quiet as a chain that fails over to the wrong market.
+    const serving = venuesServing(marketConfig.symbol);
+
+    const backups = marketConfig.fallbackProviders
+        .filter((name) => name !== marketConfig.provider && serving.includes(name))
+        .map((name) => ({
             name,
-            name === 'bitget' ? marketConfig.fallbackSymbol : marketConfig.symbol,
-        ),
-    );
+            provider: createVenue(name, marketConfig.symbol).provider,
+        }));
 
     return new FailoverProvider(primary, backups);
 }

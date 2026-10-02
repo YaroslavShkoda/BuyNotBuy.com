@@ -275,7 +275,13 @@ describe('the venue a market is stored under', () => {
 
         vi.stubEnv('MARKET_PROVIDER', 'binance');
         vi.stubEnv('MARKET_SYMBOL', 'BTCUSDT');
-        vi.stubEnv('MARKET_VENUE_CAPABILITIES', 'binance=BTCUSDT@1h;bitget=ETHUSDT@1h');
+        // bitget declares the primary market as well as the routed one: it is
+        // listed in `MARKET_FALLBACK_PROVIDERS`, and the round-104 check refuses a
+        // configured backup that cannot serve the primary market.
+        vi.stubEnv(
+            'MARKET_VENUE_CAPABILITIES',
+            'binance=BTCUSDT@1h;bitget=BTCUSDT,ETHUSDT@1h',
+        );
 
         const { configuredVenueFor } = await import('./market.provider');
 
@@ -313,6 +319,12 @@ describe('the venue a market is stored under', () => {
         vi.resetModules();
 
         vi.stubEnv('MARKET_PROVIDER', 'binance');
+        // No backup, stated rather than left to the default: with the default
+        // `MARKET_FALLBACK_PROVIDERS=bitget` and no declaration for bitget, the
+        // round-104 boot check refuses the config before this ever runs. Which is
+        // correct — but it would be refusing about a different thing than the one
+        // this test is named after.
+        vi.stubEnv('MARKET_FALLBACK_PROVIDERS', '');
         vi.stubEnv('MARKET_VENUE_CAPABILITIES', 'binance=BTCUSDT@1h');
 
         const { configuredVenueFor } = await import('./market.provider');
@@ -337,7 +349,13 @@ describe('failover for a market that is not the primary', () => {
 
         vi.stubEnv('MARKET_PROVIDER', 'binance');
         vi.stubEnv('MARKET_FALLBACK_PROVIDERS', 'bitget');
-        vi.stubEnv('MARKET_VENUE_CAPABILITIES', 'binance=BTCUSDT@1h;bitget=ETHUSDT@1h');
+        // bitget declares the primary market as well as the routed one: it is
+        // listed in `MARKET_FALLBACK_PROVIDERS`, and the round-104 check refuses a
+        // configured backup that cannot serve the primary market.
+        vi.stubEnv(
+            'MARKET_VENUE_CAPABILITIES',
+            'binance=BTCUSDT@1h;bitget=BTCUSDT,ETHUSDT@1h',
+        );
 
         const { marketProviderFor } = await import('./market.provider');
 
@@ -356,7 +374,7 @@ describe('failover for a market that is not the primary', () => {
 
         vi.stubEnv('MARKET_PROVIDER', 'binance');
         vi.stubEnv('MARKET_FALLBACK_PROVIDERS', 'bitget');
-        vi.stubEnv('MARKET_VENUE_CAPABILITIES', 'binance=BTCUSDT,ETHUSDT@1h;bitget=ETHUSDT@1h');
+        vi.stubEnv('MARKET_VENUE_CAPABILITIES', 'binance=BTCUSDT,ETHUSDT@1h;bitget=BTCUSDT,ETHUSDT@1h');
 
         const { marketProviderFor } = await import('./market.provider');
 
@@ -400,7 +418,13 @@ describe('failover for a market that is not the primary', () => {
 
         vi.stubEnv('MARKET_PROVIDER', 'binance');
         vi.stubEnv('MARKET_FALLBACK_PROVIDERS', 'bitget');
-        vi.stubEnv('MARKET_VENUE_CAPABILITIES', 'binance=BTCUSDT@1h;bitget=ETHUSDT@1h');
+        // bitget declares the primary market as well as the routed one: it is
+        // listed in `MARKET_FALLBACK_PROVIDERS`, and the round-104 check refuses a
+        // configured backup that cannot serve the primary market.
+        vi.stubEnv(
+            'MARKET_VENUE_CAPABILITIES',
+            'binance=BTCUSDT@1h;bitget=BTCUSDT,ETHUSDT@1h',
+        );
 
         const { marketProviderFor } = await import('./market.provider');
 
@@ -484,4 +508,32 @@ describe('a venue switch that names its market', () => {
         expect(warn).not.toHaveBeenCalled();
         expect(info).toHaveBeenCalledTimes(2);
     });
+});
+
+describe('the process-wide chain cannot carry another market', () => {
+    it('puts only the venues that serve this market in the chain', async () => {
+        // **This is the finding.** The chain used to ask each backup for "its own
+        // configured ticker", so with `MARKET_SYMBOL=BTCUSDT` and
+        // `MARKET_FALLBACK_SYMBOL=ETHUSDT` it became `[binance:BTCUSDT,
+        // bitget:ETHUSDT]` — the moment binance opened, BTCUSDT was served by a
+        // venue answering ETHUSDT.
+        //
+        // No wrong price was stored: `market.service.ts` compares the symbol it was
+        // handed against the request and refuses. The failure was a 503 naming
+        // ETHUSDT on a BTCUSDT request, and the operator's first guess would have
+        // been the wrong venue.
+        vi.resetModules();
+
+        vi.stubEnv('MARKET_PROVIDER', 'binance');
+        vi.stubEnv('MARKET_FALLBACK_PROVIDERS', 'bitget');
+        vi.stubEnv('MARKET_VENUE_CAPABILITIES', 'binance=BTCUSDT@1h;bitget=BTCUSDT@1h');
+
+        const { marketDataProvider } = await import('./market.provider');
+
+        expect((marketDataProvider as FailoverProvider).venues).toEqual([
+            'binance',
+            'bitget',
+        ]);
+    });
+
 });

@@ -393,7 +393,7 @@ describe('the venue a market is stored under', () => {
         const series = await seriesFor({
             MARKET_PROVIDER: 'binance',
             MARKET_SYMBOL: 'BTCUSDT',
-            MARKET_VENUE_CAPABILITIES: 'binance=BTCUSDT@1h;bitget=ETHUSDT@1h',
+            MARKET_VENUE_CAPABILITIES: 'binance=BTCUSDT@1h;bitget=BTCUSDT,ETHUSDT@1h',
         });
 
         expect(series.symbol).toBe('ETHUSDT');
@@ -406,7 +406,7 @@ describe('the venue a market is stored under', () => {
         await seriesFor({
             MARKET_PROVIDER: 'binance',
             MARKET_SYMBOL: 'BTCUSDT',
-            MARKET_VENUE_CAPABILITIES: 'binance=BTCUSDT@1h;bitget=ETHUSDT@1h',
+            MARKET_VENUE_CAPABILITIES: 'binance=BTCUSDT@1h;bitget=BTCUSDT,ETHUSDT@1h',
         });
 
         const { configuredSeries: build } = await import('./ingestion.service.js');

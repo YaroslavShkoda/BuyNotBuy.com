@@ -707,4 +707,82 @@ function assertEveryMarketIsServed(configured: MarketConfig): void {
     );
 }
 
+/**
+ * The process-wide failover chain can only be a failover.
+ *
+ * **Two configurations it used to accept and that could not work.**
+ *
+ * 1. `MARKET_FALLBACK_SYMBOL` naming a **different market** from
+ *    `MARKET_SYMBOL`. The chain was built from it — `[binance:BTCUSDT,
+ *    bitget:ETHUSDT]` — so the moment the primary opened, BTCUSDT was served by a
+ *    venue answering ETHUSDT. `market.service.ts` compares the symbol it was handed
+ *    against the request and refuses, so no wrong price was stored; the failure was
+ *    a 503 naming ETHUSDT on a BTCUSDT request, and the operator's first guess
+ *    would have been the wrong venue. The setting still exists and still means what
+ *    it says — a pair may not list everywhere — but a **substitution** cannot survive
+ *    a symbol check, so a different ticker is a configuration this system cannot
+ *    honour rather than one it can.
+ *
+ * 2. A `MARKET_FALLBACK_PROVIDERS` entry that does not declare the primary market.
+ *    The chain is now built from the capability table, so such a venue is not in it
+ *    — and the deployment would have one fewer backup than it declared, silently.
+ *
+ * Both are refused here rather than at the first failover, which is the same
+ * reasoning as the market/interval check above: a setting that cannot be honoured
+ * is a mistake to catch when it is read, and the later the refusal comes the more
+ * traffic it has already served.
+ */
+function assertFailoverIsAFailover(configured: MarketConfig): void {
+    if (configured.fallbackSymbol !== configured.symbol) {
+        throw new Error(
+            `Резерв объявлен на другом рынке: MARKET_FALLBACK_SYMBOL=` +
+                `${configured.fallbackSymbol}, а основной рынок — ` +
+                `${configured.symbol}. Подмена рынка резервом не поддерживается: ` +
+                'цепочка отказоустойчивости обязана обслуживать тот же рынок, ' +
+                'иначе ответ приходит от площадки, которая торгует другой ' +
+                'инструмент. Уберите MARKET_FALLBACK_SYMBOL (тогда резерв берёт ' +
+                'тот же тикер) или объявите оба рыка через MARKET_VENUE_CAPABILITIES.',
+        );
+    }
+
+    const unserving = configured.fallbackProviders.filter((venue) => {
+        const entry = configured.venueCapabilities.find(
+            (capability) => capability.venue === venue,
+        );
+
+        return (
+            entry === undefined ||
+            !entry.instruments.some(
+                (instrument) =>
+                    instrument.trim().toUpperCase() ===
+                    configured.symbol.toUpperCase(),
+            ) ||
+            !entry.intervals.some(
+                (step) => step.trim() === configured.candleInterval.trim(),
+            )
+        );
+    });
+
+    if (unserving.length === 0) {
+        return;
+    }
+
+    const declared = configured.venueCapabilities
+        .map(
+            (entry) =>
+                `${entry.venue}: ${entry.instruments.join(', ')} @ ${entry.intervals.join(', ')}`,
+        )
+        .join('; ');
+
+    throw new Error(
+        `Резервные площадки не обслуживают основной рынок ` +
+            `${configured.symbol} на интервале ${configured.candleInterval}: ` +
+            `${unserving.join(', ')}. Объявлено — ${declared}. ` +
+            'Резерв, который не торгует этим рынком, не может быть резервом для ' +
+            'него: цепочка построена по таблице возможностей и не станет ' +
+            'переключаться на площадку, которая этого рынка не знает.',
+    );
+}
+
 assertEveryMarketIsServed(marketConfig);
+assertFailoverIsAFailover(marketConfig);

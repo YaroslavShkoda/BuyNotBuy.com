@@ -140,7 +140,7 @@ describe('the pairs the provider gauges publish', () => {
 
     it('publishes a venue only for the markets it serves', async () => {
         // **This is the finding, and it was mine.** The first version multiplied
-        // venues by markets, so with `binance=BTCUSDT@1h;bitget=ETHUSDT@1h` it
+        // venues by markets, so with `binance=BTCUSDT@1h;bitget=BTCUSDT,ETHUSDT@1h` it
         // published `provider_health{market="ETHUSDT",provider="binance"} 1` for a
         // venue that has never been asked about ETHUSDT — and read healthy, because
         // a venue nobody called is `degraded`, and degraded counts as available.
@@ -152,7 +152,7 @@ describe('the pairs the provider gauges publish', () => {
         // the other direction.
         vi.stubEnv('MARKET_SYMBOL', 'BTCUSDT');
         vi.stubEnv('MARKET_SYMBOLS', 'ETHUSDT');
-        vi.stubEnv('MARKET_VENUE_CAPABILITIES', 'binance=BTCUSDT@1h;bitget=ETHUSDT@1h');
+        vi.stubEnv('MARKET_VENUE_CAPABILITIES', 'binance=BTCUSDT@1h;bitget=BTCUSDT,ETHUSDT@1h');
 
         const { publishProviderGauges: publish } = await import('./provider-metrics.js');
 

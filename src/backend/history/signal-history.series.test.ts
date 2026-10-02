@@ -242,7 +242,7 @@ describe('which series a market is filed under', () => {
         vi.resetModules();
 
         vi.stubEnv('MARKET_SYMBOL', 'BTCUSDT');
-        vi.stubEnv('MARKET_VENUE_CAPABILITIES', 'binance=BTCUSDT@1h;bitget=ETHUSDT@1h');
+        vi.stubEnv('MARKET_VENUE_CAPABILITIES', 'binance=BTCUSDT@1h;bitget=BTCUSDT,ETHUSDT@1h');
 
         const { recordSignalHistory } = await import('./signal-history.service.js');
 
@@ -269,7 +269,7 @@ describe('which series a market is filed under', () => {
         vi.resetModules();
 
         vi.stubEnv('MARKET_SYMBOL', 'BTCUSDT');
-        vi.stubEnv('MARKET_VENUE_CAPABILITIES', 'binance=BTCUSDT@1h;bitget=ETHUSDT@1h');
+        vi.stubEnv('MARKET_VENUE_CAPABILITIES', 'binance=BTCUSDT@1h;bitget=BTCUSDT,ETHUSDT@1h');
 
         const { recordSignalHistory, getSignalHistory } =
             await import('./signal-history.service.js');

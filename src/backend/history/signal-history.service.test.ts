@@ -629,7 +629,7 @@ async function serviceWithFreshWindow(): Promise<
     // writing (round 99) and the boot check from round 97 refuses a market no venue
     // serves. Without this the record throws into the backlog and the trim never
     // runs — which looks exactly like a cadence that stopped working.
-    vi.stubEnv('MARKET_VENUE_CAPABILITIES', 'binance=BTCUSDT,SOLUSDT,DOGEUSDT@1h;bitget=ETHUSDT,XRPUSDT@1h');
+    vi.stubEnv('MARKET_VENUE_CAPABILITIES', 'binance=BTCUSDT,SOLUSDT,DOGEUSDT@1h;bitget=BTCUSDT,ETHUSDT,XRPUSDT@1h');
 
     return import('./signal-history.service.js');
 }

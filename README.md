@@ -185,7 +185,7 @@ docker run --rm -p 3001:3001 \
 | `MARKET_PROVIDER` | `binance` | `mock` даёт детерминированные данные для разработки |
 | `MARKET_FALLBACK_PROVIDERS` | `bitget` | Резервные биржи через запятую; пусто — работать без резерва |
 | `MARKET_FALLBACK_BASE_URL` | `https://api.bitget.com` | Адрес резерва; у Binance он свой, и в этом весь смысл настройки |
-| `MARKET_FALLBACK_SYMBOL` | `BTCUSDT` | Тикер резерва: пара может торговаться не на всех биржах |
+| `MARKET_FALLBACK_SYMBOL` | `BTCUSDT` | Тикер резерва. Только равен `MARKET_SYMBOL`: резерв обслуживает тот же рынок, подмена отвергается при старте |
 | `MARKET_SYMBOLS` | пусто | Рынки кроме основного, через запятую. Нужны **вместе** с `MARKET_VENUE_CAPABILITIES` |
 | `MARKET_VENUE_CAPABILITIES` | выводится | Что обслуживает каждая площадка: `площадка=ТИКЕРЫ@интервалы` через `;`. Без объявления второй рынок не запустится |
 | `APP_CORS_ORIGINS` | пусто | Панель ходит в API с сервера, поэтому список origin по умолчанию пуст |

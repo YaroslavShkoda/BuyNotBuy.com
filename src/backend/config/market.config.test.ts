@@ -1,5 +1,31 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+/**
+ * Every `MARKET_*` variable is cleared after every test in this file.
+ *
+ * It was cleared after one `describe`, naming two keys — and the big "loads
+ * configuration from environment variables" test in the *other* describe leaked the
+ * other eighteen into everything that ran after it. Nothing noticed for a long time
+ * because nothing rejected a leaked variable.
+ *
+ * The failover check in round 104 does, and immediately: `MARKET_FALLBACK_SYMBOL`
+ * set by that test was read by eleven tests that never set it, and they all failed on
+ * a configuration they had not written.
+ *
+ * **A leaked environment variable is invisible by construction.** The test passes
+ * with it and would pass without it, so the only way one is ever found is a check
+ * that refuses something. That has now happened twice in this work — here, and in
+ * round 97 with an unstubbed env — and both times the leak was older than the check
+ * that found it.
+ */
+afterEach(() => {
+    for (const key of Object.keys(process.env)) {
+        if (key.startsWith('MARKET_')) {
+            delete process.env[key];
+        }
+    }
+});
+
 describe('marketConfig', () => {
     it('loads default configuration', async () => {
         vi.resetModules();
@@ -259,10 +285,7 @@ describe('fallback provider configuration', () => {
         };
     }
 
-    afterEach(() => {
-        delete process.env.MARKET_PROVIDER;
-        delete process.env.MARKET_FALLBACK_PROVIDERS;
-    });
+
 
     it('trims the list and keeps its order', async () => {
         // The order is the whole meaning of the setting: the first entry is the
@@ -390,7 +413,13 @@ describe('the markets this process observes', () => {
         const symbols = await symbolsWith({
             MARKET_SYMBOL: 'BTCUSDT',
             MARKET_SYMBOLS: 'ETHUSDT',
-            MARKET_VENUE_CAPABILITIES: 'binance=BTCUSDT@1h;bitget=ETHUSDT@1h',
+            // The backup declared for BTCUSDT as well: overriding the capability
+            // table leaves the **default** `MARKET_FALLBACK_PROVIDERS=bitget` with
+            // nothing to serve, and the round-104 check refuses that. Which is the
+            // point — the declaration is what the chain is built from now, so an
+            // override has to speak for every venue, not only the one under test.
+            MARKET_VENUE_CAPABILITIES:
+                'binance=BTCUSDT@1h;bitget=BTCUSDT,ETHUSDT@1h',
         });
 
         // Two venues, two markets, and neither refuses — the shape the round-90
@@ -437,7 +466,13 @@ describe('the markets this process observes', () => {
             MARKET_CANDLE_INTERVAL: '1h',
             MARKET_SYMBOL: 'BTCUSDT',
             MARKET_SYMBOLS: 'ETHUSDT',
-            MARKET_VENUE_CAPABILITIES: 'binance=BTCUSDT@1h;bitget=ETHUSDT@1h',
+            // The backup declared for BTCUSDT as well: overriding the capability
+            // table leaves the **default** `MARKET_FALLBACK_PROVIDERS=bitget` with
+            // nothing to serve, and the round-104 check refuses that. Which is the
+            // point — the declaration is what the chain is built from now, so an
+            // override has to speak for every venue, not only the one under test.
+            MARKET_VENUE_CAPABILITIES:
+                'binance=BTCUSDT@1h;bitget=BTCUSDT,ETHUSDT@1h',
         });
 
         expect(symbols).toEqual(['BTCUSDT', 'ETHUSDT']);
@@ -450,7 +485,8 @@ describe('the markets this process observes', () => {
             // The boot check from round 96 is why this line exists: a market with
             // no venue declaring it is refused at load, and a test that named one
             // would now fail on the refusal rather than on the order.
-            MARKET_VENUE_CAPABILITIES: 'binance=BTCUSDT,ETHUSDT,SOLUSDT@1h',
+            MARKET_VENUE_CAPABILITIES:
+                'binance=BTCUSDT,ETHUSDT,SOLUSDT@1h;bitget=BTCUSDT@1h',
         });
 
         // Order is meaning here, not cosmetics: the loop runs in it, and the
@@ -482,6 +518,11 @@ describe('the markets this process observes', () => {
         const symbols = await symbolsWith({
             MARKET_SYMBOL: 'BTCUSDT',
             MARKET_SYMBOLS: 'ETHUSDT,ETHUSDT',
+            // Declared for the market this test names — and for BTCUSDT on the
+            // backup, because the default `MARKET_FALLBACK_PROVIDERS=bitget` is a
+            // second thing that has to be declared since the chain is built from
+            // the capability table.
+            MARKET_VENUE_CAPABILITIES: 'binance=BTCUSDT@1h;bitget=BTCUSDT,ETHUSDT@1h',
         });
 
         expect(symbols).toEqual(['BTCUSDT', 'ETHUSDT']);
@@ -491,9 +532,63 @@ describe('the markets this process observes', () => {
         const symbols = await symbolsWith({
             MARKET_SYMBOL: 'BTCUSDT',
             MARKET_SYMBOLS: 'ETHUSDT,ETHUSDT,SOLUSDT,ETHUSDT',
-            MARKET_VENUE_CAPABILITIES: 'binance=BTCUSDT,ETHUSDT,SOLUSDT@1h',
+            MARKET_VENUE_CAPABILITIES:
+                'binance=BTCUSDT,ETHUSDT,SOLUSDT@1h;bitget=BTCUSDT@1h',
         });
 
         expect(symbols).toEqual(['BTCUSDT', 'ETHUSDT', 'SOLUSDT']);
+    });
+});
+
+describe('failover that could serve the wrong market', () => {
+    /**
+     * Two settings a deployment could write, get past a start, and only discover
+     * at the moment the primary opened.
+     *
+     * The chain is built from the capability table now, so the price is right by
+     * construction. That leaves the question of what to do with a declaration the
+     * chain cannot honour, and the answer here is to refuse at load rather than
+     * quietly drop it: a deployment that declared two backups and silently gets one
+     * is the same class of quiet as one that fails over to the wrong market.
+     */
+    it('refuses a fallback symbol that names another market', async () => {
+        // The finding, exactly as it was configured: the chain was
+        // `[binance:BTCUSDT, bitget:ETHUSDT]`, so the moment binance opened, BTCUSDT
+        // was answered by a venue trading ETHUSDT.
+        vi.resetModules();
+
+        process.env.MARKET_SYMBOL = 'BTCUSDT';
+        process.env.MARKET_SYMBOLS = 'ETHUSDT';
+        process.env.MARKET_FALLBACK_SYMBOL = 'ETHUSDT';
+
+        await expect(import('./market.config')).rejects.toThrow(
+            /Резерв объявлен на другом рынке/,
+        );
+    });
+
+    it('refuses a backup that does not declare the primary market', async () => {
+        vi.resetModules();
+
+        process.env.MARKET_SYMBOL = 'BTCUSDT';
+        process.env.MARKET_FALLBACK_PROVIDERS = 'bitget';
+        process.env.MARKET_VENUE_CAPABILITIES =
+            'binance=BTCUSDT@1h;bitget=ETHUSDT@1h';
+
+        await expect(import('./market.config')).rejects.toThrow(
+            /Резервные площадки не обслуживают основной рынок/,
+        );
+    });
+
+    it('accepts a backup declared for this market', async () => {
+        vi.resetModules();
+
+        process.env.MARKET_SYMBOL = 'BTCUSDT';
+        process.env.MARKET_FALLBACK_PROVIDERS = 'bitget';
+        process.env.MARKET_VENUE_CAPABILITIES =
+            'binance=BTCUSDT@1h;bitget=BTCUSDT,ETHUSDT@1h';
+
+        const { marketConfig } = await import('./market.config');
+
+        expect(marketConfig.fallbackProviders).toEqual(['bitget']);
     });
 });

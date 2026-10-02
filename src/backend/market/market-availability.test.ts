@@ -18,7 +18,7 @@ describe('is a venue that cannot serve this market evidence that it can', () => 
         vi.resetModules();
         vi.stubEnv('MARKET_PROVIDER', 'binance');
         vi.stubEnv('MARKET_FALLBACK_PROVIDERS', 'bitget');
-        vi.stubEnv('MARKET_VENUE_CAPABILITIES', 'binance=BTCUSDT@1h;bitget=ETHUSDT@1h');
+        vi.stubEnv('MARKET_VENUE_CAPABILITIES', 'binance=BTCUSDT@1h;bitget=BTCUSDT,ETHUSDT@1h');
         vi.stubEnv('MARKET_PROVIDER_CIRCUIT_FAILURE_THRESHOLD', '1');
         vi.stubEnv('MARKET_PROVIDER_CIRCUIT_COOLDOWN_MS', '300000');
 
@@ -71,7 +71,14 @@ describe('is a venue that cannot serve this market evidence that it can', () => 
         // not a commitment to answer *this*.
         const { venuesServing } = await import('./market.provider');
 
-        expect(venuesServing('BTCUSDT')).toEqual(['binance']);
+        // **The backup serves the primary market, and that is now required.** It
+        // used to be an assertion the config could not satisfy together with a
+        // declared backup: a backup that does not serve the primary is exactly what
+        // the round-104 finding was — a chain entry that answers another market. So
+        // the table gives bitget both, and the lesson moved to the second line,
+        // where binance is up, serves BTCUSDT, and is still not an option for
+        // ETHUSDT. A capacity to answer is not a commitment to answer *this*.
+        expect(venuesServing('BTCUSDT')).toEqual(['binance', 'bitget']);
         expect(venuesServing('ETHUSDT')).toEqual(['bitget']);
     });
 });
