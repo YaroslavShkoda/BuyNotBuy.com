@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createSignalHistoryRepository } from './signal-history.repository.js';
 import { getTestPool, truncateSignalTables } from '../test-support/test-database.js';
@@ -220,5 +220,71 @@ describe('the identity of a row is the whole series', () => {
         // far, and "old results are never rewritten" is a rule this system
         // holds itself to.
         expect(result.rows[0]?.total).toBeGreaterThanOrEqual(0);
+    });
+});
+
+describe('which series a market is filed under', () => {
+    afterEach(() => {
+        vi.unstubAllEnvs();
+        vi.resetModules();
+    });
+
+    it('names the venue configured for that market, not the primary', async () => {
+        // **This is the finding.** Round 89 fixed `configuredSeries`, and the three
+        // tables that take their key from it were corrected. History was not:
+        // `seriesOf` in the repository defaulted the venue to
+        // `marketConfig.provider`, and the only production writer never set one.
+        //
+        // Nothing collided — `symbol` is in the primary key — so no test failed and
+        // no row was lost. The table simply claimed binance-sourced prices came from
+        // binance, and a join on `(symbol, provider, interval)` between history and
+        // outcomes would have matched nothing for the second market.
+        vi.resetModules();
+
+        vi.stubEnv('MARKET_SYMBOL', 'BTCUSDT');
+        vi.stubEnv('MARKET_VENUE_CAPABILITIES', 'binance=BTCUSDT@1h;bitget=ETHUSDT@1h');
+
+        const { recordSignalHistory } = await import('./signal-history.service.js');
+
+        await recordSignalHistory({
+            timestamp: BASE,
+            symbol: 'ETHUSDT',
+            signal: 'LONG',
+            consensus: 60,
+            price: 3_000,
+        });
+
+        const rows = await getTestPool().query<{ symbol: string; provider: string }>(
+            'SELECT symbol, provider FROM signal_history',
+        );
+
+        expect(rows.rows).toEqual([{ symbol: 'ETHUSDT', provider: 'bitget' }]);
+    });
+
+    it('reads back the series it wrote, because both sides must agree', async () => {
+        // A read that defaulted the venue would look in a series nothing was written
+        // to and answer "no history" for a market that has some — which is why the
+        // series is resolved in the service, once, for both sides: they live in
+        // different functions and the repository defaults each independently.
+        vi.resetModules();
+
+        vi.stubEnv('MARKET_SYMBOL', 'BTCUSDT');
+        vi.stubEnv('MARKET_VENUE_CAPABILITIES', 'binance=BTCUSDT@1h;bitget=ETHUSDT@1h');
+
+        const { recordSignalHistory, getSignalHistory } =
+            await import('./signal-history.service.js');
+
+        await recordSignalHistory({
+            timestamp: BASE,
+            symbol: 'ETHUSDT',
+            signal: 'LONG',
+            consensus: 60,
+            price: 3_000,
+        });
+
+        const read = await getSignalHistory(10, undefined, 'ETHUSDT');
+
+        expect(read).toHaveLength(1);
+        expect(read[0]?.signal).toBe('LONG');
     });
 });

@@ -126,7 +126,11 @@ export function resetProviderTransport(provider: string, market?: string): void 
 
     breakerFor(provider, market).reset();
     health.resetProviderHealth(provider, market);
-    telemetry.resetProviderTelemetry(provider);
+    // With the market, not without it. The comment above promises that a market
+    // narrows all three, and two out of three is a promise the code does not keep:
+    // this line cleared every market of the venue's telemetry, so a suite that reset
+    // one series and asserted on another's percentiles read zero.
+    telemetry.resetProviderTelemetry(provider, market);
 }
 
 /**

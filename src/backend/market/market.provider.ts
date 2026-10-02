@@ -162,8 +162,18 @@ export function configuredVenueCapabilities(): VenueCapability[] {
  * added the venue to the snapshot's fingerprint so two venues serving identical
  * candles cannot collapse into one row, and it deliberately left the storage key
  * alone. Every table keyed on `provider, symbol, interval` — candles, signal
- * history, signal state, transitions, outcomes — takes that name from
- * `configuredSeries`, so they agree with each other by construction.
+ * history, signal state, transitions, outcomes — takes that name from here.
+ *
+ * **And that sentence was wrong about one table for a round.** `signal_history`
+ * defaulted the venue inside its own repository and took no name from here, so the
+ * second market's history was filed under the primary's venue while its candles,
+ * signal state and outcomes all named the right one. Nothing collided — `symbol` is
+ * in the primary key — so no test failed and no row was lost; the tables simply
+ * disagreed about one market. It resolves the venue in
+ * `history/signal-history.service.ts` now, on both the write and the read, because
+ * they live in different functions and each defaulted independently.
+
+ * They agree by construction now, and that is a claim with a test behind it.
  *
  * Throws for a market no venue serves, like `marketProviderFor` does and for the
  * same reason: a caller building a key must not be handed the primary's name for

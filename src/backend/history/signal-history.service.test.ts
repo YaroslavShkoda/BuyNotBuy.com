@@ -248,10 +248,17 @@ describe('getSignalHistory', () => {
         mockRepository.list.mockResolvedValueOnce(entries);
 
         await expect(getSignalHistory(24)).resolves.toEqual(entries);
+        // The series travels with the read, because the write now resolves the
+        // venue for the market: a read that defaulted it would look in the series
+        // nothing was written to and answer "no history" for a market that has one.
         expect(mockRepository.list).toHaveBeenCalledWith(
             marketConfig.symbol,
             24,
             undefined,
+            expect.objectContaining({
+                provider: expect.any(String) as unknown as string,
+                interval: marketConfig.candleInterval,
+            }),
         );
     });
 
@@ -268,6 +275,10 @@ describe('getSignalHistory', () => {
             marketConfig.symbol,
             24,
             1234,
+            expect.objectContaining({
+                provider: expect.any(String) as unknown as string,
+                interval: marketConfig.candleInterval,
+            }),
         );
     });
 });
@@ -570,6 +581,12 @@ async function serviceWithFreshWindow(): Promise<
     typeof import('./signal-history.service.js')
 > {
     vi.resetModules();
+
+    // Declared, because the service now resolves the venue for the market it is
+    // writing (round 99) and the boot check from round 97 refuses a market no venue
+    // serves. Without this the record throws into the backlog and the trim never
+    // runs — which looks exactly like a cadence that stopped working.
+    vi.stubEnv('MARKET_VENUE_CAPABILITIES', 'binance=BTCUSDT,SOLUSDT,DOGEUSDT@1h;bitget=ETHUSDT,XRPUSDT@1h');
 
     return import('./signal-history.service.js');
 }

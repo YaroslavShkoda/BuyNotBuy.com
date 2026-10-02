@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { MetricRegistry, useRegistry } from '../../observability/registry.js';
 import {
@@ -125,5 +125,51 @@ describe('the provider metrics the catalogue promises', () => {
         // `provider_retries_total` from outside the registry. The name a dashboard
         // reads has changed, and it changed because the catalogue said so.
         expect(registry.value('provider_retries', { provider: 'mock', market: 'BTCUSDT' })).toBe(1);
+    });
+});
+
+describe('the pairs the provider gauges publish', () => {
+    let registry: MetricRegistry;
+
+    beforeEach(() => {
+        registry = new MetricRegistry();
+        useRegistry(registry);
+        resetProviderTelemetry();
+        vi.resetModules();
+    });
+
+    it('publishes a venue only for the markets it serves', async () => {
+        // **This is the finding, and it was mine.** The first version multiplied
+        // venues by markets, so with `binance=BTCUSDT@1h;bitget=ETHUSDT@1h` it
+        // published `provider_health{market="ETHUSDT",provider="binance"} 1` for a
+        // venue that has never been asked about ETHUSDT — and read healthy, because
+        // a venue nobody called is `degraded`, and degraded counts as available.
+        //
+        // An operator reading that concludes binance serves ETHUSDT.
+        // Both settings, or neither: the pairs come from the markets that are
+        // configured, so declaring the venue for a market the process does not
+        // observe lists nothing — which is the same mistake as the one above, in
+        // the other direction.
+        vi.stubEnv('MARKET_SYMBOL', 'BTCUSDT');
+        vi.stubEnv('MARKET_SYMBOLS', 'ETHUSDT');
+        vi.stubEnv('MARKET_VENUE_CAPABILITIES', 'binance=BTCUSDT@1h;bitget=ETHUSDT@1h');
+
+        const { publishProviderGauges: publish } = await import('./provider-metrics.js');
+
+        publish(registry);
+
+        const rendered = registry.render({ namespace: 'buynotbuy_' });
+
+        expect(rendered).toContain(
+            'buynotbuy_provider_health{market="ETHUSDT",provider="bitget"}',
+        );
+        expect(rendered).not.toContain(
+            'buynotbuy_provider_health{market="ETHUSDT",provider="binance"}',
+        );
+    });
+
+    afterEach(() => {
+        vi.unstubAllEnvs();
+        useRegistry(null);
     });
 });

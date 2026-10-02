@@ -1,8 +1,7 @@
 import { currentRegistry } from '../../observability/registry.js';
 import { venueHealth, venueHealthSummary } from './provider-http.js';
-import { knownMarkets } from './provider-health.js';
 import { providerTelemetry, providerTelemetryAll } from './provider-telemetry.js';
-import { configuredMarketVenues } from '../market.provider.js';
+import { venuesServing } from '../market.provider.js';
 import { marketConfig } from '../../config/market.config.js';
 import { observabilityConfig } from '../../config/observability.config.js';
 
@@ -73,22 +72,27 @@ export function publishProviderGauges(
 function venueMarketPairs(): [string, string][] {
     const pairs = new Map<string, [string, string]>();
 
-    for (const venue of configuredMarketVenues()) {
-        for (const market of marketConfig.symbols) {
+    // **Served pairs, not the cross product.** The first version of this function
+    // multiplied venues by markets, so with `binance=BTCUSDT@1h;bitget=ETHUSDT@1h`
+    // it published `provider_health{market="ETHUSDT",provider="binance"} 1` for a
+    // venue that has never been asked about ETHUSDT — and read healthy, because a
+    // venue nobody called is `degraded`, and degraded counts as available.
+    //
+    // The gap-versus-zero reasoning that motivated the cross product is right about
+    // the *served* pairs and wrong here: a series for a pair that cannot exist is
+    // not a gap in the data, it is a claim that the pair can serve, and an operator
+    // reading it concludes binance serves ETHUSDT.
+    for (const market of marketConfig.symbols) {
+        for (const venue of venuesServing(market)) {
             pairs.set(`${venue}:${market}`, [venue, market]);
         }
     }
 
+    // Plus whatever was actually called: a market that was configured and then
+    // removed still appears, and hiding a call that happened would be worse than
+    // showing a pair that no longer serves.
     for (const entry of providerTelemetryAll()) {
         pairs.set(`${entry.provider}:${entry.market}`, [entry.provider, entry.market]);
-    }
-
-    // A venue configured with markets nobody has telemetry for still gets a record,
-    // or `knownMarkets` would answer empty and its gauge never be set.
-    for (const venue of configuredMarketVenues()) {
-        for (const market of knownMarkets(venue)) {
-            pairs.set(`${venue}:${market}`, [venue, market]);
-        }
     }
 
     return [...pairs.values()];

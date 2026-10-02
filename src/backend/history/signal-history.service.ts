@@ -1,4 +1,5 @@
 import { marketConfig } from '../config/market.config.js';
+import { configuredVenueFor } from '../market/market.provider.js';
 import { historyConfig } from '../config/history.config.js';
 
 import { getSignalHistoryRepository } from './signal-history.repository.js';
@@ -92,7 +93,10 @@ async function maybeTrimRetention(
     lastTrimAt.set(symbol, now);
 
     try {
-        return await getSignalHistoryRepository().trimRetention(symbol);
+        return await getSignalHistoryRepository().trimRetention(
+            symbol,
+            seriesFor(symbol),
+        );
     } catch {
         return 0;
     }
@@ -107,12 +111,47 @@ async function maybeTrimRetention(
 // fire-and-forget write against an asynchronous driver would turn every
 // database failure into an unhandled rejection, which is the opposite of
 // fail-open.
+/**
+ * The series a market's history is filed under, resolved once.
+ *
+ * **This was the gap round 89 left.** That round fixed `configuredSeries`, and the
+ * three tables that take their key from it — candles, signal state, outcomes — were
+ * corrected. History did not: `seriesOf` in the repository defaulted the venue to
+ * `marketConfig.provider`, and the only production writer never set a venue on the
+ * entry, so every market's history was filed under the primary's name while every
+ * other table named the right one.
+ *
+ * Nothing collided, because `symbol` is in the primary key. So no test failed and no
+ * row was lost — the table simply claimed binance-sourced prices came from binance
+ * when they came from bitget, and a future join on `(symbol, provider, interval)`
+ * between history and outcomes would have matched nothing for the second market.
+ *
+ * **Resolved here rather than in the repository** because both sides need it. The
+ * write and the read must agree on the series or `/api/signal-history?instrument=`
+ * reads a series nothing was written to — and the two live in different functions.
+ * The repository keeps accepting an explicit series, which is where the shape for
+ * this already existed.
+ *
+ * The **configured** venue, not the answering one, for the reason round 89 gave: a
+ * key built from the answering venue would split one market's history across two
+ * series every time the primary failed over.
+ */
+function seriesFor(symbol: string): { provider: string; interval: string } {
+    return {
+        provider: configuredVenueFor(symbol),
+        interval: marketConfig.candleInterval,
+    };
+}
+
 export async function recordSignalHistory(
     entry: SignalHistoryEntry,
     logger?: SignalHistoryLogger,
 ): Promise<void> {
     try {
-        await getSignalHistoryRepository().record(entry);
+        await getSignalHistoryRepository().record({
+                ...entry,
+                ...seriesFor(entry.symbol),
+            });
 
         // The upsert succeeded, so the write path is healthy and this is a
         // good moment to do the housekeeping against a database that just
@@ -154,7 +193,10 @@ async function writeBacklog(logger?: SignalHistoryLogger): Promise<number> {
 
     for (const [index, entry] of pending.entries()) {
         try {
-            await getSignalHistoryRepository().record(entry);
+            await getSignalHistoryRepository().record({
+                ...entry,
+                ...seriesFor(entry.symbol),
+            });
             written += 1;
         } catch (error) {
             // Everything from the failing entry onwards is still unwritten.
@@ -226,7 +268,7 @@ export async function getSignalHistory(
     before?: number,
     symbol: string = marketConfig.symbol,
 ): Promise<SignalHistoryEntry[]> {
-    return getSignalHistoryRepository().list(symbol, limit, before);
+    return getSignalHistoryRepository().list(symbol, limit, before, seriesFor(symbol));
 }
 
 const HOUR_MS = 3_600_000;
