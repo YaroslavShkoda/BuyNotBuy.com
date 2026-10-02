@@ -483,7 +483,27 @@ function observedMarkets(primary: string): readonly string[] {
         .filter((name) => name.length > 0);
 
     return [primary, ...extra.filter((name) => name !== primary)]
-        .map(resolvableSymbol);
+        .map(resolvableSymbol)
+        // Every repeat is dropped, not just the ones naming the primary.
+        //
+        // The filter above removes the primary from the added list because a
+        // primary listed twice is a mistake in the reading of the setting. It
+        // does not remove a repeat **inside** the added list, and it did not for
+        // as long as this function existed: the comment above promised both and
+        // the code delivered one.
+        //
+        // The reason it matters is that this array is the loop in `server.ts`,
+        // and every pass publishes signals, settles forward returns, reconciles
+        // outcomes and flushes the history backlog. `MARKET_SYMBOLS=ETHUSDT,ETHUSDT`
+        // therefore ran the whole cycle twice per tick — and `storeSnapshot`
+        // deduplicates on the input hash, so the duplication showed up in no
+        // table an operator would check.
+        //
+        // `Set` rather than a filter over an index counter, because "first
+        // occurrence wins" is the reading a person means when they write a name
+        // twice, and it is the one the loop needs: order decides which market is
+        // the primary of the extra list.
+        .filter((name, index, all) => all.indexOf(name) === index);
 }
 
 const configuredSymbols = observedMarkets(configuredSymbol);

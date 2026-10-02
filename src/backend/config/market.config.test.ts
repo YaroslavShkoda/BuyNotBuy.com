@@ -326,3 +326,81 @@ describe('fallback provider configuration', () => {
         ).rejects.toThrow();
     });
 });
+
+describe('the markets this process observes', () => {
+    async function symbolsWith(env: Record<string, string | undefined>): Promise<readonly string[]> {
+        vi.resetModules();
+
+        for (const [key, value] of Object.entries(env)) {
+            if (value === undefined) {
+                delete process.env[key];
+            } else {
+                process.env[key] = value;
+            }
+        }
+
+        const { marketConfig } = await import('./market.config');
+
+        return marketConfig.symbols;
+    }
+
+    afterEach(() => {
+        delete process.env.MARKET_SYMBOLS;
+        delete process.env.MARKET_SYMBOL;
+    });
+
+    it('observes one market when nothing else is configured', async () => {
+        // The default is the claim that everything below preserves: a
+        // deployment that configures nothing must run exactly what it ran.
+        expect(await symbolsWith({ MARKET_SYMBOL: undefined })).toEqual(['BTCUSDT']);
+    });
+
+    it('keeps the primary first and adds the rest in the order written', async () => {
+        const symbols = await symbolsWith({
+            MARKET_SYMBOL: 'BTCUSDT',
+            MARKET_SYMBOLS: 'ethusdt,solusdt',
+        });
+
+        // Order is meaning here, not cosmetics: the loop runs in it, and the
+        // primary is what the frozen routes answer for.
+        expect(symbols).toEqual(['BTCUSDT', 'ETHUSDT', 'SOLUSDT']);
+    });
+
+    it('drops a repeat of the primary, so the list cannot name it twice', async () => {
+        const symbols = await symbolsWith({
+            MARKET_SYMBOL: 'BTCUSDT',
+            MARKET_SYMBOLS: 'BTCUSDT',
+        });
+
+        expect(symbols).toEqual(['BTCUSDT']);
+    });
+
+    it('drops a repeat inside the added list, which is the case it did not', async () => {
+        // **This is the whole point of the item, and it failed when written.**
+        // The filter removed the primary from the added list and nothing else,
+        // so a name repeated *within* the added list survived — while the
+        // comment directly above that filter promised duplicates were removed.
+        //
+        // The consequence is not cosmetic. `server.ts` loops over this list, and
+        // every pass publishes signals, settles forward returns, reconciles
+        // outcomes and flushes the history backlog. Two identical entries mean
+        // two identical cycles per tick. `storeSnapshot` deduplicates on the
+        // input hash, so the duplication is invisible in the one table anyone
+        // would think to check.
+        const symbols = await symbolsWith({
+            MARKET_SYMBOL: 'BTCUSDT',
+            MARKET_SYMBOLS: 'ETHUSDT,ETHUSDT',
+        });
+
+        expect(symbols).toEqual(['BTCUSDT', 'ETHUSDT']);
+    });
+
+    it('keeps the first of a run of repeats, which is the one an operator meant', async () => {
+        const symbols = await symbolsWith({
+            MARKET_SYMBOL: 'BTCUSDT',
+            MARKET_SYMBOLS: 'ETHUSDT,ETHUSDT,SOLUSDT,ETHUSDT',
+        });
+
+        expect(symbols).toEqual(['BTCUSDT', 'ETHUSDT', 'SOLUSDT']);
+    });
+});
