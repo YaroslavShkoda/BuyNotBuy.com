@@ -15,15 +15,15 @@
 
 | слой | файлов | вход | выход | род |
 |---|---|---|---|---|
-| `types` | 4 | 76 | 3 | сквозной лист |
+| `types` | 4 | 83 | 0 | сквозной лист |
 | `errors` | 3 | 18 | 0 | сквозной лист |
 | `config` | 13 | 83 | 5 | сквозной лист |
 | `instruments` | 4 | 9 | 2 | сквозной лист |
 | `db` | 4 | 30 | 2 | ядро |
 | `market` | 15 | 27 | 36 | ядро |
-| `indicators` | 21 | 22 | 29 | ядро |
+| `indicators` | 21 | 20 | 35 | ядро |
 | `strategies` | 11 | 44 | 6 | ядро |
-| `signals` | 8 | 15 | 13 | ядро |
+| `signals` | 8 | 14 | 14 | ядро |
 | `history` | 11 | 13 | 28 | ядро |
 | `outcomes` | 3 | 4 | 11 | ядро |
 | `performance` | 6 | 6 | 4 | ядро |
@@ -36,14 +36,13 @@
 
 ### Куда каждый слой импортирует
 
-- `types` → `indicators` (2), `signals` (1)
 - `config` → `instruments` (2), `strategies` (1), `types` (2)
 - `instruments` → `config` (1), `db` (1)
 - `db` → `config` (1), `observability` (1)
 - `market` → `config` (14), `errors` (12), `observability` (2), `types` (8)
-- `indicators` → `config` (7), `db` (1), `errors` (1), `observability` (3), `types` (17)
+- `indicators` → `config` (7), `db` (1), `errors` (1), `observability` (3), `types` (23)
 - `strategies` → `db` (2), `types` (4)
-- `signals` → `config` (8), `db` (1), `indicators` (1), `observability` (1), `types` (2)
+- `signals` → `config` (8), `db` (1), `indicators` (1), `observability` (1), `types` (3)
 - `history` → `config` (7), `db` (3), `errors` (1), `market` (7), `observability` (5), `signals` (1), `types` (4)
 - `outcomes` → `config` (4), `db` (1), `signals` (3), `types` (3)
 - `performance` → `db` (1), `outcomes` (3)
@@ -62,12 +61,9 @@
 
 ## Объявленные рёбра, которых нет в коде
 
-Найдено: **3**. Ни одно не разрешено объявлением:
+Найдено: **0**. Ни одно не разрешено объявлением:
 список ниже выведен из данных, а не восстановлен из текста отчёта.
 
-- `types/analysis.ts` → `indicators/indicator.service.ts` — «types» объявлен с доступом к [ничего] и не объявлен с доступом к «indicators»
-- `types/analysis.ts` → `signals/signal.types.ts` — «types» объявлен с доступом к [ничего] и не объявлен с доступом к «signals»
-- `types/analysis.ts` → `indicators/divergence.service.ts` — «types» объявлен с доступом к [ничего] и не объявлен с доступом к «indicators»
 
 ## Зашитый рынок
 

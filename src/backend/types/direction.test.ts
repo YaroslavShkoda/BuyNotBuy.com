@@ -126,16 +126,29 @@ describe('the direction vocabulary has exactly one declaration', () => {
 
     it('keeps the old name working, so the cleanup is not a migration', () => {
         // `IndicatorSignal` is still what most of the codebase imports. It is
-        // now an alias rather than a second declaration, and this is the
-        // assertion that says so: the two names are the same type, so a caller
-        // can pass one where the other is expected in both directions. If a
-        // future edit gives them different members, this stops compiling.
+        // an alias rather than a second declaration, and this is the assertion
+        // that says so: the two names are the same type, so a caller can pass one
+        // where the other is expected in both directions. If a future edit gives
+        // them different members, this stops compiling.
+        //
+        // **The alias moved.** It used to sit in `signals/signal.types.ts`, which
+        // is where `MarketAnalysis` reached up to for `SignalResult` — three
+        // edges out of the layer that declares itself as a leaf, and invariant
+        // 13. The alias moved to `types/analysis.ts` with the contract, and that
+        // file is where this reads it now. The shim in `signal.types.ts` is
+        // still what most importers use, so the migration is still not a
+        // migration; only the declaration's address changed.
+        const contract = readFileSync(join(root, 'types', 'analysis.ts'), 'utf8');
         const signals = readFileSync(
             join(root, 'signals', 'signal.types.ts'),
             'utf8',
         );
 
-        expect(signals).toContain('export type IndicatorSignal = SignalDirection;');
+        expect(contract).toContain('export type IndicatorSignal = SignalDirection;');
+        expect(declares(contract)).toBe(false);
+
+        // And the old address still resolves the name, without declaring it again.
+        expect(signals).toContain('IndicatorSignal');
         expect(declares(signals)).toBe(false);
     });
 });

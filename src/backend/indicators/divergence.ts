@@ -1,40 +1,30 @@
+import type { DivergencePoint, DivergenceResult } from '../types/analysis.js';
+
 /**
- * Which way a divergence points, and the answer when there is none.
+ * The divergence vocabulary and the shapes around a point, a pair and an
+ * analysis, moved to `types/analysis.ts`.
  *
- * A tuple, so the wire can validate it. `api/schemas.ts` retyped these three
- * because `z.enum` wants values and a union is erased at compile time — the same
- * reason every other vocabulary in this project grew a value before a validator
- * could be built from it. `DivergenceService` used to spell out the narrower
- * `'BULLISH' | 'BEARISH'` for the polarity it expected; that is now `Exclude` of
- * this list, which says what it is — two of the three, never `NONE` — instead of
- * saying it by typing the strings out a third time.
+ * They were declared here, and `types/analysis.ts` imported them to build
+ * `MarketAnalysis` — so the frozen contract reached up into `indicators/` for
+ * three of its own fields. That is invariant 13, and it is closed by their being
+ * here, with the contract, rather than here, with the code that happens to
+ * compute them. `detectDivergence` below is the whole reason these shapes exist
+ * and it stays where it is: a vocabulary belongs with the contract, a function
+ * belongs with its arithmetic.
+ *
+ * The doc comments moved with the declarations, because they explain what the
+ * values *are* and a comment left behind describes nothing. Re-exported so that
+ * the two test files that read the vocabulary from here keep reading it from
+ * here, and so that anyone arriving at this module finds the names it owns.
  */
-export const DIVERGENCE_TYPES = ['BULLISH', 'BEARISH', 'NONE'] as const;
-
-export type DivergenceType = (typeof DIVERGENCE_TYPES)[number];
-
-/** A polarity to look for. `NONE` is an answer, never an expectation. */
-export type DivergencePolarity = Exclude<DivergenceType, 'NONE'>;
-
-export interface DivergencePoint {
-    index: number;
-    /**
-     * First bar that made this pivot knowable. A swing low is only confirmed
-     * after `rightWindow` further bars, so a pivot must never be presented as
-     * a current reading before that bar.
-     */
-    confirmedAtIndex: number;
-    /** Bars elapsed since confirmation, at the end of the analysed window. */
-    age: number;
-    price: number;
-    momentum: number;
-}
-
-export interface DivergenceResult {
-    type: DivergenceType;
-    previous: DivergencePoint;
-    current: DivergencePoint;
-}
+export {
+    DIVERGENCE_TYPES,
+    type DivergenceAnalysis,
+    type DivergencePoint,
+    type DivergencePolarity,
+    type DivergenceResult,
+    type DivergenceType,
+} from '../types/analysis.js';
 
 export function detectDivergence(
     previous: DivergencePoint,

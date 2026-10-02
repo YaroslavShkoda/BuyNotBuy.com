@@ -180,43 +180,37 @@ describe('this codebase, measured', () => {
     }, 30000);
 
     it('reports the violations that remain, and pins them exactly', () => {
-        // Three, and pinned as a list rather than a count so that fixing one is
-        // a visible edit. All three are the same file, and all three are the
-        // frozen `types/analysis.ts` contract: the owner's decision, not this
-        // project's.
+        // **This list is empty, and the three that were on it are the three that
+        // were here all along.** `types/analysis.ts` named `MarketIndicatorsWire`,
+        // `SignalResult` and `DivergenceAnalysis` from `indicators/` and
+        // `signals/` — the frozen contract reaching up into two middle layers,
+        // which is invariant 13. The shapes moved to `types/analysis.ts` with the
+        // contract, and this test failed on the fix, which is the case a pinned
+        // list exists for.
         //
-        // It was five. Two went:
+        // **This file already did what it was said not to do.** A claim was made
+        // in round 76 that this test proved the rule and not the codebase, and a
+        // second file was added on the strength of it. That was wrong: the
+        // `describe('this codebase, measured')` block has been here the whole
+        // time, and the reader had only read the first seventy lines. The second
+        // file has been deleted. A gap that is a misreading is not a gap, and
+        // building on one is how a second source of truth arrives.
         //
-        // `strategies/types.ts → signals/signal.types.ts` existed only because
-        // the three direction literals had four separate declarations and
-        // `signals/` held one of them. The vocabulary moved to
-        // `types/direction.ts`, which the table puts in UNIVERSAL, and every
-        // site names it now. The guard was reporting a real file layout.
-        //
-        // `config/strategy-fingerprint.ts → strategies/strategy-fingerprint.ts`
-        // was not a defect at all, and removing it would have been the wrong
-        // fix. The fingerprint reads `STRATEGY_FACTORIES` so that installing a
-        // rule moves the configuration hash; without it a new rule would file
-        // every later signal under a configuration it is not part of. The
-        // alternative is `strategies → config`, which already exists, and the
-        // pair is a cycle that fails at startup as an undefined binding. The
-        // edge is now declared with its reason, because a table that can only
-        // say "forbidden" cannot describe a trade-off somebody made — and the
-        // next reader would have either re-added the import or deleted the
-        // fingerprint.
-        //
-        // Each count was measured on both sides — stash, run, restore, run —
-        // rather than concluded from the edit. Pinned as edges, not a total,
-        // because a total only says something changed and this list says what.
+        // What is left of the earlier history is still true and still explains the
+        // pin's shape — it is a list of edges rather than a count, because a count
+        // says only that something changed and this says what. It was five. Two
+        // went: `strategies/types.ts → signals/signal.types.ts`, which existed
+        // only because the direction literals had four declarations and
+        // `signals/` held one, the vocabulary moving to `types/direction.ts`; and
+        // `config/strategy-fingerprint.ts → strategies/strategy-fingerprint.ts`,
+        // which is not a defect and is now declared with its reason, because a
+        // table that can only say "forbidden" cannot describe a trade-off
+        // somebody made.
         const found = violations(buildGraph(realRoot))
             .map((v) => `${v.from} → ${v.to}`)
             .sort();
 
-        expect(found).toEqual([
-            'types/analysis.ts → indicators/divergence.service.ts',
-            'types/analysis.ts → indicators/indicator.service.ts',
-            'types/analysis.ts → signals/signal.types.ts',
-        ]);
+        expect(found).toEqual([]);
     }, 30000);
 
     it('reports no edge from a domain into the database', () => {
@@ -239,15 +233,29 @@ describe('this codebase, measured', () => {
         expect(permitsFile('strategies/candidate.service.ts', 'db/pool.ts')).toBe(false);
     });
 
-    it('finds the inversion that matters most: the wire contract importing code', () => {
+    it('finds the inversion that matters most, and finds none', () => {
         // `types/analysis.ts` is the frozen contract the frontend reads, and it
-        // imports the indicator service and the signal types. The bottom layer
-        // of the architecture depending on two of its middles means the contract
-        // is not a contract — it moves whenever the implementation does.
+        // used to import the indicator service and the signal types. The bottom
+        // layer of the architecture depending on two of its middles means the
+        // contract is not a contract — it moves whenever the implementation does.
+        // The shapes moved to `types/analysis.ts` with it, and the list above is
+        // now empty.
+        //
+        // This used to assert the inversion **was present**, which is a strange
+        // thing to require and only made sense while it was a documented defect
+        // someone had to see. Asserting its absence is the real assertion.
+        //
+        // The detector is still proven to fire, on synthetic input, by
+        // `stops a core layer importing what it did not declare` and by the
+        // cycle cases above — so this being empty means the code is clean rather
+        // than the check having stopped looking. A test that goes quiet and a
+        // test that is satisfied look identical from the outside, and the only
+        // difference is whether something else is still shouting.
         const found = violations(buildGraph(realRoot)).map((v) => `${v.from} → ${v.to}`);
 
-        expect(found).toContain('types/analysis.ts → indicators/indicator.service.ts');
-        expect(found).toContain('types/analysis.ts → signals/signal.types.ts');
+        expect(found).toEqual([]);
+        expect(permits('types', 'indicators')).toBe(false);
+        expect(permits('types', 'signals')).toBe(false);
     }, 30000);
 
     it('has no layer outside the table now', () => {

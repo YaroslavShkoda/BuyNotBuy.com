@@ -12,6 +12,7 @@ import { createSeriesGraph, emaSeries } from './series.graph.js';
 import { currentRegistry } from '../observability/registry.js';
 
 import type { IndicatorDefinition, IndicatorRegistry, IndicatorValue } from './indicator.registry.js';
+import type { MarketIndicators, MarketIndicatorsWire } from '../types/analysis.js';
 import type { MarketData } from '../types/market.js';
 import type { Candle } from '../types/market.js';
 
@@ -229,30 +230,16 @@ export const indicatorRegistry: IndicatorRegistry = (() => {
     return registry;
 })();
 
-/**
- * The internal shape: `ema`, not `ema300`.
- *
- * Field names here are the ones the rest of the backend reasons about, and a
- * field named after a period is a field that lies the moment the period is
- * configured to something else.
- */
-export interface MarketIndicators {
-    ema: number;
-    stochastic: number;
-    momentum: number;
-    atr: number;
-    rsi: number;
-    macd: {
-        macd: number;
-        signal: number;
-        histogram: number;
-    };
-}
-
-/** The published shape. `ema300` is the name the contract has always had. */
-export interface MarketIndicatorsWire extends Omit<MarketIndicators, 'ema'> {
-    ema300: number;
-}
+// `MarketIndicators` and the published `MarketIndicatorsWire` moved to
+// `types/analysis.ts`, together: the wire shape is an `Omit` of the internal one
+// with `ema` renamed, and a derivation that crosses a layer boundary has to be
+// re-typed, which is exactly where a field could be dropped without the compiler
+// objecting. Re-exported so this module's importers are unaffected, and so that
+// arriving here still finds the name.
+export type {
+    MarketIndicators,
+    MarketIndicatorsWire,
+} from '../types/analysis.js';
 
 /**
  * The graph the process runs on.

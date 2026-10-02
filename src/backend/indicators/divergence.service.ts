@@ -1,4 +1,5 @@
 import type { Candle } from '../types/market.js';
+import type { DivergenceAnalysis } from '../types/analysis.js';
 
 import { indicatorConfig } from '../config/indicator.config.js';
 
@@ -18,14 +19,12 @@ import {
     type DivergenceResult,
 } from './divergence.js';
 
-import {
-    findDivergencePairs,
-} from './divergence-pairing.js';
+import { findDivergencePairs } from './divergence-pairing.js';
 
-export interface DivergenceAnalysis {
-    bullish: DivergenceResult | null;
-    bearish: DivergenceResult | null;
-}
+// `DivergenceAnalysis` moved to `types/analysis.ts`: `MarketAnalysis` names it,
+// and a contract that reaches up into `indicators/` for one of its own fields is
+// invariant 13. Re-exported below so this module's importers are unaffected.
+export type { DivergenceAnalysis } from '../types/analysis.js';
 
 export interface DivergenceOptions {
     momentumPeriod?: number;
