@@ -7,6 +7,18 @@ export interface SeededRegistry {
     /** The configured instrument, and whether this call was what created it. */
     readonly instrument: string;
     readonly instrumentInserted: boolean;
+    /**
+     * Every configured market that was written, and which of them this call
+     * created.
+     *
+     * Additive, and additive for a reason: the first two fields describe **one**
+     * instrument and this one describes all of them, and a return shape that could
+     * only say "one" is the shape that seeded one.
+     */
+    readonly instruments: readonly {
+        readonly ticker: string;
+        readonly inserted: boolean;
+    }[];
 }
 
 /**
@@ -38,18 +50,48 @@ export async function seedConfiguredRegistry(
     repository: AssetRepository,
     assets: readonly Asset[],
     ticker: string,
+    tickers: readonly string[] = [ticker],
 ): Promise<SeededRegistry> {
     const assetsSeeded = await repository.seedFromConfiguration(
         assets.map((entry) => ({ symbol: entry.symbol, category: entry.category })),
     );
 
-    // Resolvable by the caller: `marketConfig.symbol` is checked against this
+    // Resolvable by the caller: every configured market is checked against this
     // same registry at import time and the process refuses to start otherwise.
-    const instrumentInserted = await repository.recordInstrument(ticker);
+    //
+    // **Every configured market, and this was the item.** It recorded one
+    // instrument — the one the caller named — so a process observing two markets
+    // wrote rows for one of them. The other had no `instrument` row, which means
+    // `judgeTradability` answered `unknown_instrument` for it,
+    // `GET /api/instruments` left it out, and its `asset` rows landed with
+    // `status: 'unknown'`.
+    //
+    // None of that is corruption and all of it is a registry that under-reports:
+    // the controller deliberately leaves an instrument whose assets are not all in
+    // `asset` out of the list rather than inventing a classification, and
+    // `recordInstrument` is what writes the halves. A second market observed every
+    // minute and absent from the registry is a market the system says it does not
+    // trade.
+    const written: { ticker: string; inserted: boolean }[] = [];
+
+    for (const configured of [...new Set(tickers.map((name) => name.trim().toUpperCase()))]) {
+        written.push({
+            ticker: configured,
+            inserted: await repository.recordInstrument(configured),
+        });
+    }
+
+    // The single-instrument fields describe the named one, so a caller reading them
+    // gets the answer it would have got before this took a list.
+    const named = written.find((entry) => entry.ticker === ticker.toUpperCase()) ?? {
+        ticker,
+        inserted: false,
+    };
 
     return {
         assetsInserted: assetsSeeded.inserted,
-        instrument: ticker,
-        instrumentInserted,
+        instrument: named.ticker,
+        instrumentInserted: named.inserted,
+        instruments: written,
     };
 }

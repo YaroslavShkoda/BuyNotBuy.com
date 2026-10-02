@@ -107,3 +107,106 @@ describe('the registry the service writes at start', () => {
         expect(await repository.listInstruments()).toHaveLength(1);
     });
 });
+
+describe('a process that observes two markets', () => {
+    const ETH: Asset = {
+        symbol: 'ETH',
+        name: 'Ethereum',
+        category: 'crypto',
+        status: 'active',
+    };
+
+    beforeEach(async () => {
+        await query('DELETE FROM instrument');
+        await query('DELETE FROM asset');
+    });
+
+    it('writes both instruments, not only the one it was named', async () => {
+        // **This is the item.** The seed recorded the single ticker its caller
+        // passed, so a process observing two markets wrote rows for one of them.
+        // The other had no `instrument` row — which means `judgeTradability`
+        // answers `unknown_instrument` for it, `GET /api/instruments` leaves it out
+        // (the controller refuses to invent a classification for an instrument whose
+        // halves are missing), and its `asset` rows land with `status: 'unknown'`.
+        //
+        // None of that is corruption. All of it is a registry saying the system does
+        // not trade a market it publishes signals for every minute.
+        const seeded = await seedConfiguredRegistry(
+            repository,
+            [...CONFIGURED, ETH],
+            'BTCUSDT',
+            ['BTCUSDT', 'ETHUSDT'],
+        );
+
+        // Exactly what the route asks for, and the answer is both.
+        const instruments = await repository.listInstruments();
+
+        expect(instruments.map((row) => row.ticker).sort()).toEqual([
+            'BTCUSDT',
+            'ETHUSDT',
+        ]);
+
+        expect(seeded.instruments).toEqual([
+            { ticker: 'BTCUSDT', inserted: true },
+            { ticker: 'ETHUSDT', inserted: true },
+        ]);
+    });
+
+    it('reports the second market tradable rather than unknown', async () => {
+        // **The control comes first, or this test proves nothing.** A market nobody
+        // wrote down is refused, and that refusal is the whole defect: an observed
+        // market that the registry says it does not trade. Without the control, a
+        // `tradable` assertion could be satisfied by a repository that answers
+        // `true` to everything.
+        const beforeSeed = await repository.tradability('ETHUSDT');
+
+        expect(beforeSeed.tradable).toBe(false);
+        expect(beforeSeed.tradable === false && beforeSeed.reason).toBe('unknown_instrument');
+
+        await seedConfiguredRegistry(
+            repository,
+            [...CONFIGURED, ETH],
+            'BTCUSDT',
+            ['BTCUSDT', 'ETHUSDT'],
+        );
+
+        // The judgement the route and the cycle both rely on.
+        const afterSeed = await repository.tradability('ETHUSDT');
+
+        expect(afterSeed.tradable).toBe(true);
+    });
+
+    it('keeps the single-instrument fields describing the named market', async () => {
+        // The additive shape has to be additive: a caller reading `instrument` gets
+        // the answer it got before this took a list, or the fix changed a
+        // contract instead of extending one.
+        const seeded = await seedConfiguredRegistry(
+            repository,
+            [...CONFIGURED, ETH],
+            'BTCUSDT',
+            ['BTCUSDT', 'ETHUSDT'],
+        );
+
+        expect(seeded.instrument).toBe('BTCUSDT');
+        expect(seeded.instrumentInserted).toBe(true);
+    });
+
+    it('writes each market once when the list repeats it', async () => {
+        const seeded = await seedConfiguredRegistry(
+            repository,
+            [...CONFIGURED, ETH],
+            'BTCUSDT',
+            ['BTCUSDT', 'ethusdt', 'ETHUSDT'],
+        );
+
+        // Normalised and de-duplicated: two entries for one market would report two
+        // writes for one row, and the second would claim `inserted: false` for a
+        // row this very call created.
+        expect(seeded.instruments).toEqual([
+            { ticker: 'BTCUSDT', inserted: true },
+            { ticker: 'ETHUSDT', inserted: true },
+        ]);
+
+        expect(await repository.listInstruments()).toHaveLength(2);
+    });
+});

@@ -223,6 +223,7 @@ async function startServer() {
             getAssetRepository(),
             knownAssets,
             marketConfig.symbol,
+            marketConfig.symbols,
         );
 
         app.log.info(
@@ -231,6 +232,9 @@ async function startServer() {
                 assetsInserted: seeded.assetsInserted,
                 instrument: seeded.instrument,
                 instrumentInserted: seeded.instrumentInserted,
+                // Every market written, so the line says what the process is
+                // actually about rather than only what it was configured around.
+                instruments: seeded.instruments,
             },
             'registry_seeded',
         );
