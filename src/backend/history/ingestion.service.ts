@@ -1,7 +1,7 @@
 import { marketConfig } from '../config/market.config.js';
 import { candleRepository } from './candle.repository.js';
 import { isCandleClosed } from './candle-clock.js';
-import { marketProviderFor } from '../market/market.provider.js';
+import { configuredVenueFor, marketProviderFor } from '../market/market.provider.js';
 import { ApplicationError } from '../errors/application.error.js';
 
 import type { CandleSeriesKey, CandleRepository } from './candle.repository.js';
@@ -201,11 +201,29 @@ function splitByAge(
  * one" keep reading the way they read, and because `marketConfig.symbol` is
  * still the market the frozen routes answer for. The loop in `server.ts` passes
  * its own market; everything else may keep omitting it and mean the primary.
+ *
+ * **And the venue is resolved for that market, not copied from the primary.**
+ * It was `marketConfig.provider`, which is the venue for the market named by
+ * `marketConfig.symbol` and for no other. So a market configured to be served by
+ * a different venue was stored under the primary's name: `market_candles`,
+ * `signal_history`, `signal_state`, `signal_transition` and `signal_outcome` all
+ * attributed one venue's prices to another, in five tables, with nothing joining
+ * them to contradict it.
+ *
+ * **The configured venue, deliberately, and not the one that answered.** Under
+ * failover the answering venue changes between fetches, so a key built from it
+ * would split one market's series in two every time the primary failed over. The
+ * answering venue is recorded where it belongs — on the snapshot's fingerprint,
+ * which migration 18 added for exactly this reason. Here it throws for a market
+ * no venue serves rather than naming the primary, because a key that silently
+ * names the wrong venue is worse than a refusal: it writes.
  */
 export function configuredSeries(instrument?: string): CandleSeriesKey {
+    const symbol = instrument ?? marketConfig.symbol;
+
     return {
-        provider: marketConfig.provider,
-        symbol: instrument ?? marketConfig.symbol,
+        provider: configuredVenueFor(symbol),
+        symbol,
         interval: marketConfig.candleInterval,
     };
 }

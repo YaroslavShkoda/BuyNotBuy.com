@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { readdirSync, readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
@@ -352,6 +352,66 @@ describe('startIngestionScheduler', () => {
     it('fills the series named by the configuration', () => {
         expect(configuredSeries().interval).toBeTypeOf('string');
         expect(configuredSeries().symbol).toBeTypeOf('string');
+    });
+});
+
+describe('the venue a market is stored under', () => {
+    afterEach(() => {
+        vi.unstubAllEnvs();
+        vi.resetModules();
+    });
+
+    /**
+     * `configuredVenueFor` is unit-tested where it lives, and that test passes
+     * whether or not anything calls it. This one goes through the function the
+     * five tables actually take their key from — because the first version of
+     * this work was verified in exactly the wrong place and passed on the old
+     * code without noticing.
+     */
+    async function seriesFor(env: Record<string, string>): Promise<{
+        provider: string;
+        symbol: string;
+    }> {
+        vi.resetModules();
+
+        for (const [key, value] of Object.entries(env)) {
+            vi.stubEnv(key, value);
+        }
+
+        const { configuredSeries: build } = await import('./ingestion.service.js');
+
+        return build('ETHUSDT');
+    }
+
+    it('names the venue configured to serve the market, not the primary', async () => {
+        // **This is the item.** `key.provider` was `marketConfig.provider`, which
+        // is the venue for the market named by `marketConfig.symbol` and for no
+        // other. So every table keyed on `provider, symbol, interval` — candles,
+        // signal history, signal state, transitions, outcomes — recorded one
+        // venue's prices under another venue's name, with no join anywhere able
+        // to contradict it.
+        const series = await seriesFor({
+            MARKET_PROVIDER: 'binance',
+            MARKET_SYMBOL: 'BTCUSDT',
+            MARKET_VENUE_CAPABILITIES: 'binance=BTCUSDT@1h;bitget=ETHUSDT@1h',
+        });
+
+        expect(series.symbol).toBe('ETHUSDT');
+        expect(series.provider).toBe('bitget');
+    });
+
+    it('still names the primary for the primary market', async () => {
+        // The default has to survive the fix, or every existing deployment
+        // changes the series its history is filed under on upgrade.
+        await seriesFor({
+            MARKET_PROVIDER: 'binance',
+            MARKET_SYMBOL: 'BTCUSDT',
+            MARKET_VENUE_CAPABILITIES: 'binance=BTCUSDT@1h;bitget=ETHUSDT@1h',
+        });
+
+        const { configuredSeries: build } = await import('./ingestion.service.js');
+
+        expect(build().provider).toBe('binance');
     });
 });
 

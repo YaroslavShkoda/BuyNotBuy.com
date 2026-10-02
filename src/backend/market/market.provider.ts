@@ -142,6 +142,55 @@ export function configuredVenueCapabilities(): VenueCapability[] {
  * that configures nothing new keeps working and keeps its existing refusal for a
  * symbol the registry cannot parse.
  */
+/**
+ * The venue configured to serve a market, named without building anything.
+ *
+ * **The venue a market is *stored under* is not the venue that answered, and the
+ * difference is the whole point of this function.**
+ *
+ * `marketProviderFor` returns a provider, and the caller that fetches with it
+ * learns which venue answered from the attributed envelope. That is right for a
+ * snapshot and wrong for a storage key: under failover the answering venue
+ * changes from fetch to fetch, so a series key built from it would split one
+ * market's history across two series every time the primary failed over — the
+ * same bars, filed twice, under a venue that did not serve them an hour earlier.
+ *
+ * So the *configured* venue names the series, and the answering one is recorded
+ * beside it. That is the arrangement migration 18 built for `signal_snapshot`: it
+ * added the venue to the snapshot's fingerprint so two venues serving identical
+ * candles cannot collapse into one row, and it deliberately left the storage key
+ * alone. Every table keyed on `provider, symbol, interval` — candles, signal
+ * history, signal state, transitions, outcomes — takes that name from
+ * `configuredSeries`, so they agree with each other by construction.
+ *
+ * Throws for a market no venue serves, like `marketProviderFor` does and for the
+ * same reason: a caller building a key must not be handed the primary's name for
+ * a market the primary does not serve, because that writes plausible rows into
+ * the wrong series and every later read of them is a read of another asset.
+ */
+export function configuredVenueFor(instrument: string): string {
+    const wanted = instrument.trim().toUpperCase();
+
+    if (wanted === marketConfig.symbol.toUpperCase()) {
+        return marketConfig.provider;
+    }
+
+    const found = route(
+        { instrument: wanted, interval: marketConfig.candleInterval },
+        configuredVenueCapabilities(),
+        configuredMarketVenues(),
+    );
+
+    if (!found.ok) {
+        throw new MarketDataError(
+            describeRoute(found, { instrument: wanted, interval: marketConfig.candleInterval }),
+            { code: 'MARKET_PROVIDER_ERROR', cause: { requestedSymbol: wanted, reason: found.reason } },
+        );
+    }
+
+    return String(found.venue);
+}
+
 export function marketProviderFor(instrument: string): MarketDataProvider {
     const wanted = instrument.trim().toUpperCase();
 

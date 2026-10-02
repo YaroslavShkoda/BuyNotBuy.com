@@ -249,3 +249,65 @@ describe('a routed market gets a venue bound to that market', () => {
         expect(marketProviderFor('ETHUSDT')).not.toBe(marketProviderFor('BTCUSDT'));
     });
 });
+
+describe('the venue a market is stored under', () => {
+    it('is the venue configured to serve that market, not the primary', async () => {
+        // **This is the item.** `configuredSeries` took its provider from
+        // `marketConfig.provider` — the venue for the market named by
+        // `marketConfig.symbol` and for no other. So a market configured to be
+        // served by a different venue was stored under the primary's name, in
+        // five tables at once: candles, signal history, signal state,
+        // transitions and outcomes all attributed one venue's prices to another,
+        // with no join anywhere able to contradict it.
+        vi.resetModules();
+
+        vi.stubEnv('MARKET_PROVIDER', 'binance');
+        vi.stubEnv('MARKET_SYMBOL', 'BTCUSDT');
+        vi.stubEnv('MARKET_VENUE_CAPABILITIES', 'binance=BTCUSDT@1h;bitget=ETHUSDT@1h');
+
+        const { configuredVenueFor } = await import('./market.provider');
+
+        expect(configuredVenueFor('BTCUSDT')).toBe('binance');
+        expect(configuredVenueFor('ETHUSDT')).toBe('bitget');
+    });
+
+    it('is stable while the answering venue is not', async () => {
+        // The reason this is the *configured* venue and not the one that
+        // answered. Under failover the answering venue changes between fetches,
+        // so a series key built from it would split one market's bars across two
+        // series every time the primary failed over — the same hour filed twice,
+        // under a venue that did not serve it.
+        vi.resetModules();
+
+        vi.stubEnv('MARKET_PROVIDER', 'binance');
+        vi.stubEnv('MARKET_FALLBACK_PROVIDERS', 'bitget');
+        vi.stubEnv('MARKET_VENUE_CAPABILITIES', 'binance=BTCUSDT@1h;bitget=BTCUSDT@1h');
+
+        const { configuredVenueFor, marketProviderFor } = await import('./market.provider');
+
+        // The primary with failover is served by a **chain**, and the chain's own
+        // name is `failover` — not a venue. So there is nothing here to derive a
+        // storage key from even if someone wanted to: the object that fetches has
+        // no single venue identity, and the venue that answered is a property of
+        // one fetch rather than of the market.
+        expect(marketProviderFor('BTCUSDT').name).toBe('failover');
+        expect(configuredVenueFor('BTCUSDT')).toBe('binance');
+    });
+
+    it('refuses a market no venue serves instead of naming the primary', async () => {
+        // A key that silently names the wrong venue is worse than a refusal: it
+        // writes. Rows land in a plausible series, the gaps disappear, and every
+        // later read of that series is a read of another asset.
+        vi.resetModules();
+
+        vi.stubEnv('MARKET_PROVIDER', 'binance');
+        vi.stubEnv('MARKET_VENUE_CAPABILITIES', 'binance=BTCUSDT@1h');
+
+        const { configuredVenueFor } = await import('./market.provider');
+
+        // Synchronous, so `rejects` would be the wrong form: there is no promise to
+        // reject, the call throws before one exists. `marketProviderFor` throws
+        // the same way and for the same reason.
+        expect(() => configuredVenueFor('ETHUSDT')).toThrow(/ETHUSDT/);
+    });
+});
