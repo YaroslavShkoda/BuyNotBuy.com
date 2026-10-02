@@ -1,0 +1,373 @@
+# Список улучшений: измерение, а не намерение
+
+Список пережил переупорядочивание: он больше не живёт только в разговоре. Каждый
+пункт — измеренная находка с адресом (`файл:строка`) и с тем, что ломается при
+двух рынках. Пункт без адреса не попадает сюда.
+
+**Что считается «двумя рынками».** `MARKET_SYMBOL=BTCUSDT` (по умолчанию) плюс
+`MARKET_SYMBOLS=ETHUSDT`. Второй рынок требует ещё и декларации площадки —
+это написано в тесте, а не предположено.
+
+**Слой данных оказался готов.** Первая мысль была «таблицы схлопываются по рынку».
+Проверено по миграциям, а не по коду:
+
+| Таблица | Ограничение | Рынок в ключе |
+|---|---|---|
+| `market_candles` | `UNIQUE (provider, symbol, interval, timestamp)` (`migrations.ts:173`) | да |
+| `signal_history` | `PRIMARY KEY (symbol, provider, interval, hour_bucket)` (`:340`) | да |
+| `signal_snapshot` | `UNIQUE (symbol, input_hash)` (`:117`) | да |
+| `signal_state` | `UNIQUE (symbol, provider, interval)` (`:244`) | да |
+| `signal_outcome` | `UNIQUE (symbol, provider, interval, signal_state_id, horizon_bars)` (`:404`) | да |
+| `indicator_vote` | `PRIMARY KEY (symbol, vote_bucket, indicator)` (`:55`) | да |
+
+Плюс кэш и single-flight в `market.service.ts:62-66,95` и
+`analysis.service.ts:131` — ключ `${instrument}|${interval}`. **Коллизий нет
+нигде.** Все находки ниже — про покрытие, атрибуцию и наблюдаемость, а не про
+сломанные ключи.
+
+---
+
+## Закрыто
+
+| ID | Что | Раунд |
+|---|---|---|
+| A1 | Типы контрактов в `types/`, инвариант 13, 0 исходящих рёбер | 33b288f |
+| A2 | Вторая промоушен-лестница удалена после проверки гейта | 35a9398 |
+| A3 | `strategy/` → `lifecycle/` | c9dcc4e |
+| A4 | Два имени для двух форм + пин 17 совпадений экспортов | b5ad45c |
+| B5 | Цикл наблюдения на каждый рынок; площадка строится под рынок | 225c766 |
+| B6 | Замок вердикта доказан; ограничение **на базу, не на рынок** | 1a23d04 |
+
+B6 закрыт частично и обдуманно: `holdout_verdict` имеет `CHECK (id = 1)` на всю
+базу, writer'а нет. Рынок в ключ не входит, поэтому «окно прочитано один раз»
+сейчас гарантировано для базы, а не для серии.
+
+---
+
+## B7. `MARKET_SYMBOLS` дедуплицируется только против primary — вопреки своему комментарию
+
+`config/market.config.ts:485`
+
+```ts
+return [primary, ...extra.filter((name) => name !== primary)]
+```
+
+Комментарий над этим местом обещает: «The duplicates and the primary are
+removed rather than refused, because … a process that observes BTCUSDT twice
+would write its history and its signals twice — silently, since both tables key
+on the series». Удаляется только primary. Дубликаты **внутри** `extra`
+выживают.
+
+**Ломается так.** `MARKET_SYMBOLS=ETHUSDT,ETHUSDT` → два побайтово одинаковых
+цикла за тик: `publishSignal`, `settleForwardReturns`, `reconcileSignalOutcomes`,
+`recordLearnedCategory` — дважды. `storeSnapshot` дедуплицируется по хешу входа и
+скрывает дублирование в единственной таблице, которую стали бы проверять.
+
+Дефект внесён мной в раунде 83: комментарий писался под намерение, а фильтр —
+под первое попадание.
+
+## B8. У цикла нет изоляции по рынкам: одна ошибка убивает остальные рынки и retention
+
+`server.ts:242-249`
+
+```ts
+for (const market of marketConfig.symbols) {
+    await observeMarket(market, { logger: app.log, reportVenueChange });
+}
+
+const pruned = await retention.maybeRun(Date.now());
+```
+
+Ни одного `try/catch`. Единственная обработка — вокруг всего `run()` в
+`poller.ts:63-71`.
+
+**Ломается так.** SOLUSDT отдаёт 500 → выброс уходит из цикла, рынки после него
+пропускаются каждый тик, а `retention.maybeRun` на строке 249 **больше не
+выполняется никогда**. Это опасная половина: строки копятся вечно, и ни одной
+записи `retention_run` не появляется, потому что логирование стоит за вызовом.
+`Poller.completedRuns` продолжает расти, процесс выглядит здоровым.
+
+## C9. Планировщик загрузки зарегистрирован на один рынок — `market_candles` не наполняется для второго
+
+`server.ts:275` — `key: configuredSeries(),` без аргумента.
+`ingestion.service.ts:72` — `options.provider ?? marketDataProvider`.
+
+`configuredSeries(instrument?)` параметризован **правильно**
+(`ingestion.service.ts:183-189`), и `ingestOnce` даже имеет нужную проверку
+(`:87-92`) — но рынок не передаёт никто, кроме двух вызовов внутри
+`services/market-cycle.ts:172,265`. Ещё один вызов без рынка:
+`history/backfill.cli.ts:39`.
+
+**Ломается так.** Планировщик — единственный писатель в `market_candles`. При
+`MARKET_SYMBOLS=ETHUSDT` цикл публикует сигналы, снимки и расчётные доходы по
+ETHUSDT каждую минуту, а таблица не содержит ни одной строки ETHUSDT. Всё, что
+меряет по сохранённым барам (бэктест, `research/holdout.ts`,
+`research/performance.cli.ts`), видит один рынок.
+
+Существующий тест этого поймать не может: `market-cycle.test.ts:119-131`
+утверждает `ingested.every(...)`, чему удовлетворяет и пустое множество, — и его
+собственный комментарий на `:125-127` признаёт, что мок не сохраняет бары.
+
+## C10. Подрезка `signal_history` заперта общим часовым замком — режется только первый рынок
+
+`history/signal-history.service.ts:46-68`
+
+```ts
+const RETENTION_MIN_INTERVAL_MS = 5 * 60_000;
+let lastTrimAt = 0;
+…
+if (now - lastTrimAt < RETENTION_MIN_INTERVAL_MS) {
+    return 0;
+}
+lastTrimAt = now;
+return await getSignalHistoryRepository().trimRetention(symbol);
+```
+
+Комментарий называет это «per process» — и это правда, но **ограничивает оно
+per-symbol** операцию: `trimRetention(symbol)` режет по `WHERE symbol = $1 AND
+provider = $2 AND interval = $3`. Первый вызов съедает окно, все следующие внутри
+окна возвращают `0`.
+
+**Ломается так.** Цикл всегда идёт `['BTCUSDT','ETHUSDT']`. ETHUSDT возвращает
+`0` навсегда: его `signal_history` растёт на строку в час без предела, и
+ограничивает его только глобальная 1095-дневная режущая
+(`db/retention.ts:76-83`). Единственная per-market операция во всём цикле,
+прореженная состоянием процесса.
+
+**Это дефект, а не решение, потому что сосед делает правильно:**
+`indicators/performance/indicator-vote.repository.ts:167-175` выполняет `TRIM_SQL`
+один раз на каждый символ в пачке, безусловно.
+
+## C11. Ключ серии теряет площадку, которая ответила
+
+`services/market-cycle.ts:163` и `:172` — в одном файле, в 14 строках друг от
+друга:
+
+```ts
+provider: marketDataProvider,          // :163 — площадка, которая ответила
+…
+key: configuredSeries(market),         // :172 — configuredSeries подставляет
+                                      //          marketConfig.provider
+```
+
+`configuredSeries` (`ingestion.service.ts:183-189`) жёстко возвращает
+`provider: marketConfig.provider`. Файл на `:100-107` формулирует правило явно:
+«the snapshot this cycle stores is fingerprinted on the venue that served it, and
+taking the configured provider instead of the answering one would produce a
+different hash for the same bars». Для `storeSnapshot` правило соблюдено, через
+14 строк нарушено для `publishSignal` и `reconcileSignalOutcomes`.
+
+**Ломается так.** Строки `signal_state`, `signal_transition`, `signal_outcome` по
+ETHUSDT несут `provider = 'binance'`, даже если ответил bitget. И наоборот: у
+BTCUSDT в тот час, когда primary отвалился, в таблицах написано `'binance'`, а
+бары в `market_candles` записаны под bitget. Утверждение `docs/invariants.md` §9
+(«`signal_state` и `signal_outcome` — всегда») неверно для обоих рынков.
+
+Ключи при этом не сталкиваются — символ в них есть. Это дефект атрибуции.
+
+## C12. Цепочка отказоустойчивости существует только для primary
+
+`market/market.provider.ts:165,178-180` — маршрутизированный рынок получает
+**голого** провайдера; `FailoverProvider` строится один раз (`:112`) для
+процесса.
+
+**Ломается так.** `binance=BTCUSDT@1h;bitget=BTCUSDT,ETHUSDT@1h`, binance гаснет.
+BTCUSDT идёт по цепочке и деградирует в кэш. **ETHUSDT получает 503 немедленно**,
+хотя bitget здоров, объявил ETHUSDT и настроен как резерв. `MARKET_FALLBACK_PROVIDERS`
+— документированная возможность — no-op для всех рынков кроме одного.
+
+То же про наблюдаемость: `createVenueWatcher` (`market.provider.ts:244-248`)
+по умолчанию спрашивает `activeMarketVenue()`, который смотрит на единственный
+`marketDataProvider`. У маршрутизированного провайдера нет `activeVenue`, он не
+`FailoverProvider` — **наблюдатель физически не способен увидеть второй рынок**.
+Строка лога `{ event: 'market_venue_switched', from, to }` (`:287-290`) не
+содержит `symbol`.
+
+## D13. Свежесть в реестре здоровья — одно глобальное целое, «последний рынок выигрывает»
+
+`observability/health.registry.ts:289-294`
+
+```ts
+let lastBarAge = 0;
+export function observeNewestBar(timestamp: number, at: number): void {
+    lastBarAge = Math.max(0, at - timestamp);
+}
+```
+
+Пишет `services/market-cycle.ts:130` — по одному разу на рынок за цикл. Слот
+один, поэтому последний рынок в списке переписывает показание.
+
+**Ломается так.** Лента ETHUSDT умирает в 03:00, BTCUSDT обновляется — и
+`market-freshness` в `/readyz` вечно `ok`. Обратное тоже верно: умерший BTCUSDT
+скрыт здоровым ETHUSDT. Компонент `market-provider` в том же реестре (`:239-242`)
+делает `SELECT MAX(timestamp) … WHERE symbol = $1` с `[marketConfig.symbol]` —
+то есть следит только за первым рынком и, по C9, не может увидеть отсутствие
+ETHUSDT в принципе.
+
+**Побочно, то же место, существовало давно:** `ageMs` не растёт между циклами —
+возраст считается в момент записи и возвращается дословно, поэтому свойство
+«прочитано в момент отчёта», заявленное на `:54-58`, не выполняется. До первого
+цикла значение `0`, то есть «свежо».
+
+## D14. `anyMarketProviderAvailable()` спрашивает про площадку, а помечает результат про рынок
+
+`market/market.provider.ts:218-220` → `market.service.ts:139,211` →
+`classifyFreshness` (`market-freshness.ts:98-102`):
+
+```ts
+if (!input.providerAnswered && !input.anyProviderAvailable) {
+    return 'provider_failed';
+}
+return 'fresh';
+```
+
+**Ломается так.** binance в разрыве, кэш-попадание по ETHUSDT →
+`anyProviderAvailable` истинно (отвечает binance, он не ETHUSDT-овский) →
+`fresh`, `X-Data-Stale: false` — при том, что единственная площадка, которая
+обслуживает ETHUSDT, отказывает. Именно против этого случая `provider_failed` и
+придуман (`market-freshness.ts:19-24`).
+
+## D15. Разрыв цепи и здоровье площадки заперты на имени площадки
+
+`providers/provider-http.ts:38` — `new Map<string, CircuitBreaker>()` по имени
+площадки. `providers/provider-health.ts:81` — `new Map<string, ProviderRecord>()`
+по тому же ключу; внутри записи `consecutiveFailures`, `rateLimitedUntil`,
+`lastLatencyMs`.
+
+**Ломается так.** Пять неудач по BTCUSDT открывают разрыв цепи для **binance**,
+и с этого момента `provider-http.ts:166` отказывает ETHUSDT до открытия сокета
+на весь `MARKET_CIRCUIT_COOLDOWN_MS`. Ошибка, специфичная для одного символа,
+становится отказом площадки для другого рынка, и нигде не сообщается, что
+разрыв открыт рынком A для рынка B. Второй симметричный случай: `recordProviderSuccess`
+по BTCUSDT обнуляет `consecutiveFailures` для площадки, и ETHUSDT никогда не
+достигает состояния `recovering`. `/readyz` (`api/routes/health.ts:109-121`)
+покажет `state: 'rate_limited'` по площадке, обслуживающей один рынок.
+
+Сами по себе `circuit-breaker.ts` и `provider-health.ts` чисты: состояния
+держатся в инстансах, виноват ключ реестра.
+
+## D16. Метрики не различают рынок
+
+`market/market.service.ts:141,169,228` — `counter('market_cache_hits')`,
+`counter('market_cache_misses')`, `counter('market_stale_served')` без меток,
+хотя функции рядом держат `wanted: MarketRequest`, а `counter()` метки принимает
+(`registry.ts:158`). `providers/provider-telemetry.ts:54` — единственное второе
+измерение `byEndpoint` — это путь URL, не рынок; в `api/lib/metrics.ts:181-234`
+метка только `{provider}`. `signals/signal-publication.ts:33` — `lastPublished` в
+модуле: BTCUSDT печатает LONG, ETHUSDT печатает SHORT, и
+`signal_changes_total` растёт, **хотя не сменился ни один рынок**; он же — вход
+для `churnRate()`.
+
+**Ломается так.** `buynotbuy_provider_latency_p95_ms{provider="binance"}` — это
+95-й перцентиль по двум рынкам, и ETHUSDT в четыре секунды уводит p95 в
+порог алерта, а выяснить, чей это выброс, нельзя. `market_cache_misses` не
+покажет, что ETHUSDT промахивается на каждом запросе, пока BTCUSDT отдаётся из
+кэша.
+
+**Про размерность, прежде чем метить:** семь объявленных метрик не имеют
+писателя вовсе (`observability/metrics.ts:264-283`), а `gauge()` на
+`currentRegistry()` не вызывается ни разу. Реальные числа площадок рендерятся
+руками в `api/lib/metrics.ts`. Если добавлять метку рынка, естественное место —
+там же, где нужен writer: иначе мы метим серию, которая навсегда ноль.
+
+## E17. `/api/signal-history` читает только primary
+
+`history/signal-history.service.ts:184-193` — `getSignalHistory(limit, before?)`
+не принимает рынок и читает `marketConfig.symbol`. Единственный production-вызов
+— `api/controllers/signal-history.controller.ts:68`; маршрут инструмента не
+принимает.
+
+**Ломается так.** Цикл каждую минуту пишет историю, голоса и исходы по ETHUSDT,
+а `/api/signal-history` отдаёт BTCUSDT — вместе со всем блоком `summarizeHistory`
+(`:260-401`: `currentDurationHours`, `changes24h`, `currentGaps`, `sampleHours`).
+Ничего не падает; число просто о другом рынке.
+
+## E18. Реестр инструментов засевает только primary
+
+`server.ts:194-198` — `seedConfiguredRegistry(…, marketConfig.symbol)`, а не
+`marketConfig.symbols`. Цикл вызывает `recordInstrument` только через
+`recordLearnedCategory`, и по **базовому** активу (`market-cycle.ts:221-224`).
+
+**Ломается так.** Строки `instrument` для ETHUSDT нет,
+`judgeTradability` (`asset.repository.ts:139-178`) отвечает `unknown_instrument`,
+`/api/instruments` его не показывает, а его строки в `asset` приходят со
+`status: 'unknown'` → `base_unknown`. Порчи нет — реестр просто недоговаривает.
+
+## E19. Настройка второго рынка нигде не описана, а несовпадение рынков и деклараций не ловится при старте
+
+`MARKET_SYMBOLS` и `MARKET_VENUE_CAPABILITIES` отсутствуют и в `.env.example`
+(где документированы `MARKET_SYMBOL`, `MARKET_CANDLE_INTERVAL`,
+`MARKET_FALLBACK_PROVIDERS` на `:16-22`), и в `README.md`. `symbols`
+(`market.config.ts:612`) и `venueCapabilities` (`:516-522`) валидируются
+независимо: никто не проверяет, что каждый рынок из `symbols` объявлен хотя бы
+одной площадкой.
+
+**Ломается так.** Оператор, идущий по `.env.example`, ставит `MARKET_SYMBOLS` и
+получает процесс, который стартует чисто, а на каждом тике ополчается на
+`MarketDataError: No configured venue does not serve ETHUSDT. It serves:
+BTCUSDT` (`market.provider.ts:158-163`). Сам отказ правильный; неправильны его
+момент и радиус поражения — с учётом B8 он ещё и отключает retention.
+
+## E20. Мёртвый экспорт, имя которого противоположно телу, и асимметрия очередей
+
+`market/market.provider.ts:222-225`
+
+```ts
+/** The symbol the chain was asked for, regardless of which venue answers. */
+export function requestedMarketSymbol(): string {
+    return marketConfig.symbol;
+}
+```
+
+Production-вызовов **ноль**: `rg requestedMarketSymbol` даёт объявление и 13
+записей в `vi.mock('./market.provider.js', …)` — фабрики моков держат список имён,
+переписанный руками, и ни один тест не проверяет значение. Ловушка реальная:
+имя говорит «запрошенный», тело возвращает «настроенный». Это было production-чтение
+`marketConfig.symbol` внутри `fetchMarketData`, пока `ae9516d` не заменил его на
+`marketProviderFor(request.instrument)`.
+
+Рядом — асимметрия очередей: `flushIndicatorVoteBacklog` имеет два production-вызова
+(`server.ts:93` на остановке и `indicator-performance.service.ts:143` при
+переполнении) и **никакого периодического**. У истории он есть
+(`market-cycle.ts:206`) — то есть внутри цикла сбой базы теперь откатывает
+историю следующего рынка, а голоса до 24 штук ждут остановки процесса.
+
+---
+
+## Ложные тревоги: что проверено и оказалось в порядке
+
+Их девять, и они стоят записи, потому что следующий читатель будет проверять
+именно их.
+
+1. **`flushSignalHistoryBacklog()` внутри per-market тела безвреден** —
+   буфер модульный синглтон, писатель идемпотентен (`ON CONFLICT … DO UPDATE
+   WHERE EXCLUDED.timestamp > signal_history.timestamp`, `signal-history.repository.ts:62-78`),
+   вызовы со второго по N-й не делают SQL вовсе (`signal-history.service.ts:118-120`),
+   параллельность свёрнута `createFlushGuard` (`bounded-write-buffer.ts:114-128`).
+   Запах размещения, не поведения.
+2. **`signal_snapshot` схлопывает рынки** — нет: `UNIQUE (symbol, input_hash)`,
+   апсерт `ON CONFLICT (symbol, input_hash)` (`signal-snapshot.repository.ts:183`).
+   Миграция 18 добавила колонки `provider`/`interval`, но индекс не трогала —
+   `symbol` был в нём уже.
+3. **`signal_history` схлопывает рынки** — нет: первичный ключ переписан на
+   `(symbol, provider, interval, hour_bucket)` (`migrations.ts:337-340`), цель
+   конфликта апсерта совпадает.
+4. **`market_candles` перетирается между рынками** — нет: три колонки в
+   `UNIQUE`, оба апсерта по тому же конфликту, каждое чтение требует всех трёх
+   (`seriesPredicate`, `candle.repository.ts:151-155`), а `ingestOnce` отказывает
+   при несовпадении площадки (`ingestion.service.ts:87-92`).
+5. **`signal_state` / `signal_transition` / `signal_outcome` сталкиваются** — нет,
+   все три ограничения включают `symbol`, а `signal_state_id` сам по
+   per-market.
+6. **`settleForwardReturns` — процессная работа в per-market функции** — нет:
+   `listUnsettled`/`settle` фильтруют по `symbol`, первичный ключ включает его,
+   и подрезка там symbol-scoped и безусловная.
+7. **`indicator_vote` схлопывает рынки** — нет: `PRIMARY KEY (symbol,
+   vote_bucket, indicator)`.
+8. **Retention внутри цикла резал бы N раз в день** — нет: вызов стоит после
+   цикла, а часы раннера — замыкание, созданное один раз (`server.ts:65`).
+   Политики не фильтруют по рынку, а данные — per-market, значит резание
+   симметрично и безопасно. Асимметрия живёт в C10, в другой режущей.
+9. **`recordLearnedCategory` заперт на рынке** — нет, на базовом активе, и это
+   безопасно для BTCUSDT+ETHUSDT: строки разные, а `AND source = 'configured'`
+   делает первый вердикт решающим
