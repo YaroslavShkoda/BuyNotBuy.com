@@ -360,11 +360,6 @@ export function activeVenueForMarket(instrument: string): string | null {
     return provider instanceof FailoverProvider ? provider.activeVenue : provider.name;
 }
 
-/** The symbol the chain was asked for, regardless of which venue answers. */
-export function requestedMarketSymbol(): string {
-    return marketConfig.symbol;
-}
-
 export interface VenueWatcherLogger {
     warn(context: Record<string, unknown>, message: string): void;
     info?(context: Record<string, unknown>, message: string): void;

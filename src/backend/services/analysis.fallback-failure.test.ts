@@ -33,7 +33,6 @@ vi.mock('../market/market.provider.js', () => ({
     marketDataProvider: mockMarketDataProvider,
     anyMarketProviderAvailable: mockAnyProviderAvailable,
     activeMarketVenue: vi.fn(() => 'binance'),
-    requestedMarketSymbol: vi.fn(() => 'BTCUSDT'),
 }));
 
 const resolveSignal = vi.fn();

@@ -37,7 +37,6 @@ vi.mock('./market.provider.js', () => ({
     marketDataProvider: mockMarketDataProvider,
     anyMarketProviderAvailable: mockAnyProviderAvailable,
     activeMarketVenue: vi.fn(() => 'binance'),
-    requestedMarketSymbol: vi.fn(() => 'BTCUSDT'),
 }));
 
 import { getMarketData, resetMarketDataCache } from './market.service.js';

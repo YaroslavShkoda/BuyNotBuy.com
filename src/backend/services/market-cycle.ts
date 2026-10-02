@@ -9,7 +9,6 @@ import { getSignalSnapshotRepository } from '../analysis/signal-snapshot.reposit
 import { publishSignal } from '../signals/publish.js';
 import { reconcileSignalOutcomes } from '../outcomes/reconcile.js';
 import { configuredSeries } from '../history/ingestion.service.js';
-import { flushSignalHistoryBacklog } from '../history/signal-history.service.js';
 import { settleForwardReturns } from '../indicators/performance/indicator-performance.service.js';
 import { analyzeMarket, storeSnapshot } from './analysis.service.js';
 
@@ -203,7 +202,16 @@ export async function observeMarket(
         }
     }
 
-    await flushSignalHistoryBacklog(logger);
+    // **No backlog flush here, and there was.** This used to call
+    // `flushSignalHistoryBacklog` — a process-global buffer, flushed once per
+    // market. It was safe (the writer is idempotent, and calls after the first
+    // cost no SQL at all) and it was in the wrong place: a market that failed
+    // early never reached the flush, so its backlog entries waited for a cycle
+    // that happened to be healthy.
+    //
+    // The flush is now in `server.ts`, once per tick, after every market — which
+    // is what "process-global" means, and it is where the vote buffer's flush
+    // went too, because the two were not symmetric and should never have been.
 
     // PHASE 14: what kind of market this is, decided by whether it trades at
     // weekends, over at least a fortnight of bars so that one thin holiday cannot

@@ -54,7 +54,6 @@ const { mockCalls, mockAnyProviderAvailable, seriesFor } = vi.hoisted(() => {
 vi.mock('./market.provider.js', () => ({
     anyMarketProviderAvailable: mockAnyProviderAvailable,
     activeMarketVenue: vi.fn(() => 'binance'),
-    requestedMarketSymbol: vi.fn(() => 'BTCUSDT'),
     /**
      * A provider is built *for* a market and answers for that market only —
      * which is why the service compares the symbol it was given against the one

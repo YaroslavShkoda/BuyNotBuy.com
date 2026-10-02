@@ -34,7 +34,6 @@ vi.mock('./market.provider.js', () => ({
     // making the fetch throw.
     anyMarketProviderAvailable: mockAnyProviderAvailable,
     activeMarketVenue: vi.fn(() => 'binance'),
-    requestedMarketSymbol: vi.fn(() => 'BTCUSDT'),
 }));
 
 import {

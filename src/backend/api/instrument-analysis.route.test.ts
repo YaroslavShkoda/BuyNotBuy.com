@@ -84,7 +84,6 @@ vi.mock('../market/market.provider.js', () => ({
     activeMarketVenue: vi.fn(() => 'binance'),
     configuredMarketVenues: vi.fn(() => ['binance']),
     configuredVenueCapabilities: vi.fn(() => []),
-    requestedMarketSymbol: vi.fn(() => 'BTCUSDT'),
 }));
 
 vi.mock('../history/signal-history.service.js', () => ({

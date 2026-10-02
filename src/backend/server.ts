@@ -24,6 +24,7 @@ import { configuredSeries } from './history/ingestion.service.js';
 import { startIngestionScheduler } from './services/ingestion.scheduler.js';
 import { startPoller } from './services/poller.js';
 import { observeMarket, runPerMarket } from './services/market-cycle.js';
+import { drainPeriodicBacklogs } from './services/write-backlog-drain.js';
 import { currentRegistry } from './observability/registry.js';
 
 import type { IngestionScheduler } from './services/ingestion.scheduler.js';
@@ -310,6 +311,16 @@ async function startServer() {
                             market: failure.market,
                         });
                     }
+
+                    // Both write buffers, once per tick, after every market.
+                    //
+                    // The history one used to be flushed inside the per-market
+                    // cycle, so a market that failed early never reached its own
+                    // flush. The vote one had **no periodic flush at all** — only
+                    // on shutdown and when the buffer filled — so a database blip
+                    // parked history entries in a buffer that got retried and vote
+                    // entries in one that did not.
+                    await drainPeriodicBacklogs(app.log);
 
                     const pruned = await retention.maybeRun(Date.now());
 
