@@ -208,15 +208,25 @@ export function signalHistoryBacklog(): BacklogState {
     return { buffered: writeBuffer.size, dropped: writeBuffer.droppedCount };
 }
 
+/**
+ * The recorded history of **one market**.
+ *
+ * It took no market and read `marketConfig.symbol`, so a process observing two
+ * markets published, snapshotted and settled both every minute — and answered this
+ * question about one of them. Nothing failed: the response was a full, well-formed
+ * history with real numbers, describing BTCUSDT when the caller had never asked
+ * about a market at all.
+ *
+ * Optional, defaulting to the configured market, so the call sites that mean "the
+ * one this deployment is about" keep reading the way they read — and so the frozen
+ * route's default behaviour is unchanged for a client that names nothing.
+ */
 export async function getSignalHistory(
     limit: number,
     before?: number,
+    symbol: string = marketConfig.symbol,
 ): Promise<SignalHistoryEntry[]> {
-    return getSignalHistoryRepository().list(
-        marketConfig.symbol,
-        limit,
-        before,
-    );
+    return getSignalHistoryRepository().list(symbol, limit, before);
 }
 
 const HOUR_MS = 3_600_000;
