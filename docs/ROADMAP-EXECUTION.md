@@ -26,7 +26,7 @@
 `lifecycle.ts` + `lifecycle.repository.ts` · `signal_history` (миграция 8) ·
 `signal_outcome` (миграция 9) · `execution.ts` · `walk-forward.plan.ts` ·
 `optimizer.ts` + `parameter.config.ts` · `dataset.ts` / `experiment.ts` /
-`manifest.ts` · `statistics.ts` · `promotion.config.ts` + `rule-registry.ts` ·
+`manifest.ts` · `statistics.ts` · `promotion.config.ts` ·
 `db/retention.ts` + `db/retention.store.ts` (миграции 10–12) ·
 `observability/health.ts` + `metrics.ts` + `registry.ts` +
 `health.registry.ts` · `signals/signal-publication.ts` ·

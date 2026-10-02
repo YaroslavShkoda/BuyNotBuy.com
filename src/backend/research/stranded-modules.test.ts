@@ -12,10 +12,19 @@ const realRoot = join(fileURLToPath(new URL('.', import.meta.url)), '..');
  * This is the module-level counterpart to the layer-level `unreachable` check
  * in the dependency graph, and it exists because a whole promotion subsystem
  * turned out to be invisible from this side. `lifecycle/rule-registry.ts` and
- * `lifecycle/promotion.config.ts` together hold 572 lines of rule lifecycle —
- * `createRule`, `productionRules`, `activeRule`, `auditProduction`, `advance`,
- * `planRollback` and the whole `RuleStage` ladder — and the only file in the
- * repository that imports either of them is their own test, 545 lines long.
+ * `lifecycle/promotion.config.ts` together once held 572 lines of rule
+ * lifecycle — `createRule`, `productionRules`, `activeRule`, `auditProduction`,
+ * `advance`, `planRollback` and the whole `RuleStage` ladder — and the only file
+ * in the repository that imported either was its own test, 545 lines long.
+ *
+ * **The list is empty now, and that took two rounds rather than one.**
+ * `promotion.config.ts` left it when the evidence gate was wired to the shared
+ * repository in round 23, so that half of the finding was a bug that has been
+ * fixed. `rule-registry.ts` stayed for the owner to rule on, and what it was
+ * holding — a second ladder the schema cannot store — was deleted rather than
+ * adopted. Deleting it was only safe after the gate above was proven to run
+ * elsewhere; see the note on `expect(stranded)` below for why that order was not
+ * a detail.
  *
  * That is not a bug on its own. A test can be the first customer of a module
  * somebody is building, and deleting someone's deliberate policy on the grounds
@@ -86,7 +95,37 @@ describe('production modules with no production caller', () => {
         // expected value in a more meaningful order than the thing under test
         // fails on every run for a reason that has nothing to do with the
         // finding. The commentary on what each entry means is below.
-        expect(stranded).toEqual(['lifecycle/rule-registry.ts']);
+        //
+        // **Empty, and this is the first time it has been.** The last entry was
+        // `lifecycle/rule-registry.ts` — 312 lines, no production caller — and
+        // the owner decided to delete it rather than adopt its vocabulary, which
+        // settles the argument recorded below in the only direction that leaves
+        // one ladder instead of two.
+        //
+        // **Before deleting it I checked what the list would lose**, because every
+        // other module on this list turned out to contain something the system
+        // needed and the note in this file says so one by one. The concern was
+        // specific: round 23 found that the only code anywhere gating promotion
+        // on evidence sat in the stranded module, while the ladder in use checks
+        // nothing but a non-empty string. That is no longer true, and it is worth
+        // naming why:
+        //
+        // - The gate that runs is `services/promotion-gate.ts`, attached in
+        //   `server.ts` to the shared repository, so every entry point — including
+        //   both research CLIs — reaches it.
+        // - It calls `evaluateShadow` out of `lifecycle/promotion.config.ts`, the
+        //   module that declares the evidence conditions.
+        // - A promotion cannot even be constructed without a `strategyVersionId`,
+        //   and the gate refuses approval without one.
+        //
+        // So the deleted module was a second implementation of a gate that
+        // already runs, not the last one. `createRule`, `auditProduction`,
+        // `advance` and `planRollback` went with it: conflict-audit and rollback
+        // planning have no counterpart in the codebase, which means they were
+        // capabilities nobody had asked for rather than features with a bug in
+        // them. That is the honest reading, and it is the opposite of what I would
+        // have written if I had deleted first and measured after.
+        expect(stranded).toEqual([]);
 
         // **Everything the roadmap asked for in M1 is now connected.**
         //
@@ -106,25 +145,47 @@ describe('production modules with no production caller', () => {
         // `backtest/optimizer.ts` is the second reader of global config that M4
         // could not account for, and the reason is simply that it is not called.
         //
-        // **The second promotion ladder is not a duplicate, and this list is why
+        // `rule-registry.ts` was the last entry and is deleted. What it was is
+        // worth keeping, because the reason is a trap this list has now sprung
+        // twice on the same file.
+        //
+        // **The second promotion ladder was not a duplicate, and this list is why
         // I nearly deleted the only implementation of the evidence gate.**
         //
-        // `rule-registry.ts` holds 312 lines and no production caller, and it
-        // keeps a different vocabulary from the ladder in use — eight values to
-        // seven, with `rejected` among them. That reads as an unfinished
-        // duplicate, and deleting it was the plan.
+        // It held 312 lines and no production caller, and it kept a different
+        // vocabulary from the ladder in use — eight values to seven, with
+        // `rejected` among them. That reads as an unfinished duplicate, and
+        // deleting it was the plan.
         //
-        // Its tests are not about the words. They check that a shadow window is
-        // long enough to collect what it demands, that a margin cannot promote
+        // Its tests were not about the words. They checked that a shadow window
+        // is long enough to collect what it demands, that a margin cannot promote
         // the incumbent into itself, and that a refusal says what is missing
-        // rather than calling the rule bad. `advance()` calls `evaluateShadow`
-        // when a rule moves to approval.
+        // rather than calling the rule bad. `advance()` called `evaluateShadow`
+        // when a rule moved to approval.
         //
         // `canTransition` in the ladder that is actually in use is
         // `NEXT_STAGE[from].includes(to)` — the order of the names — and
         // `promote()` checked that its `evidence` string was not empty and
         // nothing else. So the gate on self-promotion was a vocabulary, and the
         // only code that gated it on evidence was sitting in this list, unused.
+        //
+        // Round 23 wired the gate properly — `services/promotion-gate.ts` plus
+        // `lifecycle/evidence.repository.ts`, attached to the shared repository so
+        // that every entry point reaches it — and that is what made deleting the
+        // ladder safe rather than merely tidy. **Wiring it up first is the part
+        // that was not optional**, and the reason is worth stating plainly: if the
+        // owner had decided to delete this module while it was the only
+        // implementation of the gate, the deletion would have looked correct from
+        // every measurement available and would have removed the only code that
+        // asked whether a rule deserved approval.
+        //
+        // The disagreement the vocabulary encodes is not gone; it moved to
+        // `lifecycle/promotion.config.ts`, which is connected and still declares
+        // stages migration 17's CHECK cannot hold. `stage-vocabulary.test.ts`
+        // still enumerates them one by one, which is where the open question
+        // lives now: `retired → candidate` is allowed there and `retired` is
+        // terminal in storage. Deleting the duplicate chose the stored policy and
+        // did not answer what a retired rule means.
         //
         // **`db/retention.store.ts` left this list, and wiring it up found a
         // policy that had never been run.** The retention policies were declared
@@ -179,19 +240,6 @@ describe('production modules with no production caller', () => {
         // through time is an operator's decision about whose corrections to
         // accept over bars everything else is measured against.
 
-        // `rule-registry.ts` is still in the list, and **I nearly took it out for
-        // the wrong reason.** What round 23 changed was the finding behind it,
-        // not the module: the gate it implements now runs, through
-        // `lifecycle/evidence.repository.ts` and `services/promotion-gate.ts`,
-        // attached to the shared repository so that every entry point —
-        // including both research CLIs — reaches it. The second ladder still has
-        // no caller, and that is now a written decision rather than an
-        // oversight: `RuleStage` is a vocabulary the database cannot hold, and
-        // the mismatch is enumerated transition by transition in
-        // `lifecycle/stage-vocabulary.test.ts`. It stays on this list because
-        // nobody has decided what a retired rule means, and a module should not
-        // be wired up to a model the schema contradicts just to shorten a list.
-        //
         // **`observability/health.registry.ts` left this list too, and it took a
         // lie with it.** It answered `ageMs: () => 0` and `stale: false`, so
         // `market-freshness` reported «снимок получен напрямую» at every instant
@@ -203,19 +251,34 @@ describe('production modules with no production caller', () => {
         // fail readiness: a weekend is not an outage.
     });
 
-    it('still finds the promotion subsystem when the graph says every layer is fine', () => {
+    it('sees the importers of a file that has them, so the empty answer above is a fact', () => {
         // The reason this file exists as a separate check. The layer report
         // answers "can this layer reach that one" and is entitled to say yes
         // here; this answers "does anything in this layer import this file",
         // which is a different question with a different answer.
+        //
+        // **The probe moved.** This test used to point at
+        // `lifecycle/rule-registry.ts` and assert it had no production importer,
+        // which was true and was the whole finding. Now that the module is gone,
+        // the same assertion would be about a path no file occupies — it would
+        // pass forever and mean nothing, which is worse than not having it.
+        //
+        // So it asks the other direction. An empty answer is only worth reading
+        // if the same mechanism can produce a non-empty one, and asserting that
+        // on a real file is what keeps the previous assertion from being
+        // vacuous.
         const graph = buildGraph(realRoot);
 
-        const productionImporters = graph.edges.filter(
+        const importersOfTheLadder = graph.edges.filter(
             (edge) =>
-                !edge.from.includes('.test.') && edge.to.includes('lifecycle/rule-registry'),
+                !edge.from.includes('.test.') &&
+                edge.to.includes('strategies/candidate.repository'),
         );
 
-        expect(productionImporters).toEqual([]);
+        // `server.ts` builds the shared repository and both research CLIs read it,
+        // so this is not a count anyone has to maintain: it is a claim that the
+        // filter above can see edges at all.
+        expect(importersOfTheLadder.length).toBeGreaterThan(0);
     });
 
     /**

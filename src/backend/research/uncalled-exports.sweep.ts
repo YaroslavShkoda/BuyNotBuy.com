@@ -3,10 +3,11 @@
  *
  * **The module-level check cannot see this, and the gap is not academic.**
  * `research/stranded-modules.test.ts` pins the production modules with no
- * production caller — `lifecycle/rule-registry.ts` and `lifecycle/promotion.config.ts`,
- * 572 lines of rule lifecycle — and that is exactly the right unit for what
- * stranded: a whole file nobody reaches. The dependency graph reports zero
- * unreachable layers for the same reason.
+ * production caller — it once named `lifecycle/rule-registry.ts` and
+ * `lifecycle/promotion.config.ts`, 572 lines of rule lifecycle, and now expects
+ * the list to be empty — and that is exactly the right unit for what stranded: a
+ * whole file nobody reaches. The dependency graph reports zero unreachable layers
+ * for the same reason.
  *
  * But a reachable file can hold an unreachable function, and the owner's fourth
  * decision is about one: `promote()` is the promotion gate, it is the subject of
