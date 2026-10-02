@@ -2,19 +2,14 @@ import { createApp } from './app.js';
 import { appConfig } from './config/app.config.js';
 import { historyConfig } from './config/history.config.js';
 import { marketConfig } from './config/market.config.js';
+import { knownAssets } from './config/asset.registry.js';
 import { assertSignalHistorySchemaReady } from './history/signal-history.repository.js';
 import { getStrategyRuleRepository } from './strategies/candidate.repository.js';
 import { createEvidenceGate } from './services/promotion-gate.js';
 import { createRetentionRunner } from './services/retention.runner.js';
 import { getRetentionStore } from './db/retention.store.js';
-import { getSignalSnapshotRepository } from './analysis/signal-snapshot.repository.js';
-import { observeNewestBar } from './observability/health.registry.js';
 import { getAssetRepository } from './instruments/asset.repository.js';
 import { seedConfiguredRegistry } from './instruments/seed-registry.js';
-import { classifyByTradingWeek } from './instruments/classify.js';
-import { knownAssets, resolveInstrument } from './config/asset.registry.js';
-import { reconcileSignalOutcomes } from './outcomes/reconcile.js';
-import { publishSignal } from './signals/publish.js';
 import { closePool } from './db/pool.js';
 import {
     flushSignalHistoryBacklog,
@@ -23,14 +18,12 @@ import {
 import {
     flushIndicatorVoteBacklog,
     indicatorVoteBacklog,
-    settleForwardReturns,
 } from './indicators/performance/indicator-performance.service.js';
-import { getMarketData } from './market/market.service.js';
 import { createVenueWatcher } from './market/market.provider.js';
 import { configuredSeries } from './history/ingestion.service.js';
-import { analyzeMarket, storeSnapshot } from './services/analysis.service.js';
 import { startIngestionScheduler } from './services/ingestion.scheduler.js';
 import { startPoller } from './services/poller.js';
+import { observeMarket } from './services/market-cycle.js';
 
 import type { IngestionScheduler } from './services/ingestion.scheduler.js';
 import type { Poller } from './services/poller.js';
@@ -226,218 +219,33 @@ async function startServer() {
                 intervalMs: historyConfig.pollIntervalMs,
                 logger: app.log,
                 run: async () => {
-                    // A full analysis, not just a price read: this is what
-                    // records an hourly history entry, records each
-                    // indicator's own vote, and keeps the snapshot cache warm
-                    // for the next page load.
+                    // The loop, which is the point: one observation cycle per
+                    // configured market.
                     //
-                    // The whole market read, not just the bars: the snapshot
-                    // this cycle stores is fingerprinted on the venue that
-                    // served it, and taking the configured provider instead of
-                    // the answering one would produce a different hash for the
-                    // same bars — which is precisely the silent collapse of two
-                    // venues into one row that migration 18 was written to stop.
-                    const marketRead = await getMarketData();
-                    const candles = marketRead.data.candles;
-                    const marketDataProvider = marketRead.data.provider;
-
-                    // After the read rather than before it: the venue that
-                    // answered is the one worth reporting, and a switch that
-                    // happened during this cycle is exactly the interesting one.
-                    reportVenueChange();
-
-                    // The other end of the chain the reconciler measures. Both
-                    // run here and not on a request, for the reason the
-                    // poller's own comment gives: a signal published only when
-                    // somebody opens the dashboard leaves holes in the record
-                    // that read as "the signal never changed".
-                    const analysis = await analyzeMarket(app.log, 'poller', app.log);
-                    const verdict = analysis.signal;
-                    const lastBar = candles[candles.length - 1];
-
-                    // Told to the health registry, which is the only thing in
-                    // the project that reports how old the data being served
-                    // is. Before this, the registry answered `ageMs: () => 0`
-                    // and `stale: false` — a check that said «снимок получен
-                    // напрямую» at every instant of the process's life,
-                    // including every instant it served week-old candles.
-                    observeNewestBar(lastBar?.timestamp ?? 0, Date.now());
-
-                    if (lastBar === undefined) {
-                        // No bar means no bar timestamp, and the lifecycle needs
-                        // one to tell expiry from silence. Publishing a zero
-                        // instead would age every live signal by half the
-                        // universe and expire the entire history in one pass, so
-                        // this cycle does nothing and says so.
-                        app.log.warn(
-                            { event: 'signal_publish_skipped', reason: 'no_candles' },
-                            'signal_publish_skipped',
-                        );
-                    } else {
-                        // The snapshot is stored here, on the cycle, and not only
-                        // on a request — a hit rate measured today has to be
-                        // re-derivable tomorrow whether or not anybody opened
-                        // the dashboard in between. The analysis writes the same
-                        // row fire-and-forget; `record` is idempotent on the
-                        // input hash, so whichever lands second deduplicates
-                        // rather than producing a second snapshot.
-                        //
-                        // Storing it here rather than in the request is what
-                        // makes the id available at all. Every other write on
-                        // the analysis path is `void` — decision log, history,
-                        // votes, snapshot — so the id was being thrown away,
-                        // and with it the only link from a signal to the rule
-                        // that produced it. `null` here is a real answer: the
-                        // signal still publishes, unattributed, and the
-                        // settlement writes NULL rather than a guess.
-                        const snapshotId = await storeSnapshot({
-                            symbol: marketConfig.symbol,
-                            price: analysis.price,
-                            candles,
-                            provider: marketDataProvider,
-                            snapshot: analysis,
+                    // `marketConfig.symbols` is `[symbol]` unless
+                    // MARKET_SYMBOLS names another, so a deployment that sets
+                    // nothing runs exactly what it ran before this existed.
+                    //
+                    // The per-market body moved to `services/market-cycle.ts`.
+                    // It used to be this closure, and being a closure is why the
+                    // process observed one market: it read
+                    // `marketConfig.symbol` eleven times and took no market as an
+                    // argument, so a second market meant editing this file, and
+                    // testing the cycle at all meant starting the process, which
+                    // no test does and which a test cannot undo.
+                    //
+                    // **Retention stays outside the loop, deliberately.** It is
+                    // the only destructive thing on the cycle and it runs on its
+                    // own clock, once a day. Inside the loop it would prune once
+                    // per market, and a second prune of the same rows looks in a
+                    // log like nothing at all.
+                    for (const market of marketConfig.symbols) {
+                        await observeMarket(market, {
+                            logger: app.log,
+                            reportVenueChange,
                         });
-
-                        const publishedSignal = await publishSignal({
-                            key: configuredSeries(),
-                            // A panel with no opinion is `null`, not a
-                            // zero-confidence candidate: silence and weak
-                            // conviction are different facts, and the lifecycle
-                            // treats them differently.
-                            candidate:
-                                verdict.signal === 'NEUTRAL'
-                                    ? null
-                                    : {
-                                          direction: verdict.signal,
-                                          confidence: verdict.confidence,
-                                          price: analysis.price,
-                                          candleTimestamp: lastBar.timestamp,
-                                      },
-                            intervalMs: marketConfig.candleIntervalMs,
-                            candleTimestamp: lastBar.timestamp,
-                            snapshotId: snapshotId === null ? null : String(snapshotId),
-                        });
-
-                        if (publishedSignal.written) {
-                            app.log.info(
-                                {
-                                    event: 'signal_published',
-                                    kind: publishedSignal.kind,
-                                    toStatus: publishedSignal.toStatus,
-                                    reason: publishedSignal.reason,
-                                },
-                                'signal_published',
-                            );
-                        }
                     }
 
-                    await flushSignalHistoryBacklog(app.log);
-
-                    // PHASE 14: what kind of market this is, decided by whether
-                    // it trades at weekends, over at least a fortnight of bars
-                    // so that one thin holiday cannot answer the question.
-                    // The result is a fact about the market's structure, not a
-                    // judgement about the strategy, which is why it may write
-                    // to the registry at all — and it still may not overwrite a
-                    // category a person typed.
-                    const learned = classifyByTradingWeek(
-                        candles,
-                        Date.now(),
-                    );
-
-                    if (learned.verdict !== 'unknown') {
-                        // The base of the pair, named for what it is. Calling it
-                        // `quote` would be the second time in this file that a
-                        // name said something other than the thing, and this is
-                        // the value that ends up in `asset.symbol`.
-                        const base = resolveInstrument(marketConfig.symbol)?.base?.symbol ?? null;
-
-                        if (base !== null) {
-                            const written = await getAssetRepository().recordLearnedCategory(
-                                base,
-                                learned.verdict,
-                                Date.now(),
-                            );
-
-                            if (written.changed) {
-                                app.log.info(
-                                    {
-                                        event: 'asset_category_learned',
-                                        symbol: base,
-                                        category: learned.verdict,
-                                        evidence: learned.evidence,
-                                    },
-                                    'asset_category_learned',
-                                );
-                            }
-                        }
-                    }
-
-                    // Forward returns can only be filled in once the candle
-                    // that closes each horizon exists, which is why this runs
-                    // on a timer rather than at record time.
-                    const settled = await settleForwardReturns(
-                        marketConfig.symbol,
-                        candles,
-                        undefined,
-                        app.log,
-                    );
-
-                    if (settled.settled > 0) {
-                        app.log.info(
-                            { event: 'indicator_votes_settled', ...settled },
-                            'indicator_votes_settled',
-                        );
-                    }
-
-                    // The same reasoning as above, applied to the outcome the
-                    // system makes about its own accuracy. Indicator votes were
-                    // being settled on this cycle and signal outcomes were not:
-                    // `signal_outcome` had a repository and no caller, so the
-                    // performance table, the calibration curve and every
-                    // promotion decision were reading a table nothing wrote.
-                    const measured = await reconcileSignalOutcomes(
-                        {
-                            key: configuredSeries(),
-                            candles,
-                            limit: historyConfig.maxEntries,
-                        },
-                        undefined,
-                        undefined,
-                        // The version is read from the snapshot the signal was
-                        // published from, and that snapshot belongs to
-                        // `analysis` — a layer `outcomes` may not import. The
-                        // poller composes, so it is the right place to answer,
-                        // and the engine stays ignorant of how snapshots are
-                        // stored.
-                        async (snapshotId) => {
-                            const snapshot = await getSignalSnapshotRepository().byId(
-                                Number(snapshotId),
-                            );
-
-                            return snapshot === null ? null : snapshot.strategyVersionId;
-                        },
-                    );
-
-                    if (measured.examined > 0) {
-                        app.log.info(
-                            { event: 'signal_outcomes_reconciled', ...measured },
-                            'signal_outcomes_reconciled',
-                        );
-                    }
-
-                    // Retention, last on the cycle.
-                    //
-                    // Last because it is the only destructive thing here and it
-                    // should run against a database this cycle has already
-                    // written to, not against the state it found. Once a day, on
-                    // its own clock, so the poller cadence does not decide how
-                    // often a DELETE runs.
-                    //
-                    // `market_candles` and `signal_outcome` are protected
-                    // policies and are refused outright — the bars every
-                    // historical claim is measured against, and the only table
-                    // that says which signals turned out right.
                     const pruned = await retention.maybeRun(Date.now());
 
                     if (!pruned.skipped && pruned.report !== null) {

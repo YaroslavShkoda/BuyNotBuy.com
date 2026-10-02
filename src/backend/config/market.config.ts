@@ -294,6 +294,16 @@ const MarketConfigSchema = z.object({    provider: MarketProviderSchema,
             message: 'Symbol must be an uppercase alphanumeric ticker',
         }),
     /**
+     * Every market this process observes, primary first.
+     *
+     * One market by default. The entries were already checked against the asset
+     * registry before they reached here, so this only guards the shape — a list
+     * that is empty, or whose first entry is not the configured `symbol`, would
+     * mean the process and the frozen routes disagreed about which market they
+     * are on, and nothing downstream would notice.
+     */
+    symbols: z.array(z.string().regex(/^[A-Z0-9]{1,32}$/)).min(1),
+    /**
      * Where the backup is reached, and under which ticker.
      *
      * Separate from the primary's, because a pair that trades on one venue need
@@ -445,6 +455,39 @@ const configuredFallbackSymbol = resolvableSymbol(
 );
 const configuredInterval = process.env.MARKET_CANDLE_INTERVAL ?? '1h';
 
+/**
+ * Every market this process observes, in the order it observes them.
+ *
+ * **Derived, not a field, and the primary is not asked twice.** `symbol` is the
+ * market the frozen `/api/analysis` and `/api/market` routes answer for, so it
+ * stays the primary and stays first. `MARKET_SYMBOLS` names the *rest*, and every
+ * name in it goes through the same `resolvableSymbol` that refuses an unknown
+ * ticker at boot — so adding a market cannot buy the failure mode this file
+ * exists to prevent, where `symbol` was well-formed and meaningless at the same
+ * time and only one of the two was being checked.
+ *
+ * Unset means exactly one market, which is what every deployment of this project
+ * has ever run. The list is a seam, not a switch: nothing about the behaviour
+ * changes until someone names a second market, and the loop that consumes it is
+ * written and tested with two so that the day it is used it has been run.
+ *
+ * The duplicates and the primary are removed rather than refused, because a list
+ * that names the same market twice is a typo with an obvious reading, and a
+ * process that observes BTCUSDT twice would write its history and its signals
+ * twice — silently, since both tables key on the series.
+ */
+function observedMarkets(primary: string): readonly string[] {
+    const extra = (process.env['MARKET_SYMBOLS'] ?? '')
+        .split(',')
+        .map((name) => name.trim().toUpperCase())
+        .filter((name) => name.length > 0);
+
+    return [primary, ...extra.filter((name) => name !== primary)]
+        .map(resolvableSymbol);
+}
+
+const configuredSymbols = observedMarkets(configuredSymbol);
+
 export const marketConfig: MarketConfig = MarketConfigSchema.parse({
     provider: primaryProvider,
 
@@ -561,4 +604,10 @@ export const marketConfig: MarketConfig = MarketConfigSchema.parse({
     // `config` may import `instruments`, so the layering allows it.
     symbol: configuredSymbol,
     fallbackSymbol: configuredFallbackSymbol,
+
+    /**
+     * `symbol` first, then whatever `MARKET_SYMBOLS` named. One market by
+     * default, so a deployment that sets nothing is unchanged.
+     */
+    symbols: configuredSymbols,
 });

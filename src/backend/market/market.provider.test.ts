@@ -203,3 +203,49 @@ describe('venue change reporting', () => {
         expect(info).not.toHaveBeenCalled();
     });
 });
+
+describe('a routed market gets a venue bound to that market', () => {
+    it('serves the market it was routed for, not the configured one', async () => {
+        vi.resetModules();
+
+        vi.stubEnv('MARKET_PROVIDER', 'mock');
+        vi.stubEnv('MARKET_SYMBOLS', 'ETHUSDT');
+        vi.stubEnv('MARKET_VENUE_CAPABILITIES', 'mock=BTCUSDT@1h;mock=ETHUSDT@1h');
+
+        const { marketProviderFor } = await import('./market.provider');
+
+        // The claim this file did not have a test for, and the reason the
+        // per-market cycle needed one: routing decides *which venue* answers and
+        // used to ignore *which market* it answers for. The provider was built
+        // with `marketConfig.symbol`, so `marketProviderFor('ETHUSDT')` returned
+        // something that reported ETHUSDT's venue and served BTC candles. The
+        // capability table said the venue served ETHUSDT; the venue disagreed.
+        //
+        // Asserted through `getPrice`, which is where the symbol shows up in the
+        // answer, rather than through the provider's fields — a provider that
+        // holds the right string and ignores it would pass a field check.
+        const eth = await marketProviderFor('ETHUSDT').getPrice();
+
+        expect(eth.symbol).toBe('ETHUSDT');
+
+        const btc = await marketProviderFor('BTCUSDT').getPrice();
+
+        expect(btc.symbol).toBe('BTCUSDT');
+    });
+
+    it('keeps the two markets on separate venues', async () => {
+        vi.resetModules();
+
+        vi.stubEnv('MARKET_PROVIDER', 'mock');
+        vi.stubEnv('MARKET_SYMBOLS', 'ETHUSDT');
+        vi.stubEnv('MARKET_VENUE_CAPABILITIES', 'mock=BTCUSDT@1h;mock=ETHUSDT@1h');
+
+        const { marketProviderFor } = await import('./market.provider');
+
+        // A cache keyed by venue alone would pass the test above — both markets
+        // are served by `mock`, so a shared instance answers whichever symbol it
+        // was built with and the mismatch check downstream would refuse the
+        // other one. Distinct instances is the requirement.
+        expect(marketProviderFor('ETHUSDT')).not.toBe(marketProviderFor('BTCUSDT'));
+    });
+});

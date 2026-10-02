@@ -164,10 +164,26 @@ function splitByAge(
 }
 
 /** The series the ingest loop fills, from the configured venue and symbol. */
-export function configuredSeries(): CandleSeriesKey {
+/**
+ * The series a market is stored under.
+ *
+ * **Takes the market now, and takes it optional.** It used to take nothing and
+ * read `marketConfig.symbol`, which is the same thing as saying the process
+ * observes one market — the observation cycle in `server.ts` called it with no
+ * argument, so the second market's bars, signals and settled returns would have
+ * been filed under the first market's key. Every table downstream is already
+ * keyed on `provider, symbol, interval`; this was the one function in the path
+ * that was not, and it was the only seam that had to be cut.
+ *
+ * Optional rather than required so the call sites that mean "the configured
+ * one" keep reading the way they read, and because `marketConfig.symbol` is
+ * still the market the frozen routes answer for. The loop in `server.ts` passes
+ * its own market; everything else may keep omitting it and mean the primary.
+ */
+export function configuredSeries(instrument?: string): CandleSeriesKey {
     return {
         provider: marketConfig.provider,
-        symbol: marketConfig.symbol,
+        symbol: instrument ?? marketConfig.symbol,
         interval: marketConfig.candleInterval,
     };
 }

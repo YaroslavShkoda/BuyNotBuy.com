@@ -80,6 +80,9 @@ describe('configuration boundary hardening (task 7)', () => {
                 { venue: 'bitget', instruments: ['BTCUSDT'], intervals: ['1h'] },
             ],
             symbol: 'BTCUSDT',
+            // One market by default. The list is a seam, not a switch: it holds
+            // exactly the primary until MARKET_SYMBOLS names another.
+            symbols: ['BTCUSDT'],
             fallbackSymbol: 'BTCUSDT',
             candleInterval: '1h',
             candleIntervalMs: 3_600_000,

@@ -34,6 +34,9 @@ describe('marketConfig', () => {
                 { venue: 'bitget', instruments: ['BTCUSDT'], intervals: ['1h'] },
             ],
             symbol: 'BTCUSDT',
+            // Unset means exactly one market. A deployment that sets nothing is
+            // unchanged, which is what makes the list a seam and not a switch.
+            symbols: ['BTCUSDT'],
             fallbackSymbol: 'BTCUSDT',
             candleInterval: '1h',
             candleIntervalMs: 3_600_000,
@@ -98,6 +101,9 @@ describe('marketConfig', () => {
                 { venue: 'bitget', instruments: ['ETHUSDT'], intervals: ['15m'] },
             ],
             symbol: 'ETHUSDT',
+            // MARKET_SYMBOL is set and MARKET_SYMBOLS is not, so the list is the
+            // primary alone.
+            symbols: ['ETHUSDT'],
             fallbackSymbol: 'ETHUSDT',
             candleInterval: '15m',
             candleIntervalMs: 900_000,

@@ -13,14 +13,39 @@ import type { VenueCapability } from './capability.js';
 import type { MarketDataProvider } from './providers/market-data.provider.js';
 
 /**
- * Builds one venue.
+ * Builds one venue, for one market.
  *
  * Each is given the base URL and ticker that venue was configured with. The
  * backup does not inherit the primary's address — a deployment that cannot
  * reach one venue is exactly the deployment for which the other address is the
  * value, and inheriting it would defeat the setting.
+ *
+ * **The market is a parameter, and it was not.** Every venue used to be built
+ * with `marketConfig.symbol`, so a provider was bound to one market for its
+ * whole life. That was invisible while the process only ever asked about that
+ * market, and it became a lie the moment routing sent anything else: the
+ * capability table can declare that a venue serves `ETHUSDT`, the route accepts
+ * it, and the provider built for that route still answers with BTC candles.
+ * `market.service.ts` caught the resulting symbol mismatch and refused it, which
+ * is the only reason this was caught at all — the routing above it reported
+ * success.
+ *
+ * So the symbol a venue serves is decided at the call, and the capability table
+ * is finally the thing that decides it rather than a filter applied to a decision
+ * already made.
+ *
+ * There is deliberately no helper here that answers "which market does this venue
+ * serve by default". The project's own architecture guard refuses a declaration
+ * shaped like that, and it is right to: a function that can be asked for the
+ * default market is the seam the per-market work removed, and reintroducing it
+ * under a friendlier name would put the single-market process back with the
+ * guard reporting nothing. The one process-wide provider below states its markets
+ * where it is built.
  */
-function createVenue(name: MarketProviderName): {
+function createVenue(
+    name: MarketProviderName,
+    symbol: string,
+): {
     name: string;
     provider: MarketDataProvider;
 } {
@@ -28,7 +53,7 @@ function createVenue(name: MarketProviderName): {
         case 'binance':
             return {
                 name,
-                provider: new BinanceProvider(marketConfig.symbol),
+                provider: new BinanceProvider(symbol),
             };
 
         case 'bitget':
@@ -36,14 +61,14 @@ function createVenue(name: MarketProviderName): {
                 name,
                 provider: new BitgetProvider({
                     baseUrl: marketConfig.fallbackBaseUrl,
-                    symbol: marketConfig.fallbackSymbol,
+                    symbol,
                 }),
             };
 
         case 'mock':
             return {
                 name,
-                provider: new MockProvider(marketConfig.symbol),
+                provider: new MockProvider(symbol),
             };
 
         default:
@@ -53,14 +78,36 @@ function createVenue(name: MarketProviderName): {
     }
 }
 
+/**
+ * Venues built for a routed market, keyed by venue and market.
+ *
+ * Memoised because a provider carries state worth keeping: a circuit breaker
+ * that resets every request cannot open, and a failover chain that forgets which
+ * venue failed would try the one that just timed out. Keyed by market as well as
+ * venue, because a provider is bound to one market — reusing the BTCUSDT venue
+ * for ETHUSDT would be the bug this function was changed to remove.
+ */
+const routedVenues = new Map<string, MarketDataProvider>();
+
 function createMarketDataProvider(): MarketDataProvider {
-    const primary = createVenue(marketConfig.provider);
+    const primary = createVenue(marketConfig.provider, marketConfig.symbol);
 
     if (marketConfig.fallbackProviders.length === 0) {
         return primary.provider;
     }
 
-    const backups = marketConfig.fallbackProviders.map((name) => createVenue(name));
+    // The backup venues are asked for their own configured ticker, which is the
+    // primary's unless `MARKET_FALLBACK_SYMBOL` says otherwise. That is stated
+    // here, in the one place that builds the process-wide provider, rather than
+    // inside `createVenue`: a helper that could name a venue's market would be
+    // callable by the routed path too, and the routed path must never answer
+    // "whatever this venue usually serves" to a request for something else.
+    const backups = marketConfig.fallbackProviders.map((name) =>
+        createVenue(
+            name,
+            name === 'bitget' ? marketConfig.fallbackSymbol : marketConfig.symbol,
+        ),
+    );
 
     return new FailoverProvider(primary, backups);
 }
@@ -115,7 +162,20 @@ export function marketProviderFor(instrument: string): MarketDataProvider {
         );
     }
 
-    const venue = createVenue(found.venue as MarketProviderName);
+    const venue = createVenue(found.venue as MarketProviderName, wanted);
+
+    // Built for `wanted`, so the cache key has to name the market as well: one
+    // entry per venue would hand the primary market's venue to every other
+    // request, which is the bug in a different disguise.
+    const key = `${String(found.venue).toUpperCase()}:${wanted}`;
+
+    const cached = routedVenues.get(key);
+
+    if (cached !== undefined) {
+        return cached;
+    }
+
+    routedVenues.set(key, venue.provider);
 
     return venue.provider;
 }
