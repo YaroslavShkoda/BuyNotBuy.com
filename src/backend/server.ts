@@ -54,7 +54,7 @@ let poller: Poller | null = null;
  * tick costs a delay rather than an hour. Tying the two together would make
  * every change to one silently change the guarantee of the other.
  */
-let ingestion: IngestionScheduler | null = null;
+let ingestion: IngestionScheduler[] = [];
 
 /**
  * One pruner for the process, not one per cycle.
@@ -121,10 +121,16 @@ async function shutdown(): Promise<void> {
 
     isShuttingDown = true;
 
-    if (ingestion !== null) {
-        await ingestion.stop();
-        ingestion = null;
+    // Every scheduler, and not only the first: `stop()` awaits the cycle that is
+    // in flight, so a market being written at the moment of shutdown would keep
+    // its provider fetch running against a pool this function is about to close.
+    // A list stopped one at a time is also the only order that lets each await
+    // finish before the next begins.
+    for (const scheduler of ingestion) {
+        await scheduler.stop();
     }
+
+    ingestion = [];
 
     if (poller !== null) {
         await poller.stop();
@@ -301,13 +307,32 @@ async function startServer() {
             // entry will later be measured against. Either order works; this
             // one means the table is never behind the entry that claims to
             // have been derived from it.
-            ingestion = startIngestionScheduler({
-                key: configuredSeries(),
-                intervalMs: marketConfig.candleIntervalMs,
-                maxPeriodMs: marketConfig.candleIntervalMs,
-                pollEnabled: historyConfig.pollEnabled,
-                logger: app.log,
-            });
+            //
+            // **One scheduler per market, and the table was the reason.**
+            // It used to be one scheduler with `configuredSeries()` — no market,
+            // so the primary — and the ingest loop is the *only* writer of
+            // `market_candles`. The observation loop wrote signals, snapshots and
+            // settled returns for every configured market every minute, against
+            // a table that had one market's bars in it. Nothing complained: the
+            // table was full, the upserts succeeded, and a strategy was being
+            // measured on an input that was not there.
+            //
+            // Separate schedulers rather than one iterating a list, because the
+            // per-market isolation then comes from the poller each one already
+            // has. A single loop would need the same `try/catch` per market that
+            // round 86 had to add to the observation loop, and would be able to
+            // forget it in exactly the same way.
+            ingestion = marketConfig.symbols
+                .map((market) =>
+                    startIngestionScheduler({
+                        key: configuredSeries(market),
+                        intervalMs: marketConfig.candleIntervalMs,
+                        maxPeriodMs: marketConfig.candleIntervalMs,
+                        pollEnabled: historyConfig.pollEnabled,
+                        logger: app.log,
+                    }),
+                )
+                .filter((scheduler) => scheduler !== null);
         }
     } catch (error) {
         app.log.error(error);

@@ -1,7 +1,7 @@
 import { marketConfig } from '../config/market.config.js';
 import { candleRepository } from './candle.repository.js';
 import { isCandleClosed } from './candle-clock.js';
-import { marketDataProvider } from '../market/market.provider.js';
+import { marketProviderFor } from '../market/market.provider.js';
 import { ApplicationError } from '../errors/application.error.js';
 
 import type { CandleSeriesKey, CandleRepository } from './candle.repository.js';
@@ -69,21 +69,43 @@ export async function ingestOnce(
     options: IngestionOptions,
 ): Promise<IngestionResult> {
     const repository = options.repository ?? candleRepository;
-    const provider = options.provider ?? marketDataProvider;
+    // **Resolved from the key, not taken from the process.**
+    //
+    // It was the module-level `marketDataProvider`, which is built once for
+    // `marketConfig.symbol`. That is the one market always available, so nothing
+    // was wrong with it while the process filled one market — and it filled
+    // exactly one market. Every other market in `MARKET_SYMBOLS` had bars that
+    // nobody stored, while its signals, snapshots and settled returns were
+    // written every cycle by the observation loop: the strategy was being
+    // computed against a table that had none of its rows in it.
+    //
+    // Routing by the key's market is what makes the second market storable at
+    // all, and it also gives the refusal below something to refuse: a market no
+    // venue serves now raises here, naming the market, instead of quietly
+    // answering with the primary's bars.
+    const provider = options.provider ?? marketProviderFor(options.key.symbol);
     const now = options.now ?? Date.now;
     const limit = options.limit ?? marketConfig.defaultCandleLimit;
     const at = now();
 
     // The provider names its own symbol, and the key names the rows it is about
-    // to write into. Nothing connected the two, so a provider built for one
-    // market would write its bars into another market's rows — correct-looking
-    // candles in the wrong series, with nothing downstream able to notice.
+    // to write into. The provider is now resolved from that key, so the two
+    // agree by construction — **and this check has a narrower job than it had.**
+    // It used to catch a whole class of miswiring, because the provider was a
+    // process-wide singleton that no key could influence. It now catches one
+    // thing: a caller that injected a provider serving another market, which is
+    // exactly what a test does by accident and what a future caller would do by
+    // caching.
     //
-    // Checked before the fetch rather than after, because a request whose result
-    // is certain to be refused should not be spent. Thrown rather than counted,
-    // because this is a wiring fault rather than a market condition: no amount of
-    // retrying resolves it, and the poller logs a failed cycle and keeps ticking,
-    // so the refusal is visible on every cycle instead of being absorbed.
+    // Worth keeping anyway. A misfiled bar is correct-looking candles in another
+    // market's series, and nothing downstream can notice — `upsert` succeeds, the
+    // table is not short of rows, and every later measurement is taken against
+    // the wrong input. Checked before the fetch rather than after, because a
+    // request whose result is certain to be refused should not be spent. Thrown
+    // rather than counted, because this is a wiring fault rather than a market
+    // condition: no amount of retrying resolves it, and the poller logs a failed
+    // cycle and keeps ticking, so the refusal is visible on every cycle instead
+    // of being absorbed.
     if (provider.symbol !== options.key.symbol) {
         throw new ApplicationError(
             `Provider ${provider.name} serves ${provider.symbol}, which is not the series ${options.key.symbol}`,

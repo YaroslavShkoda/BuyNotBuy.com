@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import '../test-support/test-database.js';
 
@@ -157,6 +157,73 @@ describe('ingesting bars from a venue built for another market', () => {
         expect(provider.calls).toBe(1);
         expect(result.written).toBeGreaterThan(0);
         expect(await countFor('BTCUSDT')).toBeGreaterThan(0);
+        expect(await countFor('ETHUSDT')).toBe(0);
+    });
+});
+
+describe('the series a market is stored under, with no provider named', () => {
+    // The identity subject again, but from the other end: the tests above inject
+    // a venue, so they prove what happens when a caller supplies a provider for
+    // the right market. These prove what happens when nobody supplies one, which
+    // is what `server.ts` does.
+    afterEach(() => {
+        vi.unstubAllEnvs();
+        vi.resetModules();
+    });
+
+    it('files the second market under its own rows', async () => {
+        // **This is the item.** `ingestOnce` resolved its provider from the
+        // process — `marketDataProvider`, built once for `marketConfig.symbol` —
+        // so with `MARKET_SYMBOLS=ETHUSDT` the ingest loop stored the primary's
+        // bars and none of the second market's, while the observation loop
+        // published that market's signals and settled its returns every minute.
+        // The strategy was computed against a table that had none of its rows in
+        // it, and nothing failed: the table was full of the other market.
+        //
+        // Before the fix this threw instead — the provider named BTCUSDT and the
+        // key named ETHUSDT — so the failure was loud rather than silent, which
+        // is worth saying plainly: a wiring guard caught it. What it could not
+        // catch was that nobody was storing those bars at all.
+        vi.resetModules();
+        vi.stubEnv('MARKET_PROVIDER', 'mock');
+        vi.stubEnv('MARKET_VENUE_CAPABILITIES', 'mock=ETHUSDT@1h');
+
+        const { ingestOnce: ingest } = await import('./ingestion.service.js');
+
+        const result = await ingest({
+            key: { provider: 'mock', symbol: 'ETHUSDT', interval: '1h' },
+            intervalMs: HOUR,
+            limit: 5,
+        });
+
+        expect(result.written).toBeGreaterThan(0);
+        expect(await countFor('ETHUSDT')).toBeGreaterThan(0);
+
+        // And nothing landed in the primary's rows: a run that wrote both would
+        // pass the assertion above.
+        expect(await countFor('BTCUSDT')).toBe(0);
+    });
+
+    it('refuses a market no venue serves, rather than storing the primary there', async () => {
+        // The other half, and the one that matters more. A market that is
+        // configured but not declared must not be filled with the configured
+        // market's bars: the row count would be right, the gaps would be gone,
+        // and every measurement over that series would be a measurement of a
+        // different asset wearing its name.
+        vi.resetModules();
+        vi.stubEnv('MARKET_PROVIDER', 'mock');
+        vi.stubEnv('MARKET_VENUE_CAPABILITIES', 'mock=BTCUSDT@1h');
+
+        const { ingestOnce: ingest } = await import('./ingestion.service.js');
+
+        await expect(
+            ingest({
+                key: { provider: 'mock', symbol: 'ETHUSDT', interval: '1h' },
+                intervalMs: HOUR,
+                limit: 5,
+            }),
+        ).rejects.toThrow(/ETHUSDT/);
+
         expect(await countFor('ETHUSDT')).toBe(0);
     });
 });
