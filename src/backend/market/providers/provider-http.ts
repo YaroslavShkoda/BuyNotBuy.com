@@ -275,7 +275,7 @@ export async function sendProviderRequest(
     const wasProbing = breaker.state !== 'closed';
 
     if (!breaker.tryAcquire()) {
-        telemetry.recordProviderCircuitOpen(options.provider);
+        telemetry.recordProviderCircuitOpen(options.provider, options.market);
 
         const refusal = circuitOpenError(
             options.provider,
@@ -350,6 +350,7 @@ export async function sendProviderRequest(
                 if (callerGaveUp) {
                     telemetry.recordProviderRequest(
                         options.provider,
+                        options.market,
                         options.endpoint,
                         elapsedMs,
                         null,
@@ -361,18 +362,19 @@ export async function sendProviderRequest(
                 breaker.recordAttemptFailure();
                 telemetry.recordProviderRequest(
                     options.provider,
+                    options.market,
                     options.endpoint,
                     elapsedMs,
                     null,
                 );
-                telemetry.recordProviderError(options.provider, options.endpoint);
+                telemetry.recordProviderError(options.provider, options.market, options.endpoint);
                 health.recordProviderFailure(options.provider, options.market);
 
                 if (attempt >= maxRetries) {
                     throw transportError(options, error);
                 }
 
-                telemetry.recordProviderRetry(options.provider);
+                telemetry.recordProviderRetry(options.provider, options.market);
                 await delay(backoffDelayMs(attempt), options.signal);
 
                 continue;
@@ -382,6 +384,7 @@ export async function sendProviderRequest(
 
         telemetry.recordProviderRequest(
             options.provider,
+            options.market,
             options.endpoint,
             elapsedMs,
             response.status,
@@ -392,8 +395,8 @@ export async function sendProviderRequest(
 
             breaker.openFor(retryAfterMs);
             probeHeld = false;
-            telemetry.recordProviderRateLimited(options.provider);
-            telemetry.recordProviderError(options.provider, options.endpoint);
+            telemetry.recordProviderRateLimited(options.provider, options.market);
+            telemetry.recordProviderError(options.provider, options.market, options.endpoint);
             health.recordProviderRateLimit(options.provider, options.market, {
                 retryAfterMs,
                 httpStatus: response.status,
@@ -440,6 +443,7 @@ export async function sendProviderRequest(
                 breaker.recordAttemptFailure();
                 telemetry.recordProviderError(
                     options.provider,
+                    options.market,
                     options.endpoint,
                 );
                 health.recordProviderFailure(options.provider, options.market, {
@@ -464,13 +468,13 @@ export async function sendProviderRequest(
         }
 
         breaker.recordAttemptFailure();
-        telemetry.recordProviderError(options.provider, options.endpoint);
+        telemetry.recordProviderError(options.provider, options.market, options.endpoint);
         health.recordProviderFailure(options.provider, options.market, {
             httpStatus: response.status,
         });
 
         if (attempt < maxRetries) {
-            telemetry.recordProviderRetry(options.provider);
+            telemetry.recordProviderRetry(options.provider, options.market);
         }
 
         await delay(backoffDelayMs(attempt), options.signal);

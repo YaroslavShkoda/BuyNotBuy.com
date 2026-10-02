@@ -1,9 +1,13 @@
 import { observabilityConfig } from '../../config/observability.config.js';
 import { signalHistoryBacklog } from '../../history/signal-history.service.js';
 import { indicatorVoteBacklog } from '../../indicators/performance/indicator-performance.service.js';
+import { marketConfig } from '../../config/market.config.js';
 import { configuredMarketVenues } from '../../market/market.provider.js';
 import { venueHealthSummary } from '../../market/providers/provider-http.js';
-import { providerTelemetryAll } from '../../market/providers/provider-telemetry.js';
+import {
+    providerTelemetry,
+    providerTelemetryAll,
+} from '../../market/providers/provider-telemetry.js';
 import { currentRegistry } from '../../observability/registry.js';
 
 import type { FastifyReply, FastifyRequest } from 'fastify';
@@ -171,22 +175,53 @@ export function renderMetrics(): string {
         );
     }
 
-    // Provider telemetry. The venue is the only label, and the venue list is
-    // the configured one — bounded by configuration, not by traffic, so this
-    // cannot grow a series per request the way a path or a symbol would.
+    /**
+ * Every configured venue/market pair, plus any pair telemetry has seen.
+ *
+ * The configured pairs come first and are always present, so a market that has
+ * never been called renders as a zero rather than as a gap. The telemetry pairs
+ * catch a market that was called and is no longer configured — which should not
+ * happen, and if it does, hiding it would be worse than showing it.
+ */
+function venueMarketPairs(): [string, string][] {
+    const pairs = new Map<string, [string, string]>();
+
+    for (const venue of configuredMarketVenues()) {
+        for (const market of marketConfig.symbols) {
+            pairs.set(`${venue}:${market}`, [venue, market]);
+        }
+    }
+
+    for (const entry of providerTelemetryAll()) {
+        pairs.set(`${entry.provider}:${entry.market}`, [entry.provider, entry.market]);
+    }
+
+    return [...pairs.values()];
+}
+
+// Provider telemetry. Labelled by **venue and market**.
     //
-    // Rendered for every configured venue even before the first call, so a
-    // scraper sees a zero rather than a gap. A gap and a zero look identical on
-    // a graph and mean opposite things: "no traffic" and "no data".
-    for (const venue of new Set([
-        ...configuredMarketVenues(),
-        ...providerTelemetryAll().map((entry) => entry.provider),
-    ])) {
-        const stats = providerTelemetryAll().find(
-            (entry) => entry.provider === venue,
-        );
+    // The venue alone was enough while there was one market, and the reason the
+    // old comment gave was sound: the pair is bounded by configuration, not by
+    // traffic, so it cannot grow a series per request the way a path or a request
+    // id would. The market is bounded the same way — it is `MARKET_SYMBOLS` — so
+    // the cardinality argument survives adding it.
+    //
+    // What did not survive it is the *meaning*: a p95 over two markets is a number
+    // about neither. `buynotbuy_provider_latency_p95_ms{provider="binance"}` used
+    // to be the 95th percentile of BTCUSDT and ETHUSDT together, so a p95 that
+    // crossed the alert threshold could not be attributed to a series, and a
+    // second market with a normal 4-second response would move the p95 of the
+    // first.
+    //
+    // Rendered for every configured venue/market pair even before the first call,
+    // so a scraper sees a zero rather than a gap. A gap and a zero look identical
+    // on a graph and mean opposite things: "no traffic" and "no data".
+    for (const [venue, market] of venueMarketPairs()) {
+        const stats = providerTelemetry(venue, market);
         const healthState = venueHealthSummary(venue);
-        const label = `{provider="${escapeLabel(venue)}"}`;
+        const label =
+            `{provider="${escapeLabel(venue)}",market="${escapeLabel(market)}"}`;
 
         lines.push(
             '',

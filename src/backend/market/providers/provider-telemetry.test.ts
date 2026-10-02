@@ -19,7 +19,7 @@ describe('provider latency telemetry', () => {
     });
 
     it('reports no traffic as null rather than as a perfect error rate', () => {
-        const stats = providerTelemetry('binance');
+        const stats = providerTelemetry('binance', 'BTCUSDT');
 
         // Zero would be indistinguishable from "answered every call perfectly",
         // which is the reading that matters during an incident.
@@ -29,15 +29,15 @@ describe('provider latency telemetry', () => {
     });
 
     it('counts requests, errors and retries separately', () => {
-        recordProviderRequest('binance', '/klines', 100, 200);
-        recordProviderRequest('binance', '/klines', 120, 200);
-        recordProviderRequest('binance', '/klines', 4000, null);
-        recordProviderError('binance', '/klines');
-        recordProviderRetry('binance');
-        recordProviderRateLimited('binance');
-        recordProviderCircuitOpen('binance');
+        recordProviderRequest('binance', 'BTCUSDT', '/klines', 100, 200);
+        recordProviderRequest('binance', 'BTCUSDT', '/klines', 120, 200);
+        recordProviderRequest('binance', 'BTCUSDT', '/klines', 4000, null);
+        recordProviderError('binance', 'BTCUSDT', '/klines');
+        recordProviderRetry('binance', 'BTCUSDT');
+        recordProviderRateLimited('binance', 'BTCUSDT');
+        recordProviderCircuitOpen('binance', 'BTCUSDT');
 
-        const stats = providerTelemetry('binance');
+        const stats = providerTelemetry('binance', 'BTCUSDT');
 
         expect(stats.requests).toBe(3);
         expect(stats.failures).toBe(1);
@@ -49,10 +49,10 @@ describe('provider latency telemetry', () => {
 
     it('computes nearest-rank percentiles over the sample', () => {
         for (let index = 1; index <= 100; index += 1) {
-            recordProviderRequest('binance', '/klines', index, 200);
+            recordProviderRequest('binance', 'BTCUSDT', '/klines', index, 200);
         }
 
-        const stats = providerTelemetry('binance');
+        const stats = providerTelemetry('binance', 'BTCUSDT');
 
         expect(stats.latencyP50Ms).toBe(50);
         expect(stats.latencyP95Ms).toBe(95);
@@ -64,18 +64,18 @@ describe('provider latency telemetry', () => {
         const size = marketConfig.providerLatencySampleSize;
 
         for (let index = 0; index < size + 50; index += 1) {
-            recordProviderRequest('binance', '/klines', 1_000, 200);
+            recordProviderRequest('binance', 'BTCUSDT', '/klines', 1_000, 200);
         }
 
         // The window has to keep describing the present, which is why the new
         // sample evicts the old one rather than the buffer refusing it: a full
         // reservoir that stops accepting would freeze the percentiles at the
         // values from before the incident that filled it.
-        expect(providerTelemetry('binance').latencySamples).toBe(size);
+        expect(providerTelemetry('binance', 'BTCUSDT').latencySamples).toBe(size);
 
-        recordProviderRequest('binance', '/klines', 9_000, 200);
+        recordProviderRequest('binance', 'BTCUSDT', '/klines', 9_000, 200);
 
-        const stats = providerTelemetry('binance');
+        const stats = providerTelemetry('binance', 'BTCUSDT');
 
         expect(stats.latencySamples).toBe(size);
         // The outlier is accepted (one sample in 512 is 0.2%, far below p50)
@@ -87,10 +87,10 @@ describe('provider latency telemetry', () => {
     });
 
     it('ignores a non-finite latency rather than poisoning the percentiles', () => {
-        recordProviderRequest('binance', '/klines', 100, 200);
-        recordProviderRequest('binance', '/klines', Number.NaN, null);
+        recordProviderRequest('binance', 'BTCUSDT', '/klines', 100, 200);
+        recordProviderRequest('binance', 'BTCUSDT', '/klines', Number.NaN, null);
 
-        const stats = providerTelemetry('binance');
+        const stats = providerTelemetry('binance', 'BTCUSDT');
 
         // The request is still counted — it happened — but a NaN in the sample
         // would sort unpredictably and turn every percentile into NaN, which is
@@ -101,11 +101,11 @@ describe('provider latency telemetry', () => {
     });
 
     it('keeps venues in separate series', () => {
-        recordProviderRequest('binance', '/klines', 100, 200);
-        recordProviderError('bitget', '/klines');
+        recordProviderRequest('binance', 'BTCUSDT', '/klines', 100, 200);
+        recordProviderError('bitget', 'BTCUSDT', '/klines');
 
-        expect(providerTelemetry('binance').failures).toBe(0);
-        expect(providerTelemetry('bitget').failures).toBe(1);
+        expect(providerTelemetry('binance', 'BTCUSDT').failures).toBe(0);
+        expect(providerTelemetry('bitget', 'BTCUSDT').failures).toBe(1);
         expect(providerTelemetryAll().map((entry) => entry.provider)).toEqual([
             'binance',
             'bitget',
@@ -113,11 +113,11 @@ describe('provider latency telemetry', () => {
     });
 
     it('counts errors even for a venue that never recorded a request', () => {
-        recordProviderError('bitget', '/tickers');
+        recordProviderError('bitget', 'BTCUSDT', '/tickers');
 
         // Zero requests over one error is a real ratio of infinity, and the
         // null guard is what keeps it from being rendered as NaN.
-        expect(providerTelemetry('bitget').errorRate).toBeNull();
+        expect(providerTelemetry('bitget', 'BTCUSDT').errorRate).toBeNull();
     });
 });
 
@@ -143,5 +143,52 @@ describe('percentile', () => {
         percentile(samples, 50);
 
         expect(samples).toEqual([3, 1, 2]);
+    });
+});
+
+describe('latency over one market, on a venue serving two', () => {
+    beforeEach(() => {
+        resetProviderTelemetry();
+    });
+
+    it('keeps a fast market\'s p95 out of a slow market\'s', () => {
+        // **This is the item.** One series per venue, so
+        // `buynotbuy_provider_latency_p95_ms{provider="binance"}` was the 95th
+        // percentile of both markets together: a normal 4-second ETHUSDT response
+        // pushed BTCUSDT's p95 over the alert threshold, and the operator reading
+        // the line could not tell which series caused the crossing.
+        for (let sample = 0; sample < 100; sample += 1) {
+            recordProviderRequest('binance', 'BTCUSDT', '/klines', 100, 200);
+            recordProviderRequest('binance', 'ETHUSDT', '/klines', 4_000, 200);
+        }
+
+        expect(providerTelemetry('binance', 'BTCUSDT').latencyP95Ms).toBe(100);
+        expect(providerTelemetry('binance', 'ETHUSDT').latencyP95Ms).toBe(4_000);
+    });
+
+    it('counts one market\'s errors off another market\'s error rate', () => {
+        recordProviderRequest('binance', 'BTCUSDT', '/klines', 100, 200);
+        recordProviderRequest('binance', 'ETHUSDT', '/klines', 100, 200);
+        recordProviderError('binance', 'ETHUSDT', '/klines');
+
+        // Under a shared series BTCUSDT would have read 0.5 — a venue failing half
+        // the time on paper, while one of its two series was perfect. And ETHUSDT
+        // reads 1, not 0.5: the error rate belongs to the series that failed, not
+        // to the venue that hosts it.
+        expect(providerTelemetry('binance', 'BTCUSDT').errorRate).toBe(0);
+        expect(providerTelemetry('binance', 'ETHUSDT').errorRate).toBe(1);
+    });
+
+    it('forgets a whole venue without a market, because a bare delete would now miss', () => {
+        // The reset is the silent half of this change. Keys carry a market, so
+        // `series.delete(provider)` matches nothing — a reset that looks like it
+        // worked and a suite that passes for the wrong reason.
+        recordProviderRequest('binance', 'BTCUSDT', '/klines', 100, 200);
+        recordProviderRequest('binance', 'ETHUSDT', '/klines', 100, 200);
+
+        resetProviderTelemetry('binance');
+
+        expect(providerTelemetry('binance', 'BTCUSDT').requests).toBe(0);
+        expect(providerTelemetry('binance', 'ETHUSDT').requests).toBe(0);
     });
 });

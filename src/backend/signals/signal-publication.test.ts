@@ -168,3 +168,79 @@ describe('the exposition carries the whole promise or none of it', () => {
         }
     });
 });
+
+describe('the previous signal is remembered per market', () => {
+    let registry: MetricRegistry;
+
+    beforeEach(() => {
+        registry = new MetricRegistry();
+        useRegistry(registry);
+        resetPublishedSignals();
+    });
+
+    afterEach(() => {
+        useRegistry(null);
+    });
+
+    it('does not count one market disagreeing with another as a change', () => {
+        // **This is the item.** One variable for the whole process: BTCUSDT
+        // published LONG, then ETHUSDT published SHORT, and the counter went up —
+        // while **neither** market had changed. The number that exists to answer
+        // "how often does this market revise itself" was answering "how often do
+        // two markets disagree", which is a fact about the deployment and about no
+        // series at all.
+        recordPublishedSignal('LONG', 'BTCUSDT');
+        recordPublishedSignal('SHORT', 'ETHUSDT');
+
+        expect(registry.value('signal_changes_total')).toBe(0);
+
+        // Each market's first publication is not a change either, which is the
+        // same rule the single variable used to get wrong in the other direction.
+        recordPublishedSignal('LONG', 'BTCUSDT');
+
+        expect(registry.value('signal_changes_total')).toBe(0);
+
+        // Now BTCUSDT really does flip.
+        recordPublishedSignal('SHORT', 'BTCUSDT');
+
+        expect(registry.value('signal_changes_total')).toBe(1);
+    });
+
+    it('keeps the totals whole, because a label would make the name unreadable', () => {
+        // Two markets, many publications, and the metric asked for by the name the
+        // catalogue promises. A per-market series would answer `null` here for the
+        // same reason `signal_changes_total{from,to}` once did: the reader asks for
+        // a name and gets a series that does not exist under it.
+        recordPublishedSignal('LONG', 'BTCUSDT');
+        recordPublishedSignal('SHORT', 'BTCUSDT');
+        recordPublishedSignal('NEUTRAL', 'ETHUSDT');
+        recordPublishedSignal('NEUTRAL', 'ETHUSDT');
+
+        expect(registry.value('signal_generation_total')).toBe(4);
+        expect(registry.value('signal_changes_total')).toBe(1);
+        expect(churnRate()).toBe(0.25);
+    });
+
+    it('reads the memory back per market', () => {
+        recordPublishedSignal('LONG', 'BTCUSDT');
+        recordPublishedSignal('SHORT', 'ETHUSDT');
+
+        expect(lastPublishedSignal('BTCUSDT')).toBe('LONG');
+        expect(lastPublishedSignal('ETHUSDT')).toBe('SHORT');
+    });
+
+    it('treats the same market in two spellings as one series', () => {
+        // Normalised, because `btcusdt` and `BTCUSDT` arriving from two call sites
+        // are the same market — and two entries would each believe they were the
+        // first publication of a market nobody had seen, so the first real flip
+        // would count as two changes or none.
+        recordPublishedSignal('LONG', 'BTCUSDT');
+        recordPublishedSignal('LONG', 'btcusdt');
+
+        expect(registry.value('signal_changes_total')).toBe(0);
+
+        recordPublishedSignal('SHORT', 'BtcUsdt');
+
+        expect(registry.value('signal_changes_total')).toBe(1);
+    });
+});

@@ -29,29 +29,53 @@ import type { IndicatorSignal } from './signal.types.js';
  * is the kind of thing that gets forgotten once and then reads as zero forever.
  * The direction pair is in the structured log, which is where a named event
  * belongs anyway.
+ *
+ * **The memory of the previous signal is per market, and the totals stay whole.**
+ *
+ * One variable for the whole process meant BTCUSDT publishing LONG and then
+ * ETHUSDT publishing SHORT counted as a change — while **neither** market changed.
+ * The counter that exists to answer "how often does this market revise itself"
+ * answered "how often do two markets disagree", which is a number about the
+ * deployment and not about any series.
+ *
+ * The counters are deliberately still unlabelled. Per-market series were the
+ * obvious fix and the wrong one: a reader asking for `signal_changes_total` by
+ * name would again get null, for the same reason as before, and `churnRate()`
+ * would have to know which series to divide. The per-market difference is in the
+ * memory, not in the exposition — and the markets are in the structured log the
+ * numbers are derived from.
  */
-let lastPublished: IndicatorSignal | null = null;
+const lastPublished = new Map<string, IndicatorSignal>();
 
-export function recordPublishedSignal(direction: IndicatorSignal): void {
+export function recordPublishedSignal(
+    direction: IndicatorSignal,
+    market: string = '',
+): void {
     const registry = currentRegistry();
 
     registry.counter('signal_generation_total');
     registry.counter('signal_generation_total', 0, { signal: direction });
 
-    if (lastPublished !== null && lastPublished !== direction) {
+    // Normalised, because the same market arriving as `btcusdt` and `BTCUSDT` is
+    // the same series and two entries would each believe they were the first
+    // publication of a market nobody had seen.
+    const key = market.trim().toUpperCase();
+    const previous = lastPublished.get(key);
+
+    if (previous !== undefined && previous !== direction) {
         registry.counter('signal_changes_total');
     }
 
-    lastPublished = direction;
+    lastPublished.set(key, direction);
 }
 
-export function lastPublishedSignal(): IndicatorSignal | null {
-    return lastPublished;
+export function lastPublishedSignal(market: string = ''): IndicatorSignal | null {
+    return lastPublished.get(market.trim().toUpperCase()) ?? null;
 }
 
 /** Test hook: a run's first signal is a change again, as it is after a restart. */
 export function resetPublishedSignals(): void {
-    lastPublished = null;
+    lastPublished.clear();
 }
 
 /**

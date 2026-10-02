@@ -19,6 +19,8 @@ import { marketConfig } from '../../config/market.config.js';
  */
 export interface ProviderTelemetrySnapshot {
     provider: string;
+    /** The market this series is about. Not implied by the venue. */
+    market: string;
     requests: number;
     failures: number;
     rateLimits: number;
@@ -53,6 +55,10 @@ interface ProviderSeries {
 
 const series = new Map<string, ProviderSeries>();
 
+function seriesKey(provider: string, market: string): string {
+    return `${provider.toLowerCase()}:${market.trim().toUpperCase()}`;
+}
+
 function emptySeries(): ProviderSeries {
     return {
         requests: 0,
@@ -69,8 +75,23 @@ function emptySeries(): ProviderSeries {
     };
 }
 
-function seriesFor(provider: string): ProviderSeries {
-    const existing = series.get(provider);
+/**
+ * One series per **venue and market**.
+ *
+ * A venue's p95 over two markets is a number about neither of them: the alert
+ * threshold is a per-series judgement, and an operator reading
+ * `buynotbuy_provider_latency_p95_ms{provider="binance"}` after a p95 crossed it
+ * cannot tell which series caused the crossing. And the obvious response — a
+ * slower second series — is the one that makes it a lie, because the p95 of the
+ * mixture moves with traffic composition rather than with either feed.
+ *
+ * The `byEndpoint` dimension already existed and was not the problem: an endpoint
+ * is a fixed property of a call, not a per-request value.
+ */
+function seriesFor(provider: string, market: string): ProviderSeries {
+    const key = seriesKey(provider, market);
+
+    const existing = series.get(key);
 
     if (existing !== undefined) {
         return existing;
@@ -78,7 +99,7 @@ function seriesFor(provider: string): ProviderSeries {
 
     const created = emptySeries();
 
-    series.set(provider, created);
+    series.set(key, created);
 
     return created;
 }
@@ -91,23 +112,40 @@ function seriesFor(provider: string): ProviderSeries {
  * once" is really asserting "somewhere in this file, some venue was asked
  * once", and it passes or fails according to test order.
  */
-export function resetProviderTelemetry(provider?: string): void {
-    if (provider !== undefined) {
-        series.delete(provider);
+export function resetProviderTelemetry(provider?: string, market?: string): void {
+    if (provider === undefined) {
+        series.clear();
 
         return;
     }
 
-    series.clear();
+    // Without a market this forgets the venue across every market it has served.
+    // A bare `series.delete(provider)` would have silently done nothing at all now
+    // that the keys carry a market — which is a reset that appears to work and a
+    // suite that passes for the wrong reason.
+    if (market !== undefined) {
+        series.delete(seriesKey(provider, market));
+
+        return;
+    }
+
+    const prefix = `${provider.toLowerCase()}:`;
+
+    for (const key of [...series.keys()]) {
+        if (key.startsWith(prefix)) {
+            series.delete(key);
+        }
+    }
 }
 
 export function recordProviderRequest(
     provider: string,
+    market: string,
     endpoint: string,
     latencyMs: number,
     httpStatus: number | null,
 ): void {
-    const current = seriesFor(provider);
+    const current = seriesFor(provider, market);
 
     current.requests += 1;
     current.lastLatencyMs = latencyMs;
@@ -134,8 +172,12 @@ export function recordProviderRequest(
     current.byEndpoint.set(endpoint, endpointStats);
 }
 
-export function recordProviderError(provider: string, endpoint: string): void {
-    const current = seriesFor(provider);
+export function recordProviderError(
+    provider: string,
+    market: string,
+    endpoint: string,
+): void {
+    const current = seriesFor(provider, market);
 
     current.failures += 1;
 
@@ -148,25 +190,29 @@ export function recordProviderError(provider: string, endpoint: string): void {
     current.byEndpoint.set(endpoint, endpointStats);
 }
 
-export function recordProviderRateLimited(provider: string): void {
-    seriesFor(provider).rateLimits += 1;
+export function recordProviderRateLimited(provider: string, market: string): void {
+    seriesFor(provider, market).rateLimits += 1;
 }
 
-export function recordProviderRetry(provider: string): void {
-    seriesFor(provider).retries += 1;
+export function recordProviderRetry(provider: string, market: string): void {
+    seriesFor(provider, market).retries += 1;
 }
 
-export function recordProviderCircuitOpen(provider: string): void {
-    seriesFor(provider).circuitOpens += 1;
+export function recordProviderCircuitOpen(provider: string, market: string): void {
+    seriesFor(provider, market).circuitOpens += 1;
 }
 
 export function providerTelemetry(
     provider: string,
+    market: string,
 ): ProviderTelemetrySnapshot {
-    const current = series.get(provider) ?? emptySeries();
+    const current = series.get(seriesKey(provider, market)) ?? emptySeries();
 
     return {
         provider,
+        // Carried so a report cannot print one market's latency under another's
+        // name, and so the exposition label is the market the number is about.
+        market,
         requests: current.requests,
         failures: current.failures,
         rateLimits: current.rateLimits,
@@ -189,7 +235,11 @@ export function providerTelemetry(
 }
 
 export function providerTelemetryAll(): ProviderTelemetrySnapshot[] {
-    return [...series.keys()].map((provider) => providerTelemetry(provider));
+    return [...series.keys()].map((key) => {
+        const separator = key.indexOf(':');
+
+        return providerTelemetry(key.slice(0, separator), key.slice(separator + 1));
+    });
 }
 
 /**

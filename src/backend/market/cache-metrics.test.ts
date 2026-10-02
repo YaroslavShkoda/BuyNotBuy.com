@@ -3,11 +3,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const { mockMarketDataProvider, mockAnyProviderAvailable } = vi.hoisted(() => ({
     mockAnyProviderAvailable: vi.fn(() => true),
     mockMarketDataProvider: {
-        getPrice: vi.fn(async () => ({ symbol: 'BTCUSDT', price: 80000 })),
+        // Set by the router below to whatever market was asked for, so the
+        // provider reports the market it is serving rather than a fixed one.
+        symbol: 'BTCUSDT',
+        getPrice: vi.fn(async () => ({
+            symbol: mockMarketDataProvider.symbol,
+            price: 80000,
+        })),
         getCandles: vi.fn(async (_limit?: number) => [] as unknown[]),
         getAttributedCandles: vi.fn(async (limit?: number) => ({
             venue: 'binance',
-            symbol: 'BTCUSDT',
+            symbol: mockMarketDataProvider.symbol,
             candles: (await mockMarketDataProvider.getCandles(limit)) as Candle[],
         })),
     },
@@ -18,7 +24,16 @@ vi.mock('./market.provider.js', () => ({
     // about. Every test here has one market, so it hands back the one stub —
     // the routing itself is exercised in capability.test.ts, where a wrong
     // answer is a property failure rather than a mistyped URL.
-    marketProviderFor: () => mockMarketDataProvider,
+    marketProviderFor: (instrument: string) => {
+        // **Per market, and it is what makes the second test possible.** The stub
+        // used to answer `BTCUSDT` for every request, so a two-market test could
+        // not be written: `fetchMarketData` compares the symbol it was handed
+        // against the request and refuses a mismatch, correctly. A mock that
+        // cannot answer the question is not a simplification, it is a wall.
+        mockMarketDataProvider.symbol = instrument;
+
+        return mockMarketDataProvider;
+    },
     marketDataProvider: mockMarketDataProvider,
     anyMarketProviderAvailable: mockAnyProviderAvailable,
     activeMarketVenue: vi.fn(() => 'binance'),
@@ -143,5 +158,37 @@ describe('the cache counters move only when the cache is consulted', () => {
 
         expect(rendered).toMatch(/buynotbuy_market_cache_misses 1/);
         expect(rendered).toMatch(/buynotbuy_market_cache_hits 1/);
+
+        // **And the same metric, per market, in the same scrape.** The totals
+        // above are the contract: a reader asking for these names by name keeps
+        // getting a number. Labelling the counter instead would have made every
+        // one of those readers silently read 0 — the failure that already cost
+        // \ its readers once, for exactly this reason.
+        //
+        // So the breakdown is an *additional* series on the same metric, and this
+        // asserts both halves are in one document: a dashboard can now say which
+        // market is missing on every request, and the ratio still works.
+        expect(rendered).toMatch(/buynotbuy_market_cache_hits\{market="BTCUSDT"\} 1/);
+        expect(rendered).toMatch(/buynotbuy_market_cache_misses\{market="BTCUSDT"\} 1/);
+    });
+
+    it('splits the same metric by market when two are running', async () => {
+        // One flat number cannot say that BTCUSDT is answered from cache every
+        // time while ETHUSDT is never cached at all — which is a real
+        // misconfiguration wearing the shape of healthy traffic.
+        mockMarketDataProvider.getCandles.mockResolvedValue(series(Array.from({ length: 100 }, (_, i) => 50000 + i)));
+
+        await getMarketData();
+        await getMarketData();
+        await getMarketData({ instrument: 'ETHUSDT', interval: marketConfig.candleInterval });
+        await getMarketData({ instrument: 'ETHUSDT', interval: marketConfig.candleInterval });
+
+        // One miss each: the two markets miss once and then hit, and the total is
+        // the sum of both.
+        expect(registry.value('market_cache_misses')).toBe(2);
+        expect(registry.value('market_cache_misses', { market: 'BTCUSDT' })).toBe(1);
+        expect(registry.value('market_cache_misses', { market: 'ETHUSDT' })).toBe(1);
+        expect(registry.value('market_cache_hits', { market: 'BTCUSDT' })).toBe(1);
+        expect(registry.value('market_cache_hits', { market: 'ETHUSDT' })).toBe(1);
     });
 });

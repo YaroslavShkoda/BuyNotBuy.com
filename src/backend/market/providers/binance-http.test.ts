@@ -472,7 +472,7 @@ describe('sendBinanceRequest cancellation', () => {
         // The request happened, took time and held a socket. Dropping it from
         // the count would make the latency percentiles describe a different
         // set of calls than the ones that actually happened.
-        const snapshot = providerTelemetry('binance');
+        const snapshot = providerTelemetry('binance', 'BTCUSDT');
 
         expect(snapshot.requests).toBe(1);
         expect(snapshot.failures).toBe(0);

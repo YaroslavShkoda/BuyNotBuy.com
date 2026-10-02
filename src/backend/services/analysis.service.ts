@@ -167,7 +167,13 @@ export async function analyzeMarketWithStatus(
 
     // Publication is per caller too: a signal handed to somebody is a signal
     // the system produced, and N callers received N answers.
-    recordPublishedSignal(result.analysis.signal.signal);
+    //
+    // The market is passed because the previous signal is remembered **per
+    // market**. With one variable for the process, BTCUSDT publishing LONG and
+    // then ETHUSDT publishing SHORT counted as a change while neither market
+    // changed — so the counter meant "how often two markets disagree" instead of
+    // "how often this market revises itself".
+    recordPublishedSignal(result.analysis.signal.signal, request.instrument);
 
     // The history is per computation. This is the write that must not repeat:
     // N rows for one hour would tell the calibration code that the market held

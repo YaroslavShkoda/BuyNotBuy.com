@@ -122,6 +122,26 @@ export function resetMarketDataCache(): void {
     priceFlights.reset();
 }
 
+/**
+ * Counts a cache event once for the deployment and once for the market.
+ *
+ * **Both, and not either.** Labelling the counter was tried first and it silently
+ * broke the contract: `value('market_cache_hits')` and every dashboard reading that
+ * name kept working while returning `0`, because the series that now existed was
+ * `market_cache_hits{market="BTCUSDT"}` — the same failure that cost
+ * `signal_changes_total` its readers once already, for the same reason.
+ *
+ * So the unlabelled total stays exactly as promised, and the per-market breakdown
+ * is an additional series on the same metric. Two entries in a map per cache event
+ * is the price of a metric that keeps its name and also answers "which market".
+ */
+function countCacheEvent(name: string, market: string): void {
+    const registry = currentRegistry();
+
+    registry.counter(name);
+    registry.counter(name, 1, { market });
+}
+
 export async function getMarketData(request?: MarketRequest): Promise<MarketDataResult> {
     const wanted = resolveRequest(request);
     const key = marketKey(wanted);
@@ -143,7 +163,7 @@ export async function getMarketData(request?: MarketRequest): Promise<MarketData
         // `X-Data-Stale: false` while the only venue trading ETHUSDT refused.
         const anyProviderAvailable = anyMarketProviderAvailable(wanted.instrument);
 
-        currentRegistry().counter('market_cache_hits');
+        countCacheEvent('market_cache_hits', wanted.instrument);
 
         return {
             data: cached.data,
@@ -171,7 +191,7 @@ export async function getMarketData(request?: MarketRequest): Promise<MarketData
         // Ten page loads sharing one request cost the provider one request, and
         // a counter that said ten would be measuring the dashboard's traffic
         // rather than what the cache was worth.
-        currentRegistry().counter('market_cache_misses');
+        countCacheEvent('market_cache_misses', wanted.instrument);
         const flight = fetchAndCache(wanted).finally(() => {
             inFlight.delete(key);
         });
@@ -230,7 +250,12 @@ async function fetchAndCache(request: MarketRequest): Promise<MarketDataResult> 
             // value is the shape over time: one stale hour during an outage is
             // the system working, and a stale hour every hour for a week is
             // the system having quietly stopped noticing.
-            currentRegistry().counter('market_stale_served');
+            //
+            // Per series as well as in total, because the shape over time is
+            // only readable per series: one market answering every request from
+            // cache while another was never cached at all is a single flat number
+            // here and invisible in it.
+            countCacheEvent('market_stale_served', request.instrument);
 
             return {
                 data: fallback.data,
