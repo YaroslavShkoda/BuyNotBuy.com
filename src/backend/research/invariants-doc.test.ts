@@ -343,3 +343,110 @@ describe('the constitution names objects that exist', () => {
         }).toEqual({ statedChecks: checks, statedTables: tables });
     });
 });
+
+/**
+ * Where an entry says where it is violated, the cited line has to agree.
+ *
+ * The other three checks in this file establish that a cited **path** exists and
+ * that a cited **schema object** exists. Neither establishes that the line at
+ * that path says what the row claims about it, and the gap held a false
+ * statement for as long as the document has been checked.
+ *
+ * Invariant 12 — "an indicator does not reach the database" — named
+ * `indicator-performance.service.ts:9` as reaching `history/`. Line 9 of that
+ * file is `import type { BacklogState }` from `observability/`, and
+ * `observability` is a universal leaf, so the edge is **permitted** and is not a
+ * violation of anything. The path existed, so the path check passed; the layer
+ * name beside it was prose in the same table cell, and nothing read prose in a
+ * cell as an assertion.
+ *
+ * So the check is narrow on purpose: a `path:line` → `layer/` citation has to
+ * land on an import whose module resolves to that layer. It does not judge
+ * whether the import *should* be there — invariant 12's violation is real and
+ * deliberate, and the row already says so. It checks only that the evidence is
+ * evidence for the claim beside it, which is the part that was invented.
+ */
+describe('where an entry says it is violated, the line agrees with it', () => {
+    it('cites a line that imports the layer it names', () => {
+        const citations: Array<{ where: string; file: string; line: number; layer: string }> = [];
+
+        for (const section of document.split(/\n(?=## )/)) {
+            const heading = /^## (\d+)\./m.exec(section);
+            if (heading === null) continue;
+
+            const row = /\|\s*\*\*Где нарушено\*\*\s*\|([^|]*)\|/.exec(section);
+            if (row === null) continue;
+
+            // `path:line` → `layer/`, one citation per comma-separated piece.
+            //
+            // The backticks are stripped before the pattern is built rather than
+            // written into a regex literal: a backtick inside `/…/u` is legal but
+            // it sits in a file that is itself full of backticks, and the first
+            // version of this pattern did not parse at all. Splitting on commas
+            // first also means a cell with one shared arrow and a cell that
+            // repeats it are both read, instead of one shape being assumed.
+            for (const piece of row[1]!.split(',')) {
+                const cleaned = piece.split(String.fromCharCode(96)).join('').trim();
+                const match = /^([\w./-]+\.ts):(\d+)\s*(?:→\s*([\w./-]+))?/u.exec(cleaned);
+
+                if (match === null) continue;
+
+                citations.push({
+                    where: `§${heading[1]}`,
+                    file: match[1]!,
+                    line: Number(match[2]),
+                    layer: (match[3] ?? '').replace(/\.ts$/u, '').replace(/\/$/u, ''),
+                });
+            }
+        }
+
+        expect(citations.length).toBeGreaterThan(0);
+
+        const wrong: string[] = [];
+
+        for (const citation of citations) {
+            // A citation may be written bare — `pool.ts` — or with its path from
+            // the backend root. The first version joined the bare form onto the
+            // root and failed with ENOENT, which reports a broken check rather
+            // than a broken citation, and a guard that dies instead of naming
+            // what is wrong gets ignored.
+            //
+            // Both answers are reduced to one shape — a path relative to the
+            // backend root — because the direct hit is absolute and `listFiles`
+            // is not, and joining one onto the other produced
+            // `backend\D:\...\backend\file.ts`.
+            const direct = join(backendRoot, citation.file);
+            const located = existsSync(direct)
+                ? slice(direct)
+                : listFiles(backendRoot).find((file) => file.endsWith(`/${citation.file}`));
+
+            if (located === undefined) {
+                wrong.push(
+                    `${citation.where}: ${citation.file} не найден нигде в src/backend`,
+                );
+                continue;
+            }
+
+            const source = readFileSync(join(backendRoot, located), 'utf8');
+            const line = source.split('\n')[citation.line - 1] ?? '';
+            const target = /from\s+'([^']+)'/u.exec(line)?.[1] ?? '';
+
+            // The layer named by the module specifier, however it was written:
+            // `../db/pool.js`, `../../db/pool.js` and `./db/` all mean `db`.
+            const named = target
+                .replace(/\.js$/u, '')
+                .split('/')
+                .filter((part) => part !== '.' && part !== '..')
+                .find((part) => existsSync(join(backendRoot, part)));
+
+            if (named !== citation.layer) {
+                wrong.push(
+                    `${citation.where}: ${citation.file}:${citation.line} назван как ` +
+                        `${citation.layer}, а строка содержит ${target === '' ? 'не импорт' : target}`,
+                );
+            }
+        }
+
+        expect(wrong).toEqual([]);
+    });
+});
