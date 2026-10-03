@@ -15,14 +15,14 @@
 
 | слой | файлов | вход | выход | род |
 |---|---|---|---|---|
-| `types` | 4 | 83 | 0 | сквозной лист |
+| `types` | 4 | 85 | 0 | сквозной лист |
 | `errors` | 3 | 19 | 0 | сквозной лист |
 | `config` | 13 | 87 | 5 | сквозной лист |
 | `instruments` | 4 | 10 | 2 | сквозной лист |
-| `db` | 4 | 30 | 2 | ядро |
+| `db` | 4 | 32 | 2 | ядро |
 | `market` | 16 | 26 | 41 | ядро |
 | `indicators` | 21 | 24 | 35 | ядро |
-| `strategies` | 11 | 44 | 6 | ядро |
+| `strategies` | 11 | 47 | 6 | ядро |
 | `signals` | 8 | 14 | 14 | ядро |
 | `history` | 11 | 17 | 29 | ядро |
 | `outcomes` | 3 | 4 | 10 | ядро |
@@ -31,7 +31,7 @@
 | `backtest` | 14 | 23 | 28 | ядро |
 | `services` | 8 | 10 | 61 | составляющий |
 | `api` | 25 | 12 | 38 | составляющий |
-| `research` | 42 | 0 | 116 | составляющий |
+| `research` | 45 | 0 | 123 | составляющий |
 | `observability` | 6 | 23 | 3 | сквозной лист |
 
 ### Куда каждый слой импортирует
@@ -50,7 +50,7 @@
 - `backtest` → `config` (14), `indicators` (2), `market` (5), `observability` (1), `signals` (2), `types` (4)
 - `services` → `analysis` (4), `config` (7), `db` (2), `history` (11), `indicators` (11), `instruments` (2), `lifecycle` (2), `market` (5), `observability` (3), `outcomes` (1), `signals` (7), `strategies` (3), `types` (3)
 - `api` → `config` (9), `db` (1), `errors` (5), `history` (3), `indicators` (3), `instruments` (4), `market` (7), `observability` (2), `services` (2), `signals` (1), `types` (1)
-- `research` → `backtest` (23), `config` (4), `db` (10), `indicators` (6), `observability` (1), `performance` (6), `strategies` (39), `types` (27)
+- `research` → `backtest` (23), `config` (4), `db` (12), `indicators` (6), `observability` (1), `performance` (6), `strategies` (42), `types` (29)
 - `observability` → `config` (1), `db` (2)
 
 ## Циклы

@@ -6,9 +6,9 @@ import { createDonchian } from '../strategies/donchian.js';
 import { createDonchianCalmGated } from '../strategies/donchian-calm-gated.js';
 import { createVolatilityTrend } from '../strategies/volatility-trend.js';
 import { walkForwardStrategy } from './strategy-walk-forward.js';
-import { holdoutStatus, registerForEvaluation, HOLDOUT_COMMITTED_AT } from './holdout.js';
+import { holdoutStatus } from './holdout.js';
+import { REGISTERED_RULES, registrationOf } from './holdout-registration.js';
 import { createStrategyRuleRepository } from '../strategies/candidate.repository.js';
-import { hashValue } from '../config/strategy-fingerprint.js';
 import { closePool } from '../db/pool.js';
 
 import type { Candle } from '../types/market.js';
@@ -106,43 +106,7 @@ console.log('\n' + '='.repeat(110));
 console.log('HELD-OUT ОКНО — то, что ещё не открывали');
 console.log('='.repeat(110));
 
-const registered = [
-    registerForEvaluation(
-        'donchian-20',
-        hashValue({ channelPeriod: 20 }),
-        'Плато параметра 14-24, перелом по комиссии между 0.10% и 0.20% за сторону.',
-        HOLDOUT_COMMITTED_AT,
-    ),
-    registerForEvaluation(
-        'donchian-18',
-        hashValue({ channelPeriod: 18 }),
-        'Лучшая точка плато по результату на всей истории, а не по подбору.',
-        HOLDOUT_COMMITTED_AT,
-    ),
-    registerForEvaluation(
-        'donchian-trend-gated',
-        hashValue({ channel: 20, atr: [14, 40] }),
-        'Убыточен на всей истории: -13.31%, профит-фактор 0.965.',
-        HOLDOUT_COMMITTED_AT,
-    ),
-    registerForEvaluation(
-        'donchian-calm-gated',
-        hashValue({ channel: 20, atr: [14, 40], gate: 'low' }),
-        'Инверсия фильтра: основание оказалось ошибкой источника данных. ' +
-            'На Binance +2.13% против +9.28% у оригинала — гипотеза опровергнута, ' +
-            'не «подтверждена наоборот».',
-        HOLDOUT_COMMITTED_AT,
-    ),
-    registerForEvaluation(
-        'volatility-trend',
-        hashValue({ atr: [14, 40] }),
-        'Вариант D абляции: только фильтр волатильности, без пробоя. ' +
-            '+222.99%, PF 1.994, 67 сделок против 9.28% у полного правила. ' +
-            'Найдено разбором чужого правила — самый ненадёжный способ найти ' +
-            'правило, поэтому сначала на окно, а не в бой.',
-        HOLDOUT_COMMITTED_AT,
-    ),
-];
+const registered = REGISTERED_RULES.map(registrationOf);
 
 const status = holdoutStatus(daily, registered);
 console.log(`Обязательство принято: ${new Date(status.committedAt).toISOString().slice(0, 10)}`);

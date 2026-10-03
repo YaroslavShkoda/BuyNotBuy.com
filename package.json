@@ -19,6 +19,7 @@
     "start:backend": "node --env-file-if-exists=.env dist/backend/server.js",
     "typecheck": "tsc --noEmit",
     "canary:typecheck": "node --import=tsx src/backend/research/typecheck-canary.cli.ts",
+    "holdout:seal": "node --env-file=.env --import=tsx src/backend/research/holdout-seal.cli.ts",
     "verify:real": "npm run canary:typecheck && npm run typecheck && npm run typecheck:backend && npm run lint && npm test",
     "typecheck:backend": "tsc -p src/backend/tsconfig.json --noEmit",
     "test": "vitest run",

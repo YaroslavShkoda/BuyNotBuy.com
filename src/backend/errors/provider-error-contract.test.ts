@@ -69,8 +69,23 @@ describe('provider failures are classified, not read', () => {
             const text = readFileSync(file, 'utf8');
 
             for (const [index, line] of text.split('\n').entries()) {
+                // **Both of these were strings, not regular expressions**, so
+                // neither one ever matched anything: `replaceAll('//.*', '')`
+                // searches for the five literal characters `//.*`, which no line
+                // of TypeScript contains.
+                //
+                // It hid in plain sight for as long as this guard existed, because
+                // no production file happened to contain the pattern outside code —
+                // and a comment *describing* the mistake was enough to trip it. The
+                // first version of the holdout writer wrote down what it had done
+                // wrong (`error.message.includes('holdout_verdict_pkey')`) and was
+                // reported for it, which is the guard working against the thing it
+                // exists to protect.
+                //
+                // A comment cannot inspect a message at runtime, so stripping them
+                // is what the guard meant all along.
                 const code = line
-                    .replaceAll('//.*', '')
+                    .replace(/\/\/.*$/, '')
                     .replaceAll(/\/\*.*?\*\//g, '');
 
                 // The only sanctioned ways to ask a question about a message.
