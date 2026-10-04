@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 
 import { instrumentPayload, instrumentsPayload } from '../controllers/instruments.controller.js';
 import { getAnalysis } from '../controllers/analysis.controller.js';
+import { getMarket } from '../controllers/market.controller.js';
 import { InstrumentProblemSchema } from '../schemas.js';
 import { sendWithEtag } from '../lib/conditional-get.js';
 import { setDataFreshnessHeaders } from '../lib/data-freshness.js';
@@ -58,6 +59,15 @@ export async function instrumentRoutes(app: FastifyInstance): Promise<void> {
         return sendWithEtag(request, reply, result.payload, {
             volatileFields: ['timestamp'],
         });
+    });
+
+    app.get('/api/instruments/:ticker/market', async (request, reply) => {
+        const { ticker } = request.params as { ticker: string };
+        const result = await getMarket(ticker.trim().toUpperCase());
+
+        setDataFreshnessHeaders(reply, result);
+
+        return sendWithEtag(request, reply, result.payload);
     });
 
     app.get('/api/instruments/:ticker', async (request, reply) => {

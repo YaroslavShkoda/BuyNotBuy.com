@@ -9,8 +9,14 @@ interface MarketResponse {
     candles: Candle[];
 }
 
-export async function getMarket(): Promise<MarketResponse> {
-    return fetchJson<MarketResponse>(
-        `${process.env.BACKEND_URL}/api/market`,
-    );
+export function marketUrl(instrument?: string): string {
+    const base = process.env.BACKEND_URL;
+
+    return instrument === undefined
+        ? `${base}/api/market`
+        : `${base}/api/instruments/${encodeURIComponent(instrument)}/market`;
+}
+
+export async function getMarket(instrument?: string): Promise<MarketResponse> {
+    return fetchJson<MarketResponse>(marketUrl(instrument));
 }

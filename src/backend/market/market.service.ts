@@ -142,7 +142,9 @@ function countCacheEvent(name: string, market: string): void {
     registry.counter(name, 1, { market });
 }
 
-export async function getMarketData(request?: MarketRequest): Promise<MarketDataResult> {
+export async function getMarketData(
+    request?: { instrument?: string | undefined; interval?: string | undefined },
+): Promise<MarketDataResult> {
     const wanted = resolveRequest(request);
     const key = marketKey(wanted);
     const cached = cache.get(key) ?? null;

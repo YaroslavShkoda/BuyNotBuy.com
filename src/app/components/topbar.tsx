@@ -1,4 +1,7 @@
+import Link from 'next/link';
 import Image from 'next/image';
+
+import { getAssetInfo } from '../lib/assets';
 
 export function formatUpdatedAt(timestamp: number, now: Date = new Date()): string {
     // Guard against zero/negative timestamps: they would render a misleading
@@ -23,11 +26,25 @@ export function formatUpdatedAt(timestamp: number, now: Date = new Date()): stri
         });
 }
 
-interface TopbarProps {
-    updatedAt: number;
+export interface TopbarMarketLink {
+    ticker: string;
+    href: string;
+    active: boolean;
 }
 
-export function Topbar({ updatedAt }: TopbarProps) {
+interface TopbarProps {
+    updatedAt: number;
+    /** Symbol the current page is about; names the terminal subtitle. */
+    assetName?: string;
+    /** Active instruments for the switcher; absent when the registry is unreachable. */
+    markets?: TopbarMarketLink[];
+}
+
+export function Topbar({ updatedAt, assetName, markets = [] }: TopbarProps) {
+    const subject = assetName === undefined
+        ? 'BITCOIN'
+        : getAssetInfo(assetName).name.toUpperCase();
+
     return (
         <header className="topbar">
             <div className="topbar-brand">
@@ -44,7 +61,7 @@ export function Topbar({ updatedAt }: TopbarProps) {
                 <div className="topbar-brand-copy">
                     <span className="topbar-name">BuyNotBuy</span>
                     <span className="topbar-subtitle">
-                        BITCOIN INTELLIGENCE TERMINAL
+                        {subject} INTELLIGENCE TERMINAL
                     </span>
                 </div>
             </div>
@@ -55,6 +72,24 @@ export function Topbar({ updatedAt }: TopbarProps) {
                 as a second quote. What is left is the brand and the only thing
                 the bar says that the hero does not: how fresh the data is. */}
             <div className="topbar-market">
+                {markets.length > 0 && (
+                    <nav className="topbar-markets" aria-label="Рынки">
+                        {markets.map((market) => (
+                            <Link
+                                key={market.ticker}
+                                href={market.href}
+                                className={
+                                    market.active
+                                        ? 'topbar-market-link is-active'
+                                        : 'topbar-market-link'
+                                }
+                                aria-current={market.active ? 'page' : undefined}
+                            >
+                                {market.ticker}
+                            </Link>
+                        ))}
+                    </nav>
+                )}
                 <span className="topbar-updated">
                     <span className="topbar-updated-dot" />
                     ОБНОВЛЕНО {formatUpdatedAt(updatedAt)}
