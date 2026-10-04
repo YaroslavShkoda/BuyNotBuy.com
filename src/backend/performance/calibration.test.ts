@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
+import { describe, expect, it } from 'vitest';
 
 import { calibrate, reliability, UNMEASURED } from './calibration.js';
 import { PerformanceConfigParser } from './performance.config.js';

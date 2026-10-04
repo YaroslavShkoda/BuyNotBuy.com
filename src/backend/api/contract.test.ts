@@ -1,9 +1,7 @@
 import Fastify from 'fastify';
-import { currentCandles } from '../test-support/candles.js';
-
 import { describe, expect, it, vi } from 'vitest';
-
 import { requiredCandleCount } from '../config/indicator.config.js';
+import { currentCandles } from '../test-support/candles.js';
 
 const { mockMarketDataProvider, mockAnyProviderAvailable } = vi.hoisted(() => {
     const base = {

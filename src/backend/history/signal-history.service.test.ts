@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { mockRepository } = vi.hoisted(() => ({
     // Both repository methods are promises: the driver is asynchronous now, so
@@ -21,9 +21,9 @@ vi.mock('./signal-history.repository.js', () => ({
     getSignalHistoryRepository: () => mockRepository,
 }));
 
-import { getSignalHistory, getSignalHistoryBacklogSize, recordSignalHistory, flushSignalHistoryBacklog, summarizeHistory } from './signal-history.service.js';
 
 import { marketConfig } from '../config/market.config.js';
+import { flushSignalHistoryBacklog, getSignalHistory, getSignalHistoryBacklogSize, recordSignalHistory, summarizeHistory } from './signal-history.service.js';
 
 import type { SignalHistoryEntry } from './signal-history.types.js';
 

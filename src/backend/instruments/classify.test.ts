@@ -1,10 +1,10 @@
-import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
+import { describe, expect, it } from 'vitest';
 
 import {
-    MINIMUM_WINDOW_MS,
     classifyByTradingWeek,
     describeClassification,
+    MINIMUM_WINDOW_MS,
 } from './classify.js';
 
 const DAY = 86_400_000;

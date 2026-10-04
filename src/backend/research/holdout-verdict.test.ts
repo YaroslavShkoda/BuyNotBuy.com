@@ -1,18 +1,15 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-
-import {
-    readSealedHoldoutVerdict,
-    sealHoldoutVerdict,
-} from './holdout-verdict.js';
-import { HOLDOUT_COMMITTED_AT, HOLDOUT_MINIMUM_BARS } from './holdout.js';
-
 import { getTestPool, truncateSignalTables } from '../test-support/test-database.js';
-
+import { HOLDOUT_COMMITTED_AT, HOLDOUT_MINIMUM_BARS } from './holdout.js';
 import type {
     HoldoutProtocol,
     MetricReadings,
     Verdict,
 } from './holdout-protocol.js';
+import {
+    readSealedHoldoutVerdict,
+    sealHoldoutVerdict,
+} from './holdout-verdict.js';
 
 /**
  * The writer, which was the missing half of a lock that was already built.

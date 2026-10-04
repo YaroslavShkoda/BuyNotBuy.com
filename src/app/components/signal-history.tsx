@@ -1,7 +1,7 @@
 ﻿import type { IndicatorSignal } from '../types/analysis';
 import type { SignalHistoryEntry, SignalHistoryResponse } from '../types/history';
-import { formatUpdatedAt } from './topbar';
 import { HistorySummary } from './history-summary';
+import { formatUpdatedAt } from './topbar';
 
 export interface SignalHistoryRow {
     id: number;

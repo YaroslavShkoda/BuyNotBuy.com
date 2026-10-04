@@ -1,12 +1,10 @@
 import { describe, expect, it } from 'vitest';
-
+import type { HistorySummary } from '../types/history';
 import {
     formatDurationHours,
     getChangesWindowLabel,
     isValidSummary,
 } from './history-summary';
-
-import type { HistorySummary } from '../types/history';
 
 function makeSummary(overrides: Partial<HistorySummary> = {}): HistorySummary {
     return {

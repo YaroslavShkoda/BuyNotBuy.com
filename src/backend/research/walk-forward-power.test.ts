@@ -1,15 +1,13 @@
 import { describe, expect, it } from 'vitest';
-
-import {
-    EXPOSURE_TOLERANCE,
-    SIGNIFICANCE_LEVEL,
-    compareAgainstCoins,
-    measureExposure,
-} from './walk-forward-power.js';
-
-import type { RuleProfile } from './walk-forward-power.js';
-import type { Strategy } from './strategies.js';
 import type { Candle } from '../types/market.js';
+import type { Strategy } from './strategies.js';
+import type { RuleProfile } from './walk-forward-power.js';
+import {
+    compareAgainstCoins,
+    EXPOSURE_TOLERANCE,
+    measureExposure,
+    SIGNIFICANCE_LEVEL,
+} from './walk-forward-power.js';
 
 const day = 86_400_000;
 const base = Date.UTC(2021, 0, 1);

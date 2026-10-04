@@ -1,15 +1,13 @@
-import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
-
-import { analyzeMarket } from './analysis.service.js';
-import * as marketService from '../market/market.service.js';
-import { freshMarketData } from '../test-support/market-data-result.js';
-import { marketData } from '../test-support/market-data.js';
-import { MarketDataError } from '../errors/market-data.error.js';
-import * as historyRepository from '../history/signal-history.repository.js';
-
-import type { SignalHistoryRepository } from '../history/signal-history.repository.js';
-import type { SignalHistoryEntry } from '../history/signal-history.types.js';
 import type { MockInstance } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { MarketDataError } from '../errors/market-data.error.js';
+import type { SignalHistoryRepository } from '../history/signal-history.repository.js';
+import * as historyRepository from '../history/signal-history.repository.js';
+import type { SignalHistoryEntry } from '../history/signal-history.types.js';
+import * as marketService from '../market/market.service.js';
+import { marketData } from '../test-support/market-data.js';
+import { freshMarketData } from '../test-support/market-data-result.js';
+import { analyzeMarket } from './analysis.service.js';
 
 const marketDataFixture = marketData(
     Array.from(

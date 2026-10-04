@@ -1,15 +1,13 @@
 import { z } from 'zod';
-
+import type { MetricConfig } from './metrics.js';
 import {
-    METRIC_COUNTERS,
-    METRIC_GAUGES,
-    METRIC_DISTRIBUTIONS,
-    metricKind,
     DEFAULT_METRIC_CONFIG,
+    METRIC_COUNTERS,
+    METRIC_DISTRIBUTIONS,
+    METRIC_GAUGES,
+    metricKind,
     Reservoir,
 } from './metrics.js';
-
-import type { MetricConfig } from './metrics.js';
 
 /**
  * The metrics the roadmap named, kept apart by kind, and rendered.

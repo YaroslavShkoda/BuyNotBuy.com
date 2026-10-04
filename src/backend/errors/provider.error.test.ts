@@ -1,13 +1,11 @@
 import { describe, expect, it } from 'vitest';
-
+import { MarketDataError } from './market-data.error.js';
+import type { ProviderFailureKind } from './provider.error.js';
 import {
-    ProviderError,
     isSelfInflicted,
+    ProviderError,
     statusForKind,
 } from './provider.error.js';
-import { MarketDataError } from './market-data.error.js';
-
-import type { ProviderFailureKind } from './provider.error.js';
 
 const KINDS: ProviderFailureKind[] = [
     'unavailable',

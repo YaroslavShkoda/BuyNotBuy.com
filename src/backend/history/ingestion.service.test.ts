@@ -1,18 +1,16 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
-
 import { readdirSync, readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import '../test-support/test-database.js';
 
-import { configuredSeries, ingestOnce } from './ingestion.service.js';
-import { startIngestionScheduler } from '../services/ingestion.scheduler.js';
-import { createCandleRepository } from './candle.repository.js';
-
-import type { PollerLogger } from '../services/poller.js';
-import type { CandleSeriesKey } from './candle.repository.js';
 import type { MarketDataProvider } from '../market/providers/market-data.provider.js';
+import { startIngestionScheduler } from '../services/ingestion.scheduler.js';
+import type { PollerLogger } from '../services/poller.js';
 import type { Candle } from '../types/market.js';
+import type { CandleSeriesKey } from './candle.repository.js';
+import { createCandleRepository } from './candle.repository.js';
+import { configuredSeries, ingestOnce } from './ingestion.service.js';
 
 /**
  * The table is the reference every later measurement is taken against, so what

@@ -6,9 +6,8 @@ import {
     latest,
     smaSeries,
 } from './series.js';
-import { NEUTRAL_DECISION } from './types.js';
-
 import type { StrategyContext, StrategyDecision, StrategyModule } from './types.js';
+import { NEUTRAL_DECISION } from './types.js';
 
 /**
  * The rule the backtest chose, and then stopped supporting.

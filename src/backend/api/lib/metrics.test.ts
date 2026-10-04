@@ -1,5 +1,5 @@
+import type { FastifyReply, FastifyRequest } from 'fastify';
 import { afterEach, describe, expect, it } from 'vitest';
-
 import {
     getMetricsSnapshot,
     recordRequestFinished,
@@ -7,8 +7,6 @@ import {
     renderMetrics,
     resetMetrics,
 } from './metrics.js';
-
-import type { FastifyReply, FastifyRequest } from 'fastify';
 
 function fakeRequest(pattern: string | undefined): FastifyRequest {
     return {

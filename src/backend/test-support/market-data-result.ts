@@ -1,5 +1,5 @@
-import type { MarketData } from '../types/market.js';
 import type { MarketDataResult } from '../market/market.service.js';
+import type { MarketData } from '../types/market.js';
 
 import { marketDataResult } from './market-data.js';
 

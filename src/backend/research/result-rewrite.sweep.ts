@@ -18,11 +18,12 @@
  * over a pending record is correct, and a bare clause over a settled one is the
  * thing rule 3 is about.
  */
-import ts from 'typescript-5';
+
 
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import ts from 'typescript-5';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 

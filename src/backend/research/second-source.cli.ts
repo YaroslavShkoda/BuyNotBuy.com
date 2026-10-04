@@ -6,15 +6,14 @@
 
 import { EXECUTION_CONFIG } from '../backtest/execution.js';
 import { createDonchian } from '../strategies/donchian.js';
-import { createDonchianTrendGated } from '../strategies/donchian-trend-gated.js';
 import { createDonchianCalmGated } from '../strategies/donchian-calm-gated.js';
-import { createVolatilityTrend } from '../strategies/volatility-trend.js';
-import { fromModule, runStrategy } from './strategies.js';
-import { compareSources, overlap, pValueOnBoth } from './second-source.js';
-import { loadDaily } from './threshold-null.js';
-
+import { createDonchianTrendGated } from '../strategies/donchian-trend-gated.js';
 import type { StrategyModule } from '../strategies/types.js';
+import { createVolatilityTrend } from '../strategies/volatility-trend.js';
 import type { Candle } from '../types/market.js';
+import { compareSources, overlap, pValueOnBoth } from './second-source.js';
+import { fromModule, runStrategy } from './strategies.js';
+import { loadDaily } from './threshold-null.js';
 
 const pct = (value: number): string => `${(value * 100).toFixed(2)}%`;
 const date = (ms: number): string => new Date(ms).toISOString().slice(0, 10);

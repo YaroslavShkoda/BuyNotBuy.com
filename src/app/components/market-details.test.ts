@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest';
-
-import { describeDivergence, getStochasticZone } from './market-details';
-
 import type { DivergenceAnalysis } from '../types/analysis';
+import { describeDivergence, getStochasticZone } from './market-details';
 
 describe('stochastic zone presentation', () => {
     it('marks overbought and oversold zones', () => {

@@ -1,9 +1,7 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { MarketDataError } from '../errors/market-data.error.js';
 import { currentCandles } from '../test-support/candles.js';
 import { marketData } from '../test-support/market-data.js';
-
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-
-import { MarketDataError } from '../errors/market-data.error.js';
 import { freshMarketData } from '../test-support/market-data-result.js';
 
 import {
@@ -50,8 +48,8 @@ vi.mock('../history/signal-history.service.js', () => ({
 }));
 
 import { createApp } from '../app.js';
-import { resetMarketDataCache } from '../market/market.service.js';
 import { marketConfig } from '../config/market.config.js';
+import { resetMarketDataCache } from '../market/market.service.js';
 
 describe('runtime reliability & lifecycle (task 8)', () => {
     beforeEach(() => {

@@ -39,10 +39,10 @@ vi.mock('./market.provider.js', () => ({
     activeMarketVenue: vi.fn(() => 'binance'),
 }));
 
-import { assertCandleSeries } from './candle-validation.js';
-import { getMarketData, resetMarketDataCache } from './market.service.js';
 
 import type { Candle } from '../types/market.js';
+import { assertCandleSeries } from './candle-validation.js';
+import { getMarketData, resetMarketDataCache } from './market.service.js';
 
 const HOUR_MS = 3_600_000;
 const NOW = Date.now();

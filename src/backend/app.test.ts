@@ -1,8 +1,7 @@
-import { describe, expect, it, beforeEach, vi } from 'vitest';
-
-import { MarketDataError } from './errors/market-data.error.js';
-import { marketConfig } from './config/market.config.js';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { requiredCandleCount } from './config/indicator.config.js';
+import { marketConfig } from './config/market.config.js';
+import { MarketDataError } from './errors/market-data.error.js';
 import { currentCandles } from './test-support/candles.js';
 
 const { mockMarketDataProvider, mockAnyProviderAvailable } = vi.hoisted(() => {

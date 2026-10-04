@@ -1,6 +1,5 @@
-import { outcomeConfig } from '../config/outcome.config.js';
-
 import type { OutcomeConfig } from '../config/outcome.config.js';
+import { outcomeConfig } from '../config/outcome.config.js';
 import type { Candle } from '../types/market.js';
 
 /**

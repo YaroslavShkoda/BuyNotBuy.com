@@ -1,11 +1,9 @@
-import { describe, expect, it, beforeEach } from 'vitest';
-
-import { createOutcomeRepository } from './outcome.repository.js';
-import { getTestPool, truncateSignalTables } from '../test-support/test-database.js';
-
-import type { OutcomeRepository, SettleInput } from './outcome.repository.js';
-import type { Candle } from '../types/market.js';
 import type { Pool } from 'pg';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { getTestPool, truncateSignalTables } from '../test-support/test-database.js';
+import type { Candle } from '../types/market.js';
+import type { OutcomeRepository, SettleInput } from './outcome.repository.js';
+import { createOutcomeRepository } from './outcome.repository.js';
 
 const HOUR = 3_600_000;
 const BASE = 1_700_000_000_000;

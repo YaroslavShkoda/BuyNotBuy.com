@@ -1,8 +1,6 @@
-import { describe, expect, it } from 'vitest';
-
-import { applyCorsHeadersFor } from './cors.js';
-
 import type { FastifyReply, FastifyRequest } from 'fastify';
+import { describe, expect, it } from 'vitest';
+import { applyCorsHeadersFor } from './cors.js';
 
 type Headers = Record<string, string>;
 

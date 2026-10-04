@@ -1,5 +1,5 @@
-import { marketConfig } from '../config/market.config.js';
 import { describe, expect, it } from 'vitest';
+import { marketConfig } from '../config/market.config.js';
 
 import { createSignalHistoryRepository } from './signal-history.repository.js';
 

@@ -1,19 +1,15 @@
-import { getIndicatorVoteRepository } from './indicator-vote.repository.js';
-import { FORWARD_HORIZON_NAMES, FORWARD_HORIZONS } from './indicator-performance.types.js';
 import { historyConfig } from '../../config/history.config.js';
-import {
-    createBoundedWriteBuffer,
-    createFlushGuard,
-} from '../../observability/bounded-write-buffer.js';
-
 import type {
     BacklogState,
     BacklogStateByMarket,
 } from '../../observability/bounded-write-buffer.js';
-import type { SignalDirection } from '../../types/direction.js';
-import type { IndicatorVoteRepository } from './indicator-vote.repository.js';
-import type { Candle } from '../../types/market.js';
+import {
+    createBoundedWriteBuffer,
+    createFlushGuard,
+} from '../../observability/bounded-write-buffer.js';
 import type { MarketAnalysis } from '../../types/analysis.js';
+import type { SignalDirection } from '../../types/direction.js';
+import type { Candle } from '../../types/market.js';
 import type {
     ForwardHorizon,
     IndicatorLogger,
@@ -21,6 +17,9 @@ import type {
     IndicatorVote,
     SettleUpdate,
 } from './indicator-performance.types.js';
+import { FORWARD_HORIZON_NAMES, FORWARD_HORIZONS } from './indicator-performance.types.js';
+import type { IndicatorVoteRepository } from './indicator-vote.repository.js';
+import { getIndicatorVoteRepository } from './indicator-vote.repository.js';
 
 const HOUR_MS = 3_600_000;
 

@@ -1,8 +1,7 @@
 import { marketConfig } from '../config/market.config.js';
-
-import type { MarketData } from '../types/market.js';
-import type { MarketFreshness } from '../market/market-freshness.js';
 import type { MarketDataResult } from '../market/market.service.js';
+import type { MarketFreshness } from '../market/market-freshness.js';
+import type { MarketData } from '../types/market.js';
 
 /**
  * A complete `MarketData`, so a test never has to remember the envelope.

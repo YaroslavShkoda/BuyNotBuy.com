@@ -2,13 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import '../test-support/test-database.js';
 
-import { ingestOnce } from './ingestion.service.js';
-import { createCandleRepository } from './candle.repository.js';
+import type { MarketDataProvider } from '../market/providers/market-data.provider.js';
 import { getTestPool, truncateSignalTables } from '../test-support/test-database.js';
+import type { Candle } from '../types/market.js';
 
 import type { CandleSeriesKey } from './candle.repository.js';
-import type { MarketDataProvider } from '../market/providers/market-data.provider.js';
-import type { Candle } from '../types/market.js';
+import { createCandleRepository } from './candle.repository.js';
+import { ingestOnce } from './ingestion.service.js';
 
 const HOUR = 3_600_000;
 /** Aligned to the hour, because a venue labels a bar by its opening instant. */

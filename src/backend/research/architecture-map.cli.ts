@@ -9,13 +9,13 @@
  * so nobody later mistakes a generated section for a decided one.
  */
 
-import { LAYERS, UNIVERSAL, UNPLACED, summarise } from './dependency-graph.js';
-import { audit } from './architecture-lint.js';
-import { MIGRATIONS } from '../db/migrations.js';
 
-import { readFileSync, readdirSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
+import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { MIGRATIONS } from '../db/migrations.js';
+import { audit } from './architecture-lint.js';
+import { LAYERS, summarise, UNIVERSAL, UNPLACED } from './dependency-graph.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..');

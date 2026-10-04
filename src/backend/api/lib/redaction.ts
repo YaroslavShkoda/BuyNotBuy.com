@@ -1,6 +1,5 @@
-import { observabilityConfig } from '../../config/observability.config.js';
-
 import type { FastifyRequest } from 'fastify';
+import { observabilityConfig } from '../../config/observability.config.js';
 
 /**
  * Key names whose values are replaced before anything is written to a log.

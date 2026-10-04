@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
-
+import { describe, expect, it } from 'vitest';
+import type { Candle } from '../types/market.js';
 import {
     atrSeries,
     breakoutStrength,
@@ -8,13 +8,11 @@ import {
     isReady,
     latest,
     priorRolling,
-    rsiSeries,
     rollingMax,
     rollingMin,
+    rsiSeries,
     smaSeries,
 } from './series.js';
-
-import type { Candle } from '../types/market.js';
 
 /**
  * Properties, not examples.

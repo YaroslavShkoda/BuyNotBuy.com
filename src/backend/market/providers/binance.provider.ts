@@ -1,15 +1,11 @@
 import { z } from 'zod';
-
+import { MAX_CANDLE_LIMIT, marketConfig } from '../../config/market.config.js';
+import { MarketDataError } from '../../errors/market-data.error.js';
+import { ProviderError } from '../../errors/provider.error.js';
 import type {
     AssetPrice,
     Candle,
 } from '../../types/market.js';
-
-import { MarketDataError } from '../../errors/market-data.error.js';
-import { ProviderError } from '../../errors/provider.error.js';
-
-import { marketConfig } from '../../config/market.config.js';
-import { MAX_CANDLE_LIMIT } from '../../config/market.config.js';
 import { sendBinanceRequest } from './binance-http.js';
 
 import type { MarketDataProvider, ProviderCandles } from './market-data.provider.js';

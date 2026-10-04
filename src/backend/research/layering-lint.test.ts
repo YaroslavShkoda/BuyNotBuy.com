@@ -1,17 +1,15 @@
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-
 import {
-    DATABASE_ACCESSORS,
-    EXEMPT,
     audit,
+    DATABASE_ACCESSORS,
     databaseImports,
     dataLayerOf,
+    EXEMPT,
     isSeam,
     listSources,
 } from './layering-lint.js';
-
-import { fileURLToPath } from 'node:url';
-import { dirname, resolve } from 'node:path';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const realRoot = resolve(here, '..');

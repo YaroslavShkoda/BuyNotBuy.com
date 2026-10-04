@@ -1,10 +1,8 @@
-import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
-
-import { cooldownBlocks, decideNext } from './lifecycle.js';
-import { LifecycleConfigParser, lifecycleConfig } from '../config/lifecycle.config.js';
-
+import { describe, expect, it } from 'vitest';
 import type { LifecycleConfig } from '../config/lifecycle.config.js';
+import { LifecycleConfigParser, lifecycleConfig } from '../config/lifecycle.config.js';
+import { cooldownBlocks, decideNext } from './lifecycle.js';
 
 const HOUR = 3_600_000;
 const BASE = 1_699_999_200_000;

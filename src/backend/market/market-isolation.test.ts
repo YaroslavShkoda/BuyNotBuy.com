@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
 import fc from 'fast-check';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * Cross-market isolation.
@@ -80,9 +80,9 @@ vi.mock('./market.provider.js', () => ({
     marketDataProvider: { name: 'binance' },
 }));
 
-import { getMarketData, marketKey, resetMarketDataCache } from './market.service.js';
 
 import { marketConfig } from '../config/market.config.js';
+import { getMarketData, marketKey, resetMarketDataCache } from './market.service.js';
 
 beforeEach(() => {
     resetMarketDataCache();

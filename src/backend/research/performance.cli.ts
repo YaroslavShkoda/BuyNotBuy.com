@@ -20,16 +20,15 @@
  * two signals.
  */
 
-import { performanceConfig } from '../performance/performance.config.js';
-import { computeMetrics } from '../performance/performance.js';
-import { calibrate, reliability } from '../performance/calibration.js';
-import { byRegime } from '../performance/regime-performance.js';
-import { loadMeasuredSignals } from '../performance/performance-load.repository.js';
-import { toPerformanceSamples, type HorizonSelector } from '../performance/samples.js';
-
-import { closePool } from '../db/pool.js';
 
 import { marketConfig } from '../config/market.config.js';
+import { closePool } from '../db/pool.js';
+import { calibrate, reliability } from '../performance/calibration.js';
+import { performanceConfig } from '../performance/performance.config.js';
+import { computeMetrics } from '../performance/performance.js';
+import { loadMeasuredSignals } from '../performance/performance-load.repository.js';
+import { byRegime } from '../performance/regime-performance.js';
+import { type HorizonSelector, toPerformanceSamples } from '../performance/samples.js';
 
 interface Options {
     readonly symbol: string;

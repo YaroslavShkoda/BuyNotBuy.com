@@ -1,19 +1,17 @@
-import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
-
-import {
-    extractFeatures,
-    extractFeatureSeries,
-    featureVersion,
-    requiredBarsForFeatures,
-    regimeLevel,
-    REGIME_LEVELS,
-    FEATURE_NAMES,
-    DEFAULT_FEATURE_CONFIG,
-    FeatureVectorSchema,
-} from './features.js';
-
+import { describe, expect, it } from 'vitest';
 import type { Candle } from '../types/market.js';
+import {
+    DEFAULT_FEATURE_CONFIG,
+    extractFeatureSeries,
+    extractFeatures,
+    FEATURE_NAMES,
+    FeatureVectorSchema,
+    featureVersion,
+    REGIME_LEVELS,
+    regimeLevel,
+    requiredBarsForFeatures,
+} from './features.js';
 
 const HOUR = 3_600_000;
 

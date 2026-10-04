@@ -1,19 +1,18 @@
-import { describe, expect, it, beforeEach } from 'vitest';
 import fc from 'fast-check';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 import { getTestPool, truncateSignalTables } from '../test-support/test-database.js';
 import { applyMigrations } from './migrations.js';
+import type { PruneResult, RetentionPolicy } from './retention.js';
 import {
-    RetentionPolicySchema,
-    DEFAULT_RETENTION_POLICIES,
-    planPrune,
-    describeTable,
     cutoffFor,
+    DEFAULT_RETENTION_POLICIES,
+    describeTable,
+    planPrune,
+    RetentionPolicySchema,
     report,
 } from './retention.js';
-import { createRetentionStore, createIndexAuditStore, INDEX_PURPOSES } from './retention.store.js';
-
-import type { RetentionPolicy, PruneResult } from './retention.js';
+import { createIndexAuditStore, createRetentionStore, INDEX_PURPOSES } from './retention.store.js';
 
 const NOW = 1_750_000_000_000;
 const DAY = 86_400_000;

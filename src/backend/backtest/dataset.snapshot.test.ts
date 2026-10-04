@@ -1,15 +1,13 @@
 import { describe, expect, it } from 'vitest';
-
-import {
-    checksumCandles,
-    describeDataset,
-    sameCandles,
-    diffCandles,
-} from './dataset.js';
-
 import { inputFingerprint } from '../analysis/signal-snapshot.repository.js';
 import { hashValue } from '../config/strategy-fingerprint.js';
 import type { Candle } from '../types/market.js';
+import {
+    checksumCandles,
+    describeDataset,
+    diffCandles,
+    sameCandles,
+} from './dataset.js';
 
 const NOW = 1_700_000_000_000;
 

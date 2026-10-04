@@ -1,13 +1,10 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-
-import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
-
-import { extractFeatures, extractFeatureSeries, requiredBarsForFeatures, DEFAULT_FEATURE_CONFIG } from './features.js';
-import { buildDataset, datasetChecksum, splitByTime, summarize } from './dataset.js';
-
+import { describe, expect, it } from 'vitest';
 import type { Candle } from '../types/market.js';
+import { buildDataset, datasetChecksum, splitByTime, summarize } from './dataset.js';
+import { DEFAULT_FEATURE_CONFIG, extractFeatureSeries, extractFeatures, requiredBarsForFeatures } from './features.js';
 
 /**
  * The suite's only real market data.

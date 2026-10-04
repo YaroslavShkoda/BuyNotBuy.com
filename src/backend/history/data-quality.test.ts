@@ -1,15 +1,12 @@
-import { describe, expect, it } from 'vitest';
-
 import fc from 'fast-check';
-
+import { describe, expect, it } from 'vitest';
+import type { Candle } from '../types/market.js';
 import {
     assessDataQuality,
+    DEFAULT_REQUIRED_BARS,
     describeSeries,
     qualityFloor,
-    DEFAULT_REQUIRED_BARS,
 } from './data-quality.js';
-
-import type { Candle } from '../types/market.js';
 
 const HOUR = 3_600_000;
 const BOUNDARY = 1_699_999_200_000;

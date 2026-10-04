@@ -16,11 +16,12 @@
  * where the parameter's name or the function's own documentation says the
  * parameter is what makes the check possible.
  */
-import ts from 'typescript-5';
+
 
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import ts from 'typescript-5';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 

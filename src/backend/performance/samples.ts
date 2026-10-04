@@ -21,10 +21,10 @@
  * horizon it never ran.
  */
 
+import type { HorizonOutcome, SignalOutcome } from '../outcomes/outcome.js';
 import type {
     PerformanceSample,
 } from './performance.js';
-import type { HorizonOutcome, SignalOutcome } from '../outcomes/outcome.js';
 
 /**
  * A horizon, and whether its window had closed by the moment asked.

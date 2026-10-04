@@ -1,9 +1,8 @@
 import { z } from 'zod';
-
-import { FEATURE_NAMES, featureVersion, DEFAULT_FEATURE_CONFIG } from './features.js';
-
-import type { FeatureName, FeatureVector, FeatureConfig } from './features.js';
 import type { Candle } from '../types/market.js';
+
+import type { FeatureConfig, FeatureName, FeatureVector } from './features.js';
+import { DEFAULT_FEATURE_CONFIG, FEATURE_NAMES, featureVersion } from './features.js';
 
 /**
  * History turned into rows a model can be trained on, and the three ways that

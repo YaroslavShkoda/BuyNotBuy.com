@@ -1,12 +1,11 @@
-import { decideNext } from './lifecycle.js';
-import { signalLifecycleRepository } from './lifecycle.repository.js';
-
 import type { LiveSignal, SignalCandidate } from './lifecycle.js';
+import { decideNext } from './lifecycle.js';
 import type {
     SeriesKey,
     SignalLifecycleRepository,
     SignalStateRow,
 } from './lifecycle.repository.js';
+import { signalLifecycleRepository } from './lifecycle.repository.js';
 
 /**
  * Puts the panel's opinion into the lifecycle, and is the other half of what

@@ -1,14 +1,11 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-
+import { getTestPool, truncateSignalTables } from '../test-support/test-database.js';
+import type { Promotion } from './candidate.repository.js';
 import {
     CANDIDATE_STAGES,
     canTransition,
     createStrategyRuleRepository,
 } from './candidate.repository.js';
-
-import { getTestPool, truncateSignalTables } from '../test-support/test-database.js';
-
-import type { Promotion } from './candidate.repository.js';
 
 const NOW = 1_760_000_000_000;
 

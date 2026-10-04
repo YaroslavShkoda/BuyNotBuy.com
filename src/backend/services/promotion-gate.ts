@@ -1,7 +1,7 @@
-import { createEvidenceReader } from '../lifecycle/evidence.repository.js';
-import { DEFAULT_PROMOTION_CONFIG, evaluateShadow } from '../lifecycle/promotion.config.js';
 import { getStrategyVersionRepository } from '../analysis/strategy-version.repository.js';
 import { marketConfig } from '../config/market.config.js';
+import { createEvidenceReader } from '../lifecycle/evidence.repository.js';
+import { DEFAULT_PROMOTION_CONFIG, evaluateShadow } from '../lifecycle/promotion.config.js';
 
 import type { PromotionGate } from '../strategies/candidate.repository.js';
 

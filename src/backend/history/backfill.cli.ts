@@ -14,10 +14,10 @@
  * measurement made from them looking like ordinary history.
  */
 
-import { runBackfill } from './backfill.service.js';
-import { describeBackfill } from './backfill.report.js';
-import { configuredSeries } from './ingestion.service.js';
 import { marketConfig } from '../config/market.config.js';
+import { describeBackfill } from './backfill.report.js';
+import { runBackfill } from './backfill.service.js';
+import { configuredSeries } from './ingestion.service.js';
 
 function integerEnv(name: string): number | undefined {
     const raw = process.env[name];

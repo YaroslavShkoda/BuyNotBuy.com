@@ -2,13 +2,12 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import '../../test-support/test-database.js';
 
-import { createIndicatorVoteRepository } from './indicator-vote.repository.js';
 import {
     getTestPool,
     truncateSignalTables,
 } from '../../test-support/test-database.js';
-
 import type { IndicatorVote } from './indicator-performance.types.js';
+import { createIndicatorVoteRepository } from './indicator-vote.repository.js';
 
 const HOUR = 3_600_000;
 const BASE = 1_700_000_000_000;

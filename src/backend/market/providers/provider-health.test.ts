@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-
+import type { CircuitBreakerState } from './circuit-breaker.js';
 import {
     isProviderAvailable,
     knownProviders,
@@ -10,8 +10,6 @@ import {
     recordProviderSuccess,
     resetProviderHealth,
 } from './provider-health.js';
-
-import type { CircuitBreakerState } from './circuit-breaker.js';
 
 const NOW = 1_700_000_000_000;
 

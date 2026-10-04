@@ -1,11 +1,10 @@
 import type { FastifyInstance } from 'fastify';
-
-import { instrumentPayload, instrumentsPayload } from '../controllers/instruments.controller.js';
 import { getAnalysis } from '../controllers/analysis.controller.js';
+import { instrumentPayload, instrumentsPayload } from '../controllers/instruments.controller.js';
 import { getMarket } from '../controllers/market.controller.js';
-import { InstrumentProblemSchema } from '../schemas.js';
 import { sendWithEtag } from '../lib/conditional-get.js';
 import { setDataFreshnessHeaders } from '../lib/data-freshness.js';
+import { InstrumentProblemSchema } from '../schemas.js';
 
 /**
  * `/api/instruments`, added alongside the frozen endpoints and in front of

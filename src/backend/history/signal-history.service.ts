@@ -1,21 +1,19 @@
+import { historyConfig } from '../config/history.config.js';
 import { marketConfig } from '../config/market.config.js';
 import { configuredVenueFor } from '../market/market.provider.js';
-import { historyConfig } from '../config/history.config.js';
-
-import { getSignalHistoryRepository } from './signal-history.repository.js';
-import { createSignalHistoryWriteBuffer } from './signal-history.write-buffer.js';
-import { createFlushGuard } from '../observability/bounded-write-buffer.js';
-
 import type {
     BacklogState,
     BacklogStateByMarket,
 } from '../observability/bounded-write-buffer.js';
+import { createFlushGuard } from '../observability/bounded-write-buffer.js';
+import { getSignalHistoryRepository } from './signal-history.repository.js';
 import type {
     SignalHistoryEntry,
     SignalHistoryLastTransition,
     SignalHistoryLogger,
     SignalHistorySummary,
 } from './signal-history.types.js';
+import { createSignalHistoryWriteBuffer } from './signal-history.write-buffer.js';
 
 /**
  * Consecutive failed attempts per buffered entry.

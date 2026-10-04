@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest';
-
-import { EXECUTION_CONFIG, EXECUTION_MODELS, ExecutionConfigParser } from './execution.js';
-
 import type { ExecutionModel } from './execution.js';
+import { EXECUTION_CONFIG, EXECUTION_MODELS, ExecutionConfigParser } from './execution.js';
 
 /**
  * The three execution models, written down twice.

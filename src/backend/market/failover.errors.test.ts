@@ -1,10 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
-
-import { FailoverProvider } from './failover.provider.js';
 import { ProviderError } from '../errors/provider.error.js';
-
-import type { MarketDataProvider, ProviderCandles } from './providers/market-data.provider.js';
 import type { AssetPrice, Candle } from '../types/market.js';
+import { FailoverProvider } from './failover.provider.js';
+import type { MarketDataProvider, ProviderCandles } from './providers/market-data.provider.js';
 
 /**
  * The chain's own failure, and what it tells a caller about the venues.

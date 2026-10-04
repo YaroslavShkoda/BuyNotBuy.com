@@ -1,46 +1,43 @@
-import type { SignalExplanation } from '../signals/explanation.js';
-import type { MarketRequest } from '../market/capability.js';
-import type { MarketAnalysis } from '../types/analysis.js';
-import type { Candle, MarketData } from '../types/market.js';
-import type { MarketIndicators } from '../indicators/indicator.service.js';
-import type { DivergenceAnalysis } from '../indicators/divergence.service.js';
-import type { SignalResult } from '../signals/signal.types.js';
-import { recordPublishedSignal } from '../signals/signal-publication.js';
-import { createKeyedSingleFlight } from '../observability/single-flight.js';
-import { currentRegistry } from '../observability/registry.js';
-
-import { getMarketData, marketKey, resolveRequest } from '../market/market.service.js';
-import { calculateMarketIndicators, toWireIndicators } from '../indicators/indicator.service.js';
-import { calculateSignal } from '../signals/signal.service.js';
-import { calculateMomentumSeries } from '../indicators/momentum-series.js';
-import { analyzeDivergence } from '../indicators/divergence.service.js';
-import { recordSignalHistory } from '../history/signal-history.service.js';
-import { recordIndicatorVotes } from '../indicators/performance/indicator-performance.service.js';
 import { getSignalSnapshotRepository } from '../analysis/signal-snapshot.repository.js';
 import { getStrategyVersionRepository } from '../analysis/strategy-version.repository.js';
-import { createRegistry, readFallbackConfig, resolveSignal } from '../strategies/registry.js';
-import { getDecisionLogRepository } from '../strategies/decision-log.repository.js';
-import { marketConfig } from '../config/market.config.js';
-import { assessDataQuality } from '../history/data-quality.js';
-import { assessRegime } from '../indicators/regime.js';
-import { explainSignal } from '../signals/explanation.js';
 import { consensusConfig } from '../config/consensus.config.js';
 import {
     indicatorConfig,
     signalConfigFor,
 } from '../config/indicator.config.js';
+import { marketConfig } from '../config/market.config.js';
+import { assessDataQuality } from '../history/data-quality.js';
+import { recordSignalHistory } from '../history/signal-history.service.js';
+import type { SignalContext, SignalHistoryLogger } from '../history/signal-history.types.js';
+import type { DivergenceAnalysis } from '../indicators/divergence.service.js';
+import { analyzeDivergence } from '../indicators/divergence.service.js';
+import type { MarketIndicators } from '../indicators/indicator.service.js';
+import { calculateMarketIndicators, toWireIndicators } from '../indicators/indicator.service.js';
+import { calculateMomentumSeries } from '../indicators/momentum-series.js';
+import { recordIndicatorVotes } from '../indicators/performance/indicator-performance.service.js';
+import { assessRegime } from '../indicators/regime.js';
+import type { MarketRequest } from '../market/capability.js';
+import { getMarketData, marketKey, resolveRequest } from '../market/market.service.js';
+import type { MarketFreshness } from '../market/market-freshness.js';
+import { currentRegistry } from '../observability/registry.js';
+import { createKeyedSingleFlight } from '../observability/single-flight.js';
+import type { SignalExplanation } from '../signals/explanation.js';
+import { explainSignal } from '../signals/explanation.js';
+import { calculateSignal } from '../signals/signal.service.js';
+import type { SignalResult } from '../signals/signal.types.js';
+import { recordPublishedSignal } from '../signals/signal-publication.js';
+import { getDecisionLogRepository } from '../strategies/decision-log.repository.js';
+import { createRegistry, readFallbackConfig, resolveSignal } from '../strategies/registry.js';
+import type { MarketAnalysis } from '../types/analysis.js';
+import type { Candle, MarketData } from '../types/market.js';
+import type { AnalysisFailedStage, AnalysisTelemetry, AnalysisTelemetryLogger, FallbackFailureContext } from './analysis.telemetry.js';
 import {
     attachAnalysisErrorContext,
-    readAnalysisErrorContext,
     buildAnalysisTelemetry,
     measureAsync,
     measureSync,
+    readAnalysisErrorContext,
 } from './analysis.telemetry.js';
-
-import type { AnalysisFailedStage, AnalysisTelemetry, AnalysisTelemetryLogger, FallbackFailureContext } from './analysis.telemetry.js';
-import type { MarketFreshness } from '../market/market-freshness.js';
-import type { SignalHistoryLogger } from '../history/signal-history.types.js';
-import type { SignalContext } from '../history/signal-history.types.js';
 
 const MOMENTUM_PERIOD = indicatorConfig.momentumPeriod;
 

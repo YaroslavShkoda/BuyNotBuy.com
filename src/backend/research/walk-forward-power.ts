@@ -55,11 +55,10 @@
  * rule here is separable from coins trading as often as it does.
  */
 
-import { randomLongRule } from './threshold-null.js';
-import { walkForwardStrategy } from './strategy-walk-forward.js';
-
-import type { Strategy } from './strategies.js';
 import type { Candle } from '../types/market.js';
+import type { Strategy } from './strategies.js';
+import { walkForwardStrategy } from './strategy-walk-forward.js';
+import { randomLongRule } from './threshold-null.js';
 
 /**
  * Fraction of matched coins a rule must beat to be called an edge.

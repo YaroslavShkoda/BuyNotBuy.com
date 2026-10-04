@@ -1,9 +1,7 @@
-import { writeFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-
-import { resampleToDaily } from './resample.js';
-
 import type { Candle } from '../types/market.js';
+import { resampleToDaily } from './resample.js';
 
 /**
  * Fetches the series this project measures on, and checks what it fetched.

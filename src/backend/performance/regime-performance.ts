@@ -1,8 +1,7 @@
-import { computeMetrics, groupBy } from './performance.js';
-import { performanceConfig } from './performance.config.js';
-
 import type { PerformanceConfig } from './performance.config.js';
+import { performanceConfig } from './performance.config.js';
 import type { Metrics, PerformanceSample } from './performance.js';
+import { computeMetrics, groupBy } from './performance.js';
 
 /**
  * How the system behaves in each kind of market, rather than on average.

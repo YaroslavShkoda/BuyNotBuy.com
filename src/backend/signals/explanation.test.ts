@@ -1,16 +1,14 @@
-import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
-
-import { explainSignal } from './explanation.js';
+import { describe, expect, it } from 'vitest';
+import type { ConfidenceModel } from '../config/consensus.config.js';
+import { consensusConfig } from '../config/consensus.config.js';
 import {
     calculateConsensus,
     describeSignal,
     partitionPanel,
 } from './consensus.js';
-import { consensusConfig } from '../config/consensus.config.js';
-
+import { explainSignal } from './explanation.js';
 import type { IndicatorAnalysis } from './signal.types.js';
-import type { ConfidenceModel } from '../config/consensus.config.js';
 
 const NAMES = ['A', 'B', 'C'] as const;
 

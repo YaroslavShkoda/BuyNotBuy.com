@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
-
-import { calculateMomentum } from './momentum.js';
 import type { Candle } from '../types/market.js';
+import { calculateMomentum } from './momentum.js';
 
 function createCandle(close: number): Candle {
     return {

@@ -1,7 +1,6 @@
 import { atrSeries, breakoutStrength, isReady, latest, smaSeries } from './series.js';
-import { NEUTRAL_DECISION } from './types.js';
-
 import type { StrategyContext, StrategyDecision, StrategyModule } from './types.js';
+import { NEUTRAL_DECISION } from './types.js';
 
 /**
  * No breakout. Just be long while the market is moving more than it usually does.

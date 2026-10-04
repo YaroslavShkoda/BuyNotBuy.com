@@ -1,5 +1,5 @@
-import type { IndicatorAnalysis, IndicatorKey, IndicatorSignal, MarketAnalysis, SignalResult } from '../types/analysis';
 import { formatMomentumPercent, formatPercent, formatSignedPercent } from '../lib/format-momentum';
+import type { IndicatorAnalysis, IndicatorKey, IndicatorSignal, MarketAnalysis, SignalResult } from '../types/analysis';
 
 type Periods = MarketAnalysis['periods'];
 

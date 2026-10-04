@@ -1,12 +1,10 @@
-import { ProviderError, isSelfInflicted, statusForKind } from '../../errors/provider.error.js';
 import { marketConfig } from '../../config/market.config.js';
-
+import type { ProviderFailureKind } from '../../errors/provider.error.js';
+import { isSelfInflicted, ProviderError, statusForKind } from '../../errors/provider.error.js';
+import type { CircuitBreakerState } from './circuit-breaker.js';
 import { CircuitBreaker } from './circuit-breaker.js';
 import * as health from './provider-health.js';
 import * as telemetry from './provider-telemetry.js';
-
-import type { CircuitBreakerState } from './circuit-breaker.js';
-import type { ProviderFailureKind } from '../../errors/provider.error.js';
 
 
 /**

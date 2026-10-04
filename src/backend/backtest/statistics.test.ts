@@ -1,18 +1,16 @@
-import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
-
+import { describe, expect, it } from 'vitest';
+import type { StatisticsConfig } from './statistics.js';
 import {
     bootstrapStatistic,
-    permutationTest,
+    createRandom,
+    DEFAULT_STATISTICS_CONFIG,
     monteCarlo,
     pathOf,
-    totalReturn,
-    createRandom,
+    permutationTest,
     StatisticsConfigSchema,
-    DEFAULT_STATISTICS_CONFIG,
+    totalReturn,
 } from './statistics.js';
-
-import type { StatisticsConfig } from './statistics.js';
 
 const FAST: StatisticsConfig = StatisticsConfigSchema.parse({
     resamples: 300,

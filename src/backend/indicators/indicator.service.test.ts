@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { calculateMarketIndicators } from './indicator.service.js';
 import { requiredCandleCount } from '../config/indicator.config.js';
 import { marketData } from '../test-support/market-data.js';
 import type { MarketData } from '../types/market.js';
+import { calculateMarketIndicators } from './indicator.service.js';
 
 function risingMarketData(length: number, price = 400): MarketData {
     return marketData(

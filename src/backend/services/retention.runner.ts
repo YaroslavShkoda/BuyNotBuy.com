@@ -1,5 +1,5 @@
-import type { RetentionStore } from '../db/retention.store.js';
 import type { PruneReport } from '../db/retention.js';
+import type { RetentionStore } from '../db/retention.store.js';
 
 /**
  * Retention, on a clock rather than on every cycle.

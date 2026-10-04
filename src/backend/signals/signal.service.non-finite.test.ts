@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest';
-
-import { calculateSignal } from './signal.service.js';
-
 import type { MarketIndicators } from '../indicators/indicator.service.js';
+import { calculateSignal } from './signal.service.js';
 
 function indicators(overrides: Partial<MarketIndicators> = {}): MarketIndicators {
     return {

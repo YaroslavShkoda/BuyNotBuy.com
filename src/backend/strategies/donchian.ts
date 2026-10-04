@@ -1,8 +1,7 @@
-import { atrSeries, breakoutStrength, isReady, latest, priorRolling } from './series.js';
-import { NEUTRAL_DECISION } from './types.js';
-
 import type { Candle } from '../types/market.js';
+import { atrSeries, breakoutStrength, isReady, latest, priorRolling } from './series.js';
 import type { StrategyContext, StrategyDecision, StrategyModule } from './types.js';
+import { NEUTRAL_DECISION } from './types.js';
 
 /**
  * A bare breakout, with nothing built on top of it.

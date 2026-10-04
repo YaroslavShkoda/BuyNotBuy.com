@@ -1,5 +1,5 @@
-import type { Candle } from '../types/market.js';
 import type { SignalDirection } from '../types/direction.js';
+import type { Candle } from '../types/market.js';
 
 /**
  * What a strategy is, so that adding one does not mean editing the system.

@@ -1,8 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
 import fc from 'fast-check';
-
-import type { MarketRequest } from '../market/capability.js';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { marketConfig } from '../config/market.config.js';
+import type { MarketRequest } from '../market/capability.js';
 
 /**
  * What the market is a parameter for.

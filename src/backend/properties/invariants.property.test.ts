@@ -1,12 +1,10 @@
-import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
-
-import { findCandleSeriesIssues } from '../market/candle-validation.js';
+import { describe, expect, it } from 'vitest';
 import { decodeCursor, encodeCursor } from '../api/lib/history-cursor.js';
-import { calculateMetrics } from '../backtest/metrics.js';
-
-import type { Candle } from '../types/market.js';
 import type { Trade } from '../backtest/metrics.js';
+import { calculateMetrics } from '../backtest/metrics.js';
+import { findCandleSeriesIssues } from '../market/candle-validation.js';
+import type { Candle } from '../types/market.js';
 
 /**
  * Properties, not examples.

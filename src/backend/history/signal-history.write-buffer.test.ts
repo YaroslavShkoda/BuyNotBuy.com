@@ -1,9 +1,7 @@
-import { marketConfig } from '../config/market.config.js';
 import { describe, expect, it } from 'vitest';
-
-import { createSignalHistoryWriteBuffer } from './signal-history.write-buffer.js';
-
+import { marketConfig } from '../config/market.config.js';
 import type { SignalHistoryEntry } from './signal-history.types.js';
+import { createSignalHistoryWriteBuffer } from './signal-history.write-buffer.js';
 
 function entry(
     overrides: Partial<SignalHistoryEntry> = {},

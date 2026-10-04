@@ -1,10 +1,8 @@
-import { signalLifecycleRepository } from '../signals/lifecycle.repository.js';
 import { outcomeRepository } from '../outcomes/outcome.repository.js';
-
-import type { SignalLifecycleRepository } from '../signals/lifecycle.repository.js';
-import type { OutcomeRepository } from './outcome.repository.js';
+import type { SeriesKey, SignalLifecycleRepository } from '../signals/lifecycle.repository.js';
+import { signalLifecycleRepository } from '../signals/lifecycle.repository.js';
 import type { Candle } from '../types/market.js';
-import type { SeriesKey } from '../signals/lifecycle.repository.js';
+import type { OutcomeRepository } from './outcome.repository.js';
 
 /**
  * Turns closed signals into measurements, and is the reason the performance

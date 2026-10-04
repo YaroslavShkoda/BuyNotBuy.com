@@ -40,12 +40,12 @@
  * That is strictly more than a comment and a date. It is not a lock.
  */
 
-import { calculateMetrics } from '../backtest/metrics.js';
-import { runStrategy } from './strategies.js';
 
 import type { BacktestMetrics } from '../backtest/metrics.js';
-import type { Strategy } from './strategies.js';
+import { calculateMetrics } from '../backtest/metrics.js';
 import type { Candle } from '../types/market.js';
+import type { Strategy } from './strategies.js';
+import { runStrategy } from './strategies.js';
 
 /**
  * Every statistic that may ever be reported about the window.

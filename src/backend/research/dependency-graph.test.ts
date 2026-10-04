@@ -1,21 +1,20 @@
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
+import type { Graph } from './dependency-graph.js';
 import {
-    LAYERS,
-    UNPLACED,
-    UNIVERSAL,
     buildGraph,
     findCycle,
+    LAYERS,
     layerOf,
     listSources,
     permits,
     permitsFile,
     summarise,
+    UNIVERSAL,
+    UNPLACED,
     violations,
 } from './dependency-graph.js';
-
-import type { Graph } from './dependency-graph.js';
-import { join } from 'node:path';
 
 const realRoot = join(process.cwd(), 'src', 'backend');
 

@@ -4,10 +4,10 @@
  *   node --env-file=.env --import=tsx src/backend/research/dependency-graph.cli.ts
  */
 
-import { LAYERS, summarise } from './dependency-graph.js';
+import { dirname, resolve } from 'node:path';
 
 import { fileURLToPath } from 'node:url';
-import { dirname, resolve } from 'node:path';
+import { LAYERS, summarise } from './dependency-graph.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..');

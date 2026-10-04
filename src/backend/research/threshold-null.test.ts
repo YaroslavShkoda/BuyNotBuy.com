@@ -1,9 +1,8 @@
 import { describe, expect, it } from 'vitest';
-
-import { clears, loadDaily, measurePassRates, randomLongRule } from './threshold-null.js';
+import type { Candle } from '../types/market.js';
 
 import type { WalkForwardVerdict } from './strategy-walk-forward.js';
-import type { Candle } from '../types/market.js';
+import { clears, loadDaily, measurePassRates, randomLongRule } from './threshold-null.js';
 
 /**
  * A short series is enough: the question here is what the walk-forward verdict

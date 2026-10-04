@@ -1,8 +1,6 @@
-import { currentCandles } from '../test-support/candles.js';
-
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-
 import { MarketDataError } from '../errors/market-data.error.js';
+import { currentCandles } from '../test-support/candles.js';
 import { ApiErrorResponseSchema } from './schemas.js';
 
 const { mockMarketDataProvider, mockAnyProviderAvailable } = vi.hoisted(() => {

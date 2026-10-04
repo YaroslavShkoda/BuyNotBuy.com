@@ -1,16 +1,13 @@
 import { z } from 'zod';
-
+import type { ConsensusComputation } from './consensus-primary.js';
 import { createConsensusPrimary } from './consensus-primary.js';
 import { createDonchian } from './donchian.js';
-import { createDonchianTrendGated } from './donchian-trend-gated.js';
 import { createDonchianCalmGated } from './donchian-calm-gated.js';
-import { createVolatilityTrend } from './volatility-trend.js';
-import {
-    DONCHIAN_TREND_GATED_CONFIG,
-} from './donchian-trend-gated.js';
+import { createDonchianTrendGated, 
+    DONCHIAN_TREND_GATED_CONFIG,} from './donchian-trend-gated.js';
 
 import type { StrategyContext, StrategyDecision, StrategyKey, StrategyModule } from './types.js';
-import type { ConsensusComputation } from './consensus-primary.js';
+import { createVolatilityTrend } from './volatility-trend.js';
 
 /**
  * Where strategies live, and which one speaks when.
@@ -364,5 +361,5 @@ export function configureRegistry(options: RegistryOptions): Registry {
     return shared;
 }
 
+export type { StrategyContext, StrategyDecision, StrategyKey, StrategyModule };
 export { DONCHIAN_TREND_GATED_CONFIG };
-export type { StrategyModule, StrategyKey, StrategyContext, StrategyDecision };

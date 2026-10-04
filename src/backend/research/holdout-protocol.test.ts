@@ -1,16 +1,15 @@
 import { describe, expect, it } from 'vitest';
+import type { Candle } from '../types/market.js';
 
+import type { HoldoutProtocol } from './holdout-protocol.js';
 import {
-    METRIC_KEYS,
     evaluateProtocol,
     isKnownMetric,
+    METRIC_KEYS,
     protocolChanged,
     protocolFingerprint,
 } from './holdout-protocol.js';
-
-import type { HoldoutProtocol } from './holdout-protocol.js';
 import type { Strategy } from './strategies.js';
-import type { Candle } from '../types/market.js';
 
 const RISING: Candle[] = Array.from({ length: 60 }, (_, index) => {
     const close = 100 * 1.01 ** index;

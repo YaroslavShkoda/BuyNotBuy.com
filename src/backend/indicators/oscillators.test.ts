@@ -1,10 +1,8 @@
 import { describe, expect, it } from 'vitest';
-
-import { calculateATR } from './atr.js';
-import { calculateRSI } from './rsi.js';
-import { calculateMACD } from './macd.js';
-
 import type { Candle } from '../types/market.js';
+import { calculateATR } from './atr.js';
+import { calculateMACD } from './macd.js';
+import { calculateRSI } from './rsi.js';
 
 function candle(timestamp: number, high: number, low: number, close: number): Candle {
     return { timestamp, open: close, high, low, close, volume: 1 };

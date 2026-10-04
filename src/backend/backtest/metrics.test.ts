@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest';
-
-import { calculateMetrics, EMPTY_METRICS } from './metrics.js';
-
 import type { Trade } from './metrics.js';
+import { calculateMetrics, EMPTY_METRICS } from './metrics.js';
 
 const MIX = { long: 0, short: 0, neutral: 0 };
 const BARS_PER_YEAR = 365 * 24;

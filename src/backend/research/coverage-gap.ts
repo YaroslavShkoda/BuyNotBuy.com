@@ -40,9 +40,9 @@
  * worth keeping precisely, and not because it barely moves a number.
  */
 
+import type { Candle } from '../types/market.js';
 import { resampleToDaily } from './resample.js';
 import { mulberry32 } from './signal-power.js';
-import type { Candle } from '../types/market.js';
 
 const HOUR = 3_600_000;
 const DAY = 86_400_000;

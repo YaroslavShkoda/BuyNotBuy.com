@@ -1,9 +1,9 @@
+import { getAssetInfo } from '../lib/assets';
 import type { Candle, MarketAnalysis } from '../types/analysis';
 import type { SignalHistoryResponse } from '../types/history';
-import { SignalPanel } from './signal-panel';
-import { SignalHistory } from './signal-history';
 import { MarketChart } from './market-chart';
-import { getAssetInfo } from '../lib/assets';
+import { SignalHistory } from './signal-history';
+import { SignalPanel } from './signal-panel';
 
 interface HeroProps {
     analysis: MarketAnalysis;

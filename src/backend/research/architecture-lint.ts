@@ -44,11 +44,10 @@
  * and is still trusted.
  */
 
-import ts from 'typescript-5';
 
-import { readFileSync } from 'node:fs';
-import { readdirSync, statSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
+import ts from 'typescript-5';
 
 /** Directories the audit does not descend into at all. */
 const SKIPPED = new Set(['test-support', 'node_modules', '.next', 'fixtures']);

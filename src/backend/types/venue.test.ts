@@ -1,8 +1,7 @@
-import { describe, expect, it } from 'vitest';
-
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { describe, expect, it } from 'vitest';
 
 import { MARKET_VENUES } from './venue.js';
 

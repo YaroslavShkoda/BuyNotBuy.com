@@ -1,9 +1,8 @@
 import { z } from 'zod';
-
-import { TRADABILITY_REASONS, ASSET_CATEGORIES, ASSET_STATUSES, MARKET_KINDS } from '../instruments/domain.js';
-import { SIGNAL_DIRECTIONS } from '../types/direction.js';
-import { INDICATOR_KEYS } from '../signals/signal.types.js';
 import { DIVERGENCE_TYPES } from '../indicators/divergence.js';
+import { ASSET_CATEGORIES, ASSET_STATUSES, MARKET_KINDS, TRADABILITY_REASONS } from '../instruments/domain.js';
+import { INDICATOR_KEYS } from '../signals/signal.types.js';
+import { SIGNAL_DIRECTIONS } from '../types/direction.js';
 
 /**
  * The refusals, built from the domain's list rather than retyped.

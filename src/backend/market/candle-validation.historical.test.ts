@@ -1,13 +1,11 @@
 import { describe, expect, it } from 'vitest';
-
+import type { Candle } from '../types/market.js';
 import {
     assertCandleSeries,
     assertHistoricalCandleSeries,
     findCandleContinuityIssue,
     findCandleSeriesIssues,
 } from './candle-validation.js';
-
-import type { Candle } from '../types/market.js';
 
 const HOUR = 3_600_000;
 const NOW = 1_800 * HOUR;

@@ -15,14 +15,13 @@
  * does not require starting a process and fetching candles from an exchange.
  */
 
-import { optimize } from './optimizer.js';
-import { describeSearch } from './optimize.report.js';
-import { DEFAULT_WALK_FORWARD_OPTIONS } from './walk-forward.js';
 import { requiredCandleCount } from '../config/indicator.config.js';
 import { marketConfig } from '../config/market.config.js';
 import { getMarketData } from '../market/market.service.js';
-
+import { describeSearch } from './optimize.report.js';
+import { optimize } from './optimizer.js';
 import type { WalkForwardOptions } from './walk-forward.js';
+import { DEFAULT_WALK_FORWARD_OPTIONS } from './walk-forward.js';
 
 function integerEnv(name: string, fallback: number): number {
     const raw = process.env[name];

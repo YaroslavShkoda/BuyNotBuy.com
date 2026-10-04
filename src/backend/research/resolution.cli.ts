@@ -1,15 +1,13 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-
-import { CANDIDATE_STRATEGIES, fromModule, runStrategy } from './strategies.js';
+import { EXECUTION_CONFIG } from '../backtest/execution.js';
 import { createDonchian } from '../strategies/donchian.js';
 import { createDonchianCalmGated } from '../strategies/donchian-calm-gated.js';
 import { createDonchianTrendGated } from '../strategies/donchian-trend-gated.js';
-import { walkForwardStrategy } from './strategy-walk-forward.js';
-import { resampleToDaily } from './resample.js';
-import { EXECUTION_CONFIG } from '../backtest/execution.js';
-
 import type { Candle } from '../types/market.js';
+import { resampleToDaily } from './resample.js';
+import { CANDIDATE_STRATEGIES, fromModule, runStrategy } from './strategies.js';
+import { walkForwardStrategy } from './strategy-walk-forward.js';
 
 /**
  * Two questions, on the data the system actually trades.

@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest';
-
-import { compareSources, dayOf, overlap, pValueOnBoth } from './second-source.js';
-
 import type { Candle } from '../types/market.js';
+import { compareSources, dayOf, overlap, pValueOnBoth } from './second-source.js';
 
 const day = 86_400_000;
 const base = Date.UTC(2021, 0, 1);

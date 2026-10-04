@@ -1,14 +1,12 @@
+import type { FastifyInstance } from 'fastify';
+import Fastify from 'fastify';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-
 import { createApp } from '../../app.js';
-import { resetMetrics } from '../lib/metrics.js';
-import { HEALTH_PATHS } from '../lib/health-paths.js';
-import { registerHealthRoutes } from './health.js';
 import { LATEST_SCHEMA_VERSION } from '../../db/migrations.js';
 import { createHealthRegistry, observeNewestBar } from '../../observability/health.registry.js';
-
-import Fastify from 'fastify';
-import type { FastifyInstance } from 'fastify';
+import { HEALTH_PATHS } from '../lib/health-paths.js';
+import { resetMetrics } from '../lib/metrics.js';
+import { registerHealthRoutes } from './health.js';
 
 /**
  * A fixed "now" for the freshness assertions below.

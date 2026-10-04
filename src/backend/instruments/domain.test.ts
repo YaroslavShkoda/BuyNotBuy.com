@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
-
+import { describe, expect, it } from 'vitest';
+import type { Asset } from './domain.js';
 import {
     instrumentFrom,
     label,
@@ -9,8 +9,6 @@ import {
     splitTicker,
     TRADABILITY_REASONS,
 } from './domain.js';
-
-import type { Asset } from './domain.js';
 
 const asset = (symbol: string, category: 'crypto' | 'fiat' = 'crypto'): Asset => ({
     symbol,

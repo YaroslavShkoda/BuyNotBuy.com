@@ -32,10 +32,10 @@
  * See `second-source.cli.ts` for the numbers.
  */
 
-import { forwardReturns, permutationPValue } from './signal-power.js';
+import type { Candle } from '../types/market.js';
 
 import type { PermutationResult } from './signal-power.js';
-import type { Candle } from '../types/market.js';
+import { forwardReturns, permutationPValue } from './signal-power.js';
 
 export interface SourceComparison {
     readonly label: string;

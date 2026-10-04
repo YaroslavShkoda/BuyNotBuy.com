@@ -1,15 +1,13 @@
-import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
-
-import { summarize, createIncidentLog, HealthComponentSchema } from './health.js';
+import { describe, expect, it } from 'vitest';
+import type { HealthComponent, HealthState } from './health.js';
+import { createIncidentLog, HealthComponentSchema, summarize } from './health.js';
 import {
-    Reservoir,
     createMetrics,
     judgeSnapshot,
     MetricConfigSchema,
+    Reservoir,
 } from './metrics.js';
-
-import type { HealthComponent, HealthState } from './health.js';
 
 const NOW = 1_750_000_000_000;
 

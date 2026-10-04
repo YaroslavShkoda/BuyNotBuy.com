@@ -1,8 +1,7 @@
-import { currentCandles } from '../test-support/candles.js';
+import Fastify from 'fastify';
 
 import { describe, expect, it, vi } from 'vitest';
-
-import Fastify from 'fastify';
+import { currentCandles } from '../test-support/candles.js';
 
 import { MarketDataSchema } from './schemas.js';
 

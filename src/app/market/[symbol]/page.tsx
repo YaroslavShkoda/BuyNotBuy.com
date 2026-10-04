@@ -1,13 +1,12 @@
 import { notFound } from 'next/navigation';
-
-import { Hero } from '../../components/hero';
-import { Topbar } from '../../components/topbar';
 import { AutoRefresh } from '../../components/auto-refresh';
+import { Hero } from '../../components/hero';
+import { MarketDetails } from '../../components/market-details';
+import { Topbar } from '../../components/topbar';
 import { getAnalysis } from '../../lib/analysis';
-import { getMarket } from '../../lib/market';
 import { getSignalHistory } from '../../lib/history';
 import { getInstruments } from '../../lib/instruments';
-import { MarketDetails } from '../../components/market-details';
+import { getMarket } from '../../lib/market';
 
 export default async function MarketPage({
     params,

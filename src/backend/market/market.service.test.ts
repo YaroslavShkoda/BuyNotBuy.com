@@ -36,18 +36,15 @@ vi.mock('./market.provider.js', () => ({
     activeMarketVenue: vi.fn(() => 'binance'),
 }));
 
+import { requiredCandleCount } from '../config/indicator.config.js';
+import { MAX_CANDLE_LIMIT, marketConfig } from '../config/market.config.js';
+import { MarketDataError } from '../errors/market-data.error.js';
+import type { Candle } from '../types/market.js';
 import {
     getMarketData,
     getPrice,
     resetMarketDataCache,
 } from './market.service.js';
-
-import { marketConfig } from '../config/market.config.js';
-import { requiredCandleCount } from '../config/indicator.config.js';
-import { MAX_CANDLE_LIMIT } from '../config/market.config.js';
-import { MarketDataError } from '../errors/market-data.error.js';
-
-import type { Candle } from '../types/market.js';
 
 const HOUR_MS = 3_600_000;
 

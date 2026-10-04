@@ -2,10 +2,10 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import '../test-support/test-database.js';
 
-import { createCandleRepository } from './candle.repository.js';
+import type { Candle } from '../types/market.js';
 
 import type { CandleSeriesKey } from './candle.repository.js';
-import type { Candle } from '../types/market.js';
+import { createCandleRepository } from './candle.repository.js';
 
 /**
  * The table a result is later measured against, so the questions that matter

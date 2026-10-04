@@ -1,11 +1,10 @@
 import type { FastifyInstance } from 'fastify';
 
 import { getMarket } from '../controllers/market.controller.js';
-
+import { sendWithEtag } from '../lib/conditional-get.js';
 import {
     setDataFreshnessHeaders,
 } from '../lib/data-freshness.js';
-import { sendWithEtag } from '../lib/conditional-get.js';
 
 export async function marketRoutes(
     app: FastifyInstance,

@@ -39,8 +39,8 @@
  * this many signals exist, nothing can.
  */
 
-import type { Candle } from '../types/market.js';
 import type { StrategyModule } from '../strategies/types.js';
+import type { Candle } from '../types/market.js';
 
 export interface Bin {
     readonly label: string;

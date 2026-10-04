@@ -1,8 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-
-import { REFRESH_INTERVAL_MS, startAutoRefresh } from './auto-refresh';
-
 import type { AutoRefreshOptions } from './auto-refresh';
+import { REFRESH_INTERVAL_MS, startAutoRefresh } from './auto-refresh';
 
 describe('dashboard auto refresh', () => {
     beforeEach(() => {

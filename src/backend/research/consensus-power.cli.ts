@@ -21,9 +21,8 @@ import { readFileSync } from 'node:fs';
 
 import { computeSignalSeries } from '../backtest/point-in-time.js';
 import { requiredCandleCount } from '../config/indicator.config.js';
-import { forwardReturns, permutationPValue } from './signal-power.js';
-
 import type { Candle } from '../types/market.js';
+import { forwardReturns, permutationPValue } from './signal-power.js';
 
 const FIXTURES: ReadonlyArray<{ readonly file: string; readonly label: string }> = [
     { file: 'btcusdt-1d-binance.csv', label: 'Binance BTCUSDT' },

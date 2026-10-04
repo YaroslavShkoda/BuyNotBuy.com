@@ -1,8 +1,7 @@
-import { computeMetrics, confidenceBuckets, groupBy } from './performance.js';
-import { performanceConfig } from './performance.config.js';
-
 import type { PerformanceConfig } from './performance.config.js';
+import { performanceConfig } from './performance.config.js';
 import type { PerformanceSample } from './performance.js';
+import { computeMetrics, confidenceBuckets, groupBy } from './performance.js';
 
 /**
  * Whether the confidence the system publishes describes how often it is right.

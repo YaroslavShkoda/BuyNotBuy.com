@@ -1,11 +1,9 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-
-import { ProviderError } from '../errors/provider.error.js';
-import { ApplicationError } from '../errors/application.error.js';
-import { readAnalysisErrorContext } from '../services/analysis.telemetry.js';
-
 import type { ErrorCode } from '../errors/application.error.js';
+import { ApplicationError } from '../errors/application.error.js';
+import { ProviderError } from '../errors/provider.error.js';
+import { readAnalysisErrorContext } from '../services/analysis.telemetry.js';
 import type { ApiErrorResponse } from './error-handler.types.js';
 
 const PUBLIC_MESSAGES: Record<ErrorCode, string> = {

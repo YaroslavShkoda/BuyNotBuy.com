@@ -20,12 +20,11 @@
  * unchanged.
  */
 
-import { startPoller } from './poller.js';
 import { ingestionPeriodMs } from '../history/candle-clock.js';
-import { ingestOnce } from '../history/ingestion.service.js';
-
 import type { IngestionOptions, IngestionResult } from '../history/ingestion.service.js';
+import { ingestOnce } from '../history/ingestion.service.js';
 import type { Poller, PollerLogger } from './poller.js';
+import { startPoller } from './poller.js';
 
 export interface IngestionSchedulerOptions extends IngestionOptions {
     readonly logger: PollerLogger;

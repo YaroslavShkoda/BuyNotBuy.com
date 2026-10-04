@@ -1,18 +1,16 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-
-import { CANDIDATE_STRATEGIES, fromModule, runStrategy } from './strategies.js';
-import { walkForwardStrategy } from './strategy-walk-forward.js';
-import { createStrategyRuleRepository } from '../strategies/candidate.repository.js';
-import { holdoutStatus, HOLDOUT_COMMITTED_AT, HOLDOUT_MINIMUM_BARS } from './holdout.js';
 import { EXECUTION_CONFIG } from '../backtest/execution.js';
-import { STRATEGY_FACTORIES } from '../strategies/registry.js';
-import { strategySetFingerprint } from '../strategies/strategy-fingerprint.js';
 import { hashValue } from '../config/strategy-fingerprint.js';
 import { closePool } from '../db/pool.js';
-
-import type { Candle } from '../types/market.js';
+import { createStrategyRuleRepository } from '../strategies/candidate.repository.js';
+import { STRATEGY_FACTORIES } from '../strategies/registry.js';
+import { strategySetFingerprint } from '../strategies/strategy-fingerprint.js';
 import type { StrategyModule } from '../strategies/types.js';
+import type { Candle } from '../types/market.js';
+import { HOLDOUT_COMMITTED_AT, HOLDOUT_MINIMUM_BARS, holdoutStatus } from './holdout.js';
+import { CANDIDATE_STRATEGIES, fromModule, runStrategy } from './strategies.js';
+import { walkForwardStrategy } from './strategy-walk-forward.js';
 
 /**
  * Everything that is known about a rule, in one place, dated.

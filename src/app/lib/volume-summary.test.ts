@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest';
-
-import { summariseVolume } from './volume-summary';
-
 import type { Candle } from '../types/analysis';
+import { summariseVolume } from './volume-summary';
 
 const HOUR = 3_600_000;
 

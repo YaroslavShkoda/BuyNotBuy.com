@@ -1,10 +1,9 @@
-import { lifecycleConfig } from '../config/lifecycle.config.js';
-
 import type {
     LifecycleConfig,
     SignalDirection,
     SignalStatus,
 } from '../config/lifecycle.config.js';
+import { lifecycleConfig } from '../config/lifecycle.config.js';
 
 /**
  * What the lifecycle engine decides, with nothing persisted.

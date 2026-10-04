@@ -27,16 +27,15 @@
  * fail on every run, and a check that always fails is a check nobody reads.
  */
 
-import { LAYERS, UNIVERSAL, summarise } from './dependency-graph.js';
-import { audit } from './architecture-lint.js';
-import { METRIC_KIND, METRIC_NAMES } from '../observability/metrics.js';
-import { MIGRATIONS } from '../db/migrations.js';
 
-import { readFileSync, readdirSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-
 import type { QueryResultRow } from 'pg';
+import { MIGRATIONS } from '../db/migrations.js';
+import { METRIC_KIND, METRIC_NAMES } from '../observability/metrics.js';
+import { audit } from './architecture-lint.js';
+import { LAYERS, summarise, UNIVERSAL } from './dependency-graph.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..');

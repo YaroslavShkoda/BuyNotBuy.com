@@ -7,10 +7,10 @@
  * report. The count that matters is the last one.
  */
 
-import { audit, EXCEPTIONS } from './architecture-lint.js';
+import { dirname, resolve } from 'node:path';
 
 import { fileURLToPath } from 'node:url';
-import { dirname, resolve } from 'node:path';
+import { audit, EXCEPTIONS } from './architecture-lint.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..');

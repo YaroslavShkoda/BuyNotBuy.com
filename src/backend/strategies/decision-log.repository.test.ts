@@ -1,10 +1,7 @@
-import { describe, expect, it, beforeEach } from 'vitest';
-
-import { createDecisionLogRepository } from './decision-log.repository.js';
-
+import { beforeEach, describe, expect, it } from 'vitest';
 import { getTestPool, truncateSignalTables } from '../test-support/test-database.js';
-
 import type { DecisionEntry } from './decision-log.repository.js';
+import { createDecisionLogRepository } from './decision-log.repository.js';
 
 const NOW = 1_760_000_000_000;
 

@@ -1,8 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-
-import { createSignalSnapshotRepository } from './signal-snapshot.repository.js';
-
 import { getTestPool, truncateSignalTables } from '../test-support/test-database.js';
+import { createSignalSnapshotRepository } from './signal-snapshot.repository.js';
 
 import type { StrategyVersion } from './strategy-version.repository.js';
 

@@ -1,11 +1,10 @@
-import { TUNABLE_PARAMETERS, parameterGrid } from '../config/parameter.config.js';
-import { computeSignalSeries, reapplyThresholds } from './point-in-time.js';
-import { simulateRange } from './walk-forward.js';
 import { INDICATOR_SIGNAL_CONFIG } from '../config/indicator.config.js';
-
 import type { ParameterSpec } from '../config/parameter.config.js';
-import type { WalkForwardOptions } from './walk-forward.js';
+import { parameterGrid, TUNABLE_PARAMETERS } from '../config/parameter.config.js';
 import type { Candle } from '../types/market.js';
+import { computeSignalSeries, reapplyThresholds } from './point-in-time.js';
+import type { WalkForwardOptions } from './walk-forward.js';
+import { simulateRange } from './walk-forward.js';
 
 /**
  * Searches parameters, and then tries to catch itself.

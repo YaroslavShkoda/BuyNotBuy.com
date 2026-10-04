@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-
+import { query } from '../db/pool.js';
+import type { Candle } from '../types/market.js';
 import {
     createSignalSnapshotRepository,
     getSignalSnapshotRepository,
@@ -10,9 +11,6 @@ import {
     getStrategyVersionRepository,
     resetStrategyVersionRepository,
 } from './strategy-version.repository.js';
-import { query } from '../db/pool.js';
-
-import type { Candle } from '../types/market.js';
 
 const HOUR = 1_700_000_000_000;
 

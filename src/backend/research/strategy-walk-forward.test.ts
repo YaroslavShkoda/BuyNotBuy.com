@@ -1,10 +1,8 @@
 import { describe, expect, it } from 'vitest';
-
+import type { Candle } from '../types/market.js';
+import type { Strategy } from './strategies.js';
 import { runStrategy } from './strategies.js';
 import { walkForwardStrategy } from './strategy-walk-forward.js';
-
-import type { Strategy } from './strategies.js';
-import type { Candle } from '../types/market.js';
 
 /**
  * The point of these tests is that walk-forward can fail.

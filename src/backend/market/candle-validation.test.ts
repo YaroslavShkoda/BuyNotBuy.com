@@ -2,9 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import { MAX_CANDLE_LIMIT } from '../config/market.config.js';
 import { MarketDataError } from '../errors/market-data.error.js';
-import { assertCandleSeries, findCandleSeriesIssues } from './candle-validation.js';
-
 import type { Candle } from '../types/market.js';
+import { assertCandleSeries, findCandleSeriesIssues } from './candle-validation.js';
 
 const HOUR_MS = 3_600_000;
 const NOW = 1_700_000_000_000;

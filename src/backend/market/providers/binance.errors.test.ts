@@ -6,11 +6,10 @@ import {
     it,
     vi,
 } from 'vitest';
-
-import { BinanceProvider } from './binance.provider.js';
-import { resetBinanceTransport } from './binance-http.js';
 import { marketConfig } from '../../config/market.config.js';
 import { ProviderError } from '../../errors/provider.error.js';
+import { BinanceProvider } from './binance.provider.js';
+import { resetBinanceTransport } from './binance-http.js';
 
 beforeEach(() => {
     // The breaker is process-wide state; a test that trips it would otherwise

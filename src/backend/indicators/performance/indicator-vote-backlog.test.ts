@@ -1,12 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-
+import type { MarketAnalysis } from '../../types/analysis.js';
 import {
     flushIndicatorVoteBacklog,
     indicatorVoteBacklog,
     recordIndicatorVotes,
 } from './indicator-performance.service.js';
-
-import type { MarketAnalysis } from '../../types/analysis.js';
 import type { IndicatorVoteRepository } from './indicator-vote.repository.js';
 
 /**

@@ -1,14 +1,12 @@
 import { describe, expect, it } from 'vitest';
-
+import type { Candle } from '../types/analysis';
 import {
-    MarketChart,
     computeChartScale,
+    formatAxisTime,
     getCandleIntervalMs,
     getWindowLabel,
-    formatAxisTime,
+    MarketChart,
 } from './market-chart';
-
-import type { Candle } from '../types/analysis';
 
 function makeCandle(timestamp: number, close: number): Candle {
     return {

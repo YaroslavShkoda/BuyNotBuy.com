@@ -1,9 +1,8 @@
-import { publishProviderGauges } from '../../market/providers/provider-metrics.js';
+import type { FastifyReply, FastifyRequest } from 'fastify';
 import { signalHistoryBacklog } from '../../history/signal-history.service.js';
 import { indicatorVoteBacklog } from '../../indicators/performance/indicator-performance.service.js';
+import { publishProviderGauges } from '../../market/providers/provider-metrics.js';
 import { currentRegistry } from '../../observability/registry.js';
-
-import type { FastifyReply, FastifyRequest } from 'fastify';
 
 /**
  * Counters and gauges for the process, rendered in the Prometheus text format.

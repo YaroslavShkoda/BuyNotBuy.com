@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest';
-
-import { resampleToDaily } from './resample.js';
-
 import type { Candle } from '../types/market.js';
+import { resampleToDaily } from './resample.js';
 
 const DAY = 86_400_000;
 const HOUR = 3_600_000;

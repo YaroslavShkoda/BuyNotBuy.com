@@ -31,8 +31,8 @@
  * cannot be re-run is a check that is only ever right by accident.
  */
 
-import { query, withTransaction } from '../db/pool.js';
 import { resolveInstrument } from '../config/asset.registry.js';
+import { query, withTransaction } from '../db/pool.js';
 
 import type {
     Asset,

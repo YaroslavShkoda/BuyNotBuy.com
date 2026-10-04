@@ -1,6 +1,6 @@
-import type { Candle, DivergenceAnalysis, MarketAnalysis } from '../types/analysis';
 import { formatMomentumPercent, formatPercent, formatSignedPercent } from '../lib/format-momentum';
 import { quoteAssetOf } from '../lib/quote-asset';
+import type { Candle, DivergenceAnalysis, MarketAnalysis } from '../types/analysis';
 
 interface MarketDetailsProps {
     candles: Candle[];

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { marketConfig, MAX_CANDLE_LIMIT } from '../../config/market.config.js';
+import { MAX_CANDLE_LIMIT, marketConfig } from '../../config/market.config.js';
 import { assertCandleSeries } from '../candle-validation.js';
 import { MockProvider } from './mock.provider.js';
 

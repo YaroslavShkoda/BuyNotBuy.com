@@ -1,10 +1,8 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { marketConfig } from '../config/market.config.js';
+import { MarketDataError } from '../errors/market-data.error.js';
 import { currentCandles } from '../test-support/candles.js';
 import { marketData } from '../test-support/market-data.js';
-
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-
-import { MarketDataError } from '../errors/market-data.error.js';
-import { marketConfig } from '../config/market.config.js';
 
 const { mockMarketDataProvider, mockAnyProviderAvailable } = vi.hoisted(() => {
     const base = {
@@ -47,18 +45,16 @@ vi.mock('../history/signal-history.service.js', () => ({
 }));
 
 import { createApp } from '../app.js';
-import { ApiErrorResponseSchema } from './schemas.js';
+import * as divergenceService from '../indicators/divergence.service.js';
+import * as indicatorService from '../indicators/indicator.service.js';
+import * as marketService from '../market/market.service.js';
 import { getMarketData, resetMarketDataCache } from '../market/market.service.js';
-import { freshMarketData } from '../test-support/market-data-result.js';
 import { analyzeMarket } from '../services/analysis.service.js';
 import { readAnalysisErrorContext } from '../services/analysis.telemetry.js';
-
-import type { MarketAnalysis } from '../types/analysis.js';
-
-import * as marketService from '../market/market.service.js';
-import * as indicatorService from '../indicators/indicator.service.js';
-import * as divergenceService from '../indicators/divergence.service.js';
 import * as signalService from '../signals/signal.service.js';
+import { freshMarketData } from '../test-support/market-data-result.js';
+import type { MarketAnalysis } from '../types/analysis.js';
+import { ApiErrorResponseSchema } from './schemas.js';
 
 function risingCandles(length: number) {
     return currentCandles(length);

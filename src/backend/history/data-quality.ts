@@ -1,6 +1,5 @@
-import { isUsableForSignal } from '../market/market-freshness.js';
-
 import type { MarketFreshness } from '../market/market-freshness.js';
+import { isUsableForSignal } from '../market/market-freshness.js';
 import type { Candle } from '../types/market.js';
 
 /**

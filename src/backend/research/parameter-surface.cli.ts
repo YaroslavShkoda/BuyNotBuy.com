@@ -33,11 +33,10 @@
 import { readFileSync } from 'node:fs';
 
 import { createDonchian } from '../strategies/donchian.js';
-import { fromModule } from './strategies.js';
-import { mulberry32 } from './signal-power.js';
-import { walkForwardStrategy } from './strategy-walk-forward.js';
-
 import type { Candle } from '../types/market.js';
+import { mulberry32 } from './signal-power.js';
+import { fromModule } from './strategies.js';
+import { walkForwardStrategy } from './strategy-walk-forward.js';
 
 const PERIODS = [14, 16, 18, 20, 22, 24, 28, 35, 55] as const;
 const FOLD_BARS = 250;

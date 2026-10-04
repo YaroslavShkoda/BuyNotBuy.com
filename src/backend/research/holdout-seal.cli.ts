@@ -1,17 +1,15 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-
-import { evaluateProtocol, protocolFingerprint } from './holdout-protocol.js';
+import { closePool } from '../db/pool.js';
+import type { Candle } from '../types/market.js';
 import { holdoutStatus } from './holdout.js';
+import type { HoldoutProtocol } from './holdout-protocol.js';
+import { evaluateProtocol, protocolFingerprint } from './holdout-protocol.js';
+import { REGISTERED_RULES, registrationOf } from './holdout-registration.js';
 import {
     readSealedHoldoutVerdict,
     sealHoldoutVerdict,
 } from './holdout-verdict.js';
-import { REGISTERED_RULES, registrationOf } from './holdout-registration.js';
-import { closePool } from '../db/pool.js';
-
-import type { HoldoutProtocol } from './holdout-protocol.js';
-import type { Candle } from '../types/market.js';
 
 /**
  * The one read, and the write that ends it.

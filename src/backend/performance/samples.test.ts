@@ -1,16 +1,14 @@
-import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
-
+import { describe, expect, it } from 'vitest';
+import type { SignalOutcome } from '../outcomes/outcome.js';
 import {
-    resolveAtHorizon,
-    toPerformanceSamples,
-    windowClosed,
     type HorizonSelector,
     type OutcomeWithPublication,
     type PublishedSignal,
+    resolveAtHorizon,
+    toPerformanceSamples,
+    windowClosed,
 } from './samples.js';
-
-import type { SignalOutcome } from '../outcomes/outcome.js';
 
 const HOUR = 3_600_000;
 

@@ -1,20 +1,18 @@
 import { indicatorConfig, requiredCandleCount } from '../config/indicator.config.js';
 import { MarketDataError } from '../errors/market-data.error.js';
-import { calculateATR } from './atr.js';
+import { currentRegistry } from '../observability/registry.js';
+import type { MarketIndicators, MarketIndicatorsWire } from '../types/analysis.js';
+import type { Candle, MarketData } from '../types/market.js';
 import { calculateADX } from './adx.js';
+import { calculateATR } from './atr.js';
 import { calculateBollingerBands } from './bollinger.js';
+import type { IndicatorDefinition, IndicatorRegistry, IndicatorValue } from './indicator.registry.js';
+import { createIndicatorRegistry, indicatorContext } from './indicator.registry.js';
 import { calculateMACD } from './macd.js';
 import { calculateMomentum } from './momentum.js';
 import { calculateRSI } from './rsi.js';
-import { calculateStochastic } from './stochastic.js';
-import { createIndicatorRegistry, indicatorContext } from './indicator.registry.js';
 import { createSeriesGraph, emaSeries } from './series.graph.js';
-import { currentRegistry } from '../observability/registry.js';
-
-import type { IndicatorDefinition, IndicatorRegistry, IndicatorValue } from './indicator.registry.js';
-import type { MarketIndicators, MarketIndicatorsWire } from '../types/analysis.js';
-import type { MarketData } from '../types/market.js';
-import type { Candle } from '../types/market.js';
+import { calculateStochastic } from './stochastic.js';
 
 /**
  * The name the EMA series is resolved under, and the node itself.

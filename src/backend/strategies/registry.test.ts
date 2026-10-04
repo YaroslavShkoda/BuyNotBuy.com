@@ -1,16 +1,14 @@
 import { describe, expect, it } from 'vitest';
-
+import type { Candle } from '../types/market.js';
+import { createConsensusPrimary } from './consensus-primary.js';
 import { createDonchian } from './donchian.js';
 import { createDonchianTrendGated } from './donchian-trend-gated.js';
-import { createConsensusPrimary } from './consensus-primary.js';
 import {
     createRegistry,
     readFallbackConfig,
     resolveSignal,
 } from './registry.js';
 import { atrSeries, priorRolling, smaSeries } from './series.js';
-
-import type { Candle } from '../types/market.js';
 import type { StrategyDecision, StrategyKey, StrategyModule } from './types.js';
 
 const DAY = 86_400_000;

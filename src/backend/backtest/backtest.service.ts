@@ -1,16 +1,14 @@
-import { currentRegistry } from '../observability/registry.js';
-import { getMarketData, resolveRequest } from '../market/market.service.js';
-import { marketProviderFor } from '../market/market.provider.js';
-import { marketConfig } from '../config/market.config.js';
 import { requiredCandleCount, signalConfigFor } from '../config/indicator.config.js';
+import { marketConfig } from '../config/market.config.js';
 import { assertHistoricalCandleSeries } from '../market/candle-validation.js';
-
-import { runWalkForward, DEFAULT_WALK_FORWARD_OPTIONS } from './walk-forward.js';
-import { manifestFor } from './manifest.js';
-
-import type { WalkForwardOptions, WalkForwardResult } from './walk-forward.js';
-import type { ExperimentManifest } from './experiment.js';
 import type { MarketRequest } from '../market/capability.js';
+import { marketProviderFor } from '../market/market.provider.js';
+import { getMarketData, resolveRequest } from '../market/market.service.js';
+import { currentRegistry } from '../observability/registry.js';
+import type { ExperimentManifest } from './experiment.js';
+import { manifestFor } from './manifest.js';
+import type { WalkForwardOptions, WalkForwardResult } from './walk-forward.js';
+import { DEFAULT_WALK_FORWARD_OPTIONS, runWalkForward } from './walk-forward.js';
 
 /**
  * Which code produced the run, when there is any.

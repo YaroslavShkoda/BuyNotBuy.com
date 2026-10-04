@@ -1,8 +1,6 @@
-import { currentCandles } from '../test-support/candles.js';
-
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-
 import { resetMarketDataCache } from '../market/market.service.js';
+import { currentCandles } from '../test-support/candles.js';
 
 const { mockMarketDataProvider, mockAnyProviderAvailable } = vi.hoisted(() => {
     const base = {

@@ -7,10 +7,10 @@
  * be a gate rather than a report.
  */
 
-import { audit, DATABASE_ACCESSORS, DATA_LAYER } from './layering-lint.js';
+import { dirname, resolve } from 'node:path';
 
 import { fileURLToPath } from 'node:url';
-import { dirname, resolve } from 'node:path';
+import { audit, DATA_LAYER, DATABASE_ACCESSORS } from './layering-lint.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..');

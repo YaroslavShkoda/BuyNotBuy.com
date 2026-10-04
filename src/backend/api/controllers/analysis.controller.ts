@@ -1,9 +1,7 @@
 import type { FastifyBaseLogger } from 'fastify';
-
+import type { MarketFreshness } from '../../market/market-freshness.js';
 import { analyzeMarketWithStatus } from '../../services/analysis.service.js';
 import { MarketAnalysisSchema } from '../schemas.js';
-
-import type { MarketFreshness } from '../../market/market-freshness.js';
 
 export interface ControllerResult<T> {
     payload: T;

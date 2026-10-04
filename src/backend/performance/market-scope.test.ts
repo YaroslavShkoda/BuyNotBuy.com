@@ -1,11 +1,9 @@
 import { describe, expect, it } from 'vitest';
-
+import type { SignalOutcome } from '../outcomes/outcome.js';
 import { calibrate } from './calibration.js';
+import type { PerformanceSample } from './performance.js';
 import { groupBy } from './performance.js';
 import { toPerformanceSamples } from './samples.js';
-
-import type { PerformanceSample } from './performance.js';
-import type { SignalOutcome } from '../outcomes/outcome.js';
 
 /**
  * The market identity is lost at the sample boundary, and PHASE 13 asks for an

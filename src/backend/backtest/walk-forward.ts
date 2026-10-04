@@ -1,22 +1,20 @@
-import { benchmarkMetrics, calculateMetrics } from './metrics.js';
-import { computeSignalSeries, reapplyThresholds } from './point-in-time.js';
-import { EXECUTION_CONFIG, fillPrice, roundTripCost } from './execution.js';
-import { DEFAULT_VALIDATION_RATIO, judgeFold } from './walk-forward.plan.js';
-
-import {
-    INDICATOR_SIGNAL_CONFIG,
-    STOCHASTIC_THRESHOLD_GRID,
-    requiredCandleCount,
-} from '../config/indicator.config.js';
-
-import type { ExecutionConfig } from './execution.js';
-import type { FoldPlan, PlanShape, Window } from './walk-forward.plan.js';
-import type { Candle } from '../types/market.js';
-import type { BacktestMetrics, BenchmarkMetrics, Trade } from './metrics.js';
 import type {
     IndicatorSignalOverrides,
     ResolvedIndicatorSignalConfig,
 } from '../config/indicator.config.js';
+import {
+    INDICATOR_SIGNAL_CONFIG,
+    requiredCandleCount,
+    STOCHASTIC_THRESHOLD_GRID,
+} from '../config/indicator.config.js';
+import type { Candle } from '../types/market.js';
+import type { ExecutionConfig } from './execution.js';
+import { EXECUTION_CONFIG, fillPrice, roundTripCost } from './execution.js';
+import type { BacktestMetrics, BenchmarkMetrics, Trade } from './metrics.js';
+import { benchmarkMetrics, calculateMetrics } from './metrics.js';
+import { computeSignalSeries, reapplyThresholds } from './point-in-time.js';
+import type { FoldPlan, PlanShape, Window } from './walk-forward.plan.js';
+import { DEFAULT_VALIDATION_RATIO, judgeFold } from './walk-forward.plan.js';
 
 export interface WalkForwardOptions extends PlanShape {
     /**

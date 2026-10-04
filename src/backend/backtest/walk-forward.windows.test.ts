@@ -1,11 +1,9 @@
 import { describe, expect, it } from 'vitest';
-
-import { runWalkForward } from './walk-forward.js';
-import { auditWalkForwardPlan } from './walk-forward.plan.js';
 import { requiredCandleCount } from '../config/indicator.config.js';
-
 import type { Candle } from '../types/market.js';
+import { runWalkForward } from './walk-forward.js';
 import type { WalkForwardPlan } from './walk-forward.plan.js';
+import { auditWalkForwardPlan } from './walk-forward.plan.js';
 
 const HOUR_MS = 3_600_000;
 const WARMUP = requiredCandleCount();

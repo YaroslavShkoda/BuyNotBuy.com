@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
-
-import { strategySetFingerprint } from './strategy-fingerprint.js';
 import { STRATEGY_FACTORIES } from './registry.js';
+import { strategySetFingerprint } from './strategy-fingerprint.js';
 
 /**
  * The fingerprint exists so that a number can be traced to the configuration

@@ -1,14 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { MetricRegistry, useRegistry } from '../../observability/registry.js';
+import { resetProviderTransport } from './provider-http.js';
+import { publishProviderGauges } from './provider-metrics.js';
 import {
     recordProviderError,
     recordProviderRequest,
     recordProviderRetry,
     resetProviderTelemetry,
 } from './provider-telemetry.js';
-import { publishProviderGauges } from './provider-metrics.js';
-import { resetProviderTransport } from './provider-http.js';
 
 /**
  * The catalogue is the promise, and this is the diffing.

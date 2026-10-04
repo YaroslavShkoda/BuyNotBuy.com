@@ -1,7 +1,6 @@
-import { MarketDataError } from './market-data.error.js';
-
 import type { ErrorCode } from './application.error.js';
 import type { MarketDataErrorOptions } from './market-data.error.js';
+import { MarketDataError } from './market-data.error.js';
 
 /**
  * Why a venue did not produce a price.

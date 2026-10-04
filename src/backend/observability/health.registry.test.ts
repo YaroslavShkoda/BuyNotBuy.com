@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-
-import { createHealthRegistry } from './health.registry.js';
 import { isKnownComponent, KNOWN_COMPONENTS } from './health.js';
+import { createHealthRegistry } from './health.registry.js';
 
 const NOW = 1_750_000_000_000;
 const DAY = 86_400_000;

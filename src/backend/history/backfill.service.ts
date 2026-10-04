@@ -1,11 +1,10 @@
 import { marketConfig } from '../config/market.config.js';
 import { findCandleSeriesIssues } from '../market/candle-validation.js';
-import { candleRepository } from './candle.repository.js';
 import { marketDataProvider } from '../market/market.provider.js';
-
-import type { CandleRepository, CandleSeriesKey } from './candle.repository.js';
 import type { MarketDataProvider } from '../market/providers/market-data.provider.js';
 import type { Candle } from '../types/market.js';
+import type { CandleRepository, CandleSeriesKey } from './candle.repository.js';
+import { candleRepository } from './candle.repository.js';
 
 /**
  * Filling a series backwards from the present.

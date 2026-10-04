@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-
+import { marketConfig } from '../../config/market.config.js';
 import {
     percentile,
     providerTelemetry,
@@ -11,7 +11,6 @@ import {
     recordProviderRetry,
     resetProviderTelemetry,
 } from './provider-telemetry.js';
-import { marketConfig } from '../../config/market.config.js';
 
 describe('provider latency telemetry', () => {
     beforeEach(() => {

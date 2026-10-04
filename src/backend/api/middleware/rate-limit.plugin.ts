@@ -1,9 +1,8 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
 import { appConfig } from '../../config/app.config.js';
-
-import { FixedWindowRateLimiter, rateLimitError } from './rate-limit.js';
 import { EXEMPT_PATHS } from '../lib/health-paths.js';
+import { FixedWindowRateLimiter, rateLimitError } from './rate-limit.js';
 
 export const rateLimiter = new FixedWindowRateLimiter({
     max: appConfig.rateLimitMax,

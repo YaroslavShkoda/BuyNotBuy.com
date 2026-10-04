@@ -1,8 +1,7 @@
-import { runStrategy } from './strategies.js';
-
-import type { Strategy } from './strategies.js';
 import type { ExecutionConfig } from '../backtest/execution.js';
 import type { Candle } from '../types/market.js';
+import type { Strategy } from './strategies.js';
+import { runStrategy } from './strategies.js';
 
 /**
  * Walk-forward for a strategy that has no parameters to fit.

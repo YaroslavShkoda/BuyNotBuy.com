@@ -1,11 +1,10 @@
-import { currentRegistry } from '../../observability/registry.js';
-import { venueHealth, venueHealthSummary } from './provider-http.js';
-import { providerTelemetry, providerTelemetryAll } from './provider-telemetry.js';
-import { venuesServing } from '../market.provider.js';
 import { marketConfig } from '../../config/market.config.js';
 import { observabilityConfig } from '../../config/observability.config.js';
-
 import type { MetricRegistry } from '../../observability/registry.js';
+import { currentRegistry } from '../../observability/registry.js';
+import { venuesServing } from '../market.provider.js';
+import { venueHealth, venueHealthSummary } from './provider-http.js';
+import { providerTelemetry, providerTelemetryAll } from './provider-telemetry.js';
 
 /**
  * The five gauges, computed from what is already measured.

@@ -30,7 +30,7 @@ import { writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { FILES, build, collectSchemaFacts } from './docs-generate.js';
+import { build, collectSchemaFacts, FILES } from './docs-generate.js';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const docsDir = join(repoRoot, 'docs');

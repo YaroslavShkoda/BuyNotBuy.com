@@ -1,17 +1,16 @@
 import Fastify from 'fastify';
-
-import { priceRoutes } from './api/routes/price.js';
-import { marketRoutes } from './api/routes/market.js';
-import { analysisRoutes } from './api/routes/analysis.js';
-import { signalHistoryRoutes } from './api/routes/signal-history.js';
-import { instrumentRoutes } from './api/routes/instruments.js';
-import { registerHealthRoutes } from './api/routes/health.js';
 import { registerErrorHandler } from './api/error-handler.js';
+import { redactLogMethod } from './api/lib/redaction.js';
+import { applyCorsHeaders, registerPreflight } from './api/middleware/cors.js';
 import { registerRateLimit } from './api/middleware/rate-limit.plugin.js';
 import { registerRequestContext } from './api/middleware/request-context.plugin.js';
 import { applySecurityHeaders } from './api/middleware/security-headers.js';
-import { applyCorsHeaders, registerPreflight } from './api/middleware/cors.js';
-import { redactLogMethod } from './api/lib/redaction.js';
+import { analysisRoutes } from './api/routes/analysis.js';
+import { registerHealthRoutes } from './api/routes/health.js';
+import { instrumentRoutes } from './api/routes/instruments.js';
+import { marketRoutes } from './api/routes/market.js';
+import { priceRoutes } from './api/routes/price.js';
+import { signalHistoryRoutes } from './api/routes/signal-history.js';
 import { appConfig } from './config/app.config.js';
 
 export function createApp(logDestination?: NodeJS.WritableStream) {

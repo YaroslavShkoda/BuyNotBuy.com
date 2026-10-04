@@ -1,6 +1,5 @@
-import { calculateEMA } from './ema.js';
-
 import type { Candle } from '../types/market.js';
+import { calculateEMA } from './ema.js';
 
 /**
  * The intermediate series indicators are built from, as named nodes in a graph.

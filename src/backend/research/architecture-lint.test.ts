@@ -1,9 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import fc from 'fast-check';
-
+import { describe, expect, it } from 'vitest';
 import {
-    EXCEPTIONS,
     audit,
+    EXCEPTIONS,
     isExempt,
     listSources,
     looksLikeMarketDefault,
@@ -12,10 +14,6 @@ import {
     mentionsInProse,
     scanFile,
 } from './architecture-lint.js';
-
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { tmpdir } from 'node:os';
 
 const realRoot = join(process.cwd(), 'src', 'backend');
 

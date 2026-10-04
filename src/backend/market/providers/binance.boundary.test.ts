@@ -1,9 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-
-import { BinanceProvider } from './binance.provider.js';
-import { resetBinanceTransport } from './binance-http.js';
 import { MAX_CANDLE_LIMIT } from '../../config/market.config.js';
 import { MarketDataError } from '../../errors/market-data.error.js';
+import { BinanceProvider } from './binance.provider.js';
+import { resetBinanceTransport } from './binance-http.js';
 
 function okWith(body: unknown) {
     return {

@@ -18,6 +18,7 @@ afterEach(() => {
     vi.unstubAllEnvs();
     vi.resetModules();
 });
+
 import { createVenueWatcher } from './market.provider.js';
 
 describe('marketDataProvider', () => {

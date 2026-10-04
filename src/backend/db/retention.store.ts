@@ -1,13 +1,12 @@
 import { getPool } from './pool.js';
+import type { PruneReport, PruneResult, RetentionPolicy } from './retention.js';
 import {
     DEFAULT_RETENTION_POLICIES,
     describeTable,
     planPrune,
-    report,
     RetentionPolicySchema,
+    report,
 } from './retention.js';
-
-import type { RetentionPolicy, PruneReport, PruneResult } from './retention.js';
 
 /**
  * The pruner, the index ledger, and the people who read them.

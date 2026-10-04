@@ -1,8 +1,7 @@
-import { fingerprintStrategy, hashValue } from '../config/strategy-fingerprint.js';
-import { signalConfigFor } from '../config/indicator.config.js';
-import { query } from '../db/pool.js';
-
 import type { PoolClient } from 'pg';
+import { signalConfigFor } from '../config/indicator.config.js';
+import { fingerprintStrategy, hashValue } from '../config/strategy-fingerprint.js';
+import { query } from '../db/pool.js';
 
 export interface StrategyVersion {
     id: number;
@@ -170,7 +169,7 @@ export function resetStrategyVersionRepository(): void {
     shared = null;
 }
 
-/** Exported for the snapshot repository, which needs the same hash function. */
-export { hashValue };
 
 export type { PoolClient };
+/** Exported for the snapshot repository, which needs the same hash function. */
+export { hashValue };

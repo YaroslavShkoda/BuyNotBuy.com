@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest';
-
-import { channelInflation, resampleWithCoverage, shuffledGapReturn } from './coverage-gap.js';
-
 import type { Candle } from '../types/market.js';
+import { channelInflation, resampleWithCoverage, shuffledGapReturn } from './coverage-gap.js';
 
 const HOUR = 3_600_000;
 const DAY = 86_400_000;

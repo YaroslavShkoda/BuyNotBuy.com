@@ -1,10 +1,9 @@
-import { withTransaction, query as defaultQuery } from '../db/pool.js';
-import { measureOutcome } from './outcome.js';
-import { outcomeConfig } from '../config/outcome.config.js';
-
-import type { SignalOutcome, OutcomeVerdict } from './outcome.js';
-import type { Candle } from '../types/market.js';
 import type { QueryResult, QueryResultRow } from 'pg';
+import { outcomeConfig } from '../config/outcome.config.js';
+import { query as defaultQuery, withTransaction } from '../db/pool.js';
+import type { Candle } from '../types/market.js';
+import type { OutcomeVerdict, SignalOutcome } from './outcome.js';
+import { measureOutcome } from './outcome.js';
 
 /**
  * Turns a live signal and the bars that followed it into a measurement.

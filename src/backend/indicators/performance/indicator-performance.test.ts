@@ -1,23 +1,20 @@
 import { describe, expect, it, vi } from 'vitest';
-
-import { createIndicatorVoteRepository } from './indicator-vote.repository.js';
+import type { MarketAnalysis } from '../../types/analysis.js';
+import type { Candle } from '../../types/market.js';
 import {
     recordIndicatorVotes,
     settleForwardReturns,
     summarizeIndicatorPerformance,
 } from './indicator-performance.service.js';
-
-import type { Candle } from '../../types/market.js';
-import type { MarketAnalysis } from '../../types/analysis.js';
 import type {
     IndicatorVote,
     UnsettledVote,
 } from './indicator-performance.types.js';
-
 // From the module that declares it, not re-exported through the types file: the
 // re-export pointed back at the repository, and the two files importing each
 // other was the only cycle left inside any layer.
 import type { IndicatorVoteRepository } from './indicator-vote.repository.js';
+import { createIndicatorVoteRepository } from './indicator-vote.repository.js';
 
 const HOUR_MS = 3_600_000;
 const HOUR = 1_700_000_000_000;

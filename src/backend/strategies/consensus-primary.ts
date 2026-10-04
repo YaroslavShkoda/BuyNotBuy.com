@@ -1,6 +1,5 @@
-import { NEUTRAL_DECISION } from './types.js';
-
 import type { StrategyContext, StrategyDecision, StrategyModule } from './types.js';
+import { NEUTRAL_DECISION } from './types.js';
 
 /**
  * The existing consensus, wearing the strategy interface.

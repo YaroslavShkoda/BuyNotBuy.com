@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest';
-
-import { getConfidenceWidth, getContextIndicators, getIndicatorValueText, getVoteSummary } from './signal-panel';
-
 import type { IndicatorAnalysis, IndicatorKey } from '../types/analysis';
+import { getConfidenceWidth, getContextIndicators, getIndicatorValueText, getVoteSummary } from './signal-panel';
 
 describe('signal confidence meter', () => {
     it('maps confidence to a percentage width', () => {

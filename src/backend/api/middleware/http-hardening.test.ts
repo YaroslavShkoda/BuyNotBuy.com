@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
 import Fastify from 'fastify';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { mockMarketDataProvider, mockAnyProviderAvailable } = vi.hoisted(() => {
     const base = {
@@ -56,8 +56,8 @@ vi.mock('../../history/signal-history.service.js', () => ({
 import { createApp } from '../../app.js';
 import { appConfig } from '../../config/app.config.js';
 import { marketConfig } from '../../config/market.config.js';
-import { rateLimiter } from './rate-limit.plugin.js';
 import { resetMarketDataCache } from '../../market/market.service.js';
+import { rateLimiter } from './rate-limit.plugin.js';
 
 beforeEach(() => {
     vi.clearAllMocks();

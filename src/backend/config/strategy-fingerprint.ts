@@ -1,10 +1,7 @@
 import { createHash } from 'node:crypto';
-
-import { indicatorConfig, INDICATOR_SIGNAL_CONFIG } from './indicator.config.js';
-
 import { strategySetFingerprint } from '../strategies/strategy-fingerprint.js';
-
 import type { ResolvedIndicatorSignalConfig } from './indicator.config.js';
+import { INDICATOR_SIGNAL_CONFIG, indicatorConfig } from './indicator.config.js';
 
 /**
  * A stable fingerprint of everything that can change a signal.

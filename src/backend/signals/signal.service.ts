@@ -1,18 +1,16 @@
-import type { MarketIndicators } from '../indicators/indicator.service.js';
+import type { IndicatorSignalOverrides, ResolvedIndicatorSignalConfig } from '../config/indicator.config.js';
 
 import {
-    INDICATOR_SIGNAL_CONFIG,
     emaDisplayName,
+    INDICATOR_SIGNAL_CONFIG,
     indicatorConfig,
     momentumDisplayName,
 } from '../config/indicator.config.js';
-
+import type { MarketIndicators } from '../indicators/indicator.service.js';
 import {
     calculateConsensus,
     clampWeight,
 } from './consensus.js';
-
-import type { IndicatorSignalOverrides, ResolvedIndicatorSignalConfig } from '../config/indicator.config.js';
 import type {
     IndicatorAnalysis,
     SignalResult,

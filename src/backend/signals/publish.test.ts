@@ -1,8 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-
-import { publishSignal } from './publish.js';
-
 import type { SignalLifecycleRepository, SignalStateRow } from './lifecycle.repository.js';
+import { publishSignal } from './publish.js';
 
 const KEY = { symbol: 'BTCUSDT', provider: 'binance', interval: '1h' };
 const HOUR = 3_600_000;

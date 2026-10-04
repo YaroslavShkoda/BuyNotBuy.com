@@ -1,7 +1,6 @@
-import { query as defaultQuery, withTransaction } from '../db/pool.js';
-
 import type { QueryResult, QueryResultRow } from 'pg';
 import type { SignalDirection, SignalStatus } from '../config/lifecycle.config.js';
+import { query as defaultQuery, withTransaction } from '../db/pool.js';
 
 /**
  * The live signal for a series, and the trail of how it got there.

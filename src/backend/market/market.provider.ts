@@ -1,16 +1,14 @@
+import type { MarketProviderName } from '../config/market.config.js';
 import { marketConfig } from '../config/market.config.js';
-
+import { MarketDataError } from '../errors/market-data.error.js';
+import type { VenueCapability } from './capability.js';
+import { describeRoute, route, serves } from './capability.js';
+import { FailoverProvider } from './failover.provider.js';
 import { BinanceProvider } from './providers/binance.provider.js';
 import { BitgetProvider } from './providers/bitget.provider.js';
-import { MockProvider } from './providers/mock.provider.js';
-import { FailoverProvider } from './failover.provider.js';
-import { isVenueAvailable } from './providers/provider-http.js';
-import { describeRoute, route, serves } from './capability.js';
-import { MarketDataError } from '../errors/market-data.error.js';
-
-import type { MarketProviderName } from '../config/market.config.js';
-import type { VenueCapability } from './capability.js';
 import type { MarketDataProvider } from './providers/market-data.provider.js';
+import { MockProvider } from './providers/mock.provider.js';
+import { isVenueAvailable } from './providers/provider-http.js';
 
 /**
  * Builds one venue, for one market.

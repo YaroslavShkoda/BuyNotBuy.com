@@ -1,15 +1,13 @@
-import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
-
+import { describe, expect, it } from 'vitest';
+import type { ExecutionConfig } from './execution.js';
 import {
+    EXECUTION_CONFIG,
+    ExecutionConfigParser,
     fillPrice,
     pricedTrade,
     roundTripCost,
-    EXECUTION_CONFIG,
-    ExecutionConfigParser,
 } from './execution.js';
-
-import type { ExecutionConfig } from './execution.js';
 
 const BAR = { open: 100, high: 110, low: 90, close: 105 };
 

@@ -1,8 +1,7 @@
-import { flushIndicatorVoteBacklog } from '../indicators/performance/indicator-performance.service.js';
 import { flushSignalHistoryBacklog } from '../history/signal-history.service.js';
-
-import type { IndicatorLogger } from '../indicators/performance/indicator-performance.types.js';
 import type { SignalHistoryLogger } from '../history/signal-history.types.js';
+import { flushIndicatorVoteBacklog } from '../indicators/performance/indicator-performance.service.js';
+import type { IndicatorLogger } from '../indicators/performance/indicator-performance.types.js';
 
 /**
  * Both write buffers, drained, on every tick.

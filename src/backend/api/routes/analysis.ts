@@ -1,11 +1,10 @@
 import type { FastifyInstance } from 'fastify';
 
 import { getAnalysis } from '../controllers/analysis.controller.js';
-
+import { sendWithEtag } from '../lib/conditional-get.js';
 import {
     setDataFreshnessHeaders,
 } from '../lib/data-freshness.js';
-import { sendWithEtag } from '../lib/conditional-get.js';
 
 export async function analysisRoutes(
     app: FastifyInstance,

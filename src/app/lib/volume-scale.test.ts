@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest';
-
-import { buildVolumeScale } from './volume-scale';
-
 import type { Candle } from '../types/analysis';
+import { buildVolumeScale } from './volume-scale';
 
 const HOUR = 3_600_000;
 

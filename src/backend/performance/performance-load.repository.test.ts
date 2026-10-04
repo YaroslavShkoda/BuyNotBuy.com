@@ -1,9 +1,7 @@
-import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
-
-import { groupIntoSignals } from './performance-load.repository.js';
-
+import { describe, expect, it } from 'vitest';
 import type { SignalOutcome } from '../outcomes/outcome.js';
+import { groupIntoSignals } from './performance-load.repository.js';
 
 type Row = Parameters<typeof groupIntoSignals>[0][number];
 

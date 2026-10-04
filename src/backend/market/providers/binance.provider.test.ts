@@ -5,11 +5,10 @@ import {
     it,
     vi,
 } from 'vitest';
-
-import { BinanceProvider } from './binance.provider.js';
+import { requiredCandleCount } from '../../config/indicator.config.js';
 import { MarketDataError } from '../../errors/market-data.error.js';
 import { ProviderError } from '../../errors/provider.error.js';
-import { requiredCandleCount } from '../../config/indicator.config.js';
+import { BinanceProvider } from './binance.provider.js';
 
 afterEach(() => {
     vi.unstubAllGlobals();

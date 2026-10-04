@@ -1,16 +1,14 @@
-import { describe, expect, it, beforeEach, afterEach } from 'vitest';
 import fc from 'fast-check';
-
-import { MetricRegistry, useRegistry } from '../observability/registry.js';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { METRIC_NAMES } from '../observability/metrics.js';
+import { MetricRegistry, useRegistry } from '../observability/registry.js';
+import type { IndicatorSignal } from './signal.types.js';
 import {
+    churnRate,
+    lastPublishedSignal,
     recordPublishedSignal,
     resetPublishedSignals,
-    lastPublishedSignal,
-    churnRate,
 } from './signal-publication.js';
-
-import type { IndicatorSignal } from './signal.types.js';
 
 const DIRECTIONS: IndicatorSignal[] = ['LONG', 'SHORT', 'NEUTRAL'];
 

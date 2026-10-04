@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-    detectDivergence,
     type DivergencePoint,
+    detectDivergence,
 } from './divergence.js';
 
 function createPoint(

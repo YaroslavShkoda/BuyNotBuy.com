@@ -1,12 +1,10 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-
-import { CANDIDATE_STRATEGIES, runStrategy } from './strategies.js';
 import { EXECUTION_CONFIG } from '../backtest/execution.js';
-import { runWalkForward, DEFAULT_WALK_FORWARD_OPTIONS } from '../backtest/walk-forward.js';
-import { query, closePool } from '../db/pool.js';
-
+import { DEFAULT_WALK_FORWARD_OPTIONS, runWalkForward } from '../backtest/walk-forward.js';
+import { closePool, query } from '../db/pool.js';
 import type { Candle } from '../types/market.js';
+import { CANDIDATE_STRATEGIES, runStrategy } from './strategies.js';
 
 /**
  * The strategy bench.

@@ -9,10 +9,9 @@
 import { readFileSync } from 'node:fs';
 
 import { createDonchian } from '../strategies/donchian.js';
+import type { Candle } from '../types/market.js';
 import { channelInflation, resampleWithCoverage } from './coverage-gap.js';
 import { fromModule, runStrategy } from './strategies.js';
-
-import type { Candle } from '../types/market.js';
 
 const pct = (value: number): string => `${(value * 100).toFixed(2)}%`;
 const date = (ms: number): string => new Date(ms).toISOString().slice(0, 10);

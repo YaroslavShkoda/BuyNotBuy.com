@@ -1,7 +1,6 @@
-import { describeSignal, partitionPanel } from './consensus.js';
-
-import type { IndicatorAnalysis, IndicatorSignal } from './signal.types.js';
 import type { ConfidenceModel } from '../config/consensus.config.js';
+import { describeSignal, partitionPanel } from './consensus.js';
+import type { IndicatorAnalysis, IndicatorSignal } from './signal.types.js';
 
 /**
  * Why this signal was published, in a form that can be argued with.

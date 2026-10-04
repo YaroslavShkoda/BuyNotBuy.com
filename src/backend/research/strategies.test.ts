@@ -1,11 +1,9 @@
 import { describe, expect, it } from 'vitest';
-
-import { CANDIDATE_STRATEGIES, runStrategy, buildSeries, fromModule } from './strategies.js';
 import { createDonchian } from '../strategies/donchian.js';
 import { createDonchianTrendGated } from '../strategies/donchian-trend-gated.js';
-
 import type { StrategyModule } from '../strategies/types.js';
 import type { Candle } from '../types/market.js';
+import { buildSeries, CANDIDATE_STRATEGIES, fromModule, runStrategy } from './strategies.js';
 
 const DAY = 86_400_000;
 

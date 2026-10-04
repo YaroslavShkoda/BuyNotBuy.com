@@ -3,9 +3,9 @@ import { z } from 'zod';
 import { calculateATR } from '../indicators/atr.js';
 import { calculateMACD } from '../indicators/macd.js';
 import { calculateMomentum } from '../indicators/momentum.js';
+import { assessRegime } from '../indicators/regime.js';
 import { calculateRSI } from '../indicators/rsi.js';
 import { calculateStochastic } from '../indicators/stochastic.js';
-import { assessRegime } from '../indicators/regime.js';
 
 import type { Candle } from '../types/market.js';
 

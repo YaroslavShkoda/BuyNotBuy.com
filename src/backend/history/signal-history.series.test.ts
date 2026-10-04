@@ -1,12 +1,11 @@
+import type { Pool } from 'pg';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-
-import { createSignalHistoryRepository } from './signal-history.repository.js';
-import { getTestPool, truncateSignalTables } from '../test-support/test-database.js';
 import { marketConfig } from '../config/market.config.js';
+import { getTestPool, truncateSignalTables } from '../test-support/test-database.js';
 
 import type { SignalHistoryRepository } from './signal-history.repository.js';
+import { createSignalHistoryRepository } from './signal-history.repository.js';
 import type { SignalHistoryEntry } from './signal-history.types.js';
-import type { Pool } from 'pg';
 
 const HOUR_MS = 3_600_000;
 const BASE = 1_737_950_400_000;

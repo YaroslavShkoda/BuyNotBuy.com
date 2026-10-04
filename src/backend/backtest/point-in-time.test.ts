@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest';
-
-import { computeSignalAt, computeSignalSeries, reapplyThresholds } from './point-in-time.js';
-
 import type { Candle } from '../types/market.js';
+import { computeSignalAt, computeSignalSeries, reapplyThresholds } from './point-in-time.js';
 
 const HOUR_MS = 3_600_000;
 

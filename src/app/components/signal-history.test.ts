@@ -1,12 +1,10 @@
 import { describe, expect, it } from 'vitest';
-
+import type { SignalHistoryEntry } from '../types/history';
 import {
     filterValidEntries,
     getSignalHistoryRows,
     isValidHistoryEntry,
 } from './signal-history';
-
-import type { SignalHistoryEntry } from '../types/history';
 
 const NOW = new Date('2026-01-15T12:00:00Z');
 

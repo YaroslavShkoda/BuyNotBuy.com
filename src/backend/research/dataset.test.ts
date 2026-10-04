@@ -1,19 +1,17 @@
-import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
-
+import { describe, expect, it } from 'vitest';
+import type { Candle } from '../types/market.js';
+import type { DatasetRow } from './dataset.js';
 import {
     buildDataset,
+    DatasetRowSchema,
     datasetChecksum,
     labelFor,
     splitByTime,
     summarize,
     toMatrix,
-    DatasetRowSchema,
 } from './dataset.js';
 import { extractFeatureSeries } from './features.js';
-
-import type { DatasetRow } from './dataset.js';
-import type { Candle } from '../types/market.js';
 
 const HOUR = 3_600_000;
 

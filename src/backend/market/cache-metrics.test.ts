@@ -39,11 +39,10 @@ vi.mock('./market.provider.js', () => ({
     activeMarketVenue: vi.fn(() => 'binance'),
 }));
 
-import { getMarketData, resetMarketDataCache } from './market.service.js';
 import { marketConfig } from '../config/market.config.js';
 import { MetricRegistry, useRegistry } from '../observability/registry.js';
-
 import type { Candle } from '../types/market.js';
+import { getMarketData, resetMarketDataCache } from './market.service.js';
 
 const HOUR_MS = 3_600_000;
 

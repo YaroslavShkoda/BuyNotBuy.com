@@ -1,9 +1,9 @@
-import { beforeEach } from 'vitest';
-import { connect as connectNet } from 'node:net';
-import { connect as connectTls } from 'node:tls';
+import { lookup as dnsLookup } from 'node:dns';
 import { request as httpRequest } from 'node:http';
 import { request as httpsRequest } from 'node:https';
-import { lookup as dnsLookup } from 'node:dns';
+import { connect as connectNet } from 'node:net';
+import { connect as connectTls } from 'node:tls';
+import { beforeEach } from 'vitest';
 
 /**
  * Refuses to let a test reach the network.

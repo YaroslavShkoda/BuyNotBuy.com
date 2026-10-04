@@ -1,7 +1,7 @@
-import { performanceConfig } from './performance.config.js';
+import type { OutcomeVerdict } from '../outcomes/outcome.js';
 
 import type { PerformanceConfig } from './performance.config.js';
-import type { OutcomeVerdict } from '../outcomes/outcome.js';
+import { performanceConfig } from './performance.config.js';
 
 /**
  * What a set of resolved signals says about the system that produced them.

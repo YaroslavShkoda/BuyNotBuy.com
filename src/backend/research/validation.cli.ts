@@ -1,18 +1,16 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-
-import { CANDIDATE_STRATEGIES, fromModule } from './strategies.js';
+import { closePool } from '../db/pool.js';
+import { createStrategyRuleRepository } from '../strategies/candidate.repository.js';
 import { createDonchian } from '../strategies/donchian.js';
 import { createDonchianCalmGated } from '../strategies/donchian-calm-gated.js';
 import { createVolatilityTrend } from '../strategies/volatility-trend.js';
-import { walkForwardStrategy } from './strategy-walk-forward.js';
+import type { Candle } from '../types/market.js';
 import { holdoutStatus } from './holdout.js';
 import { REGISTERED_RULES, registrationOf } from './holdout-registration.js';
-import { createStrategyRuleRepository } from '../strategies/candidate.repository.js';
-import { closePool } from '../db/pool.js';
-
-import type { Candle } from '../types/market.js';
 import type { Strategy } from './strategies.js';
+import { CANDIDATE_STRATEGIES, fromModule } from './strategies.js';
+import { walkForwardStrategy } from './strategy-walk-forward.js';
 
 /**
  * The three questions that decide whether a rule is real, asked together.

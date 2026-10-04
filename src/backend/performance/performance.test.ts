@@ -1,15 +1,13 @@
-import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
-
+import { describe, expect, it } from 'vitest';
+import { PerformanceConfigParser } from './performance.config.js';
+import type { PerformanceSample } from './performance.js';
 import {
     computeMetrics,
     confidenceBuckets,
-    groupBy,
     EMPTY_PERFORMANCE,
+    groupBy,
 } from './performance.js';
-import { PerformanceConfigParser } from './performance.config.js';
-
-import type { PerformanceSample } from './performance.js';
 
 const BASE = 1_700_000_000_000;
 const HOUR = 3_600_000;

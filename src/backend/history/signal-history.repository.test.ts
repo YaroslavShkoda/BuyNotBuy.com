@@ -1,19 +1,18 @@
-import { marketConfig } from '../config/market.config.js';
-import { describe, expect, it, vi } from 'vitest';
 import { randomUUID } from 'node:crypto';
+import { describe, expect, it, vi } from 'vitest';
+import { marketConfig } from '../config/market.config.js';
 
 import {
-    LATEST_SCHEMA_VERSION,
     applyMigrations,
     currentSchemaVersion,
+    LATEST_SCHEMA_VERSION,
 } from '../db/migrations.js';
 import { query } from '../db/pool.js';
+import type { SignalHistoryRepository } from './signal-history.repository.js';
 import {
     assertSignalHistorySchemaReady,
     createSignalHistoryRepository,
 } from './signal-history.repository.js';
-
-import type { SignalHistoryRepository } from './signal-history.repository.js';
 import type { SignalHistoryEntry } from './signal-history.types.js';
 
 const HOUR_MS = 3_600_000;

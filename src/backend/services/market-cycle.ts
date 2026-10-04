@@ -1,20 +1,19 @@
-import { marketConfig } from '../config/market.config.js';
-import { historyConfig } from '../config/history.config.js';
+import { getSignalSnapshotRepository } from '../analysis/signal-snapshot.repository.js';
 import { resolveInstrument } from '../config/asset.registry.js';
+import { historyConfig } from '../config/history.config.js';
+import { marketConfig } from '../config/market.config.js';
+import { configuredSeries } from '../history/ingestion.service.js';
+import type { SignalHistoryLogger } from '../history/signal-history.types.js';
+import { settleForwardReturns } from '../indicators/performance/indicator-performance.service.js';
+import type { IndicatorLogger } from '../indicators/performance/indicator-performance.types.js';
 import { getAssetRepository } from '../instruments/asset.repository.js';
 import { classifyByTradingWeek } from '../instruments/classify.js';
 import { getMarketData, resolveRequest } from '../market/market.service.js';
 import { observeNewestBar } from '../observability/health.registry.js';
-import { getSignalSnapshotRepository } from '../analysis/signal-snapshot.repository.js';
-import { publishSignal } from '../signals/publish.js';
 import { reconcileSignalOutcomes } from '../outcomes/reconcile.js';
-import { configuredSeries } from '../history/ingestion.service.js';
-import { settleForwardReturns } from '../indicators/performance/indicator-performance.service.js';
+import { publishSignal } from '../signals/publish.js';
 import { analyzeMarket, storeSnapshot } from './analysis.service.js';
-
 import type { AnalysisTelemetryLogger } from './analysis.telemetry.js';
-import type { SignalHistoryLogger } from '../history/signal-history.types.js';
-import type { IndicatorLogger } from '../indicators/performance/indicator-performance.types.js';
 
 /**
  * One market's observation cycle, which is what the process does per market.

@@ -1,22 +1,21 @@
-import {
-    summarize,
-    isKnownComponent,
-    unknownComponent,
-    createIncidentLog,
-    HealthComponentSchema,
-} from './health.js';
-import { createMetrics, judgeSnapshot } from './metrics.js';
+import { marketConfig } from '../config/market.config.js';
 import { getPool } from '../db/pool.js';
 import { DEFAULT_RETENTION_POLICIES } from '../db/retention.js';
-import { marketConfig } from '../config/market.config.js';
-
 import type {
+    ComponentName,
     HealthComponent,
     HealthReport,
     IncidentLog,
-    ComponentName,
 } from './health.js';
-import type { Metrics, MetricsSnapshot, AlertVerdict } from './metrics.js';
+import {
+    createIncidentLog,
+    HealthComponentSchema,
+    isKnownComponent,
+    summarize,
+    unknownComponent,
+} from './health.js';
+import type { AlertVerdict, Metrics, MetricsSnapshot } from './metrics.js';
+import { createMetrics, judgeSnapshot } from './metrics.js';
 
 /**
  * The one place that knows what the system's parts are.

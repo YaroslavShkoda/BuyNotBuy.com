@@ -16,14 +16,12 @@
 import { readFileSync } from 'node:fs';
 
 import { atrSeries, rollingMax } from '../strategies/series.js';
-
+import type { Candle } from '../types/market.js';
 import {
     forwardReturns,
     futureSignal,
     permutationPValue,
 } from './signal-power.js';
-
-import type { Candle } from '../types/market.js';
 
 const FIXTURES: ReadonlyArray<{ readonly file: string; readonly label: string }> = [
     { file: 'btcusdt-1d-binance.csv', label: 'Binance BTCUSDT' },

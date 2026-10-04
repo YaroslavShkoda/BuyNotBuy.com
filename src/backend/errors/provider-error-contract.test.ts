@@ -1,11 +1,9 @@
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
-
-import { ProviderError, statusForKind } from './provider.error.js';
-
 import type { ProviderFailureKind } from './provider.error.js';
+import { ProviderError, statusForKind } from './provider.error.js';
 
 /**
  * Why this file exists at all.

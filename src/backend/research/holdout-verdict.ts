@@ -1,10 +1,9 @@
 import { query } from '../db/pool.js';
-import { holdoutStatus, HOLDOUT_MINIMUM_BARS } from './holdout.js';
-import { isKnownMetric, protocolFingerprint } from './holdout-protocol.js';
-
-import type { EvaluationCandidate } from './holdout.js';
-import type { HoldoutProtocol, Verdict } from './holdout-protocol.js';
 import type { Candle } from '../types/market.js';
+import type { EvaluationCandidate } from './holdout.js';
+import { HOLDOUT_MINIMUM_BARS, holdoutStatus } from './holdout.js';
+import type { HoldoutProtocol, Verdict } from './holdout-protocol.js';
+import { isKnownMetric, protocolFingerprint } from './holdout-protocol.js';
 
 /**
  * The write that ends the window.

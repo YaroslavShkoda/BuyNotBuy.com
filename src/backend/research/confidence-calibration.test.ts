@@ -1,9 +1,8 @@
 import { describe, expect, it } from 'vitest';
-
-import { collectConfidences, reliability, MINIMUM_BIN_BARS } from './confidence-calibration.js';
+import type { StrategyModule } from '../strategies/types.js';
 
 import type { Candle } from '../types/market.js';
-import type { StrategyModule } from '../strategies/types.js';
+import { collectConfidences, MINIMUM_BIN_BARS, reliability } from './confidence-calibration.js';
 
 /** A flat market: every bar goes up as often as it goes down, and by the same amount. */
 const FLAT: Candle[] = Array.from({ length: 400 }, (_, index) => {

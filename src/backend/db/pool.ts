@@ -1,9 +1,7 @@
+import type { PoolClient, QueryResult, QueryResultRow } from 'pg';
 import { Pool, types } from 'pg';
-
 import { databaseConfig } from '../config/database.config.js';
 import { currentRegistry } from '../observability/registry.js';
-
-import type { PoolClient, QueryResult, QueryResultRow } from 'pg';
 
 /**
  * `BIGINT` arrives as a string, and this service stores millisecond timestamps

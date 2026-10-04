@@ -1,6 +1,5 @@
-import { getPool } from './pool.js';
-
 import type { PoolClient } from 'pg';
+import { getPool } from './pool.js';
 
 export interface Migration {
     readonly version: number;

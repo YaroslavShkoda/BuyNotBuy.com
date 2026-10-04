@@ -2,12 +2,12 @@ import { describe, expect, it } from 'vitest';
 
 import '../test-support/test-database.js';
 
-import { createRetentionStore } from './retention.store.js';
 import { getTestPool } from '../test-support/test-database.js';
-import { RetentionPolicySchema, planPrune } from './retention.js';
+import type { RetentionPolicy } from './retention.js';
+import { planPrune, RetentionPolicySchema } from './retention.js';
 
 import type { Queryable } from './retention.store.js';
-import type { RetentionPolicy } from './retention.js';
+import { createRetentionStore } from './retention.store.js';
 
 const NOW = 1_700_000_000_000;
 

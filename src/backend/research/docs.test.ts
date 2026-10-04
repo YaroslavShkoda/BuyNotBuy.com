@@ -3,11 +3,10 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { beforeAll, describe, expect, it } from 'vitest';
-
-import { FILES, build, collectSchemaFacts } from './docs-generate.js';
+import { query } from '../db/pool.js';
 
 import type { SchemaFacts } from './docs-generate.js';
-import { query } from '../db/pool.js';
+import { build, collectSchemaFacts, FILES } from './docs-generate.js';
 
 /**
  * The generated documents, checked against a rebuild.

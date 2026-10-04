@@ -1,11 +1,10 @@
-import { consensusConfig } from '../config/consensus.config.js';
-
-import type { IndicatorAnalysis, IndicatorSignal, SignalResult } from './signal.types.js';
 import type {
     ConfidenceModel,
     ConsensusConfig,
     WeightModel,
 } from '../config/consensus.config.js';
+import { consensusConfig } from '../config/consensus.config.js';
+import type { IndicatorAnalysis, IndicatorSignal, SignalResult } from './signal.types.js';
 
 /** Two-sided 95% quantile of the standard normal distribution. */
 const Z_95 = 1.959963985;

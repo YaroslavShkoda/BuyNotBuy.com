@@ -1,14 +1,12 @@
 import { historyConfig } from '../../config/history.config.js';
 import { query, withTransaction } from '../../db/pool.js';
-
-import { FORWARD_HORIZON_NAMES } from './indicator-performance.types.js';
-
 import type {
     ForwardHorizon,
     IndicatorVote,
     SettleUpdate,
     UnsettledVote,
 } from './indicator-performance.types.js';
+import { FORWARD_HORIZON_NAMES } from './indicator-performance.types.js';
 
 const HOUR_MS = 3_600_000;
 

@@ -6,17 +6,17 @@ import { describe, expect, it } from 'vitest';
 // a test that fails in CI and passes locally.
 const TIMEOUT = 30_000;
 
-import {
-    runLaboratory,
-    LabRunSchema,
-    STAGES,
-    RUNTIME_STAGES,
-    STAGE_SIDE,
-    isRuntimeStage,
-} from './lab.js';
-import { requiredBarsForFeatures, DEFAULT_FEATURE_CONFIG } from './features.js';
 
 import type { Candle } from '../types/market.js';
+import { DEFAULT_FEATURE_CONFIG, requiredBarsForFeatures } from './features.js';
+import {
+    isRuntimeStage,
+    LabRunSchema,
+    RUNTIME_STAGES,
+    runLaboratory,
+    STAGE_SIDE,
+    STAGES,
+} from './lab.js';
 
 const HOUR = 3_600_000;
 

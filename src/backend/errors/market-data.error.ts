@@ -1,6 +1,5 @@
-import { ApplicationError } from './application.error.js';
-
 import type { ErrorCode } from './application.error.js';
+import { ApplicationError } from './application.error.js';
 
 export interface MarketDataErrorOptions {
     code?: ErrorCode;

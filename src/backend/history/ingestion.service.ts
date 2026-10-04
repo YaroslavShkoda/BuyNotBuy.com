@@ -1,12 +1,12 @@
 import { marketConfig } from '../config/market.config.js';
-import { candleRepository } from './candle.repository.js';
-import { isCandleClosed } from './candle-clock.js';
-import { configuredVenueFor, marketProviderFor } from '../market/market.provider.js';
 import { ApplicationError } from '../errors/application.error.js';
-
-import type { CandleSeriesKey, CandleRepository } from './candle.repository.js';
+import { configuredVenueFor, marketProviderFor } from '../market/market.provider.js';
 import type { MarketDataProvider } from '../market/providers/market-data.provider.js';
 import type { Candle } from '../types/market.js';
+
+import type { CandleRepository, CandleSeriesKey } from './candle.repository.js';
+import { candleRepository } from './candle.repository.js';
+import { isCandleClosed } from './candle-clock.js';
 
 /**
  * Keeping the candle table current.

@@ -8,11 +8,10 @@
 
 import { createDonchian } from '../strategies/donchian.js';
 import { createDonchianTrendGated } from '../strategies/donchian-trend-gated.js';
+import type { StrategyModule } from '../strategies/types.js';
 import { createVolatilityTrend } from '../strategies/volatility-trend.js';
 import { collectConfidences, reliability } from './confidence-calibration.js';
 import { loadDaily } from './threshold-null.js';
-
-import type { StrategyModule } from '../strategies/types.js';
 
 const pct = (value: number): string => `${(value * 100).toFixed(2)}%`;
 

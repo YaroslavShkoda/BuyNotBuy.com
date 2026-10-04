@@ -1,9 +1,8 @@
-import { VolumePlot } from './volume-plot';
+import { quoteAssetOf } from '../lib/quote-asset';
 import { buildVolumeScale } from '../lib/volume-scale';
 import { summariseVolume } from '../lib/volume-summary';
-import { quoteAssetOf } from '../lib/quote-asset';
-
 import type { Candle } from '../types/analysis';
+import { VolumePlot } from './volume-plot';
 
 interface MarketChartProps {
     candles: Candle[];

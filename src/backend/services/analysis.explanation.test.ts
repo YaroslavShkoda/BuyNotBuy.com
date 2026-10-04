@@ -5,10 +5,10 @@ vi.mock('../history/signal-history.service.js', () => ({
     getSignalHistory: vi.fn(() => []),
 }));
 
-import { analyzeMarketWithStatus } from './analysis.service.js';
 import * as marketService from '../market/market.service.js';
-import { freshMarketData } from '../test-support/market-data-result.js';
 import { marketData } from '../test-support/market-data.js';
+import { freshMarketData } from '../test-support/market-data-result.js';
+import { analyzeMarketWithStatus } from './analysis.service.js';
 
 const rising = () =>
     freshMarketData(

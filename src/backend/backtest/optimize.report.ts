@@ -13,9 +13,9 @@
  * champion alone, and `detectSpike` has the last word.
  */
 
-import { detectSpike } from './optimizer.js';
 
-import type { SearchResult, ScoredCandidate } from './optimizer.js';
+import type { ScoredCandidate, SearchResult } from './optimizer.js';
+import { detectSpike } from './optimizer.js';
 
 /**
  * How many candidates to print.

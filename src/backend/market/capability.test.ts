@@ -1,11 +1,11 @@
-import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
+import { describe, expect, it } from 'vitest';
 
 import {
     describeRoute,
+    type MarketRequest,
     route,
     serves,
-    type MarketRequest,
     type VenueCapability,
 } from './capability.js';
 

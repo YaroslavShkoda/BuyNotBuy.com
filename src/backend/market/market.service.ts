@@ -1,20 +1,18 @@
+import { requiredCandleCount } from '../config/indicator.config.js';
+import { MAX_CANDLE_LIMIT, marketConfig } from '../config/market.config.js';
+import { MarketDataError } from '../errors/market-data.error.js';
+import { currentRegistry } from '../observability/registry.js';
+import { createKeyedSingleFlight } from '../observability/single-flight.js';
+import type { AssetPrice, MarketData } from '../types/market.js';
 import { assertCandleSeries } from './candle-validation.js';
-import { classifyFreshness } from './market-freshness.js';
+import type { MarketRequest } from './capability.js';
 import {
     activeMarketVenue,
     anyMarketProviderAvailable,
     marketProviderFor,
 } from './market.provider.js';
-
-import { MAX_CANDLE_LIMIT, marketConfig } from '../config/market.config.js';
-import { requiredCandleCount } from '../config/indicator.config.js';
-import { MarketDataError } from '../errors/market-data.error.js';
-import { currentRegistry } from '../observability/registry.js';
-import { createKeyedSingleFlight } from '../observability/single-flight.js';
-
 import type { MarketFreshness } from './market-freshness.js';
-import type { MarketRequest } from './capability.js';
-import type { AssetPrice, MarketData } from '../types/market.js';
+import { classifyFreshness } from './market-freshness.js';
 
 export interface MarketDataResult {
     data: MarketData;

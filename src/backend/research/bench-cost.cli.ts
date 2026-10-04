@@ -5,10 +5,9 @@
  */
 
 import { createDonchian } from '../strategies/donchian.js';
+import type { Timing } from './bench-cost.js';
 import { extrapolate, growthRatio, loadHourly, timeRun } from './bench-cost.js';
 import { fromModule, runStrategy } from './strategies.js';
-
-import type { Timing } from './bench-cost.js';
 
 const SIZES = [1000, 2000, 4000, 8000];
 const hourly = loadHourly('btcusdt-1h.csv');

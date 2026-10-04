@@ -8,17 +8,17 @@
 import { EXECUTION_CONFIG } from '../backtest/execution.js';
 import { createDonchian } from '../strategies/donchian.js';
 import { createVolatilityTrend } from '../strategies/volatility-trend.js';
+import { fromModule } from './strategies.js';
+import { walkForwardStrategy } from './strategy-walk-forward.js';
 import {
+    clears,
     DEFAULT_EXPOSURE,
     DEFAULT_FOLD_BARS,
     DEFAULT_RULES,
     DEFAULT_SEED,
-    clears,
     loadDaily,
     measurePassRates,
 } from './threshold-null.js';
-import { fromModule } from './strategies.js';
-import { walkForwardStrategy } from './strategy-walk-forward.js';
 
 const pct = (value: number): string => `${(value * 100).toFixed(1)}%`;
 const btc = loadDaily('btcusdt-1d-binance.csv');

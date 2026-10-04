@@ -1,6 +1,10 @@
 import { z } from 'zod';
-
+import type { ExecutionConfig } from '../backtest/execution.js';
 import { EXECUTION_CONFIG, fillPrice, pricedTrade } from '../backtest/execution.js';
+import type { BacktestMetrics, Trade } from '../backtest/metrics.js';
+import { benchmarkMetrics, calculateMetrics } from '../backtest/metrics.js';
+import { createDonchian } from '../strategies/donchian.js';
+import { createDonchianTrendGated } from '../strategies/donchian-trend-gated.js';
 import {
     atrSeries,
     emaSeries,
@@ -9,14 +13,8 @@ import {
     rsiSeries,
     smaSeries,
 } from '../strategies/series.js';
-import { calculateMetrics, benchmarkMetrics } from '../backtest/metrics.js';
-import { createDonchian } from '../strategies/donchian.js';
-import { createDonchianTrendGated } from '../strategies/donchian-trend-gated.js';
-
-import type { ExecutionConfig } from '../backtest/execution.js';
-import type { BacktestMetrics, Trade } from '../backtest/metrics.js';
-import type { Candle } from '../types/market.js';
 import type { StrategyModule } from '../strategies/types.js';
+import type { Candle } from '../types/market.js';
 
 /**
  * Candidate strategies, and the only honest way to compare them.

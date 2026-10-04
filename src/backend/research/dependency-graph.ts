@@ -33,10 +33,10 @@
  * that change is seen rather than assumed.
  */
 
-import ts from 'typescript-5';
 
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
+import ts from 'typescript-5';
 
 const SKIPPED = new Set(['test-support', 'node_modules', '.next', 'fixtures']);
 

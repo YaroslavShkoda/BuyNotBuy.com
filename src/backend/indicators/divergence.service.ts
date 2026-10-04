@@ -1,25 +1,20 @@
-import type { Candle } from '../types/market.js';
-import type { DivergenceAnalysis } from '../types/analysis.js';
-
 import { indicatorConfig } from '../config/indicator.config.js';
-
+import type { DivergenceAnalysis } from '../types/analysis.js';
+import type { Candle } from '../types/market.js';
+import {
+    type DivergencePoint,
+    type DivergencePolarity,
+    type DivergenceResult,
+    detectDivergence,
+} from './divergence.js';
+import { findDivergencePairs } from './divergence-pairing.js';
 import {
     findLocalBottoms,
     findLocalTops,
 } from './local-extrema.js';
-
 import {
     calculateMomentumSeries,
 } from './momentum-series.js';
-
-import {
-    detectDivergence,
-    type DivergencePoint,
-    type DivergencePolarity,
-    type DivergenceResult,
-} from './divergence.js';
-
-import { findDivergencePairs } from './divergence-pairing.js';
 
 // `DivergenceAnalysis` moved to `types/analysis.ts`: `MarketAnalysis` names it,
 // and a contract that reaches up into `indicators/` for one of its own fields is

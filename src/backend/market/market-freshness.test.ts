@@ -1,9 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-
-import { classifyFreshness, isUsableForSignal } from './market-freshness.js';
 import { marketConfig } from '../config/market.config.js';
-
 import type { MarketFreshness } from './market-freshness.js';
+import { classifyFreshness, isUsableForSignal } from './market-freshness.js';
 
 /**
  * The order of the checks in `classifyFreshness` is the contract, so most of

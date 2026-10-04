@@ -1,9 +1,8 @@
 import { z } from 'zod';
-
-import { describeUnresolved, resolveInstrument } from './asset.registry.js';
+import type { MarketProviderName } from '../types/venue.js';
 
 import { MARKET_VENUES } from '../types/venue.js';
-import type { MarketProviderName } from '../types/venue.js';
+import { describeUnresolved, resolveInstrument } from './asset.registry.js';
 
 /** Binance /api/v3/klines silently caps the limit at 1000 per request. */
 export const MAX_CANDLE_LIMIT = 1000;

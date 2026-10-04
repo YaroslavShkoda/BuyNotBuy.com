@@ -1,12 +1,11 @@
-import type {
-    MarketAnalysis,
-} from '../types/analysis.js';
+import type { MarketFreshness } from '../market/market-freshness.js';
 
 import type {
     IndicatorSignal,
 } from '../signals/signal.types.js';
-
-import type { MarketFreshness } from '../market/market-freshness.js';
+import type {
+    MarketAnalysis,
+} from '../types/analysis.js';
 
 export interface AnalysisTelemetryLogger {
     info(

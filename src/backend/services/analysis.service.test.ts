@@ -5,11 +5,11 @@ vi.mock('../history/signal-history.service.js', () => ({
     getSignalHistory: vi.fn(() => []),
 }));
 
-import { analyzeMarket } from './analysis.service.js';
-import * as marketService from '../market/market.service.js';
 import * as divergenceService from '../indicators/divergence.service.js';
-import { freshMarketData } from '../test-support/market-data-result.js';
+import * as marketService from '../market/market.service.js';
 import { marketData } from '../test-support/market-data.js';
+import { freshMarketData } from '../test-support/market-data-result.js';
+import { analyzeMarket } from './analysis.service.js';
 
 describe('analyzeMarket', () => {
     it('builds complete market analysis', async () => {

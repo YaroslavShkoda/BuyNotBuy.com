@@ -1,10 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-
-import { FailoverProvider } from './failover.provider.js';
+import { marketConfig } from '../config/market.config.js';
 import { MarketDataError } from '../errors/market-data.error.js';
 import { ProviderError } from '../errors/provider.error.js';
 import { currentCandles } from '../test-support/candles.js';
-import { marketConfig } from '../config/market.config.js';
+import { FailoverProvider } from './failover.provider.js';
 import { resetMarketDataCache } from './market.service.js';
 
 import type { MarketDataProvider } from './providers/market-data.provider.js';

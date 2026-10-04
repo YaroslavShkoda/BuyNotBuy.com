@@ -1,8 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-
+import { MarketDataError } from '../../errors/market-data.error.js';
 import { BitgetProvider } from './bitget.provider.js';
 import { resetProviderTransport } from './provider-http.js';
-import { MarketDataError } from '../../errors/market-data.error.js';
 
 const TICKERS = 'https://api.bitget.com/api/v2/spot/market/tickers';
 const CANDLES = 'https://api.bitget.com/api/v2/spot/market/candles';

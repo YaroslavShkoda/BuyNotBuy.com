@@ -1,10 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-
-import { AssetRepository } from './asset.repository.js';
 import { query } from '../db/pool.js';
-import { seedConfiguredRegistry } from './seed-registry.js';
-
+import { AssetRepository } from './asset.repository.js';
 import type { Asset } from './domain.js';
+import { seedConfiguredRegistry } from './seed-registry.js';
 
 /**
  * The property that was false on every live deployment, stated so it can fail.

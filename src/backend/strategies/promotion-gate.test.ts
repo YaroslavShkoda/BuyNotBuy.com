@@ -1,9 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-
+import type { GateCheck, Promotion, PromotionGate } from '../strategies/candidate.repository.js';
 import { createStrategyRuleRepository } from '../strategies/candidate.repository.js';
 import { getTestPool, truncateSignalTables } from '../test-support/test-database.js';
-
-import type { GateCheck, Promotion, PromotionGate } from '../strategies/candidate.repository.js';
 
 const NOW = 1_760_000_000_000;
 

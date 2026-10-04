@@ -1,9 +1,8 @@
 import { describe, expect, it } from 'vitest';
-
-import { createRetentionRunner } from './retention.runner.js';
+import type { PruneReport } from '../db/retention.js';
 
 import type { RetentionStore } from '../db/retention.store.js';
-import type { PruneReport } from '../db/retention.js';
+import { createRetentionRunner } from './retention.runner.js';
 
 const DAY = 86_400_000;
 const NOW = 1_760_000_000_000;

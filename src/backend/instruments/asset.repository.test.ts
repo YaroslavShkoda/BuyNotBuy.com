@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-
-import { AssetRepository } from './asset.repository.js';
 import { query } from '../db/pool.js';
+import { AssetRepository } from './asset.repository.js';
 
 const repository = new AssetRepository();
 

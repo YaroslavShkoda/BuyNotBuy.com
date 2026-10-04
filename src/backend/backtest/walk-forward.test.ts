@@ -1,10 +1,8 @@
 import { describe, expect, it } from 'vitest';
-
-import { runWalkForward, DEFAULT_WALK_FORWARD_OPTIONS } from './walk-forward.js';
-import { ExecutionConfigParser, roundTripCost, fillPrice } from './execution.js';
-import { requiredCandleCount, INDICATOR_SIGNAL_CONFIG } from '../config/indicator.config.js';
-
+import { INDICATOR_SIGNAL_CONFIG, requiredCandleCount } from '../config/indicator.config.js';
 import type { Candle } from '../types/market.js';
+import { ExecutionConfigParser, fillPrice, roundTripCost } from './execution.js';
+import { DEFAULT_WALK_FORWARD_OPTIONS, runWalkForward } from './walk-forward.js';
 
 const HOUR_MS = 3_600_000;
 const WARMUP = requiredCandleCount();

@@ -13,6 +13,16 @@ export default defineConfig({
         // longer fails the run.
         hookTimeout: 30_000,
 
+        // Isolation stays on, and that is measured, not inherited. With
+        // `isolate: false` the scoped run went 59 files red out of 66 — 604
+        // tests skipped. The setup file gives each test file its own schema by
+        // rewriting `DATABASE_URL` before the dynamic imports run, but a
+        // reused worker does not re-evaluate the pool module: the second file
+        // keeps the first file's pool, whose schema the first file's `afterAll`
+        // has already dropped. The few seconds vitest offers for disabling
+        // isolation are paid for by the one thing this suite cannot give up:
+        // per-file module state.
+
         // Order matters. The database has to be pointed at this file's own
         // schema before any module reads DATABASE_URL at import time, and the
         // network guard has to be in place before a test replaces fetch with

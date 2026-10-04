@@ -1,10 +1,9 @@
-import { describe, expect, it, beforeEach } from 'vitest';
-
-import { createSignalLifecycleRepository } from './lifecycle.repository.js';
+import type { Pool } from 'pg';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { getTestPool, truncateSignalTables } from '../test-support/test-database.js';
 
 import type { SignalLifecycleRepository } from './lifecycle.repository.js';
-import type { Pool } from 'pg';
+import { createSignalLifecycleRepository } from './lifecycle.repository.js';
 
 const KEY = { symbol: 'BTCUSDT', provider: 'binance', interval: '1h' };
 const OTHER = { symbol: 'ETHUSDT', provider: 'binance', interval: '1h' };

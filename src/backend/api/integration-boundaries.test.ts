@@ -1,10 +1,8 @@
-import { currentCandles } from '../test-support/candles.js';
-import { marketData } from '../test-support/market-data.js';
-
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-
 import { requiredCandleCount } from '../config/indicator.config.js';
 import { resetMarketDataCache } from '../market/market.service.js';
+import { currentCandles } from '../test-support/candles.js';
+import { marketData } from '../test-support/market-data.js';
 import { freshMarketData } from '../test-support/market-data-result.js';
 
 import {

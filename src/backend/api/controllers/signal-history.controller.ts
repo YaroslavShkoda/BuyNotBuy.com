@@ -1,14 +1,12 @@
-import { z } from 'zod';
-
 import type { FastifyBaseLogger } from 'fastify';
-
-import { getSignalHistory as readSignalHistory, summarizeHistory } from '../../history/signal-history.service.js';
+import { z } from 'zod';
+import { resolveInstrument } from '../../config/asset.registry.js';
 import { historyConfig } from '../../config/history.config.js';
 import { marketConfig } from '../../config/market.config.js';
-import { resolveInstrument } from '../../config/asset.registry.js';
 import { ApplicationError } from '../../errors/application.error.js';
-import { SignalHistoryResponseSchema } from '../schemas.js';
+import { getSignalHistory as readSignalHistory, summarizeHistory } from '../../history/signal-history.service.js';
 import { bucketOf, decodeCursor, encodeCursor } from '../lib/history-cursor.js';
+import { SignalHistoryResponseSchema } from '../schemas.js';
 
 const SignalHistoryQuerySchema = z.object({
     limit: z.coerce

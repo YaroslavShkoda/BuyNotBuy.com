@@ -1,13 +1,11 @@
 import { MarketDataError } from '../errors/market-data.error.js';
-import { ProviderError, statusForKind } from '../errors/provider.error.js';
-
-import type { MarketDataProvider, ProviderCandles } from './providers/market-data.provider.js';
 import type { ProviderFailureKind } from '../errors/provider.error.js';
-
+import { ProviderError, statusForKind } from '../errors/provider.error.js';
 import type {
     AssetPrice,
     Candle,
 } from '../types/market.js';
+import type { MarketDataProvider, ProviderCandles } from './providers/market-data.provider.js';
 
 /**
  * Two venues, one answer.

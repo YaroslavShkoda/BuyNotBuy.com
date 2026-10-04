@@ -14,20 +14,20 @@
  *
  *   BACKTEST_FEE_RATE=0 BACKTEST_SLIPPAGE_RATE=0 npm run backtest
  */
-import { runBacktest } from './backtest.service.js';
-import { marketConfig } from '../config/market.config.js';
-import { DEFAULT_WALK_FORWARD_OPTIONS } from './walk-forward.js';
-import { ExecutionConfigParser } from './execution.js';
 
+import { marketConfig } from '../config/market.config.js';
+import type { BacktestReport } from './backtest.service.js';
+import { runBacktest } from './backtest.service.js';
 import type { ExecutionConfig } from './execution.js';
+import { ExecutionConfigParser } from './execution.js';
 import { checkReplayable } from './experiment.js';
 import {
-    permutationTest,
     bootstrapStatistic,
     monteCarlo,
+    permutationTest,
     totalReturn,
 } from './statistics.js';
-import type { BacktestReport } from './backtest.service.js';
+import { DEFAULT_WALK_FORWARD_OPTIONS } from './walk-forward.js';
 
 /**
  * The longest run of consecutive winning trades.
@@ -48,6 +48,7 @@ function longestWinningRun(returns: readonly number[]): number {
 
     return best;
 }
+
 import type { WalkForwardOptions } from './walk-forward.js';
 
 /**

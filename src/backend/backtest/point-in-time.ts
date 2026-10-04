@@ -1,12 +1,11 @@
-import { calculateMarketIndicators } from '../indicators/indicator.service.js';
-import { calculateSignal } from '../signals/signal.service.js';
+import type { IndicatorSignalOverrides } from '../config/indicator.config.js';
 import { INDICATOR_SIGNAL_CONFIG } from '../config/indicator.config.js';
 import { marketConfig } from '../config/market.config.js';
-
 import type { MarketIndicators } from '../indicators/indicator.service.js';
+import { calculateMarketIndicators } from '../indicators/indicator.service.js';
+import { calculateSignal } from '../signals/signal.service.js';
 import type { SignalResult } from '../signals/signal.types.js';
 import type { Candle, MarketData } from '../types/market.js';
-import type { IndicatorSignalOverrides } from '../config/indicator.config.js';
 
 export interface PointInTimeSignal {
     index: number;

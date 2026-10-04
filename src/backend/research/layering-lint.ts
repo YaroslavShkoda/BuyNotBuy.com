@@ -28,7 +28,7 @@
  * attached, which is the difference between an exception and a hole.
  */
 
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import { dirname as posixDirname, join as posixJoin, normalize as posixNormalize } from 'node:path/posix';
 

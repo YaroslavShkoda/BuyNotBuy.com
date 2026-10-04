@@ -1,16 +1,12 @@
 import { createApp } from './app.js';
 import { appConfig } from './config/app.config.js';
+import { knownAssets } from './config/asset.registry.js';
 import { historyConfig } from './config/history.config.js';
 import { marketConfig } from './config/market.config.js';
-import { knownAssets } from './config/asset.registry.js';
-import { assertSignalHistorySchemaReady } from './history/signal-history.repository.js';
-import { getStrategyRuleRepository } from './strategies/candidate.repository.js';
-import { createEvidenceGate } from './services/promotion-gate.js';
-import { createRetentionRunner } from './services/retention.runner.js';
-import { getRetentionStore } from './db/retention.store.js';
-import { getAssetRepository } from './instruments/asset.repository.js';
-import { seedConfiguredRegistry } from './instruments/seed-registry.js';
 import { closePool } from './db/pool.js';
+import { getRetentionStore } from './db/retention.store.js';
+import { configuredSeries } from './history/ingestion.service.js';
+import { assertSignalHistorySchemaReady } from './history/signal-history.repository.js';
 import {
     flushSignalHistoryBacklog,
     signalHistoryBacklog,
@@ -19,16 +15,19 @@ import {
     flushIndicatorVoteBacklog,
     indicatorVoteBacklog,
 } from './indicators/performance/indicator-performance.service.js';
+import { getAssetRepository } from './instruments/asset.repository.js';
+import { seedConfiguredRegistry } from './instruments/seed-registry.js';
 import { activeVenueForMarket, createVenueWatcher } from './market/market.provider.js';
-import { configuredSeries } from './history/ingestion.service.js';
-import { startIngestionScheduler } from './services/ingestion.scheduler.js';
-import { startPoller } from './services/poller.js';
-import { observeMarket, runPerMarket } from './services/market-cycle.js';
-import { drainPeriodicBacklogs } from './services/write-backlog-drain.js';
 import { currentRegistry } from './observability/registry.js';
-
 import type { IngestionScheduler } from './services/ingestion.scheduler.js';
+import { startIngestionScheduler } from './services/ingestion.scheduler.js';
+import { observeMarket, runPerMarket } from './services/market-cycle.js';
 import type { Poller } from './services/poller.js';
+import { startPoller } from './services/poller.js';
+import { createEvidenceGate } from './services/promotion-gate.js';
+import { createRetentionRunner } from './services/retention.runner.js';
+import { drainPeriodicBacklogs } from './services/write-backlog-drain.js';
+import { getStrategyRuleRepository } from './strategies/candidate.repository.js';
 
 const app = createApp();
 

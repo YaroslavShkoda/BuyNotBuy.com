@@ -1,14 +1,11 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-
-import { CANDIDATE_STRATEGIES, runStrategy } from './strategies.js';
-import { EXECUTION_CONFIG } from '../backtest/execution.js';
-import { createDonchian, DONCHIAN_CONFIG } from '../strategies/donchian.js';
-import { fromModule } from './strategies.js';
-import { query, closePool } from '../db/pool.js';
-
-import type { Candle } from '../types/market.js';
 import type { ExecutionConfig } from '../backtest/execution.js';
+import { EXECUTION_CONFIG } from '../backtest/execution.js';
+import { closePool, query } from '../db/pool.js';
+import { createDonchian, DONCHIAN_CONFIG } from '../strategies/donchian.js';
+import type { Candle } from '../types/market.js';
+import { CANDIDATE_STRATEGIES, fromModule, runStrategy } from './strategies.js';
 
 /**
  * The two questions a backtest result has to survive before it means anything.

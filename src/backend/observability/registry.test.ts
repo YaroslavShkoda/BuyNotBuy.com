@@ -1,22 +1,21 @@
-import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
-
+import { describe, expect, it } from 'vitest';
 import {
-    MetricRegistry,
-    METRIC_CATALOGUE,
-    CATALOGUE_BY_NAME,
-    declareMetric,
-    seriesKey,
-    labelValue,
-} from './registry.js';
-import {
-    METRIC_NAMES,
     METRIC_COUNTERS,
-    METRIC_GAUGES,
     METRIC_DISTRIBUTIONS,
+    METRIC_GAUGES,
     METRIC_KIND,
+    METRIC_NAMES,
     metricKind,
 } from './metrics.js';
+import {
+    CATALOGUE_BY_NAME,
+    declareMetric,
+    labelValue,
+    METRIC_CATALOGUE,
+    MetricRegistry,
+    seriesKey,
+} from './registry.js';
 
 describe('the metrics the roadmap named are the metrics we publish', () => {
     const EXPECTED = [

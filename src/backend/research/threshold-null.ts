@@ -40,13 +40,11 @@
  */
 
 import { readFileSync } from 'node:fs';
-
-import { mulberry32 } from './signal-power.js';
-import { walkForwardStrategy } from './strategy-walk-forward.js';
-
 import type { Candle } from '../types/market.js';
+import { mulberry32 } from './signal-power.js';
 import type { Strategy } from './strategies.js';
 import type { WalkForwardVerdict } from './strategy-walk-forward.js';
+import { walkForwardStrategy } from './strategy-walk-forward.js';
 
 export const DEFAULT_FOLD_BARS = 250;
 export const DEFAULT_RULES = 400;

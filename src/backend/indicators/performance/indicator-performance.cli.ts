@@ -9,10 +9,9 @@
  * live one.
  */
 import { marketConfig } from '../../config/market.config.js';
-import { getIndicatorVoteRepository } from './indicator-vote.repository.js';
 import { summarizeIndicatorPerformance } from './indicator-performance.service.js';
-
 import type { IndicatorPerformance } from './indicator-performance.types.js';
+import { getIndicatorVoteRepository } from './indicator-vote.repository.js';
 
 function percent(value: number): string {
     return `${(value * 100).toFixed(2)}%`;

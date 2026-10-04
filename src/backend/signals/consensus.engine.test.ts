@@ -1,14 +1,12 @@
-import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
-
-import { calculateConsensus, wilsonLowerBound } from './consensus.js';
+import { describe, expect, it } from 'vitest';
+import type { ConsensusConfig } from '../config/consensus.config.js';
 import {
     ConsensusConfigParser,
     consensusConfig,
 } from '../config/consensus.config.js';
-
+import { calculateConsensus, wilsonLowerBound } from './consensus.js';
 import type { IndicatorAnalysis, SignalResult } from './signal.types.js';
-import type { ConsensusConfig } from '../config/consensus.config.js';
 
 const NAMES = ['A', 'B', 'C'] as const;
 

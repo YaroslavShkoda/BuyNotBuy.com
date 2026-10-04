@@ -27,10 +27,8 @@
  */
 
 import { z } from 'zod';
-
-import { instrumentFrom, splitTicker } from '../instruments/domain.js';
-
 import type { Asset } from '../instruments/domain.js';
+import { instrumentFrom, splitTicker } from '../instruments/domain.js';
 
 const TICKER = /^[A-Z0-9]{2,12}$/;
 

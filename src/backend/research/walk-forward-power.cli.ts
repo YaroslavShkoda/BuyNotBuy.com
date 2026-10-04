@@ -7,17 +7,16 @@
 import { createDonchian } from '../strategies/donchian.js';
 import { createDonchianCalmGated } from '../strategies/donchian-calm-gated.js';
 import { createDonchianTrendGated } from '../strategies/donchian-trend-gated.js';
+import type { StrategyModule } from '../strategies/types.js';
 import { createVolatilityTrend } from '../strategies/volatility-trend.js';
 import { fromModule } from './strategies.js';
 import { loadDaily } from './threshold-null.js';
 import {
-    SIGNIFICANCE_LEVEL,
-    compareAgainstCoins,
     coinPopulation,
+    compareAgainstCoins,
     profileOf,
+    SIGNIFICANCE_LEVEL,
 } from './walk-forward-power.js';
-
-import type { StrategyModule } from '../strategies/types.js';
 
 const pct = (value: number): string => `${(value * 100).toFixed(1)}%`;
 const FOLD_BARS = 250;

@@ -1,8 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
-
-import { marketUrl } from './market';
 import { analysisUrl } from './analysis';
 import { signalHistoryUrl } from './history';
+import { marketUrl } from './market';
 
 const BACKEND = 'http://backend.test';
 

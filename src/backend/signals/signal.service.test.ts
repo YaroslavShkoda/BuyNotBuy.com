@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest';
-
-import { calculateSignal } from './signal.service.js';
-
 import { INDICATOR_SIGNAL_CONFIG } from '../config/indicator.config.js';
+import { calculateSignal } from './signal.service.js';
 
 const { confirmBars } = INDICATOR_SIGNAL_CONFIG.ema;
 const { deadbandPercent } = INDICATOR_SIGNAL_CONFIG.momentum;

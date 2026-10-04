@@ -1,8 +1,6 @@
 import { randomUUID } from 'node:crypto';
-
-import { afterAll, beforeAll, beforeEach } from 'vitest';
-
 import type { Pool } from 'pg';
+import { afterAll, beforeAll, beforeEach } from 'vitest';
 
 /**
  * Keeps every test run out of the real database.

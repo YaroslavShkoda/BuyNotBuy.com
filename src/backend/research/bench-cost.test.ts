@@ -1,11 +1,9 @@
 import { describe, expect, it } from 'vitest';
-
-import { extrapolate, growthRatio, timeRun } from './bench-cost.js';
 import { createDonchian } from '../strategies/donchian.js';
-import { fromModule } from './strategies.js';
-
-import type { Timing } from './bench-cost.js';
 import type { StrategyModule } from '../strategies/types.js';
+import type { Timing } from './bench-cost.js';
+import { extrapolate, growthRatio, timeRun } from './bench-cost.js';
+import { fromModule } from './strategies.js';
 
 const at = (bars: number, ms: number): Timing => ({ bars, ms, msPerBar: ms / bars });
 

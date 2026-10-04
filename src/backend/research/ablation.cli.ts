@@ -1,12 +1,11 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-
-import { buildSeries, runStrategy } from './strategies.js';
 import { EXECUTION_CONFIG } from '../backtest/execution.js';
 import { closePool } from '../db/pool.js';
-
-import type { Strategy, Decision } from './strategies.js';
 import type { Candle } from '../types/market.js';
+
+import type { Decision, Strategy } from './strategies.js';
+import { buildSeries, runStrategy } from './strategies.js';
 
 /**
  * Which leg of the chosen rule actually earns the money.

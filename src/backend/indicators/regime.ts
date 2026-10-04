@@ -1,10 +1,9 @@
 import { indicatorConfig } from '../config/indicator.config.js';
 import { regimeConfig, regimeWindowFor } from '../config/regime.config.js';
-import { calculateATR } from './atr.js';
-import { calculateADX } from './adx.js';
-import { calculateBollingerBands } from './bollinger.js';
-
 import type { Candle } from '../types/market.js';
+import { calculateADX } from './adx.js';
+import { calculateATR } from './atr.js';
+import { calculateBollingerBands } from './bollinger.js';
 
 /**
  * What kind of market this is right now.

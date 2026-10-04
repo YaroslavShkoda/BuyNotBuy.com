@@ -99,8 +99,8 @@ vi.mock('../../services/analysis.service.js', () => ({
     })),
 }));
 
-import { analysisRoutes } from './analysis.js';
 import { analyzeMarketWithStatus } from '../../services/analysis.service.js';
+import { analysisRoutes } from './analysis.js';
 
 describe('GET /api/analysis', () => {
     it('returns complete market analysis', async () => {

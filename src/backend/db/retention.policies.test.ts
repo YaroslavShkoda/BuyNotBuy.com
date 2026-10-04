@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest';
-
-import { DEFAULT_RETENTION_POLICIES } from './retention.js';
-
 import { getTestPool } from '../test-support/test-database.js';
+import { DEFAULT_RETENTION_POLICIES } from './retention.js';
 
 /**
  * Every policy's time column is a real column.

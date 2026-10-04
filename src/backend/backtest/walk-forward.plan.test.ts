@@ -1,17 +1,15 @@
-import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
-
+import { describe, expect, it } from 'vitest';
+import { requiredCandleCount } from '../config/indicator.config.js';
+import { DEFAULT_WALK_FORWARD_OPTIONS } from './walk-forward.js';
+import type { WalkForwardPlan } from './walk-forward.plan.js';
 import {
-    buildWalkForwardPlan,
     auditWalkForwardPlan,
-    judgeFold,
+    buildWalkForwardPlan,
     DEFAULT_VALIDATION_RATIO,
     DEFAULT_VALIDATION_TOLERANCE,
+    judgeFold,
 } from './walk-forward.plan.js';
-import { DEFAULT_WALK_FORWARD_OPTIONS } from './walk-forward.js';
-import { requiredCandleCount } from '../config/indicator.config.js';
-
-import type { WalkForwardPlan } from './walk-forward.plan.js';
 
 const CANDLES = 2934;
 

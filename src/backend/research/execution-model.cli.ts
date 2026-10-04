@@ -30,14 +30,12 @@
  */
 
 import { readFileSync } from 'node:fs';
-
-import { createDonchian } from '../strategies/donchian.js';
+import type { ExecutionConfig } from '../backtest/execution.js';
 import { EXECUTION_CONFIG } from '../backtest/execution.js';
+import { createDonchian } from '../strategies/donchian.js';
+import type { Candle } from '../types/market.js';
 import { resampleToDaily } from './resample.js';
 import { fromModule, runStrategy } from './strategies.js';
-
-import type { Candle } from '../types/market.js';
-import type { ExecutionConfig } from '../backtest/execution.js';
 
 const WINDOW_DAYS = 200;
 const YEAR_DAYS = 365;

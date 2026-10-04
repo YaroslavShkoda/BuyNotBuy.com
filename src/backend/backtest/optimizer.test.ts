@@ -1,17 +1,14 @@
-import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
-
-import { ParameterSpecSchema, parameterGrid, parameterByKey, TUNABLE_PARAMETERS } from '../config/parameter.config.js';
-import { optimize, detectSpike, enumerateGrid } from './optimizer.js';
-import { DEFAULT_WALK_FORWARD_OPTIONS } from './walk-forward.js';
-import { buildWalkForwardPlan, judgeFold } from './walk-forward.plan.js';
-import { computeSignalSeries, reapplyThresholds } from './point-in-time.js';
-import { simulateRange } from './walk-forward.js';
+import { describe, expect, it } from 'vitest';
 import { requiredCandleCount } from '../config/indicator.config.js';
-
 import type { ParameterSpec } from '../config/parameter.config.js';
-import type { SearchResult } from './optimizer.js';
+import { ParameterSpecSchema, parameterByKey, parameterGrid, TUNABLE_PARAMETERS } from '../config/parameter.config.js';
 import type { Candle } from '../types/market.js';
+import type { SearchResult } from './optimizer.js';
+import { detectSpike, enumerateGrid, optimize } from './optimizer.js';
+import { computeSignalSeries, reapplyThresholds } from './point-in-time.js';
+import { DEFAULT_WALK_FORWARD_OPTIONS, simulateRange } from './walk-forward.js';
+import { buildWalkForwardPlan, judgeFold } from './walk-forward.plan.js';
 
 const HOUR = 3_600_000;
 const BASE = 1_400_000_000_000;

@@ -1,5 +1,5 @@
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import Fastify from 'fastify';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // The analysis route is exercised for real, but its controller is stubbed:
 // these tests are about headers and routing, and a live provider call would
@@ -12,11 +12,11 @@ const { mockGetAnalysis, mockGetMarket } = vi.hoisted(() => ({
 vi.mock('./controllers/analysis.controller.js', () => ({ getAnalysis: mockGetAnalysis }));
 vi.mock('./controllers/market.controller.js', () => ({ getMarket: mockGetMarket }));
 
+
+import type { FastifyInstance } from 'fastify';
 import { createApp } from '../app.js';
 import { registerErrorHandler } from './error-handler.js';
 import { ApiErrorResponseSchema } from './schemas.js';
-
-import type { FastifyInstance } from 'fastify';
 
 const openInstances: FastifyInstance[] = [];
 

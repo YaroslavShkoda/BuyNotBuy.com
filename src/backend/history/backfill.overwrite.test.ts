@@ -1,9 +1,7 @@
 import { describe, expect, it } from 'vitest';
-
-import { runBackfill } from './backfill.service.js';
-
-import { createCandleRepository } from './candle.repository.js';
 import type { Candle } from '../types/market.js';
+import { runBackfill } from './backfill.service.js';
+import { createCandleRepository } from './candle.repository.js';
 
 const DAY = 86_400_000;
 const BASE = 1_600_000_000_000;

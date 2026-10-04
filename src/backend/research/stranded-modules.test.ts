@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { describe, expect, it } from 'vitest';
 
 import { buildGraph, listSources } from './dependency-graph.js';
 

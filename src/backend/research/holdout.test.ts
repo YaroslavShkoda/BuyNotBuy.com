@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-
+import type { Candle } from '../types/market.js';
 import {
     evaluateHoldout,
     HOLDOUT_COMMITTED_AT,
@@ -7,8 +7,6 @@ import {
     holdoutStatus,
     registerForEvaluation,
 } from './holdout.js';
-
-import type { Candle } from '../types/market.js';
 
 const fingerprint = (key: string): string => `fp-${key}`;
 

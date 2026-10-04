@@ -2,13 +2,13 @@ import { describe, expect, it } from 'vitest';
 
 import '../test-support/test-database.js';
 
-import { runBackfill } from './backfill.service.js';
-import { createCandleRepository } from './candle.repository.js';
-
-import type { BackfillProgress } from './backfill.service.js';
-import type { CandleSeriesKey } from './candle.repository.js';
 import type { MarketDataProvider } from '../market/providers/market-data.provider.js';
 import type { Candle } from '../types/market.js';
+
+import type { BackfillProgress } from './backfill.service.js';
+import { runBackfill } from './backfill.service.js';
+import type { CandleSeriesKey } from './candle.repository.js';
+import { createCandleRepository } from './candle.repository.js';
 
 /**
  * A backfill is measured by what it can survive: an interruption, a second

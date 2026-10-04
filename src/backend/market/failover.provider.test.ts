@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest';
-
-import { FailoverProvider } from './failover.provider.js';
 import { MarketDataError } from '../errors/market-data.error.js';
 import { ProviderError } from '../errors/provider.error.js';
+import { FailoverProvider } from './failover.provider.js';
 
 import type { MarketDataProvider } from './providers/market-data.provider.js';
 

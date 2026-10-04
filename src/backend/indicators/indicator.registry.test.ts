@@ -1,21 +1,19 @@
-import { describe, expect, it } from 'vitest';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-
+import { describe, expect, it } from 'vitest';
+import { indicatorConfig } from '../config/indicator.config.js';
+import type { Candle } from '../types/market.js';
 import {
     createIndicatorRegistry,
     indicatorContext,
 } from './indicator.registry.js';
 import {
+    calculateMarketIndicators,
     EMA_INDICATOR,
     indicatorRegistry,
     seriesGraph,
     toWireIndicators,
-    calculateMarketIndicators,
 } from './indicator.service.js';
-import { indicatorConfig } from '../config/indicator.config.js';
-
-import type { Candle } from '../types/market.js';
 
 const HOUR = 3_600_000;
 const BASE = 1_699_999_200_000;

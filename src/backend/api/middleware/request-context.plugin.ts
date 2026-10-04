@@ -1,9 +1,8 @@
 import type { FastifyInstance } from 'fastify';
 
 import { observabilityConfig } from '../../config/observability.config.js';
-
-import { readRequestId } from '../lib/redaction.js';
 import { recordRequestFinished, recordRequestStarted } from '../lib/metrics.js';
+import { readRequestId } from '../lib/redaction.js';
 
 /**
  * Correlation ids and request counting.

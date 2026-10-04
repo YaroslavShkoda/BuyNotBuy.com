@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest';
-
-import { DIVERGENCE_TYPES } from './divergence.js';
-
 import type { DivergencePolarity } from './divergence.js';
+import { DIVERGENCE_TYPES } from './divergence.js';
 
 /**
  * The divergence vocabulary, and the narrower one derived from it.

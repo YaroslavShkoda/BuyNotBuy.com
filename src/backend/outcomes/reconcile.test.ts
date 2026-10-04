@@ -1,10 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
-
-import { closedByFor, reconcileSignalOutcomes } from './reconcile.js';
-
 import type { SignalLifecycleRepository, SignalStateRow } from '../signals/lifecycle.repository.js';
-import type { OutcomeRepository, SettleInput } from './outcome.repository.js';
 import type { Candle } from '../types/market.js';
+import type { OutcomeRepository, SettleInput } from './outcome.repository.js';
+import { closedByFor, reconcileSignalOutcomes } from './reconcile.js';
 
 const KEY = { symbol: 'BTCUSDT', provider: 'binance', interval: '1h' };
 const HOUR = 3_600_000;

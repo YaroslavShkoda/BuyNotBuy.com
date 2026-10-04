@@ -1,11 +1,10 @@
-import { registerForEvaluation, HOLDOUT_COMMITTED_AT } from './holdout.js';
 import { hashValue } from '../config/strategy-fingerprint.js';
 import { createDonchian } from '../strategies/donchian.js';
 import { createDonchianCalmGated } from '../strategies/donchian-calm-gated.js';
 import { createVolatilityTrend } from '../strategies/volatility-trend.js';
-import { fromModule } from './strategies.js';
-
+import { HOLDOUT_COMMITTED_AT, registerForEvaluation } from './holdout.js';
 import type { Strategy } from './strategies.js';
+import { fromModule } from './strategies.js';
 
 /**
  * The rules that are on the window, and the rules that will be judged on it.

@@ -1,10 +1,8 @@
-import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
-
-import { measureOutcome, readExcursions } from './outcome.js';
+import { describe, expect, it } from 'vitest';
 import { OutcomeConfigParser } from '../config/outcome.config.js';
-
 import type { Candle } from '../types/market.js';
+import { measureOutcome, readExcursions } from './outcome.js';
 
 const HOUR = 3_600_000;
 const BASE = 1_700_000_000_000;

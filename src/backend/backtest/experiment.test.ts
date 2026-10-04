@@ -1,16 +1,13 @@
-import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
-
-import { describeDataset, checksumCandles, canonicalText, sameDataset, diffDatasets, DatasetSchema } from './dataset.js';
-import { checkReplayable, verifyAgainst, aggregate, experimentId, ExperimentManifestSchema } from './experiment.js';
-import { manifestFor } from './manifest.js';
-import { runWalkForward, DEFAULT_WALK_FORWARD_OPTIONS } from './walk-forward.js';
-import { INDICATOR_SIGNAL_CONFIG } from '../config/indicator.config.js';
-import { requiredCandleCount } from '../config/indicator.config.js';
-
-import type { Dataset } from './dataset.js';
-import type { ExperimentManifest } from './experiment.js';
+import { describe, expect, it } from 'vitest';
+import { INDICATOR_SIGNAL_CONFIG, requiredCandleCount } from '../config/indicator.config.js';
 import type { Candle } from '../types/market.js';
+import type { Dataset } from './dataset.js';
+import { canonicalText, checksumCandles, DatasetSchema, describeDataset, diffDatasets, sameDataset } from './dataset.js';
+import type { ExperimentManifest } from './experiment.js';
+import { aggregate, checkReplayable, ExperimentManifestSchema, experimentId, verifyAgainst } from './experiment.js';
+import { manifestFor } from './manifest.js';
+import { DEFAULT_WALK_FORWARD_OPTIONS, runWalkForward } from './walk-forward.js';
 
 const HOUR = 3_600_000;
 const NOW = 1_750_000_000_000;

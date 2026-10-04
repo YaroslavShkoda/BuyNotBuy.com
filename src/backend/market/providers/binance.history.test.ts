@@ -1,9 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-
-import { BinanceProvider } from './binance.provider.js';
 import { MAX_CANDLE_LIMIT } from '../../config/market.config.js';
-
 import type { Candle } from '../../types/market.js';
+import { BinanceProvider } from './binance.provider.js';
 
 const NOW = 1_800_000_000_000;
 const ORIGIN = 1_700_000_000_000;

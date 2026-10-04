@@ -1,10 +1,8 @@
-import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
-
-import { byIndicator, combinationValue, computeMetrics } from './performance.js';
+import { describe, expect, it } from 'vitest';
 import { PerformanceConfigParser } from './performance.config.js';
-
 import type { PerformanceSample } from './performance.js';
+import { byIndicator, combinationValue, computeMetrics } from './performance.js';
 
 const BASE = 1_700_000_000_000;
 const HOUR = 3_600_000;

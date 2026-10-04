@@ -1,16 +1,14 @@
 import { describe, expect, it } from 'vitest';
-
-import { createSeriesGraph, emaSeries } from './series.graph.js';
+import { indicatorConfig } from '../config/indicator.config.js';
+import { currentCandles } from '../test-support/candles.js';
 import {
     calculateMarketIndicators,
     emaSeriesKey,
     indicatorRegistry,
     seriesGraph,
 } from './indicator.service.js';
-import { indicatorConfig } from '../config/indicator.config.js';
-import { currentCandles } from '../test-support/candles.js';
-
 import type { SeriesDefinition } from './series.graph.js';
+import { createSeriesGraph, emaSeries } from './series.graph.js';
 
 describe('the series graph', () => {
     it('computes a series once however many times it is asked for', () => {

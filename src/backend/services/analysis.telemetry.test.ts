@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { freshMarketData } from '../test-support/market-data-result.js';
 import { marketData } from '../test-support/market-data.js';
+import { freshMarketData } from '../test-support/market-data-result.js';
 
 function marketDataFixture() {
     return marketData(

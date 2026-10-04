@@ -1,14 +1,13 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
-
-import { getIndicatorVoteRepository } from '../../indicators/performance/indicator-vote.repository.js';
-import { getSignalHistoryRepository } from '../../history/signal-history.repository.js';
-import { LATEST_SCHEMA_VERSION } from '../../db/migrations.js';
-import { renderMetrics } from '../lib/metrics.js';
-import { readRequestId } from '../lib/redaction.js';
 import { observabilityConfig } from '../../config/observability.config.js';
+import { LATEST_SCHEMA_VERSION } from '../../db/migrations.js';
+import { getSignalHistoryRepository } from '../../history/signal-history.repository.js';
+import { getIndicatorVoteRepository } from '../../indicators/performance/indicator-vote.repository.js';
 import { configuredMarketVenues } from '../../market/market.provider.js';
 import { venueHealthSummary } from '../../market/providers/provider-http.js';
 import { healthRegistry } from '../../observability/health.registry.js';
+import { renderMetrics } from '../lib/metrics.js';
+import { readRequestId } from '../lib/redaction.js';
 
 /** Schema version this build can read. Anything higher is not ours to serve. */
 const SUPPORTED_SCHEMA_VERSION = LATEST_SCHEMA_VERSION;

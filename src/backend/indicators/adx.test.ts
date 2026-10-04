@@ -1,9 +1,7 @@
-import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
-
-import { calculateADX } from './adx.js';
-
+import { describe, expect, it } from 'vitest';
 import type { Candle } from '../types/market.js';
+import { calculateADX } from './adx.js';
 
 const HOUR = 3_600_000;
 const BASE = 1_699_999_200_000;

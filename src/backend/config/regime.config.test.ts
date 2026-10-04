@@ -1,5 +1,5 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
 import fc from 'fast-check';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
     barsPerDay,

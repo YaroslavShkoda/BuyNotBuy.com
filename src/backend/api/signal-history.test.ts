@@ -1,5 +1,5 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { marketConfig } from '../config/market.config.js';
-import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 const { mockGetSignalHistory } = vi.hoisted(() => ({
     mockGetSignalHistory: vi.fn((): unknown => []),

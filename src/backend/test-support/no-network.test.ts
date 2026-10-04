@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-
-import { NetworkAccessError } from './no-network.js';
 import { ProviderError } from '../errors/provider.error.js';
+import { NetworkAccessError } from './no-network.js';
 
 /**
  * These tests are the guard's own proof of life.

@@ -1,12 +1,10 @@
 import { describe, expect, it } from 'vitest';
-
+import type { ForwardHorizon } from './indicator-performance.types.js';
 import {
     FORWARD_HORIZON_KEYS,
     FORWARD_HORIZON_NAMES,
     FORWARD_HORIZONS,
 } from './indicator-performance.types.js';
-
-import type { ForwardHorizon } from './indicator-performance.types.js';
 
 /**
  * The horizon vocabulary, which used to be a `string[]` wearing its name.
