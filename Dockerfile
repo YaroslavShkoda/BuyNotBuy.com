@@ -5,7 +5,10 @@
 # shipped to production — tsx stays a development dependency, so a runtime
 # path through it cannot silently become a production dependency.
 
-FROM node:24-alpine AS dependencies
+# 22.13 is the lower bound of `engines` and the exact version CI runs. A
+# runtime base newer than CI can pass CI and still fail in production, which is
+# the mismatch this pin exists to make impossible.
+FROM node:22.13-alpine AS dependencies
 WORKDIR /app
 
 # Only the manifest, so this layer is reused whenever dependencies have not
@@ -25,7 +28,7 @@ COPY src ./src
 RUN npm run build:backend
 
 
-FROM node:24-alpine AS runtime
+FROM node:22.13-alpine AS runtime
 WORKDIR /app
 
 ENV NODE_ENV=production
@@ -47,6 +50,14 @@ COPY --from=build /app/dist ./dist
 USER node
 
 EXPOSE 3001
+
+# Liveness on the process, not on the database: /healthz answers when this
+# server is still serving, and a container wedged enough to stop answering is
+# the one an orchestrator must restart. /readyz would couple restarts to
+# PostgreSQL availability, which is a dependency outage, not a dead process.
+# wget ships in the alpine base, so no extra package enters the image for this.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+    CMD wget -q -O /dev/null http://127.0.0.1:3001/healthz || exit 1
 
 # Signal handling is delegated to Node, which drains the connection pool on
 # shutdown; an init process reaps zombies and forwards signals. Without it a
