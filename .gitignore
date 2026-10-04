@@ -6,6 +6,7 @@ dist
 .env
 .env.local
 .edge-inspect-profile/
+.opencode/
 *.tsbuildinfo
 
 # Бэкап живой базы, снят перед применением миграций. Данные, не исходники.
