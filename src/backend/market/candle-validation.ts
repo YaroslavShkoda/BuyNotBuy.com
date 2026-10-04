@@ -16,16 +16,6 @@ export type CandleSeriesIssue =
     | 'stale';
 
 /**
- * Checks the invariants every indicator depends on.
- *
- * A candle series that is unsorted, contains duplicates or has an impossible
- * OHLC range does not crash: it produces a plausible-looking signal built on
- * wrong numbers. The worst possible failure for a trading dashboard, because
- * nothing downstream would ever flag it. So the series is verified once, at
- * the single point every provider funnels through, and a violation is reported
- * as a provider failure instead of being silently averaged into a signal.
- */
-/**
  * Continuity on its own: is there a hole in the middle of this series?
  *
  * **Extracted because the two checks behind the optional interval were not one
@@ -70,6 +60,16 @@ export function findCandleContinuityIssue(
     return null;
 }
 
+/**
+ * Checks the invariants every indicator depends on.
+ *
+ * A candle series that is unsorted, contains duplicates or has an impossible
+ * OHLC range does not crash: it produces a plausible-looking signal built on
+ * wrong numbers. The worst possible failure for a trading dashboard, because
+ * nothing downstream would ever flag it. So the series is verified once, at
+ * the single point every provider funnels through, and a violation is reported
+ * as a provider failure instead of being silently averaged into a signal.
+ */
 export function findCandleSeriesIssues(
     candles: readonly Candle[],
     now: number,

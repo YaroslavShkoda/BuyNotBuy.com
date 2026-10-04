@@ -53,21 +53,21 @@ export interface AnalysisWithStatus {
     freshness: MarketFreshness;
     /** Which venue actually produced it. */
     provider: string;
-  /**
-   * Why the signal was published, in a form that can be argued with.
-   *
-   * Backend-only, and outside `MarketAnalysis` for the same reason
-   * `fallbackSuppressed` is: `MarketAnalysis.signal` is a `SignalResult`,
-   * and that type is part of the frozen contract.
-   *
-   * It earns its place by carrying the three things the published signal
-   * does not say: which indicator voted which way, what the market looked
-   * like while they did, and -- the part that matters most -- that the
-   * published percentage is a panel consensus and **not** a probability of
-   * being right. The `explanation.ts` module was written for exactly
-   * this and sat unwired, so nothing in the system could produce it.
-   */
-  readonly explanation: SignalExplanation;
+    /**
+     * Why the signal was published, in a form that can be argued with.
+     *
+     * Backend-only, and outside `MarketAnalysis` for the same reason
+     * `fallbackSuppressed` is: `MarketAnalysis.signal` is a `SignalResult`,
+     * and that type is part of the frozen contract.
+     *
+     * It earns its place by carrying the three things the published signal
+     * does not say: which indicator voted which way, what the market looked
+     * like while they did, and -- the part that matters most -- that the
+     * published percentage is a panel consensus and **not** a probability of
+     * being right. The `explanation.ts` module was written for exactly
+     * this and sat unwired, so nothing in the system could produce it.
+     */
+    readonly explanation: SignalExplanation;
 }
 
 
@@ -329,9 +329,9 @@ async function recordStrategyDecisions(input: {
 interface AnalysisComputation {
     readonly analysis: MarketAnalysis;
     // `explanation` is excluded on purpose: it is a property of the computation,
-  // not of the market's freshness, and letting `Omit` pick it up would file a
-  // claim about the signal inside an object called `status`.
-  readonly status: Omit<AnalysisWithStatus, 'analysis' | 'explanation'>;
+    // not of the market's freshness, and letting `Omit` pick it up would file a
+    // claim about the signal inside an object called `status`.
+    readonly status: Omit<AnalysisWithStatus, 'analysis' | 'explanation'>;
     /**
      * True when the fallback would have changed the published signal and was
      * held back by shadow mode.
@@ -341,9 +341,9 @@ interface AnalysisComputation {
      * confidence in its configuration rather than about the market. It is the
      * evidence the shadow period exists to collect.
      */
-    readonly fallbackSuppressed: boolean;
-  /** Built once per computation, beside the analysis it explains. */
-  readonly explanation: SignalExplanation;
+    readonly     fallbackSuppressed: boolean;
+    /** Built once per computation, beside the analysis it explains. */
+    readonly explanation: SignalExplanation;
     /** One context per caller, differing only in the request id. */
     telemetry(requestId?: string): AnalysisTelemetry;
     /**
@@ -569,7 +569,8 @@ async function computeAnalysis(request: MarketRequest): Promise<AnalysisComputat
         }
     }
 
-    const marketDataDurationMs = completedDurations.marketDataDurationMs ?? 0;    const indicatorsDurationMs = completedDurations.indicatorsDurationMs ?? 0;
+    const marketDataDurationMs = completedDurations.marketDataDurationMs ?? 0;
+    const indicatorsDurationMs = completedDurations.indicatorsDurationMs ?? 0;
     const divergenceDurationMs = completedDurations.divergenceDurationMs ?? 0;
     const signalDurationMs = completedDurations.signalDurationMs ?? 0;
 
@@ -636,7 +637,6 @@ async function computeAnalysis(request: MarketRequest): Promise<AnalysisComputat
                     : {
                           score: assessed.quality.score,
                           usable: assessed.quality.usable,
-                          // QualityFactor is the name, not a record: the score and
                           // `QualityFactor` is the name, not a record: the score
                           // and the sentence live in `factors`, and a summary
                           // that renamed them would describe something else.
@@ -694,17 +694,6 @@ async function computeAnalysis(request: MarketRequest): Promise<AnalysisComputat
 }
 
 /**
- * The writes that must happen once per computation, not once per caller.
- *
- * Non-critical by contract: a persistence failure must never fail the analysis
- * response. Deliberately not awaited — against a file that cost was invisible;
- * against a database on the network it is a round trip, and awaiting it would
- * turn "fail open" into "fail slow", so a database that is down would add its
- * connect timeout to every page load instead of only to the history. The three
- * calls swallow their own errors, so the discarded promises cannot reject into
- * an unhandled rejection.
- */
-/**
  * The one logger that says nothing, named so that saying nothing is a choice.
  *
  * `writeHistory` is reached from paths that have a logger and from ones that do
@@ -717,6 +706,17 @@ const SILENT_HISTORY_LOGGER: SignalHistoryLogger = {
     warn: () => undefined,
 };
 
+/**
+ * The writes that must happen once per computation, not once per caller.
+ *
+ * Non-critical by contract: a persistence failure must never fail the analysis
+ * response. Deliberately not awaited — against a file that cost was invisible;
+ * against a database on the network it is a round trip, and awaiting it would
+ * turn "fail open" into "fail slow", so a database that is down would add its
+ * connect timeout to every page load instead of only to the history. The three
+ * calls swallow their own errors, so the discarded promises cannot reject into
+ * an unhandled rejection.
+ */
 function writeHistory(
     analysis: MarketAnalysis,
     marketData: MarketData,
@@ -794,27 +794,14 @@ function writeHistory(
 }
 
 /**
- * Writes one immutable snapshot, resolving its strategy version first.
- *
- * Split out so the version lookup — a write, not a read — happens on the same
- * detached promise as the insert, and so a failure to resolve a version is
- * logged rather than lost in a discarded rejection.
- */
-/**
- * The market the signal was produced in, for the history.
- *
- * Both assessments are wrapped: a signal that was published is a signal the
- * system stands behind, and a regime or a quality score is context, not a gate.
- * Losing the context on a series too short to assess it is correct; failing to
- * record a signal that was correctly produced is not. The whole thing is
- * therefore best-effort and returns null rather than propagating.
- */
-/**
  * What the market looked like, in all three shapes something needs it.
  *
  * One assessment, three renderings. `context` is the flattened form the history
  * row has been storing since before anything could explain itself; `regime` and
  * `quality` are the assessments themselves, which the explanation reads.
+ *
+ * Both assessments are wrapped: a signal that was published is a signal the
+ * system stands behind, and a regime or a quality score is context, not a gate.
  *
  * It is one function because it is one measurement. The explanation and the
  * history describing the same candles differently is exactly the failure this

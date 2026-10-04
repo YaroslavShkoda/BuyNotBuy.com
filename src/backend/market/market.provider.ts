@@ -140,24 +140,6 @@ export function configuredVenueCapabilities(): VenueCapability[] {
 }
 
 /**
- * The provider that serves a given market, refused when none can.
- *
- * PHASE 3.2. The routing used to be a `switch` on a venue name, which meant the
- * only question the system could ask was "which venue is configured" and never
- * "who serves this market". Both are asked now, in the order that keeps the
- * answer checkable: the capability table decides whether a venue can serve the
- * request at all, and only then is a provider built for it.
- *
- * A market no venue claims throws rather than falling back to the first venue.
- * The fallback would answer every request, and answering an EUR request with
- * BTC candles is the failure the whole multi-asset programme exists to
- * prevent — and it would do so silently, with a healthy-looking response.
- *
- * The configured symbol is the one market always available, so a deployment
- * that configures nothing new keeps working and keeps its existing refusal for a
- * symbol the registry cannot parse.
- */
-/**
  * The venue configured to serve a market, named without building anything.
  *
  * **The venue a market is *stored under* is not the venue that answered, and the
@@ -244,6 +226,24 @@ export function venuesServing(instrument: string): MarketProviderName[] {
     }) as MarketProviderName[];
 }
 
+/**
+ * The provider that serves a given market, refused when none can.
+ *
+ * PHASE 3.2. The routing used to be a `switch` on a venue name, which meant the
+ * only question the system could ask was "which venue is configured" and never
+ * "who serves this market". Both are asked now, in the order that keeps the
+ * answer checkable: the capability table decides whether a venue can serve the
+ * request at all, and only then is a provider built for it.
+ *
+ * A market no venue claims throws rather than falling back to the first venue.
+ * The fallback would answer every request, and answering an EUR request with
+ * BTC candles is the failure the whole multi-asset programme exists to
+ * prevent — and it would do so silently, with a healthy-looking response.
+ *
+ * The configured symbol is the one market always available, so a deployment
+ * that configures nothing new keeps working and keeps its existing refusal for a
+ * symbol the registry cannot parse.
+ */
 export function marketProviderFor(instrument: string): MarketDataProvider {
     const wanted = instrument.trim().toUpperCase();
 

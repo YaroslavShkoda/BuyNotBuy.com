@@ -33,12 +33,6 @@ import type { Poller } from './services/poller.js';
 const app = createApp();
 
 /**
- * Names the venue that answered, but only when it changes.
- *
- * Created here because this is the first point with a logger; the provider was
- * built at import time and knows nothing about one.
- */
-/**
  * One venue watcher per market, not one for the process.
  *
  * It used to be a single watcher reading the process-wide chain, which is the
@@ -49,6 +43,15 @@ const app = createApp();
  */
 const noop = (): void => undefined;
 
+/**
+ * One venue watcher per market, not one for the process.
+ *
+ * It used to be a single watcher reading the process-wide chain, which is the
+ * primary market's — so a switch on any other market was invisible, and a switch
+ * on the primary produced a line naming no market. Per market means the watcher's
+ * `last` state is per market too, which is what makes "changed" mean anything:
+ * two markets that happen to sit on the same venue are not a change for either.
+ */
 const venueWatchers = new Map<string, () => void>(
     marketConfig.symbols.map((market) => [
         market,

@@ -185,7 +185,6 @@ function splitByAge(
     return { closed, forming };
 }
 
-/** The series the ingest loop fills, from the configured venue and symbol. */
 /**
  * The series a market is stored under.
  *
