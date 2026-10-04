@@ -15,14 +15,14 @@
 
 | слой | файлов | вход | выход | род |
 |---|---|---|---|---|
-| `types` | 4 | 85 | 0 | сквозной лист |
+| `types` | 4 | 86 | 0 | сквозной лист |
 | `errors` | 3 | 19 | 0 | сквозной лист |
 | `config` | 13 | 87 | 5 | сквозной лист |
 | `instruments` | 4 | 10 | 2 | сквозной лист |
 | `db` | 4 | 32 | 2 | ядро |
 | `market` | 16 | 26 | 41 | ядро |
 | `indicators` | 21 | 24 | 35 | ядро |
-| `strategies` | 11 | 46 | 6 | ядро |
+| `strategies` | 11 | 46 | 7 | ядро |
 | `signals` | 8 | 14 | 14 | ядро |
 | `history` | 11 | 17 | 29 | ядро |
 | `outcomes` | 3 | 4 | 10 | ядро |
@@ -41,7 +41,7 @@
 - `db` → `config` (1), `observability` (1)
 - `market` → `config` (16), `errors` (12), `observability` (5), `types` (8)
 - `indicators` → `config` (7), `db` (1), `errors` (1), `observability` (3), `types` (23)
-- `strategies` → `db` (2), `types` (4)
+- `strategies` → `db` (2), `types` (5)
 - `signals` → `config` (8), `db` (1), `indicators` (1), `observability` (1), `types` (3)
 - `history` → `config` (7), `db` (3), `errors` (1), `market` (8), `observability` (5), `signals` (1), `types` (4)
 - `outcomes` → `config` (3), `db` (1), `signals` (3), `types` (3)
