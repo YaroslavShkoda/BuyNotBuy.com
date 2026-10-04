@@ -12,6 +12,7 @@
 | `GET` | `/api/instruments` | `api/routes/instruments.ts` |
 | `GET` | `/api/instruments/:ticker` | `api/routes/instruments.ts` |
 | `GET` | `/api/instruments/:ticker/analysis` | `api/routes/instruments.ts` |
+| `GET` | `/api/instruments/:ticker/market` | `api/routes/instruments.ts` |
 | `GET` | `/api/market` | `api/routes/market.ts` |
 | `GET` | `/api/price` | `api/routes/price.ts` |
 | `GET` | `/api/signal-history` | `api/routes/signal-history.ts` |
