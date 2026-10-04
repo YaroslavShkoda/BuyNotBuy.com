@@ -25,7 +25,5 @@
  */
 export const HEALTH_PATHS = ['/healthz', '/readyz', '/metrics'] as const;
 
-export type HealthPath = (typeof HEALTH_PATHS)[number];
-
 /** Built once. The rate limiter consults it on every request that arrives. */
 export const EXEMPT_PATHS: ReadonlySet<string> = new Set<string>(HEALTH_PATHS);

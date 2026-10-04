@@ -350,5 +350,3 @@ export function extractFeatureSeries(
 
     return vectors;
 }
-
-export const FEATURE_VECTOR_COUNT = FEATURE_NAMES.length;

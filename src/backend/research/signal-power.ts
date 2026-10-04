@@ -50,11 +50,6 @@
  * which is to go and collect more bars.
  */
 
-/** A bar, reduced to what a one-bar-forward measurement needs. */
-export interface SeriesPoint {
-    readonly close: number;
-}
-
 export interface PermutationResult {
     /** Fraction of relabellings at least as extreme as the observed one. */
     readonly p: number;

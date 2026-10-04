@@ -242,14 +242,3 @@ export const ApiErrorResponseSchema = z.object({
 });
 
 export type InstrumentDto = z.infer<typeof InstrumentSchema>;
-
-export type IndicatorSignalDto = z.infer<typeof IndicatorSignalSchema>;
-export type IndicatorAnalysisDto = z.infer<typeof IndicatorAnalysisSchema>;
-export type SignalResultDto = z.infer<typeof SignalResultSchema>;
-export type MarketDataDto = z.infer<typeof MarketDataSchema>;
-export type MarketAnalysisDto = z.infer<typeof MarketAnalysisSchema>;
-export type PriceResponseDto = z.infer<typeof PriceResponseSchema>;
-export type SignalHistoryEntryDto = z.infer<typeof SignalHistoryEntrySchema>;
-export type SignalHistoryLastTransitionDto = z.infer<typeof SignalHistoryLastTransitionSchema>;
-export type SignalHistorySummaryDto = z.infer<typeof SignalHistorySummarySchema>;
-export type SignalHistoryResponseDto = z.infer<typeof SignalHistoryResponseSchema>;

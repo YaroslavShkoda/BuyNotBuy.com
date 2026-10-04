@@ -1,5 +1,5 @@
-import { assertCandleSeries, findCandleSeriesIssues } from './candle-validation.js';
-import { classifyFreshness, isUsableForSignal } from './market-freshness.js';
+import { assertCandleSeries } from './candle-validation.js';
+import { classifyFreshness } from './market-freshness.js';
 import {
     activeMarketVenue,
     anyMarketProviderAvailable,
@@ -349,28 +349,6 @@ async function fetchMarketData(request: MarketRequest): Promise<MarketData> {
         // only this one belongs in a record meant to be replayed.
         timestamp: lastCandle.timestamp + marketConfig.candleIntervalMs,
     };
-}
-
-/**
- * The one place that decides whether a series is good enough to build on.
- *
- * Shared with the quality score so the two cannot disagree: a snapshot the
- * freshness model calls unusable and one the quality score calls perfect would
- * produce a dashboard that shows a green quality bar over a signal that was
- * refused.
- */
-export function isSnapshotUsable(result: MarketDataResult): boolean {
-    return isUsableForSignal(result.freshness);
-}
-
-/** Test hook: the raw series verdict, for the quality score and its tests. */
-export function inspectCandles(candles: MarketData['candles']) {
-    return findCandleSeriesIssues(
-        candles,
-        Date.now(),
-        MAX_CANDLE_LIMIT,
-        marketConfig.candleIntervalMs,
-    );
 }
 
 /** The venue currently answering, or null when there is nothing to switch. */

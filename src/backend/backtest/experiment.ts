@@ -163,11 +163,6 @@ export function experimentId(measured: ExperimentIdentity): string {
     return `${measured.dataset.symbol}-${measured.dataset.interval}-${measured.dataset.bars}-${digest.slice(0, 16)}`;
 }
 
-export const ExperimentRegistrySchema = z.record(
-    z.string(),
-    ExperimentManifestSchema,
-);
-
 /**
  * Whether a manifest can be replayed as it stands.
  *

@@ -42,9 +42,7 @@
 
 import { resampleToDaily } from './resample.js';
 import { mulberry32 } from './signal-power.js';
-
 import type { Candle } from '../types/market.js';
-import type { StrategyModule } from '../strategies/types.js';
 
 const HOUR = 3_600_000;
 const DAY = 86_400_000;
@@ -192,25 +190,4 @@ export function shuffledGapReturn(
     }
 
     return out;
-}
-
-/** Signal of a module over a whole series, index-free, as the bench computes it. */
-export function signalOf(
-    module: StrategyModule,
-    candles: readonly Candle[],
-    warmup: number,
-): number[] {
-    const signal: number[] = [];
-
-    for (let index = warmup; index < candles.length; index += 1) {
-        const visible = candles.slice(0, index + 1);
-        const decision = module.evaluate({
-            candles: visible,
-            price: visible[visible.length - 1]!.close,
-        });
-
-        signal.push(decision.direction === 'LONG' ? 1 : decision.direction === 'SHORT' ? -1 : 0);
-    }
-
-    return signal;
 }

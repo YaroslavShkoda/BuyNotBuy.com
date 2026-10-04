@@ -330,8 +330,3 @@ export function getStrategyRuleRepository(gate?: PromotionGate): StrategyRuleRep
 }
 
 let gated = false;
-
-/** Test seam: the singleton exists so production shares one, not so tests share rows. */
-export function resetStrategyRuleRepository(): void {
-    shared = null;
-}

@@ -223,8 +223,3 @@ export function getDecisionLogRepository(): DecisionLogRepository {
 
     return shared;
 }
-
-/** Test seam: the singleton exists so production shares one, not so tests share rows. */
-export function resetDecisionLogRepository(): void {
-    shared = null;
-}

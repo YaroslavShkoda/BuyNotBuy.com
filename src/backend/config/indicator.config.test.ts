@@ -297,7 +297,7 @@ describe('the fingerprint of a configuration', () => {
     it('and the market is the difference between two otherwise identical hashes', async () => {
         // The one-line version of the whole round: same settings, same thresholds,
         // two hashes.
-        const { INDICATOR_SIGNAL_CONFIG } = await loadConfig();
+        await loadConfig();
         const { fingerprintStrategy } = await import('./strategy-fingerprint.js');
 
         expect(fingerprintStrategy('BTCUSDT').hash).not.toBe(

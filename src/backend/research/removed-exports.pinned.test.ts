@@ -19,6 +19,24 @@ import { fileURLToPath } from 'node:url';
  */
 const REMOVED: readonly { name: string; file: string; why: string; unless: string }[] = [
     {
+        name: 'canTransition',
+        file: 'lifecycle/promotion.config.ts',
+        why:
+            'The second stage vocabulary. `RuleStage` (eight stages, `retired → ' +
+            'candidate`) reached no storage: the CHECK migration 17 puts on ' +
+            '`signal_strategy_version.stage` admits `CANDIDATE_STAGES` and not one ' +
+            'value of this set, and the engine that moved rules along it ' +
+            '(`lifecycle/rule-registry.ts`) was removed in round 84. The words stayed ' +
+            'behind with zero production callers, held in place only by ' +
+            '`stage-vocabulary.test.ts`, whose subject was the disagreement itself. ' +
+            'Went with `RuleStageSchema`, `RuleStage`, `FORWARD` and `TransitionCheck`.',
+        unless:
+            'the owner answers the open question in docs/open-questions.md — may a ' +
+            'retired rule run again? A yes is a migration on the stage column and a ' +
+            'policy module written against `CandidateStage`, not this vocabulary ' +
+            'the storage never accepted.',
+    },
+    {
         name: 'isCached',
         file: 'market/market-freshness.ts',
         why:
@@ -34,6 +52,18 @@ const REMOVED: readonly { name: string; file: string; why: string; unless: strin
             'field set by the three return sites, not as a function of the freshness ' +
             'state — and `/api/market` already exposes `ageMs`, which answers the ' +
             'question clients actually have.',
+    },
+    {
+        name: 'checkTransition',
+        file: 'lifecycle/promotion.config.ts',
+        why:
+            'The explanatory wrapper over `canTransition`, and its doc comment was ' +
+            'where the two-ladder disagreement was argued. With the second ladder ' +
+            'gone, one stored vocabulary remains and a wrapper over a removed ' +
+            'function has nothing left to explain.',
+        unless:
+            'a stage policy returns that needs to explain refusals in words; then ' +
+            'it is written against `CandidateStage` and lives beside it.',
     },
 ];
 

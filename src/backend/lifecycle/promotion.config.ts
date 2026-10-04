@@ -18,19 +18,6 @@ import { outcomeConfig } from '../config/outcome.config.js';
  * be accountable for once it starts losing money.
  */
 
-export const RuleStageSchema = z.enum([
-    'candidate',
-    'backtested',
-    'walk_forwarded',
-    'shadow',
-    'approved',
-    'production',
-    'rejected',
-    'retired',
-]);
-
-export type RuleStage = z.infer<typeof RuleStageSchema>;
-
 export const PromotionConfigSchema = z
     .object({
         /** How long a rule must sit in shadow before it can be considered. */
@@ -126,73 +113,22 @@ export const DEFAULT_PROMOTION_CONFIG: PromotionConfig =
     });
 
 /**
- * The only forward step the system has.
+ * Removed: `canTransition` — the RuleStage ladder it read (`RuleStageSchema`,
+ * `RuleStage`, `FORWARD`) reached no storage. The CHECK migration 17 puts on
+ * `signal_strategy_version.stage` admits `CANDIDATE_STAGES` and none of this
+ * vocabulary, and the engine that moved rules along it
+ * (`lifecycle/rule-registry.ts`) was deleted in round 84; the words it moved
+ * between stayed behind with zero production callers, held in place only by
+ * `lifecycle/stage-vocabulary.test.ts`, whose whole subject was the
+ * disagreement. The ladder the database actually stores is `CandidateStage`
+ * in `strategies/candidate.repository.ts`, where `retired` is terminal.
+ * Whether a retired rule may run again is the owner's open question
+ * (docs/open-questions.md); a yes is a migration on the stage column and a
+ * policy module of its own — not this vocabulary back.
  *
- * An explicit table rather than a rule about "earlier stages", because the
- * failure mode of a general rule is a new stage being added that accidentally
- * satisfies it. A table has to be edited on purpose, and the edit is a diff
- * somebody reads.
+ * Removed: `checkTransition` — the explanatory wrapper over `canTransition`,
+ * whose doc comment carried the two-ladder disagreement the removal settles.
  */
-const FORWARD: Record<RuleStage, readonly RuleStage[]> = {
-    candidate: ['backtested'],
-    backtested: ['walk_forwarded', 'rejected'],
-    walk_forwarded: ['shadow', 'rejected'],
-    shadow: ['approved', 'rejected'],
-    approved: ['production', 'rejected'],
-    production: ['retired'],
-    rejected: ['candidate'],
-    retired: ['candidate'],
-};
-
-export function canTransition(from: RuleStage, to: RuleStage): boolean {
-    return (FORWARD[from] ?? []).includes(to);
-}
-
-export interface TransitionCheck {
-    readonly allowed: boolean;
-    readonly reason: string;
-}
-
-/**
- * Whether a rule may move between stages, and why.
- *
- * **This comment used to claim that rejection and retirement are always
- * available, including from production, and pointed at a reason — a rule that is
- * losing money has to be stoppable at any moment. `FORWARD` above does not do
- * that.** Measured from the table: `retired` is reachable from exactly **one**
- * stage of eight, `production`, and `rejected` from four. A rule in shadow that
- * is losing money cannot be retired here; the most it can be is rejected, and
- * `rejected → candidate` puts it back at the start.
- *
- * **And the guarantee the sentence described is implemented — in the other
- * ladder.** `NEXT_STAGE` in `strategies/candidate.repository.ts` allows `retired`
- * from every stage including `production`, and `retired` there has no exits, so
- * it is the single terminal state of the ladder the database actually stores.
- * That is the sentence below, living two files away from where it was written.
- *
- * Which of the two ladders is right is an open decision, and this file is not
- * the one in force: the `CHECK` on `signal_strategy_version.stage` admits
- * `CANDIDATE_STAGES` and not one value of this vocabulary. Stated here because
- * the sentence is what a reader of this file would rely on, and it is the reason
- * the decision cannot be postponed by not looking at it.
- */
-export function checkTransition(
-    from: RuleStage,
-    to: RuleStage,
-): TransitionCheck {
-    if (from === to) {
-        return { allowed: false, reason: 'правило уже находится в этой стадии' };
-    }
-
-    if (!canTransition(from, to)) {
-        return {
-            allowed: false,
-            reason: `переход ${from} → ${to} не предусмотрен: шаг через стадии и есть то, что отличает систему от переключателя`,
-        };
-    }
-
-    return { allowed: true, reason: `допустимый переход ${from} → ${to}` };
-}
 
 export const RuleEvidenceSchema = z.object({
     /** Signals the rule actually produced, resolved or not. */

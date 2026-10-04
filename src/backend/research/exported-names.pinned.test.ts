@@ -9,7 +9,7 @@ const backendRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const SKIP = new Set(['node_modules', '.next', 'dist', 'coverage']);
 
 /**
- * The same name, exported from two modules — nineteen times.
+ * The same name, exported from two modules — sixteen times.
  *
  * **This list is the answer to a question that was never asked.** Seven file
  * names recur across layers, which looks alarming and mostly is not: `analysis.ts`
@@ -18,17 +18,17 @@ const SKIP = new Set(['node_modules', '.next', 'dist', 'coverage']);
  * comment. Renaming those would move files to make a grep unique and leave the
  * collisions that matter exactly where they are.
  *
- * What does matter is a name that a reader would take to mean one thing. Seventeen
- * names are exported from more than one module: **nine types and eight values**,
- * and the first draft of this comment said every one of them was a type and that
- * not a single value name collided. That was wrong — `canTransition`,
- * `listSources`, `getPrice`, `audit`, `reliability`, `summarize`, `emaSeries` and
- * `getSignalHistory` are functions — and it was wrong because the list was written
- * by hand off another tool's output instead of off this one. The test caught it
- * on the first run, which is the argument for the test existing.
+ * What does matter is a name that a reader would take to mean one thing. Sixteen
+ * names are exported from more than one module: **nine types and seven values**.
+ * The first draft of this comment said every one of them was a type and that not
+ * a single value name collided — wrong, because the list was written by hand off
+ * another tool's output instead of off this one, and the test caught it on the
+ * first run, which is the argument for the test existing. Eight names were
+ * functions: `listSources`, `getPrice`, `audit`, `reliability`, `summarize`,
+ * `emaSeries`, `getSignalHistory` — and `canTransition`, since removed.
  *
- * Two of the nineteen were the same name over **different shapes**, which is the
- * defect this file was written for:
+ * Three of the original nineteen are off the list. Two were the same name over
+ * **different shapes**, which is the defect this file was written for:
  *
  * - `MetricsSnapshot` was declared twice with nothing in common — one
  *   `{durations, counters, takenAt}` in `observability/metrics.ts`, one
@@ -41,27 +41,20 @@ const SKIP = new Set(['node_modules', '.next', 'dist', 'coverage']);
  *   against `Metrics` with `total` and `correct`, one in `backtest/` and one in
  *   `performance/`. Now `EMPTY_PERFORMANCE`.
  *
- * Those two are off the list, which is why it holds seventeen and not nineteen.
- * The rest are the same name on the same thing, or on a predicate a reader would
- * resolve by its argument: `Candle` re-derived from a Zod schema beside its
- * source, `listSources` written twice in `research/`, `canTransition` and
- * `Verdict` twice and three times over.
- *
- * **`canTransition` is the one to read twice.** It is the A2 disagreement
- * showing up in the type system: `lifecycle/promotion.config.ts` has
- * `canTransition(from: RuleStage, to: RuleStage)` and
+ * The third was `value:canTransition` — `lifecycle/promotion.config.ts` had
+ * `canTransition(from: RuleStage, to: RuleStage)`,
  * `strategies/candidate.repository.ts` has
- * `canTransition(from: CandidateStage, to: CandidateStage)`. Same name, two
- * different vocabularies, and the two unions are structurally unrelated. It is
- * kept on the list rather than renamed because the disagreement is the owner's
- * to settle and the names make the two easy to find — which is the one useful
- * thing a shared name can do.
+ * `canTransition(from: CandidateStage, to: CandidateStage)`, and the shared name
+ * was the A2 disagreement made visible in the type system. It was kept on this
+ * list on purpose while the disagreement lived. The dead ladder is now deleted
+ * (see the removal record in `lifecycle/promotion.config.ts`), the stored
+ * vocabulary is the only one, and the collision is gone with it.
  *
  * Pinned rather than asserted empty, on the same reasoning as the other pinned
- * list here: nineteen entries, so demanding zero would be a permanently red
- * suite, and a permanently red suite is noise. A twentieth fails, and so does a
- * silent rename that makes one of these nineteen disappear without anyone having
- * looked at it.
+ * list here: sixteen entries, so demanding zero would be a permanently red
+ * suite, and a permanently red suite is noise. A seventeenth fails, and so does
+ * a silent rename that makes one of these sixteen disappear without anyone
+ * having looked at it.
  *
  * Parsed with the TypeScript AST rather than read with a regex, because a regex
  * counts a name mentioned in a comment as an export, and three of this session's
@@ -165,7 +158,7 @@ function collisions(): string[] {
 }
 
 describe('a name exported from two modules', () => {
-    it('is the nineteen that are on the list, and no twentieth', () => {
+    it('is the sixteen that are on the list, and no seventeenth', () => {
         // Sorted, because the code sorts, and a list that fails for a reason
         // unrelated to the finding is a list people learn to skip.
         expect(collisions()).toEqual([
@@ -179,7 +172,6 @@ describe('a name exported from two modules', () => {
             'type:SignalDirection → config/lifecycle.config.ts , types/direction.ts',
             'type:Verdict → lifecycle/promotion.config.ts , research/confidence-calibration.ts , research/holdout-protocol.ts',
             'value:audit → research/architecture-lint.ts , research/layering-lint.ts',
-            'value:canTransition → lifecycle/promotion.config.ts , strategies/candidate.repository.ts',
             'value:emaSeries → indicators/series.graph.ts , strategies/series.ts',
             'value:getPrice → api/controllers/price.controller.ts , market/market.service.ts',
             'value:getSignalHistory → api/controllers/signal-history.controller.ts , history/signal-history.service.ts',
@@ -197,11 +189,11 @@ describe('a name exported from two modules', () => {
         // `HttpMetricsSnapshot` and the performance zero-row is
         // `EMPTY_PERFORMANCE`.
         //
-        // Measured rather than asserted about the two: the remaining seventeen
+        // Measured rather than asserted about the three: the remaining sixteen
         // are a type and its source, a utility written twice, and a predicate
-        // resolved by its argument. `canTransition` is two different vocabularies
-        // and is deliberately left — that disagreement is the owner's, and the
-        // shared name is what makes both findable.
+        // resolved by its argument. The `canTransition` collision was the A2
+        // disagreement held visible on purpose; the dead ladder is deleted, and
+        // the entry went with it.
         expect(collisions().filter((entry) => entry.includes('Http'))).toEqual([]);
     }, 30_000);
 });

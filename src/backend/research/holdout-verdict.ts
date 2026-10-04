@@ -265,9 +265,4 @@ export async function readSealedHoldoutVerdict(): Promise<SealedHoldoutVerdict |
     };
 }
 
-/** True while the window may still be sealed, so a reader can say so. */
-export async function holdoutWindowIsUnread(): Promise<boolean> {
-    return (await readSealedHoldoutVerdict()) === null;
-}
-
 export { HOLDOUT_MINIMUM_BARS };

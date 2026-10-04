@@ -588,5 +588,3 @@ export const StrategyNameSchema = z.enum([
     'rsi-reversion',
     'donchian-trend-gated',
 ]);
-
-export type StrategyName = z.infer<typeof StrategyNameSchema>;

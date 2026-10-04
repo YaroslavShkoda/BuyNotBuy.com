@@ -145,9 +145,3 @@ export function parameterGrid(spec: ParameterSpec): number[] {
 export function parameterByKey(key: string): ParameterSpec | undefined {
     return PARAMETERS.find((spec) => spec.key === key);
 }
-
-export const ParameterRegistrySchema = z.object({
-    parameters: z.array(ParameterSpecSchema),
-});
-
-export const ParameterSpecParser = ParameterSpecSchema;

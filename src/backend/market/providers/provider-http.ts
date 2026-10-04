@@ -164,20 +164,6 @@ export function isRateLimited(error: unknown): boolean {
 }
 
 /**
- * The kind of failure, or null when it is not a provider failure at all.
- *
- * The one place a caller asks "what went wrong" without reading a message.
- * Null rather than a guess for anything unrecognised: an error this code has
- * never seen is not a timeout, and treating it as one would send it down the
- * retry path forever.
- */
-export function providerFailureKind(
-    error: unknown,
-): ProviderFailureKind | null {
-    return error instanceof ProviderError ? error.kind : null;
-}
-
-/**
  * Whether this venue is worth asking right now.
  *
  * The single answer every layer uses, so "can we still get a live price" is not

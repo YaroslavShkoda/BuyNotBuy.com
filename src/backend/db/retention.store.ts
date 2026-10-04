@@ -1,5 +1,3 @@
-import { z } from 'zod';
-
 import { getPool } from './pool.js';
 import {
     DEFAULT_RETENTION_POLICIES,
@@ -250,13 +248,6 @@ export const INDEX_PURPOSES = [
         requiredBy: 'lifecycle.repository.transitions',
     },
 ] as const;
-
-export const IndexPurposeSchema = z.object({
-    table: z.string().min(1),
-    index: z.string().min(1),
-    purpose: z.string().min(1),
-    requiredBy: z.string().min(1),
-});
 
 export interface IndexAuditStore {
     declare(now: number): Promise<void>;

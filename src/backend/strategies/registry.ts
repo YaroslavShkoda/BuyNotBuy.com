@@ -354,33 +354,14 @@ let shared: Registry | null = null;
 /**
  * Production's registry, built once.
  *
- * Assembled by `configureRegistry` rather than here, because the consensus
- * computation needs the indicators and only the analysis service has them.
- * Calling this before `configureRegistry` is a programming error and says so,
- * rather than building a registry whose primary throws on first use — which
- * would be discovered on the first request instead of at startup.
+ * Assembled here rather than lazily, because the consensus computation needs
+ * the indicators and only the analysis service has them. The returned value is
+ * the registry every consumer shares.
  */
-export function getRegistry(): Registry {
-    if (shared === null) {
-        throw new Error(
-            'The strategy registry has not been configured. Call ' +
-                'configureRegistry() during startup with the consensus ' +
-                'computation before the first analysis.',
-        );
-    }
-
-    return shared;
-}
-
 export function configureRegistry(options: RegistryOptions): Registry {
     shared = createRegistry(options);
 
     return shared;
-}
-
-/** Test seam: the singleton exists so production shares one, not so tests share configuration. */
-export function resetRegistry(): void {
-    shared = null;
 }
 
 export { DONCHIAN_TREND_GATED_CONFIG };

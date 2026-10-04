@@ -48,12 +48,8 @@ class NetworkAccessError extends Error {
     }
 }
 
-const originalFetch = globalThis.fetch;
 const originalNetConnect = connectNet;
 const originalTlsConnect = connectTls;
-const originalHttpRequest = httpRequest;
-const originalHttpsRequest = httpsRequest;
-const originalLookup = dnsLookup;
 
 function describeTarget(args: unknown[]): string {
     const first = args[0];
@@ -156,13 +152,3 @@ beforeEach(() => {
 });
 
 export { NetworkAccessError };
-
-/** Restores the real implementations. Used by the guard's own test. */
-export function restoreNetworkAccess(): void {
-    globalThis.fetch = originalFetch;
-    replaceGlobally(connectNet, 'connect' as never, originalNetConnect);
-    replaceGlobally(connectTls, 'connect' as never, originalTlsConnect);
-    replaceGlobally(httpRequest, 'request' as never, originalHttpRequest);
-    replaceGlobally(httpsRequest, 'request' as never, originalHttpsRequest);
-    replaceGlobally(dnsLookup, 'lookup' as never, originalLookup);
-}
