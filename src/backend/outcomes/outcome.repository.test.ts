@@ -88,6 +88,38 @@ describe('a measurement is stored once per horizon', () => {
         expect(stored.rows[0]?.total).toBe(7);
     });
 
+    it('never rewrites a resolved measurement, however the series changed', async () => {
+        // The first run sees a rising market and resolves every horizon as
+        // `correct`. The second run re-settles the same signal over a rewritten
+        // series — the shape a backfill produces. The stored answer is history:
+        // a report recomputed a month later must not quietly disagree with the
+        // one that was already acted on.
+        await settle(rising(200));
+
+        const rewritten = rising(200).map((candle) => ({
+            ...candle,
+            close: candle.close * 0.5,
+            open: candle.open * 0.5,
+            high: candle.high * 0.5,
+            low: candle.low * 0.5,
+        }));
+
+        const attempted = await settle(rewritten, { now: NOW + HOUR });
+        expect(attempted).toHaveLength(0);
+
+        const stored = await pool.query<{
+            verdict: string;
+            return_fraction: number | null;
+        }>(
+            `SELECT verdict, return_fraction FROM signal_outcome
+             WHERE horizon_bars = 1`,
+        );
+
+        expect(stored.rows).toHaveLength(1);
+        expect(stored.rows[0]?.verdict).toBe('correct');
+        expect(stored.rows[0]?.return_fraction ?? 0).toBeGreaterThan(0);
+    });
+
     it('keeps two series apart', async () => {
         await settle(rising(200));
         await settle(rising(200), {

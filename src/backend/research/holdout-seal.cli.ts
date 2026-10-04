@@ -44,16 +44,35 @@ function loadDaily(): Candle[] {
     const at = (name: string): number => columns.indexOf(name);
 
     return rows
-        .map((line) => line.split(','))
-        .map((cells) => ({
-            timestamp: Number(cells[at('timestamp')]),
-            open: Number(cells[at('open')]),
-            high: Number(cells[at('high')]),
-            low: Number(cells[at('low')]),
-            close: Number(cells[at('close')]),
-            volume: Number(cells[at('volume')]),
-        }))
-        .filter((candle) => Number.isFinite(candle.timestamp));
+        .map((line, index) => {
+            const cells = line.split(',');
+            const candle: Candle = {
+                timestamp: Number(cells[at('timestamp')]),
+                open: Number(cells[at('open')]),
+                high: Number(cells[at('high')]),
+                low: Number(cells[at('low')]),
+                close: Number(cells[at('close')]),
+                volume: Number(cells[at('volume')]),
+            };
+
+            const broken = (Object.keys(candle) as Array<keyof Candle>).filter(
+                (field) => !Number.isFinite(candle[field]),
+            );
+
+            if (broken.length > 0) {
+                // Thrown, not filtered: a dropped bar is a hole in the window,
+                // and the whole point of this read is that the window is
+                // evaluated whole. An indicator that steps over the hole would
+                // still report a well-formed number, so the corruption has to
+                // stop here, at load, with the line named.
+                throw new Error(
+                    `${CSV}: строка ${index + 2}: поле(я) ` +
+                        `${broken.join(', ')} не являются конечными числами`,
+                );
+            }
+
+            return candle;
+        });
 }
 
 /**

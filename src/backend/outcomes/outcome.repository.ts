@@ -220,6 +220,16 @@ export function createOutcomeRepository(
                             max_adverse = EXCLUDED.max_adverse,
                             closed_by = EXCLUDED.closed_by,
                             updated_at = EXCLUDED.updated_at
+                         -- A verdict that is still unknown or expired is a
+                         -- question waiting for bars, and finishing it in place
+                         -- is the point of the unique key. A resolved one is
+                         -- history: the same signal re-measured against the
+                         -- same series reproduces the same row, so the only way
+                         -- this branch fires with different values is that the
+                         -- series itself was rewritten - and a backfill that
+                         -- edits the past must not quietly edit the answer that
+                         -- was already recorded and acted on.
+                         WHERE signal_outcome.verdict IN ('unknown', 'expired')
                          RETURNING *`,
                         [
                             input.key.symbol,
