@@ -18,7 +18,10 @@ permissions:
 
 jobs:
   verify:
-    runs-on: ubuntu-latest
+    # Pinned rather than ubuntu-latest: the floating label migrates to Ubuntu 26
+    # on October 19, 2026. Pinning to the target image means this workflow finds
+    # any 26.04 breakage on our terms, not on migration day with everyone else.
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
 
     # The repositories are tested against a real PostgreSQL rather than a
@@ -42,9 +45,9 @@ jobs:
           --health-retries 10
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           # Kept in step with the `engines` field in package.json: a container
           # built on an older base than CI would hide a failure that only
