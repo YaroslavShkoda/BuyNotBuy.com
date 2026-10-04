@@ -1,9 +1,9 @@
+import { donchianInputs } from './donchian.js';
 import {
     atrSeries,
     breakoutStrength,
     isReady,
     latest,
-    priorRolling,
     smaSeries,
 } from './series.js';
 import { NEUTRAL_DECISION } from './types.js';
@@ -94,29 +94,21 @@ export function createDonchianCalmGated(
         warmup,
 
         evaluate(context: StrategyContext): StrategyDecision {
-            const { candles } = context;
+            const inputs = donchianInputs(
+                context.candles,
+                warmup,
+                config.channelPeriod,
+            );
 
-            if (candles.length < warmup) {
-                return NEUTRAL_DECISION(
-                    `Недостаточно истории: нужно ${warmup} баров, есть ${candles.length}`,
-                    true,
-                );
+            if (!inputs.ready) {
+                return inputs.decision;
             }
 
-            const highs = candles.map((candle) => candle.high);
-            const lows = candles.map((candle) => candle.low);
-            const last = candles[candles.length - 1]!;
-
-            const channelHigh = latest(
-                priorRolling(highs, config.channelPeriod, 'max'),
-            );
-            const channelLow = latest(
-                priorRolling(lows, config.channelPeriod, 'min'),
-            );
-            const atr = latest(atrSeries(candles, config.atrPeriod));
+            const { channelHigh, channelLow, last } = inputs;
+            const atr = latest(atrSeries(context.candles, config.atrPeriod));
             const atrBaseline = latest(
                 smaSeries(
-                    atrSeries(candles, config.atrPeriod),
+                    atrSeries(context.candles, config.atrPeriod),
                     config.atrBaselinePeriod,
                 ),
             );

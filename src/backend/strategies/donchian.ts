@@ -1,6 +1,7 @@
 import { atrSeries, breakoutStrength, isReady, latest, priorRolling } from './series.js';
 import { NEUTRAL_DECISION } from './types.js';
 
+import type { Candle } from '../types/market.js';
 import type { StrategyContext, StrategyDecision, StrategyModule } from './types.js';
 
 /**
@@ -36,6 +37,50 @@ export const DONCHIAN_CONFIG: DonchianConfig = {
     channelPeriod: 20,
 };
 
+export type DonchianInputs =
+    | { readonly ready: false; readonly decision: StrategyDecision }
+    | {
+          readonly ready: true;
+          readonly last: Candle;
+          readonly channelHigh: number;
+          readonly channelLow: number;
+      };
+
+/**
+ * The prologue all three Donchian modules share: the history guard, the
+ * channel measured over prior bars, and the last candle. The gate modules add
+ * their ATR inputs on top of this; the "not warmed up" wording stays with each
+ * module, because what readiness means differs once extra indicators join the
+ * rule.
+ */
+export function donchianInputs(
+    candles: readonly Candle[],
+    warmup: number,
+    channelPeriod: number,
+): DonchianInputs {
+    if (candles.length < warmup) {
+        return {
+            ready: false,
+            decision: NEUTRAL_DECISION(
+                `Недостаточно истории: нужно ${warmup} баров, есть ${candles.length}`,
+                true,
+            ),
+        };
+    }
+
+    const highs = candles.map((candle) => candle.high);
+    const lows = candles.map((candle) => candle.low);
+    const last = candles[candles.length - 1]!;
+
+    // Excluding the current bar. Measured against a window that contains it,
+    // every bar is trivially inside its own channel and no breakout can ever
+    // fire.
+    const channelHigh = latest(priorRolling(highs, channelPeriod, 'max'));
+    const channelLow = latest(priorRolling(lows, channelPeriod, 'min'));
+
+    return { ready: true, last, channelHigh, channelLow };
+}
+
 export function createDonchian(
     config: DonchianConfig = DONCHIAN_CONFIG,
 ): StrategyModule {
@@ -53,26 +98,17 @@ export function createDonchian(
         warmup,
 
         evaluate(context: StrategyContext): StrategyDecision {
-            const { candles } = context;
+            const inputs = donchianInputs(
+                context.candles,
+                warmup,
+                config.channelPeriod,
+            );
 
-            if (candles.length < warmup) {
-                return NEUTRAL_DECISION(
-                    `Недостаточно истории: нужно ${warmup} баров, есть ${candles.length}`,
-                    true,
-                );
+            if (!inputs.ready) {
+                return inputs.decision;
             }
 
-            const highs = candles.map((candle) => candle.high);
-            const lows = candles.map((candle) => candle.low);
-            const last = candles[candles.length - 1]!;
-
-            // Excluding the current bar. Measured against a window that
-            // contains it, every bar is trivially inside its own channel and
-            // no breakout can ever fire.
-            const channelHigh = latest(
-                priorRolling(highs, config.channelPeriod, 'max'),
-            );
-            const channelLow = latest(priorRolling(lows, config.channelPeriod, 'min'));
+            const { channelHigh, channelLow, last } = inputs;
 
             if (!isReady(channelHigh, channelLow)) {
                 return NEUTRAL_DECISION('Канал ещё не прогрелся', true);
@@ -83,7 +119,7 @@ export function createDonchian(
             // cleared the level by a third of the bar's range, and those are
             // not the same event. Capped below one inside the helper, because
             // no breakout is certain.
-            const atr = latest(atrSeries(candles, 14));
+            const atr = latest(atrSeries(context.candles, 14));
 
             if (last.close > channelHigh) {
                 return {
