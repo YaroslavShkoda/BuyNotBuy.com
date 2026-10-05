@@ -109,6 +109,14 @@ export const DEFAULT_RETENTION_POLICIES: readonly RetentionPolicy[] =
             timeColumn: 'timestamp',
             protected: false,
         },
+        {
+            table: 'rate_limit_window',
+            keepDays: 1,
+            rationale:
+                'Окно лимита нужно, только пока оно идёт: строка с окончившимся окном не участвует ни в одном решении. Сутки — запас на разбор инцидента.',
+            timeColumn: 'window_start',
+            protected: false,
+        },
     ]);
 
 export interface PrunePlan {

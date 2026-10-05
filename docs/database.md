@@ -3,7 +3,7 @@
 
 # База данных
 
-Версий миграций: **19**, последняя — v19 «a_promotion_remembers_which_configuration_it_was_under».
+Версий миграций: **20**, последняя — v20 «rate_limit_window».
 
 Ниже — схема в том виде, в каком её строят текущие миграции, прочитанная
 из каталога сервера, а не из текста SQL. Таблица ограничений `CHECK` в
@@ -11,7 +11,7 @@
 перезапускал, и поэтому четыре раунда требовала несуществующего
 ограничения.
 
-## Таблицы (17)
+## Таблицы (18)
 
 ### `asset`
 
@@ -121,6 +121,14 @@
 Ограничения:
 
 - `market_candles_ohlc_sane: CHECK (((high >= low) AND (high >= open) AND (high >= close) AND (low <= open) AND (low <= close) AND (open > (0)::double precision) AND (high > (0)::double precision) AND (low > (0)::double precision) AND (close > (0)::double precision) AND (volume >= (0)::double precision)))`
+
+### `rate_limit_window`
+
+| столбец | тип | null |
+|---|---|---|
+| `bucket` | `text` | нет |
+| `window_start` | `bigint` | нет |
+| `count` | `integer` | нет |
 
 ### `retention_policy`
 
@@ -332,7 +340,7 @@
 | `config` | `jsonb` | нет |
 | `config_hash` | `text` | нет |
 
-## Индексы (40)
+## Индексы (41)
 
 | индекс | таблица |
 |---|---|
@@ -347,6 +355,7 @@
 | `idx_market_candles_recent` | `market_candles` |
 | `market_candles_pkey` | `market_candles` |
 | `market_candles_provider_symbol_interval_timestamp_key` | `market_candles` |
+| `rate_limit_window_pkey` | `rate_limit_window` |
 | `retention_policy_pkey` | `retention_policy` |
 | `idx_retention_run_table` | `retention_run` |
 | `retention_run_pkey` | `retention_run` |

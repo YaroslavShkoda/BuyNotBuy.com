@@ -8,6 +8,18 @@ export interface PollerOptions {
     intervalMs: number;
     /** One cycle. Rejections are the poller's own problem, never the caller's. */
     run: () => Promise<unknown>;
+    /**
+     * Gate asked before every cycle, the first one included.
+     *
+     * A closed gate — false, or a rejection — skips that cycle: `run` is
+     * never touched and the attempt is not counted, but the schedule keeps
+     * ticking, so the next tick can open it. That is what lets several
+     * processes all run this poller while only one of them actually cycles:
+     * the gate is where a lease says "not you, yet". It is also what lets a
+     * survivor take over after the previous holder dies, on the next tick,
+     * without a restart.
+     */
+    shouldRun?: () => Promise<boolean>;
     logger: PollerLogger;
     setTimer?: (handler: () => void, ms: number) => unknown;
     clearTimer?: (handle: unknown) => void;
@@ -49,6 +61,32 @@ export function startPoller(options: PollerOptions): Poller {
     async function cycle(): Promise<void> {
         if (stopped) {
             return;
+        }
+
+        if (options.shouldRun !== undefined) {
+            let gateOpen = false;
+
+            try {
+                gateOpen = await options.shouldRun();
+            } catch (error) {
+                // A gate that cannot answer is a closed gate. Letting the
+                // cycle through because the gate errored would be running
+                // blind — exactly the duplicate-writer bug the gate exists
+                // to prevent.
+                options.logger.error(
+                    { event: 'poller_gate_failed', err: error },
+                    'poller_gate_failed',
+                );
+            }
+
+            if (!gateOpen) {
+                options.logger.info(
+                    { event: 'poller_cycle_skipped_by_gate', intervalMs: options.intervalMs },
+                    'poller_cycle_skipped_by_gate',
+                );
+
+                return;
+            }
         }
 
         runs += 1;

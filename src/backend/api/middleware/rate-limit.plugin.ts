@@ -2,12 +2,8 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
 import { appConfig } from '../../config/app.config.js';
 import { EXEMPT_PATHS } from '../lib/health-paths.js';
-import { FixedWindowRateLimiter, rateLimitError } from './rate-limit.js';
-
-export const rateLimiter = new FixedWindowRateLimiter({
-    max: appConfig.rateLimitMax,
-    windowMs: appConfig.rateLimitWindowMs,
-});
+import { rateLimitError } from './rate-limit.js';
+import { rateLimiter } from './rate-limit.repository.js';
 
 /**
  * Probe endpoints, which answer no matter what.
@@ -31,6 +27,13 @@ export const rateLimiter = new FixedWindowRateLimiter({
  * is not just rude — it holds the event loop and delays everyone else's
  * answer. The limit is deliberately far above normal use; it exists to stop
  * abuse, not to ration the product.
+ *
+ * The hook is async now, and the one thing it refuses to do with a limiter
+ * that cannot answer is answer on its behalf: a store that is down must not
+ * become a site-wide 429, so the failure is logged and the request passes.
+ * That is fail-open, and it is a decision, not an oversight — the counter is
+ * anti-abuse, not a dependency the dashboard cannot live without, and an
+ * outage in it must not multiply.
  */
 export function registerRateLimit(app: FastifyInstance): void {
     app.addHook('onRequest', async (
@@ -41,7 +44,18 @@ export function registerRateLimit(app: FastifyInstance): void {
             return;
         }
 
-        const decision = rateLimiter.consume(request.ip);
+        let decision;
+
+        try {
+            decision = await rateLimiter.consume(request.ip);
+        } catch (error) {
+            request.log.error(
+                { event: 'rate_limit_store_failed', err: error },
+                'rate_limit_store_failed',
+            );
+
+            return;
+        }
 
         reply.header('X-RateLimit-Limit', String(appConfig.rateLimitMax));
         reply.header('X-RateLimit-Remaining', String(decision.remaining));

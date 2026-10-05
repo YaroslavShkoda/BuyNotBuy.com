@@ -31,6 +31,8 @@ export interface IngestionSchedulerOptions extends IngestionOptions {
     /** Upper bound on the poll period. */
     readonly maxPeriodMs?: number;
     readonly pollEnabled?: boolean;
+    /** Gate asked before every cycle; a closed gate skips the cycle quietly. */
+    readonly shouldRun?: () => Promise<boolean>;
     readonly setTimer?: (handler: () => void, ms: number) => unknown;
     readonly clearTimer?: (handle: unknown) => void;
 }
@@ -68,6 +70,9 @@ export function startIngestionScheduler(
         ),
         run: ingest,
         logger: options.logger,
+        ...(options.shouldRun === undefined
+            ? {}
+            : { shouldRun: options.shouldRun }),
         ...(options.setTimer === undefined
             ? {}
             : { setTimer: options.setTimer }),

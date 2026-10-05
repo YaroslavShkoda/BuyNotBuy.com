@@ -1,83 +1,110 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-import { FixedWindowRateLimiter, rateLimitError } from './rate-limit.js';
+import {
+    PostgresRateLimiter,
+    type RateLimiterDatabase,
+    rateLimitError,
+} from './rate-limit.js';
 
 const WINDOW_MS = 60_000;
 
-function limiterAt(now: () => number, max = 3, windowMs = WINDOW_MS) {
-    return new FixedWindowRateLimiter({ max, windowMs, now });
+/**
+ * A database that only scripts what the upsert returns. The real semantics —
+ * exclusivity of the count under concurrency — belong to Postgres, and are
+ * pinned against the real thing in `rate-limit.db.test.ts`; a fake that
+ * re-implemented the upsert would be testing a copy of it.
+ */
+function databaseReturning(count: number) {
+    return {
+        query: vi.fn(async () => ({ rows: [{ count }] })),
+    };
 }
 
-describe('FixedWindowRateLimiter', () => {
-    it('allows exactly the configured number of requests per window', () => {
-        const limiter = limiterAt(() => 0);
+describe('PostgresRateLimiter', () => {
+    it('decides on the count the shared row reports', async () => {
+        const database = databaseReturning(1);
+        const limiter = new PostgresRateLimiter({
+            max: 3,
+            windowMs: WINDOW_MS,
+            database: database as unknown as RateLimiterDatabase,
+            now: () => 1_000,
+        });
 
-        for (let index = 0; index < 3; index += 1) {
-            expect(limiter.consume('a').allowed).toBe(true);
-        }
-
-        expect(limiter.consume('a').allowed).toBe(false);
+        // The window ends where the grid ends, not where the first request
+        // was: second one into a sixty-second window still closes at sixty.
+        await expect(limiter.consume('a')).resolves.toEqual({
+            allowed: true,
+            remaining: 2,
+            resetAt: 60_000,
+        });
     });
 
-    it('counts down the remaining allowance', () => {
-        const limiter = limiterAt(() => 0);
+    it('denies once the shared count passes the limit, with nothing left', async () => {
+        const database = databaseReturning(4);
+        const limiter = new PostgresRateLimiter({
+            max: 3,
+            windowMs: WINDOW_MS,
+            database: database as unknown as RateLimiterDatabase,
+            now: () => 1_000,
+        });
 
-        expect(limiter.consume('a').remaining).toBe(2);
-        expect(limiter.consume('a').remaining).toBe(1);
-        expect(limiter.consume('a').remaining).toBe(0);
-        expect(limiter.consume('a').remaining).toBe(0);
+        await expect(limiter.consume('a')).resolves.toEqual({
+            allowed: false,
+            remaining: 0,
+            resetAt: 60_000,
+        });
     });
 
-    it('counts each client separately', () => {
-        const limiter = limiterAt(() => 0, 1);
+    it('writes to the aligned window, not to the first request', async () => {
+        const database = databaseReturning(1);
+        const limiter = new PostgresRateLimiter({
+            max: 3,
+            windowMs: WINDOW_MS,
+            database: database as unknown as RateLimiterDatabase,
+            now: () => 65_000,
+        });
 
-        expect(limiter.consume('a').allowed).toBe(true);
-        expect(limiter.consume('b').allowed).toBe(true);
-        expect(limiter.consume('a').allowed).toBe(false);
+        await limiter.consume('a');
+
+        // 65 seconds into a 60-second window: the row is the one that started
+        // at 60. Every process derives the same value from the same wall
+        // clock, which is what lands their writes on one row.
+        expect(database.query).toHaveBeenCalledWith(
+            expect.stringContaining('ON CONFLICT (bucket, window_start)'),
+            ['a', 60_000],
+        );
     });
 
-    it('starts a fresh window once the old one has passed', () => {
-        let now = 0;
-        const limiter = limiterAt(() => now, 1);
+    it('counts a rejected request too', async () => {
+        const database = databaseReturning(5);
+        const limiter = new PostgresRateLimiter({
+            max: 3,
+            windowMs: WINDOW_MS,
+            database: database as unknown as RateLimiterDatabase,
+            now: () => 1_000,
+        });
 
-        expect(limiter.consume('a').allowed).toBe(true);
-        expect(limiter.consume('a').allowed).toBe(false);
+        const decision = await limiter.consume('a');
 
-        now = WINDOW_MS;
-
-        expect(limiter.consume('a').allowed).toBe(true);
+        // The upsert has already run by the time the decision is read back.
+        // A client hammering a closed window must not make `remaining` lie.
+        expect(decision.allowed).toBe(false);
+        expect(decision.remaining).toBe(0);
     });
 
-    it('reports when the window ends', () => {
-        let now = 1_000;
-        const limiter = limiterAt(() => now, 1);
+    it('reset clears every window', async () => {
+        const database = databaseReturning(1);
+        const limiter = new PostgresRateLimiter({
+            max: 3,
+            windowMs: WINDOW_MS,
+            database: database as unknown as RateLimiterDatabase,
+        });
 
-        expect(limiter.consume('a').resetAt).toBe(1_000 + WINDOW_MS);
-    });
+        await limiter.reset();
 
-    it('drops expired windows so the map cannot grow without bound', () => {
-        let now = 0;
-        // A ten-millisecond window imitates a flood from rotating sources:
-        // every client is long gone by the time the next one arrives.
-        const limiter = limiterAt(() => now, 1, 10);
-
-        for (let index = 0; index < 3000; index += 1) {
-            limiter.consume(`client-${index}`);
-            now += 1;
-        }
-
-        // Without the sweep the map would hold one entry per address ever seen.
-        expect(limiter.size).toBeLessThanOrEqual(1001);
-    });
-
-    it('reset clears every window', () => {
-        const limiter = limiterAt(() => 0, 1);
-
-        limiter.consume('a');
-        limiter.reset();
-
-        expect(limiter.size).toBe(0);
-        expect(limiter.consume('a').allowed).toBe(true);
+        expect(database.query).toHaveBeenCalledWith(
+            'DELETE FROM rate_limit_window',
+        );
     });
 });
 

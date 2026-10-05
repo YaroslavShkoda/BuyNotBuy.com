@@ -3,6 +3,7 @@ import { appConfig } from './config/app.config.js';
 import { knownAssets } from './config/asset.registry.js';
 import { historyConfig } from './config/history.config.js';
 import { marketConfig } from './config/market.config.js';
+import { createLease } from './db/lease.js';
 import { closePool } from './db/pool.js';
 import { getRetentionStore } from './db/retention.store.js';
 import { configuredSeries } from './history/ingestion.service.js';
@@ -90,6 +91,25 @@ let ingestion: IngestionScheduler[] = [];
 const retention = createRetentionRunner(getRetentionStore());
 
 /**
+ * The one market writer, chosen among the processes.
+ *
+ * Every loop below that writes market data — the analysis poller and each
+ * per-market ingestion scheduler — gates every cycle on this lease. Without
+ * it, a second instance meant a second writer: duplicated observations, and a
+ * `strategy_decision_log` whose only key was a surrogate `id`, so the
+ * duplicates could not even be told apart from the one real cycle.
+ *
+ * The gate is consulted per cycle rather than won once at boot, and that is
+ * what makes failover boring: the holder verifies its session lock each tick,
+ * every contender asks for it each tick, and when the holder's connection
+ * dies the database releases the lock for it — the first contender to ask
+ * next becomes the leader, with no restart and no operator. A process whose
+ * gate answers false simply idles: it keeps serving reads, and its skipped
+ * cycles are visible in the log as `poller_cycle_skipped_by_gate`.
+ */
+const marketLease = createLease({ key: 'market-pipeline', logger: app.log });
+
+/**
  * Drains both write backlogs and reports what could not be saved.
  *
  * Runs before the pool closes, and never throws: a failure to flush must not
@@ -160,6 +180,11 @@ async function shutdown(): Promise<void> {
         await poller.stop();
         poller = null;
     }
+
+    // After the loops have stopped, before the backlogs drain: the lease is
+    // held on a session of this pool, and letting go of it explicitly hands
+    // leadership to a contender now instead of when the pool closes.
+    await marketLease.release();
 
     // Before the pool closes, and before the socket closes: a write still in
     // flight is a record the history exists to keep, and SIGTERM is exactly
@@ -253,6 +278,11 @@ async function startServer() {
             poller = startPoller({
                 intervalMs: historyConfig.pollIntervalMs,
                 logger: app.log,
+
+                // The lease gate. The market cycle is the one writer the
+                // system is designed around; see `marketLease` above.
+                shouldRun: () => marketLease.ensureHeld(),
+
                 run: async () => {
                     // The loop, which is the point: one observation cycle per
                     // configured market.
@@ -372,6 +402,13 @@ async function startServer() {
                         maxPeriodMs: marketConfig.candleIntervalMs,
                         pollEnabled: historyConfig.pollEnabled,
                         logger: app.log,
+
+                        // The same lease as the analysis poller: one process
+                        // owns the whole market pipeline, not one process per
+                        // loop. A contender would otherwise ingest candles in
+                        // parallel with the leader, which is the duplicate
+                        // writer the lease exists to prevent.
+                        shouldRun: () => marketLease.ensureHeld(),
                     }),
                 )
                 .filter((scheduler) => scheduler !== null);

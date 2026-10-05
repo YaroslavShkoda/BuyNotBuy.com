@@ -277,4 +277,74 @@ describe('poller', () => {
 
         await poller.stop();
     });
+
+    it('skips the cycle while the gate is closed and runs the moment it opens', async () => {
+        const timers = manualTimers();
+        const run = vi.fn(async () => undefined);
+        let gateOpen = false;
+
+        const poller = await startAndSettle({
+            intervalMs: 1000,
+            run,
+            shouldRun: async () => gateOpen,
+            logger: silentLogger(),
+            setTimer: timers.setTimer,
+            clearTimer: timers.clearTimer,
+        });
+
+        // The first cycle is gated like any other: a process that does not
+        // hold the lease starts up quiet instead of writing alongside it.
+        expect(run).not.toHaveBeenCalled();
+        expect(poller.completedRuns).toBe(0);
+        expect(poller.isRunning).toBe(true);
+        expect(timers.pendingCount).toBe(1);
+
+        await timers.tick();
+        expect(run).not.toHaveBeenCalled();
+
+        // Skipped cycles keep the schedule alive, so the moment this process
+        // can take the lease — the previous holder died — it does, on the
+        // next tick, without a restart.
+        gateOpen = true;
+        await timers.tick();
+
+        expect(run).toHaveBeenCalledTimes(1);
+        expect(poller.completedRuns).toBe(1);
+
+        await poller.stop();
+    });
+
+    it('treats a gate that cannot answer as a closed gate', async () => {
+        const timers = manualTimers();
+        const logger = silentLogger();
+        const run = vi.fn(async () => undefined);
+        let healthy = false;
+
+        const poller = await startAndSettle({
+            intervalMs: 1000,
+            run,
+            shouldRun: async () => {
+                if (!healthy) {
+                    throw new Error('lease store unreachable');
+                }
+
+                return true;
+            },
+            logger,
+            setTimer: timers.setTimer,
+            clearTimer: timers.clearTimer,
+        });
+
+        // An unanswerable gate must never let a cycle through ungated.
+        expect(run).not.toHaveBeenCalled();
+        expect(logger.error).toHaveBeenCalledTimes(1);
+
+        healthy = true;
+        await timers.tick();
+
+        expect(run).toHaveBeenCalledTimes(1);
+        expect(poller.completedRuns).toBe(1);
+
+        await poller.stop();
+    });
 });

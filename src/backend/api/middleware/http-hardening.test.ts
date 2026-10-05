@@ -1,3 +1,9 @@
+// Before any other import, and for its side effects: this suite now exercises
+// the real rate-limit counter, which lives in the database, and the per-file
+// schema has to exist — and own the connection string — before the pool
+// modules are evaluated.
+import '../../test-support/test-database.js';
+
 import Fastify from 'fastify';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -57,11 +63,11 @@ import { createApp } from '../../app.js';
 import { appConfig } from '../../config/app.config.js';
 import { marketConfig } from '../../config/market.config.js';
 import { resetMarketDataCache } from '../../market/market.service.js';
-import { rateLimiter } from './rate-limit.plugin.js';
+import { rateLimiter } from './rate-limit.repository.js';
 
-beforeEach(() => {
+beforeEach(async () => {
     vi.clearAllMocks();
-    rateLimiter.reset();
+    await rateLimiter.reset();
     resetMarketDataCache();
 });
 

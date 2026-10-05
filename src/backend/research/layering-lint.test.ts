@@ -119,29 +119,32 @@ describe('this codebase, measured', () => {
     it('has no domain file that touches the database outside a repository', () => {
         // Zero, and pinned at zero so it cannot be raised quietly. This is the
         // rule M2 existed to enable, and it turned out to be enabled already:
-        // all thirteen files outside `db/` that reach into the database are
-        // twelve repositories and one health check.
+        // all fourteen files outside `db/` that reach into the database are
+        // thirteen repositories and one health check.
         expect(audit(realRoot).offences).toEqual([]);
     }, 30000);
 
-    it('names the twelve repositories, so the accepted set is checkable', () => {
+    it('names the thirteen repositories, so the accepted set is checkable', () => {
         // "There is no SQL in the domain" and "the only SQL in the domain is in
-        // these twelve files" are different claims, and only the second one can
-        // be checked later. A guard that reports only failures says nothing
-        // about what it accepted.
+        // these thirteen files" are different claims, and only the second one
+        // can be checked later. A guard that reports only failures says
+        // nothing about what it accepted.
         //
-        // **This list is a tripwire, and it has now caught something twice.**
-        // Adding `performance/performance-load.repository.ts` to read outcomes
-        // made this test fail with eleven instead of ten; adding
+        // **This list is a tripwire, and it has now caught something three
+        // times.** Adding `performance/performance-load.repository.ts` to read
+        // outcomes made this test fail with eleven instead of ten; adding
         // `lifecycle/evidence.repository.ts` to read measurements made it fail
-        // with twelve instead of eleven. Both are the moment it exists for: a
-        // new seam is a thing a person agreed to, not a thing that appeared.
-        // The name is written here so the agreement is on the record.
+        // with twelve instead of eleven; giving the rate limiter's counter a
+        // database to live in made it fail with fourteen instead of thirteen
+        // — until the counter was named a repository, which is exactly the
+        // argument that had to be had out loud. The name is written here so
+        // the agreement is on the record.
         const report = audit(realRoot);
 
         expect([...report.seams].sort()).toEqual([
             'analysis/signal-snapshot.repository.ts',
             'analysis/strategy-version.repository.ts',
+            'api/middleware/rate-limit.repository.ts',
             'history/candle.repository.ts',
             'history/signal-history.repository.ts',
             'indicators/performance/indicator-vote.repository.ts',
