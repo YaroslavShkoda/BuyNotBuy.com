@@ -48,7 +48,7 @@ describe('the analysis path names the market it computes', () => {
 
         const here = dirname(fileURLToPath(import.meta.url));
         const source = readFileSync(
-            join(here, '..', 'services', 'analysis.service.ts'),
+            join(here, '..', 'services', 'analysis.engine.ts'),
             'utf8',
         );
 

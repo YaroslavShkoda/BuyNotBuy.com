@@ -15,21 +15,21 @@
 
 | слой | файлов | вход | выход | род |
 |---|---|---|---|---|
-| `types` | 4 | 85 | 0 | сквозной лист |
+| `types` | 4 | 89 | 0 | сквозной лист |
 | `errors` | 3 | 19 | 0 | сквозной лист |
-| `config` | 13 | 86 | 5 | сквозной лист |
+| `config` | 13 | 88 | 5 | сквозной лист |
 | `instruments` | 4 | 10 | 2 | сквозной лист |
 | `db` | 5 | 34 | 2 | ядро |
-| `market` | 16 | 26 | 39 | ядро |
+| `market` | 16 | 27 | 39 | ядро |
 | `indicators` | 21 | 24 | 34 | ядро |
-| `strategies` | 11 | 46 | 7 | ядро |
-| `signals` | 8 | 13 | 14 | ядро |
-| `history` | 11 | 16 | 29 | ядро |
+| `strategies` | 11 | 48 | 7 | ядро |
+| `signals` | 8 | 15 | 14 | ядро |
+| `history` | 11 | 19 | 29 | ядро |
 | `outcomes` | 3 | 4 | 9 | ядро |
 | `performance` | 6 | 6 | 4 | ядро |
 | `analysis` | 2 | 4 | 6 | ядро |
 | `backtest` | 14 | 23 | 28 | ядро |
-| `services` | 8 | 10 | 60 | составляющий |
+| `services` | 11 | 10 | 74 | составляющий |
 | `api` | 26 | 12 | 40 | составляющий |
 | `research` | 45 | 0 | 122 | составляющий |
 | `observability` | 6 | 23 | 3 | сквозной лист |
@@ -48,7 +48,7 @@
 - `performance` → `db` (1), `outcomes` (3)
 - `analysis` → `config` (3), `db` (2), `types` (1)
 - `backtest` → `config` (14), `indicators` (2), `market` (5), `observability` (1), `signals` (2), `types` (4)
-- `services` → `analysis` (4), `config` (7), `db` (2), `history` (10), `indicators` (11), `instruments` (2), `lifecycle` (2), `market` (5), `observability` (3), `outcomes` (1), `signals` (7), `strategies` (3), `types` (3)
+- `services` → `analysis` (4), `config` (9), `db` (2), `history` (13), `indicators` (11), `instruments` (2), `lifecycle` (2), `market` (6), `observability` (3), `outcomes` (1), `signals` (9), `strategies` (5), `types` (7)
 - `api` → `config` (10), `db` (2), `errors` (5), `history` (3), `indicators` (3), `instruments` (4), `market` (7), `observability` (2), `services` (2), `signals` (1), `types` (1)
 - `research` → `backtest` (23), `config` (4), `db` (12), `indicators` (6), `observability` (1), `performance` (6), `strategies` (41), `types` (29)
 - `observability` → `config` (1), `db` (2)
