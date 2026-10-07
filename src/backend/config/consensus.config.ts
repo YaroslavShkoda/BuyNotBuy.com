@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { strategyProfile } from './strategy.profile.js';
 
 /**
  * How the consensus turns votes into a published signal.
@@ -76,12 +77,7 @@ export type WeightModel = z.infer<typeof WeightModelSchema>;
 export type ConfidenceModel = z.infer<typeof ConfidenceModelSchema>;
 
 export const consensusConfig: ConsensusConfig = ConsensusConfigSchema.parse({
-    // Two of three, and a single indicator is an opinion rather than a
-    // consensus — this used to be the most common state of the dashboard.
-    minimumAgreeing: process.env.CONSENSUS_MIN_AGREEING ?? '2',
-    minimumMeanConviction: process.env.CONSENSUS_MIN_CONVICTION ?? '0.25',
-    weightModel: process.env.CONSENSUS_WEIGHT_MODEL ?? 'continuous',
-    confidenceModel: process.env.CONSENSUS_CONFIDENCE_MODEL ?? 'wilson',
+    ...strategyProfile.consensus,
 });
 
 export const ConsensusConfigParser = ConsensusConfigSchema;

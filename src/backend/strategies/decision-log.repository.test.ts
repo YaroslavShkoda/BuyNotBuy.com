@@ -77,11 +77,42 @@ describe('what the strategies said is kept', () => {
                      (created_at, symbol, primary_rule, primary_direction,
                       primary_confidence, published_rule, published_direction,
                       suppressed)
-                 VALUES ($1, 'BTCUSDT', 'consensus-primary', 'MAYBE', 0,
-                         'consensus-primary', 'NEUTRAL', false)`,
+                  VALUES ($1, 'BTCUSDT', 'consensus-primary', 'MAYBE', 0,
+                          'consensus-primary', 'NEUTRAL', false)`,
                 [NOW],
             ),
         ).rejects.toThrow();
+    });
+
+    it('writes a replayed decision once, not twice', async () => {
+        // The natural key (symbol, created_at) is what makes a buffered write
+        // safe to attempt twice: the backlog replays a row it could not confirm,
+        // and a row that landed between the failure and the replay must turn
+        // the replay into a no-op rather than a second copy — a cycle counted
+        // twice is not more evidence, it is wrong evidence.
+        const replayed = entry();
+
+        await repository.record(replayed);
+        await repository.record(replayed);
+
+        const { rows } = await getTestPool().query(
+            'SELECT COUNT(*)::int AS count FROM strategy_decision_log',
+        );
+
+        expect(rows[0]!.count).toBe(1);
+    });
+
+    it('keeps two decisions that differ only in the cycle they were made in', async () => {
+        // The key is the pair, so one asset deciding twice still holds both
+        // rows — the constraint is a replay guard, not a one-row-per-market cap.
+        await repository.record(entry({ at: NOW }));
+        await repository.record(entry({ at: NOW + 1 }));
+
+        const { rows } = await getTestPool().query(
+            'SELECT COUNT(*)::int AS count FROM strategy_decision_log',
+        );
+
+        expect(rows[0]!.count).toBe(2);
     });
 });
 

@@ -1,10 +1,26 @@
 import { getSignalSnapshotRepository } from '../analysis/signal-snapshot.repository.js';
 import { getStrategyVersionRepository } from '../analysis/strategy-version.repository.js';
+import { historyConfig } from '../config/history.config.js';
 import { marketConfig } from '../config/market.config.js';
+import { writeSpoolConfig } from '../config/write-spool.config.js';
 import { recordSignalHistory } from '../history/signal-history.service.js';
 import type { SignalContext, SignalHistoryLogger } from '../history/signal-history.types.js';
 import { recordIndicatorVotes } from '../indicators/performance/indicator-performance.service.js';
+import type {
+    BacklogState,
+    BacklogStateByMarket,
+} from '../observability/bounded-write-buffer.js';
+import {
+    createBoundedWriteBuffer,
+    createFlushGuard,
+    mergeBacklogStates,
+} from '../observability/bounded-write-buffer.js';
 import { currentRegistry } from '../observability/registry.js';
+import { createWriteSpool } from '../observability/write-spool.js';
+import type {
+    DecisionEntry,
+    DecisionLogRepository,
+} from '../strategies/decision-log.repository.js';
 import { getDecisionLogRepository } from '../strategies/decision-log.repository.js';
 import type { ResolvedSignal } from '../strategies/registry.js';
 import type { MarketAnalysis } from '../types/analysis.js';
@@ -194,21 +210,23 @@ export async function storeSnapshot(
  * and a database that is briefly unavailable should not turn a trading
  * decision into a 500.
  *
- * **The failure is counted, not swallowed.** The first version of this caught
- * and discarded, on the grounds that the caller is a hot path and has already
- * published a correct answer. Both halves are true, and together they hid a
- * month of nothing: a leftover process from an earlier verification was holding
- * the port, so the server under test never started, and the journal stayed
- * empty. That looked exactly like a code fault and was investigated as one.
+ * **The failure is counted, and the row is now kept.** The first version of
+ * this caught and discarded, on the grounds that the caller is a hot path and
+ * has already published a correct answer. Both halves are true, and together
+ * they hid a month of nothing: a leftover process from an earlier verification
+ * was holding the port, so the server under test never started, and the journal
+ * stayed empty. That looked exactly like a code fault and was investigated as
+ * one.
  *
- * A count is enough. A dropped row is still a dropped row — the table is the
- * evidence base and not a cache — but a count rising to something other than
- * zero is a fact that can be looked at, and a silent failure is indistinguishable
- * from a system that is working.
+ * A count is the "is the database accepting writes" signal, and the buffer is
+ * the reason a rising count no longer means a hole: history and the votes have
+ * carried backlogs for exactly this, while the journal the promotion decision
+ * is made from was the one still dropping — and the shadow report then read its
+ * surviving rows as if they were the whole sample.
  */
 let strategyDecisionWriteFailures = 0;
 
-/** How many decision-log rows were lost. Read by tests and by a human. */
+/** How many decision-log writes the database refused. Read by tests and by a human. */
 export function strategyDecisionWriteFailureCount(): number {
     return strategyDecisionWriteFailures;
 }
@@ -218,20 +236,117 @@ export function resetStrategyDecisionWriteFailures(): void {
     strategyDecisionWriteFailures = 0;
 }
 
-export async function recordStrategyDecisions(input: {
-    symbol: string;
-    published: ResolvedSignal;
-}): Promise<void> {
-    try {
-        const strategyVersion = await getStrategyVersionRepository().resolveActive(
-            input.symbol,
-        );
-        const { published } = input;
-        const fallback = published.fallbackDecision;
+/**
+ * Decision rows that could not be written, held for a retry.
+ *
+ * The journal is the evidence base the promotion decision is made from, and a
+ * row lost to a dead connection is not a neutral gap: the shadow report reads
+ * the surviving rows as the whole sample, so the agreement rate it reports is
+ * computed from whichever cycles happened to land while the database was
+ * healthy. History and the votes have carried buffers for exactly this reason;
+ * this was the third and last write still dropping.
+ */
+const decisionBacklog = createBoundedWriteBuffer<DecisionEntry>({
+    maxSize: historyConfig.maxBufferedEntries,
+    label: 'strategy_decision',
+    marketOf: (entry) => entry.symbol,
+});
 
-        await getDecisionLogRepository().record({
+/**
+ * At most one flush at a time. The backlog is drained into a local array, so
+ * two concurrent flushes would both be writing while a push lands in the array
+ * one of them is about to re-queue.
+ */
+const runDecisionFlush = createFlushGuard();
+
+/**
+ * Consecutive failed attempts per buffered row. A `WeakMap` keyed by the entry
+ * itself, because rows are re-queued **by identity** — the same object comes
+ * back out of `drain()` — and Weak so a given-up row leaves nothing behind.
+ */
+const decisionAttempts = new WeakMap<DecisionEntry, number>();
+
+/**
+ * The same ceiling the history and vote buffers use, and the same reason: a row
+ * retried for ever becomes the newest entry in a buffer that drops its oldest,
+ * so the retry protects the thing that is broken at the expense of the thing
+ * that is not.
+ */
+const MAX_DECISION_ATTEMPTS = 5;
+
+/**
+ * The same count for spooled rows, fresh at zero for rows read back off the
+ * disk — a restart is a fresh process making a fresh attempt at rows it has
+ * just been handed back.
+ */
+const spoolDecisionAttempts = new WeakMap<DecisionEntry, number>();
+
+/**
+ * The durable overflow lane for decision rows.
+ *
+ * The memory bound above covers roughly the last half hour of cycles. The
+ * decision journal is what a promotion has to be audited against — the record
+ * of what was published, by which configuration, and what was suppressed — so
+ * "the database was down for an afternoon" must not read, six months later,
+ * as "no decisions were made that afternoon". A spooled row survives the
+ * restart that would have taken the memory queue with it.
+ */
+const decisionSpool = createWriteSpool<DecisionEntry>({
+    name: 'strategy_decision',
+    directory: writeSpoolConfig.directory,
+    maxBytes: writeSpoolConfig.maxBytesPerWriter,
+    enabled: writeSpoolConfig.enabled,
+    marketOf: (entry) => entry.symbol,
+});
+
+/**
+ * The version the market's running configuration belongs to, or null when the
+ * database would not say.
+ *
+ * Null is the honest answer rather than a retry: the row this feeds is frozen
+ * at decision time, and resolving again later would read whichever
+ * configuration is current by then — provenance the decision was never made
+ * under.
+ */
+async function resolveStrategyVersionId(symbol: string): Promise<number | null> {
+    try {
+        return (await getStrategyVersionRepository().resolveActive(symbol)).id;
+    } catch {
+        return null;
+    }
+}
+
+export async function recordStrategyDecisions(
+    input: {
+        symbol: string;
+        published: ResolvedSignal;
+    },
+    logger?: SignalHistoryLogger,
+): Promise<void> {
+    const { published } = input;
+    const fallback = published.fallbackDecision;
+
+    // The row is assembled whole, before the write, because what the backlog
+    // holds has to be the decision as it was made — not a recipe for rebuilding
+    // it later. The assembly sits inside the same guard as the write on
+    // purpose: nothing in a fire-and-forget path may throw, so a caller that
+    // hands over a malformed answer costs a counted failure, not a failed
+    // analysis, and there is simply no row to hold in that case.
+    let entry: DecisionEntry | null = null;
+
+    try {
+        entry = {
             symbol: input.symbol,
-            strategyVersionId: strategyVersion.id,
+            // The version is resolved before the row is built, and its failure
+            // does not cost the cycle: the row keeps its content with a null
+            // version, which is the state the column and the evidence gate
+            // already hold — "decided, but not proven under a configuration".
+            // Fabricating an id is the alternative, and re-resolving at flush
+            // time would do exactly that by accident: `resolveActive` reads
+            // the *current* configuration, so a configuration changed
+            // mid-outage would hand the retry a version the decision was never
+            // made under.
+            strategyVersionId: await resolveStrategyVersionId(input.symbol),
             at: Date.now(),
             primary: {
                 rule: 'consensus-primary',
@@ -253,16 +368,29 @@ export async function recordStrategyDecisions(input: {
             publishedRule: published.publishedBy,
             publishedDirection: published.published.direction,
             suppressed: published.suppressed,
-        });
-    } catch {
+        };
+
+        await getDecisionLogRepository().record(entry);
+    } catch (error) {
+        if (entry !== null) {
+            // The durable lane first, the memory buffer only if the disk
+            // refuses too — never both, or the flush would replay the row from
+            // one queue after the other had already written it. The insert is
+            // idempotent under (symbol, created_at), so the spool's replay
+            // after a crash lands as a no-op, not a second cycle.
+            if (!decisionSpool.append(entry)) {
+                decisionBacklog.push(entry);
+            }
+        }
+
         // Still not thrown: an analysis that has a correct signal must not be
         // turned into a 500 by a bookkeeping write. But the count moves, and
-        // that is the difference between this and the version that hid a dead
-        // server behind a plausible-looking empty table.
+        // the row now waits in the backlog instead of going overboard — the
+        // count is "the database refused a write", no longer "the row is gone".
         strategyDecisionWriteFailures += 1;
 
         // The module counter above is read by nobody outside this file, so a
-        // lost row was counted and invisible — a silent failure wearing the
+        // failed write was counted and invisible — a silent failure wearing the
         // costume of an observed one. This is the count an operator can see,
         // and it is the same event, not a second reading of it.
         //
@@ -270,16 +398,268 @@ export async function recordStrategyDecisions(input: {
         // counters next door.** Those stay unlabelled on purpose: their consumers
         // (`churnRate()` and the calibration code) read a process-wide rate, and
         // a reader who wants one market's churn filters in the structured log
-        // instead. This counter reports *lost rows*, which is a different kind of
-        // fact: a loss is not a rate, it is a hole in a specific series, and a
-        // total cannot say which series lost one. With two markets running, "we
-        // lost decision rows" and "we lost decision rows for the market whose
-        // accuracy we are about to trust" are different sentences, and the market
-        // was in scope the whole time — it is `input.symbol`.
+        // instead. This counter reports *refused writes*, which is a different
+        // kind of fact: a failure is not a rate, it is a fact about a specific
+        // series, and a total cannot say which series it happened to. With two
+        // markets running, "the database refuses decision writes" and "the
+        // database refuses decision writes for the market whose accuracy we are
+        // about to trust" are different sentences, and the market was in scope
+        // the whole time — it is `input.symbol`.
         currentRegistry().counter(
             'strategy_decision_write_failures',
             1,
             { market: input.symbol },
         );
+
+        logger?.warn(
+            {
+                event: 'strategy_decision_record_failed',
+                market: input.symbol,
+                buffered: decisionBacklog.size,
+                spooled: decisionSpool.size,
+                dropped: decisionBacklog.droppedCount,
+                err: error,
+            },
+            'strategy_decision_record_failed',
+        );
+
+        // Without this, a deployment with the poller off would fill the backlog
+        // and silently overwrite its oldest rows — the same self-drain the
+        // history and vote buffers run.
+        if (decisionBacklog.size >= historyConfig.maxBufferedEntries) {
+            await flushStrategyDecisionBacklog(logger);
+        }
     }
+}
+
+async function writeDecisionBacklog(
+    logger?: SignalHistoryLogger,
+    repository: DecisionLogRepository = getDecisionLogRepository(),
+): Promise<number> {
+    // The file first: a spooled row has already waited through at least one
+    // failure, and the memory queue must not cut in front of it.
+    const written = await drainDecisionSpool(logger, repository);
+
+    return written + (await drainDecisionMemory(logger, repository));
+}
+
+/**
+ * Drains the spooled decision rows before the memory buffer's.
+ *
+ * The memory drain's shape — every row attempted, two consecutive failures
+ * stop the flush, a lone failure retried a bounded number of times — with the
+ * spool's two consequences: a refused-but-not-given-up row is rotated to the
+ * back so it cannot stall the markets behind it, and the file is rewritten
+ * once at the end of the drain, so a crash mid-drain only replays rows the
+ * (symbol, created_at) insert has already folded away.
+ */
+async function drainDecisionSpool(
+    logger?: SignalHistoryLogger,
+    repository: DecisionLogRepository = getDecisionLogRepository(),
+): Promise<number> {
+    let written = 0;
+    let givenUp = 0;
+    let consecutiveFailures = 0;
+
+    while (decisionSpool.size > 0) {
+        const entry = decisionSpool.peek();
+
+        if (entry === undefined) {
+            break;
+        }
+
+        try {
+            await repository.record(entry);
+
+            written += 1;
+            consecutiveFailures = 0;
+            spoolDecisionAttempts.delete(entry);
+            decisionSpool.confirm();
+        } catch (error) {
+            consecutiveFailures += 1;
+
+            if (consecutiveFailures >= 2) {
+                logger?.warn(
+                    {
+                        event: 'strategy_decision_spool_flush_failed',
+                        written,
+                        spooled: decisionSpool.size,
+                        buffered: decisionBacklog.size,
+                        err: error,
+                    },
+                    'strategy_decision_spool_flush_failed',
+                );
+
+                break;
+            }
+
+            const tries = (spoolDecisionAttempts.get(entry) ?? 0) + 1;
+
+            if (tries >= MAX_DECISION_ATTEMPTS) {
+                spoolDecisionAttempts.delete(entry);
+                decisionSpool.drop();
+                givenUp += 1;
+
+                logger?.warn(
+                    {
+                        event: 'strategy_decision_spool_entry_given_up',
+                        attempts: tries,
+                        symbol: entry.symbol,
+                        at: entry.at,
+                        spooled: decisionSpool.size,
+                        err: error,
+                    },
+                    'strategy_decision_spool_entry_given_up',
+                );
+
+                continue;
+            }
+
+            spoolDecisionAttempts.set(entry, tries);
+            decisionSpool.rotate();
+        }
+    }
+
+    decisionSpool.compact();
+
+    if (givenUp > 0) {
+        logger?.warn(
+            { event: 'strategy_decision_spool_entries_given_up', givenUp },
+            'strategy_decision_spool_entries_given_up',
+        );
+    }
+
+    return written;
+}
+
+async function drainDecisionMemory(
+    logger?: SignalHistoryLogger,
+    repository: DecisionLogRepository = getDecisionLogRepository(),
+): Promise<number> {
+    if (decisionBacklog.size === 0) {
+        return 0;
+    }
+
+    // Drained once, then handed back wholesale on failure. Peeking instead
+    // would mean a `shift` that throws has already lost the row.
+    const pending = decisionBacklog.drain();
+
+    let written = 0;
+    let failed = 0;
+    let givenUp = 0;
+    let consecutiveFailures = 0;
+
+    // Every pending row is attempted, and only the ones that failed go back —
+    // the same shape as the history and vote drains, for the same reason: one
+    // refused row blocked every market behind it on every flush, for ever.
+    //
+    // Safe to continue, and safe to replay at all, because the insert is
+    // idempotent under (symbol, created_at): a row that landed between the
+    // failure and this retry turns the replay into a no-op rather than a
+    // second copy. That is what the unique index is for — without it, a
+    // buffered write would be a write that may not be attempted twice, and
+    // the retry could inflate the evidence with a cycle already counted.
+    for (const [index, entry] of pending.entries()) {
+        try {
+            await repository.record(entry);
+
+            written += 1;
+            consecutiveFailures = 0;
+            decisionAttempts.delete(entry);
+        } catch (error) {
+            failed += 1;
+            consecutiveFailures += 1;
+
+            // Two in a row: the database is down, and the tail is handed back
+            // untouched rather than repeating the same refusal for every row in
+            // the buffer once a cycle. One, followed by a success: **this row**
+            // is what the database will not take.
+            if (consecutiveFailures >= 2) {
+                for (const unprocessed of pending.slice(index)) {
+                    decisionBacklog.push(unprocessed);
+                }
+
+                logger?.warn(
+                    {
+                        event: 'strategy_decision_flush_failed',
+                        // Nothing was written, so the database is the story and
+                        // the rest of the queue is untouched — `written: 0` is
+                        // what makes that distinction readable in the log.
+                        written,
+                        failed,
+                        buffered: decisionBacklog.size,
+                        err: error,
+                    },
+                    'strategy_decision_flush_failed',
+                );
+
+                break;
+            }
+
+            // And a bounded number of retries. Re-queued, a row becomes the
+            // newest in a buffer that evicts its oldest, so a row that can
+            // never be written would sit there protecting itself while the
+            // cycles the promotion decision rests on were dropped.
+            const tries = (decisionAttempts.get(entry) ?? 0) + 1;
+
+            if (tries >= MAX_DECISION_ATTEMPTS) {
+                decisionAttempts.delete(entry);
+                givenUp += 1;
+
+                logger?.warn(
+                    {
+                        event: 'strategy_decision_entry_given_up',
+                        attempts: tries,
+                        symbol: entry.symbol,
+                        at: entry.at,
+                        buffered: decisionBacklog.size,
+                        err: error,
+                    },
+                    'strategy_decision_entry_given_up',
+                );
+
+                continue;
+            }
+
+            decisionAttempts.set(entry, tries);
+            decisionBacklog.push(entry);
+        }
+    }
+
+    if (givenUp > 0) {
+        logger?.warn(
+            { event: 'strategy_decision_entries_given_up', givenUp },
+            'strategy_decision_entries_given_up',
+        );
+    }
+
+    return written;
+}
+
+/**
+ * Retries every decision row that failed to write earlier.
+ *
+ * Rows are removed from the buffer as they are handed to the repository, so a
+ * failure part-way through leaves the remaining ones queued for the next
+ * attempt. Runs at most once at a time; a concurrent caller joins the run in
+ * progress rather than starting a second one over the same array.
+ */
+export function flushStrategyDecisionBacklog(
+    logger?: SignalHistoryLogger,
+    repository?: DecisionLogRepository,
+): Promise<number> {
+    return runDecisionFlush(() => writeDecisionBacklog(logger, repository));
+}
+
+export function strategyDecisionBacklog(): BacklogState & {
+    byMarket: BacklogStateByMarket;
+} {
+    return {
+        buffered: decisionBacklog.size,
+        // The spool's own losses fold into the same total — see the history
+        // backlog for the full reasoning.
+        dropped: decisionBacklog.droppedCount + decisionSpool.evictedCount + decisionSpool.tornCount,
+        spooled: decisionSpool.size,
+        byMarket: mergeBacklogStates(decisionBacklog.byMarket, decisionSpool.byMarket),
+    };
 }

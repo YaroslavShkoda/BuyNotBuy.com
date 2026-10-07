@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { strategyProfile } from './strategy.profile.js';
 
 /**
  * What "unusual" means, and where those numbers are allowed to come from.
@@ -101,33 +102,7 @@ const RegimeConfigSchema = z.object({
 export type RegimeConfig = z.infer<typeof RegimeConfigSchema>;
 
 export const regimeConfig: RegimeConfig = RegimeConfigSchema.parse({
-    volatility: {
-        // 0.5x is "genuinely quiet", 1.0x is this market's own median, and the
-        // bands above it are the customary "busy" and "something is wrong"
-        // boundaries.
-        normal: process.env.REGIME_VOLATILITY_NORMAL ?? '0.5',
-        high: process.env.REGIME_VOLATILITY_HIGH ?? '1.5',
-        extreme: process.env.REGIME_VOLATILITY_EXTREME ?? '2.5',
-    },
-    trend: {
-        // Wilder's own convention, and 50 is where a trend stops being
-        // ordinary rather than merely present.
-        weak: process.env.REGIME_TREND_WEAK ?? '25',
-        strong: process.env.REGIME_TREND_STRONG ?? '50',
-    },
-    directional: process.env.REGIME_DIRECTIONAL ?? '60',
-    // 30 days. Short enough to follow a regime change, long enough that the
-    // baseline is not itself a reaction. Stated in days because 720 bars means
-    // 30 days on one chart and two years on another.
-    baselineDays: process.env.REGIME_BASELINE_DAYS ?? '30',
-    minimumDays: process.env.REGIME_MINIMUM_DAYS ?? '2',
-    // 30 days of hourly bars and 2 days of them: the values the shipped
-    // configuration was tuned against, and what every stored reading was
-    // computed with. Kept rather than derived so a mistake in the day-to-bar
-    // arithmetic shows up as a failing test instead of as a history rewritten
-    // overnight.
-    baselineBars: process.env.REGIME_BASELINE_BARS ?? '720',
-    minimumBars: process.env.REGIME_MINIMUM_BARS ?? '50',
+    ...strategyProfile.regime,
 });
 
 /** The bar length of an interval, in milliseconds. */

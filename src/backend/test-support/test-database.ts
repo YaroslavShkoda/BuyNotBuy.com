@@ -58,6 +58,14 @@ process.env.DATABASE_URL = withSearchPath(
     SCHEMA,
 );
 
+// The write spool is real disk state: enabled by default in production, it
+// would have every failing-stub test fsync lines into `./data/spool` and every
+// later file reload them at boot — durable state is exactly the thing that
+// leaks *between* test files, which per-file schemas cannot isolate. The
+// handful of files that test the spool itself turn it back on, before their
+// own imports run, pointed at a directory they delete.
+process.env.WRITE_SPOOL_ENABLED ??= 'false';
+
 const { closePool, query, getPool } = await import('../db/pool.js');
 const { applyMigrations } = await import('../db/migrations.js');
 

@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto';
 import { strategySetFingerprint } from '../strategies/strategy-fingerprint.js';
 import type { ResolvedIndicatorSignalConfig } from './indicator.config.js';
-import { INDICATOR_SIGNAL_CONFIG, indicatorConfig } from './indicator.config.js';
+import { signalConfigFor } from './indicator.config.js';
+import { strategyProfile, strategyProfileName } from './strategy.profile.js';
 
 /**
  * A stable fingerprint of everything that can change a signal.
@@ -49,7 +50,7 @@ export interface StrategyFingerprint {
  */
 export function fingerprintStrategy(
     market: string,
-    signal: ResolvedIndicatorSignalConfig = INDICATOR_SIGNAL_CONFIG,
+    signal: ResolvedIndicatorSignalConfig = signalConfigFor(market),
 ): StrategyFingerprint {
     const config = {
         // First, and outside every nested block, so that two markets cannot
@@ -57,16 +58,7 @@ export function fingerprintStrategy(
         // `btcusdt` and `BTCUSDT` are the same market and two versions would each
         // look like a first sighting.
         market: market.trim().toUpperCase(),
-        periods: {
-            ema: indicatorConfig.emaPeriod,
-            stochastic: indicatorConfig.stochasticPeriod,
-            momentum: indicatorConfig.momentumPeriod,
-            atr: indicatorConfig.atrPeriod,
-            rsi: indicatorConfig.rsiPeriod,
-            macdFast: indicatorConfig.macdFastPeriod,
-            macdSlow: indicatorConfig.macdSlowPeriod,
-            macdSignal: indicatorConfig.macdSignalPeriod,
-        },
+        periods: strategyProfile.indicators.periods,
         thresholds: {
             stochasticLong: signal.stochastic.longThreshold,
             stochasticShort: signal.stochastic.shortThreshold,
@@ -75,6 +67,13 @@ export function fingerprintStrategy(
             momentumConvictionScalePercent: signal.momentum.convictionScalePercent,
             emaConfirmBars: signal.ema.confirmBars,
             emaConvictionScalePercent: signal.ema.convictionScalePercent,
+        },
+        profile: {
+            name: strategyProfileName,
+            consensus: strategyProfile.consensus,
+            regime: strategyProfile.regime,
+            lifecycle: strategyProfile.lifecycle,
+            outcome: strategyProfile.outcome,
         },
         // Which rules are installed, which one is the fallback, and whether it
         // is allowed to publish. Part of the configuration for the same reason

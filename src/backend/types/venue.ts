@@ -2,7 +2,8 @@
  * The venues this application can read.
  *
  * **The word was declared twice and both declarations were exported.** One lived
- * in `config/market.config.ts` as `z.infer<typeof MarketProviderSchema>` and the
+ * in the market configuration (now `config/market.schema.ts`) as
+ * `z.infer<typeof MarketProviderSchema>` and the
  * other in `market/providers/provider-http.ts` as the union `'binance' |
  * 'bitget' | 'mock'`. Both named `MarketProviderName`, both reached the public
  * surface, and they were structurally identical — which is exactly why nobody

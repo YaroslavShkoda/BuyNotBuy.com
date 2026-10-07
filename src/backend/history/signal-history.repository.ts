@@ -1,6 +1,6 @@
 import { historyConfig } from '../config/history.config.js';
 import { marketConfig } from '../config/market.config.js';
-import { applyMigrations, currentSchemaVersion } from '../db/migrations.js';
+import { currentSchemaVersion, LATEST_SCHEMA_VERSION } from '../db/migrations.js';
 import { query } from '../db/pool.js';
 
 import type { SignalHistoryEntry, SignalHistorySeries } from './signal-history.types.js';
@@ -65,7 +65,7 @@ const UPSERT_SQL = `
         regime, data_quality, data_quality_usable, data_quality_worst
     )
     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-    ON CONFLICT (symbol, provider, interval, hour_bucket) DO UPDATE SET
+    ON CONFLICT (instrument_id, provider, interval, hour_bucket) DO UPDATE SET
         timestamp = EXCLUDED.timestamp,
         signal = EXCLUDED.signal,
         consensus = EXCLUDED.consensus,
@@ -103,14 +103,15 @@ const UPSERT_SQL = `
  */
 const TRIM_SQL = `
     DELETE FROM signal_history
-    WHERE symbol = $1
+    WHERE instrument_id = (SELECT id FROM instrument WHERE ticker = $1)
       AND provider = $2
       AND interval = $3
       AND hour_bucket < COALESCE(
           (
               SELECT hour_bucket
               FROM signal_history
-              WHERE symbol = $1 AND provider = $2 AND interval = $3
+              WHERE instrument_id = (SELECT id FROM instrument WHERE ticker = $1)
+                AND provider = $2 AND interval = $3
               ORDER BY hour_bucket DESC
               LIMIT 1 OFFSET $4 - 1
           ),
@@ -127,7 +128,8 @@ const COLUMNS = `
 const SELECT_SQL = `
     SELECT ${COLUMNS}
     FROM signal_history
-    WHERE symbol = $1 AND provider = $2 AND interval = $3
+    WHERE instrument_id = (SELECT id FROM instrument WHERE ticker = $1)
+      AND provider = $2 AND interval = $3
     ORDER BY hour_bucket DESC
     LIMIT $4
 `;
@@ -141,7 +143,8 @@ const SELECT_SQL = `
 const SELECT_BEFORE_SQL = `
     SELECT ${COLUMNS}
     FROM signal_history
-    WHERE symbol = $1 AND provider = $2 AND interval = $3
+    WHERE instrument_id = (SELECT id FROM instrument WHERE ticker = $1)
+      AND provider = $2 AND interval = $3
       AND hour_bucket < $4
     ORDER BY hour_bucket DESC
     LIMIT $5
@@ -289,14 +292,19 @@ export function getSignalHistoryRepository(): SignalHistoryRepository {
 }
 
 /**
- * Opens the database once, at startup, so a bad database is found then.
+ * Verifies the deployment migration job ran before this application build.
  *
- * The repository is a lazy singleton for testability, which means a database
- * written by a newer build would otherwise be discovered on the first market
- * request — the service would start, report itself healthy, and then fail
- * every request. Applying the migrations here turns that into a refusal to
- * boot, and creates the schema on a fresh database as a side effect.
+ * The repository is a lazy singleton for testability, so the service checks
+ * the schema before opening its socket. It never changes the schema itself;
+ * deployments run `npm run db:migrate` as a separate job.
  */
 export async function assertSignalHistorySchemaReady(): Promise<void> {
-    await applyMigrations();
+    const version = await currentSchemaVersion();
+
+    if (version !== LATEST_SCHEMA_VERSION) {
+        throw new Error(
+            `Database schema is at version ${version}; this application requires ` +
+                `version ${LATEST_SCHEMA_VERSION}. Run the db:migrate job before deploying the application.`,
+        );
+    }
 }

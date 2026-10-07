@@ -53,7 +53,7 @@
 			"linter": { "rules": { "suspicious": { "noConsole": "off" } } }
 		},
 		{
-			"includes": ["src/backend/server.ts"],
+			"includes": ["src/backend/bootstrap/runtime.ts"],
 			"linter": { "rules": { "suspicious": { "noConsole": "off" } } }
 		},
 		{

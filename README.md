@@ -23,9 +23,15 @@ cp .env.example .env      # для разработки удобно MARKET_PROV
 createdb buynotbuy
 psql -d postgres -c "CREATE ROLE buynotbuy LOGIN PASSWORD 'buynotbuy' OWNER buynotbuy"
 
+npm run db:migrate:dev    # применить схему отдельно от процесса приложения
 npm run backend           # http://localhost:3001
 npm run dev               # http://localhost:3000
 ```
+
+В production migration job запускает `npm run db:migrate` из собранного
+`dist/backend` до выкладки приложения.
+Порядок раскатки и правила совместимости схемы описаны в [руководстве по
+deployment](docs/deployment.md).
 
 PostgreSQL поднимать руками не обязательно — есть файл для локальной разработки:
 
@@ -40,9 +46,8 @@ docker compose -f docker-compose.dev.yml up -d
 пустом томе, поэтому `docker compose down -v` возвращает контейнер к
 первоначальному состоянию.
 
-Схема создаётся сама при первом старте: миграции применяются до того, как
-откроется сокет, и база, написанная более новой сборкой, заставляет сервис
-отказаться подниматься, а не работать до первого запроса.
+При запуске приложение проверяет, что migration job применила совместимую
+версию схемы, и отказывается открывать сокет, если БД не подготовлена.
 
 С `MARKET_PROVIDER=mock` данные детерминированы (`close = 100000 + i`), так что
 результат не зависит от биржи и от времени запуска.
@@ -161,6 +166,7 @@ TypeScript младше 6.1, а здесь TypeScript 7, и понижать е�
 
 ```bash
 npm run build             # next build + сборка бэкенда
+npm run db:migrate        # отдельный migration job перед выкладкой
 npm run start:backend     # node dist/backend/server.js
 ```
 

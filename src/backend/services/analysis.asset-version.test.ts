@@ -17,15 +17,27 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
  * with its own is the observable form of the defect, and it does not depend on
  * which direction the signal came out.
  *
- * **The stub is set before the imports, at module scope, because the overrides
- * are parsed once when `indicator.config.js` is first evaluated.** Stubbing
- * inside a case is too late and silently so: the first version of this file did
- * exactly that and reported a market configured with thresholds of its own as
- * running the shipped ones — the assertion was right about the defect and wrong
- * about the cause, which is the shape this project keeps meeting.
+ * The fixture adds one market-specific setting to a test copy of the selected
+ * profile. Production configuration stays code-backed and does not use an
+ * environment string parser for strategy policy.
  */
 
-vi.stubEnv('INDICATOR_ASSET_CONFIG', 'ETHUSDT=stochastic:longThreshold=22');
+vi.mock('../config/strategy.profile.js', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('../config/strategy.profile.js')>();
+
+    return {
+        ...actual,
+        strategyProfile: {
+            ...actual.strategyProfile,
+            indicators: {
+                ...actual.strategyProfile.indicators,
+                assetSignalOverrides: {
+                    ETHUSDT: { stochastic: { longThreshold: 22 } },
+                },
+            },
+        },
+    };
+});
 
 const { analyzeMarket } = await import('./analysis.service.js');
 const marketService = await import('../market/market.service.js');

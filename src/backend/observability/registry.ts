@@ -472,6 +472,15 @@ export const METRIC_CATALOGUE: readonly ObservabilityMetric[] = z
                 'очередь.',
         },
         {
+            name: 'write_backlog_signal_history_spooled',
+            kind: 'gauge',
+            description:
+                'Снимков сигнала, удерживаемых на диске в spool-файле после ' +
+                'отказа записи. Переживают перезапуск процесса; в ' +
+                '`write_backlog_signal_history_buffered` не входят. Без метки ' +
+                '`market` — итог по процессу; с меткой — по рынку.',
+        },
+        {
             name: 'write_backlog_indicator_vote_buffered',
             kind: 'gauge',
             description:
@@ -486,18 +495,55 @@ export const METRIC_CATALOGUE: readonly ObservabilityMetric[] = z
                 'буфера.',
         },
         {
+            name: 'write_backlog_indicator_vote_spooled',
+            kind: 'gauge',
+            description:
+                'Пакетов голосов индикаторов, удерживаемых на диске в ' +
+                'spool-файле после отказа записи. Переживают перезапуск ' +
+                'процесса; в `write_backlog_indicator_vote_buffered` не входят. ' +
+                'Без метки `market` — итог по процессу; с меткой — по рынку.',
+        },
+        {
+            name: 'write_backlog_strategy_decision_buffered',
+            kind: 'gauge',
+            description:
+                'Строк журнала решений, ждущих повторной записи. Без метки ' +
+                '`market` — итог по процессу; с меткой — по рынку.',
+        },
+        {
+            name: 'write_backlog_strategy_decision_dropped_total',
+            kind: 'counter',
+            description:
+                'Строк журнала решений, потерянных из-за переполненного буфера. ' +
+                'Число растёт только вверх: это потерянные записи, а не текущая ' +
+                'очередь.',
+        },
+        {
+            name: 'write_backlog_strategy_decision_spooled',
+            kind: 'gauge',
+            description:
+                'Строк журнала решений, удерживаемых на диске в spool-файле ' +
+                'после отказа записи. Переживают перезапуск процесса; в ' +
+                '`write_backlog_strategy_decision_buffered` не входят. Без метки ' +
+                '`market` — итог по процессу; с меткой — по рынку.',
+        },
+        {
             name: 'strategy_decision_write_failures',
             kind: 'counter',
             // Worth stating plainly in the catalogue, because the failure is
             // swallowed on purpose: the analysis answers correctly even when this
-            // write fails, and a reader seeing a healthy service with a rising
-            // counter should know that means the decision-log table is losing
-            // rows, not that the strategy is fine.
+            // write fails. The write no longer loses the row — the row is
+            // buffered and retried — so a rising counter is the "database is
+            // refusing writes" signal, while what the counter used to name lives
+            // in write_backlog_strategy_decision_dropped_total and in the
+            // `strategy_decision_entry_given_up` log lines.
             description:
-                'Потерянных строк журнала решений. Анализ при этом не падает — ' +
-                'потеря видна только здесь. Метка `market` обязательна: потеря — ' +
-                'не частота, а дыра в конкретной серии, и итог по процессу не ' +
-                'скажет, какая серия её недополучила.',
+                'Отказов записи в журнал решений. Строка при отказе буферизуется ' +
+                'и попробует снова, так что рост счётчика — сигнал «база не ' +
+                'принимает записи», а не «строка потеряна». Потери видны в ' +
+                '`write_backlog_strategy_decision_dropped_total`. Метка `market` ' +
+                'обязательна: отказ — не частота, а факт о конкретной серии, и ' +
+                'итог по процессу не скажет, какая серия его недополучила.',
         },
         {
             name: 'database_query_duration',

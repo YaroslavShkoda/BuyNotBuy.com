@@ -3,6 +3,7 @@ import { signalHistoryBacklog } from '../../history/signal-history.service.js';
 import { indicatorVoteBacklog } from '../../indicators/performance/indicator-performance.service.js';
 import { publishProviderGauges } from '../../market/providers/provider-metrics.js';
 import { currentRegistry } from '../../observability/registry.js';
+import { strategyDecisionBacklog } from '../../services/analysis.persistence.js';
 
 /**
  * Counters and gauges for the process, rendered in the Prometheus text format.
@@ -163,6 +164,7 @@ export function renderMetrics(): string {
     for (const [name, state] of [
         ['signal_history', signalHistoryBacklog()],
         ['indicator_vote', indicatorVoteBacklog()],
+        ['strategy_decision', strategyDecisionBacklog()],
     ] as const) {
         lines.push(
             '',
@@ -173,6 +175,14 @@ export function renderMetrics(): string {
             `# HELP buynotbuy_write_backlog_${name}_dropped_total Records lost to a full buffer.`,
             `# TYPE buynotbuy_write_backlog_${name}_dropped_total counter`,
             `buynotbuy_write_backlog_${name}_dropped_total ${state.dropped}`,
+            '',
+            // The durable lane's queue, exposed separately from `buffered` on
+            // purpose: the two numbers are two different ceilings, and reading
+            // only the memory one would call a long outage survived while the
+            // entries are sitting in a file.
+            `# HELP buynotbuy_write_backlog_${name}_spooled Records held on disk for a retry, surviving a restart.`,
+            `# TYPE buynotbuy_write_backlog_${name}_spooled gauge`,
+            `buynotbuy_write_backlog_${name}_spooled ${state.spooled}`,
         );
 
         // **Per market as well, and the unlabelled series stays.**
@@ -198,6 +208,10 @@ export function renderMetrics(): string {
                 `# HELP buynotbuy_write_backlog_${name}_dropped_total Records lost to a full buffer, by market.`,
                 `# TYPE buynotbuy_write_backlog_${name}_dropped_total counter`,
                 `buynotbuy_write_backlog_${name}_dropped_total{market="${escapeLabel(market)}"} ${perMarket.dropped}`,
+                '',
+                `# HELP buynotbuy_write_backlog_${name}_spooled Records held on disk for a retry, by market.`,
+                `# TYPE buynotbuy_write_backlog_${name}_spooled gauge`,
+                `buynotbuy_write_backlog_${name}_spooled{market="${escapeLabel(market)}"} ${perMarket.spooled}`,
             );
         }
     }

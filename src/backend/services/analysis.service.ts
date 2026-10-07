@@ -183,10 +183,13 @@ export async function analyzeMarketWithStatus(
         // failure was not the run's failure. Then there is no journal row —
         // which is one more thing the fallback-failure line above is for.
         if (result.resolved !== null) {
-            void recordStrategyDecisions({
-                symbol: result.market.symbol,
-                published: result.resolved,
-            });
+            void recordStrategyDecisions(
+                {
+                    symbol: result.market.symbol,
+                    published: result.resolved,
+                },
+                historyLogger,
+            );
         }
     }
 

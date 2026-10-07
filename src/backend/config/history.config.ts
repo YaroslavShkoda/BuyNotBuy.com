@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { booleanEnv } from './env.boolean.js';
 
 const HistoryConfigSchema = z.object({
     defaultLimit: z.coerce.number().int().positive(),
@@ -50,8 +51,7 @@ export const historyConfig: HistoryConfig = HistoryConfigSchema.parse({
         process.env.HISTORY_MAX_BUFFERED_ENTRIES ??
         '24',
 
-    pollEnabled:
-        (process.env.MARKET_POLL_ENABLED ?? 'true') === 'true',
+    pollEnabled: booleanEnv('MARKET_POLL_ENABLED', true),
 
     // Hourly candles mean a faster poll buys nothing but upstream weight.
     pollIntervalMs:

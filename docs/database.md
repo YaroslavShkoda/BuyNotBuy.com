@@ -3,7 +3,7 @@
 
 # База данных
 
-Версий миграций: **20**, последняя — v20 «rate_limit_window».
+Версий миграций: **21**, последняя — v21 «strategy_decision_log_natural_key».
 
 Ниже — схема в том виде, в каком её строят текущие миграции, прочитанная
 из каталога сервера, а не из текста SQL. Таблица ограничений `CHECK` в
@@ -340,7 +340,7 @@
 | `config` | `jsonb` | нет |
 | `config_hash` | `text` | нет |
 
-## Индексы (41)
+## Индексы (42)
 
 | индекс | таблица |
 |---|---|
@@ -383,6 +383,7 @@
 | `idx_strategy_decision_log_rule` | `strategy_decision_log` |
 | `idx_strategy_decision_log_time` | `strategy_decision_log` |
 | `strategy_decision_log_pkey` | `strategy_decision_log` |
+| `ux_strategy_decision_log_symbol_cycle` | `strategy_decision_log` |
 | `strategy_version_config_hash_key` | `strategy_version` |
 | `strategy_version_pkey` | `strategy_version` |
 

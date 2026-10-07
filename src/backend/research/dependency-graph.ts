@@ -173,6 +173,14 @@ export const LAYERS: readonly Layer[] = [
 export const UNPLACED: Readonly<Record<string, 'composition' | 'core'>> = {
     'app.ts': 'composition',
     'server.ts': 'composition',
+    // Split out of `server.ts` when the file had become a runtime
+    // orchestrator, and composition for the same reason its parent was:
+    // bootstrap wires the schema check, the spool replay, the registry seed,
+    // the market loops and the shutdown order together, and a wiring layer
+    // that may not wire is a process that may not start. It holds no
+    // decisions of its own — every decision it touches lives in the layer
+    // that already owned it.
+    'bootstrap': 'composition',
     // Renamed from `strategy` to `lifecycle`, and the rename is the whole entry:
     // it was never a declared layer, so nothing in LAYERS moves and no edge
     // changes. What it holds is what happens to a record of a rule — the ladder

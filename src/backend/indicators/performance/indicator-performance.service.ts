@@ -1,4 +1,5 @@
 import { historyConfig } from '../../config/history.config.js';
+import { writeSpoolConfig } from '../../config/write-spool.config.js';
 import type {
     BacklogState,
     BacklogStateByMarket,
@@ -6,7 +7,9 @@ import type {
 import {
     createBoundedWriteBuffer,
     createFlushGuard,
+    mergeBacklogStates,
 } from '../../observability/bounded-write-buffer.js';
+import { createWriteSpool } from '../../observability/write-spool.js';
 import type { MarketAnalysis } from '../../types/analysis.js';
 import type { SignalDirection } from '../../types/direction.js';
 import type { Candle } from '../../types/market.js';
@@ -47,6 +50,32 @@ const runVoteFlush = createFlushGuard();
  * itself, because batches are re-queued by identity.
  */
 const voteAttempts = new WeakMap<IndicatorVote[], number>();
+
+/**
+ * The same count for spooled batches, and fresh-at-zero for the same reason:
+ * a batch read back off the disk is a batch the process has decided to try
+ * again, not one it has already despaired of.
+ */
+const spoolVoteAttempts = new WeakMap<IndicatorVote[], number>();
+
+/**
+ * The durable overflow lane for vote batches — one file, batches as JSON lines.
+ *
+ * The memory bound above covers roughly the last half hour of cycles, which is
+ * the stretch a transient outage fits in and nothing like a long one. A spooled
+ * batch survives the restart that would have wiped the memory queue, and the
+ * votes are the observations the hit rates are computed from — the series where
+ * a silent hole quietly bends the number instead of breaking anything that
+ * would alert anyone.
+ */
+const voteSpool = createWriteSpool<IndicatorVote[]>({
+    name: 'indicator_vote',
+    directory: writeSpoolConfig.directory,
+    maxBytes: writeSpoolConfig.maxBytesPerWriter,
+    enabled: writeSpoolConfig.enabled,
+    // The same attribution the memory buffer makes: a batch is one market's votes.
+    marketOf: (batch) => batch[0]?.symbol ?? '',
+});
 
 /**
  * The same ceiling the history buffer uses, and the same reason: a batch retried
@@ -143,7 +172,12 @@ export async function recordIndicatorVotes(
     try {
         await repository.record(votes);
     } catch (error) {
-        voteBacklog.push(votes);
+        // Durable lane first, memory buffer only if the disk refuses too —
+        // never both, or the flush would replay the batch from one queue after
+        // the other had already written it.
+        if (!voteSpool.append(votes)) {
+            voteBacklog.push(votes);
+        }
 
         logger?.warn(
             {
@@ -152,6 +186,7 @@ export async function recordIndicatorVotes(
                 // failure is the market's. A batch holds one market's votes.
                 market: symbol,
                 buffered: voteBacklog.size,
+                spooled: voteSpool.size,
                 dropped: voteBacklog.droppedCount,
                 err: error,
             },
@@ -167,6 +202,108 @@ export async function recordIndicatorVotes(
 }
 
 async function writeVoteBacklog(
+    logger?: IndicatorLogger,
+    repository: IndicatorVoteRepository = getIndicatorVoteRepository(),
+): Promise<number> {
+    // The file first, for the same reason the history drain reads its spool
+    // before its buffer: a spooled batch has already been waiting through at
+    // least one failure, and the memory queue must not cut in front of it.
+    const written = await drainVoteSpool(logger, repository);
+
+    return written + (await drainVoteMemory(logger, repository));
+}
+
+/**
+ * Drains the spooled vote batches before the memory buffer's.
+ *
+ * The memory drain's shape — every batch attempted, two consecutive failures
+ * stop the flush, a lone failure retried a bounded number of times — with the
+ * spool's two consequences: a refused-but-not-given-up batch is rotated to the
+ * back so it cannot stall the market behind it, and the file is rewritten once
+ * at the end of the drain, so a crash mid-drain only replays batches the
+ * timestamp-guarded upsert has already folded away.
+ */
+async function drainVoteSpool(
+    logger?: IndicatorLogger,
+    repository: IndicatorVoteRepository = getIndicatorVoteRepository(),
+): Promise<number> {
+    let written = 0;
+
+    let consecutiveFailures = 0;
+    let givenUp = 0;
+
+    while (voteSpool.size > 0) {
+        const batch = voteSpool.peek();
+
+        if (batch === undefined) {
+            break;
+        }
+
+        try {
+            await repository.record(batch);
+
+            written += batch.length;
+            consecutiveFailures = 0;
+            spoolVoteAttempts.delete(batch);
+            voteSpool.confirm();
+        } catch (error) {
+            consecutiveFailures += 1;
+
+            if (consecutiveFailures >= 2) {
+                logger?.warn(
+                    {
+                        event: 'indicator_vote_spool_flush_failed',
+                        written,
+                        spooled: voteSpool.size,
+                        buffered: voteBacklog.size,
+                        err: error,
+                    },
+                    'indicator_vote_spool_flush_failed',
+                );
+
+                break;
+            }
+
+            const tries = (spoolVoteAttempts.get(batch) ?? 0) + 1;
+
+            if (tries >= MAX_VOTE_ATTEMPTS) {
+                spoolVoteAttempts.delete(batch);
+                voteSpool.drop();
+                givenUp += 1;
+
+                logger?.warn(
+                    {
+                        event: 'indicator_vote_spool_batch_given_up',
+                        attempts: tries,
+                        symbol: batch[0]?.symbol,
+                        size: batch.length,
+                        spooled: voteSpool.size,
+                        err: error,
+                    },
+                    'indicator_vote_spool_batch_given_up',
+                );
+
+                continue;
+            }
+
+            spoolVoteAttempts.set(batch, tries);
+            voteSpool.rotate();
+        }
+    }
+
+    voteSpool.compact();
+
+    if (givenUp > 0) {
+        logger?.warn(
+            { event: 'indicator_vote_spool_batches_given_up', givenUp },
+            'indicator_vote_spool_batches_given_up',
+        );
+    }
+
+    return written;
+}
+
+async function drainVoteMemory(
     logger?: IndicatorLogger,
     repository: IndicatorVoteRepository = getIndicatorVoteRepository(),
 ): Promise<number> {
@@ -274,8 +411,11 @@ export function indicatorVoteBacklog(): BacklogState & {
 } {
     return {
         buffered: voteBacklog.size,
-        dropped: voteBacklog.droppedCount,
-        byMarket: voteBacklog.byMarket,
+        // The spool's own losses fold into the same total — see the history
+        // backlog for the full reasoning.
+        dropped: voteBacklog.droppedCount + voteSpool.evictedCount + voteSpool.tornCount,
+        spooled: voteSpool.size,
+        byMarket: mergeBacklogStates(voteBacklog.byMarket, voteSpool.byMarket),
     };
 }
 

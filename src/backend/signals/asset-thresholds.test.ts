@@ -18,7 +18,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
  * was in a market's thresholds reaching one and not the other.
  */
 
-const OVERRIDE = 'ETHUSDT=stochastic:longThreshold=22';
+const OVERRIDES = {
+    ETHUSDT: { stochastic: { longThreshold: 22 } },
+};
 
 /**
  * Read off `analyzeStochastic`: a reading below `longThreshold` is LONG and one
@@ -45,19 +47,22 @@ function indicatorsAt(stochastic: number) {
 
 async function load() {
     vi.resetModules();
-    vi.stubEnv('INDICATOR_ASSET_CONFIG', OVERRIDE);
 
     const { calculateSignal } = await import('../signals/signal.service.js');
-    const { signalConfigFor, hasAssetSignalConfig } = await import(
-        '../config/indicator.config.js'
-    );
+    const {
+        resolveSignalConfig,
+        hasAssetSignalConfig: hasProfileAssetSignalConfig,
+    } = await import('../config/indicator.config.js');
     const { fingerprintStrategy } = await import('../config/strategy-fingerprint.js');
+    const signalConfigFor = (instrument: string) =>
+        resolveSignalConfig(instrument, OVERRIDES);
+    const hasAssetSignalConfig = (instrument: string) =>
+        hasProfileAssetSignalConfig(instrument, OVERRIDES);
 
     return { calculateSignal, signalConfigFor, hasAssetSignalConfig, fingerprintStrategy };
 }
 
 afterEach(() => {
-    vi.unstubAllEnvs();
     vi.resetModules();
 });
 

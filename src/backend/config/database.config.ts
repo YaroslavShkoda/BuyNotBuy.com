@@ -76,6 +76,9 @@ const DatabaseConfigSchema = z.object({
      * anonymous client.
      */
     applicationName: z.string().min(1),
+}).refine((config) => config.lockTimeoutMs <= config.statementTimeoutMs, {
+    message: 'Database lock timeout must not exceed the statement timeout',
+    path: ['lockTimeoutMs'],
 });
 
 export type DatabaseConfig = z.infer<typeof DatabaseConfigSchema>;

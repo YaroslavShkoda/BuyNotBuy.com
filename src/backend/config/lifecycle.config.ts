@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { strategyProfile } from './strategy.profile.js';
 
 /**
  * What a signal is doing right now.
@@ -110,14 +111,8 @@ const LifecycleConfigSchema = z
 
 export type LifecycleConfig = z.infer<typeof LifecycleConfigSchema>;
 
-export const lifecycleConfig: LifecycleConfig = LifecycleConfigSchema.parse({
-    republishPriceMovePercent:
-        process.env.SIGNAL_REPUBLISH_MOVE_PERCENT ?? '0.5',
-    republishConfidenceDelta:
-        process.env.SIGNAL_REPUBLISH_CONFIDENCE_DELTA ?? '5',
-    expiryBars: process.env.SIGNAL_EXPIRY_BARS ?? '72',
-    cooldownBars: process.env.SIGNAL_COOLDOWN_BARS ?? '12',
-    invalidationPercent: process.env.SIGNAL_INVALIDATION_PERCENT ?? '3',
-});
+export const lifecycleConfig: LifecycleConfig = LifecycleConfigSchema.parse(
+    strategyProfile.lifecycle,
+);
 
 export const LifecycleConfigParser = LifecycleConfigSchema;

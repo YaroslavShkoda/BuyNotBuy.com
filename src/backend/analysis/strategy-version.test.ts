@@ -32,31 +32,45 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
  */
 
 /** Fresh registry: the overrides are parsed once, at import time. */
-async function withOverrides<T>(env: Record<string, string>, run: () => Promise<T>) {
+async function withProfile<T>(withEthOverride: boolean, run: () => Promise<T>) {
     vi.resetModules();
 
-    for (const [name, value] of Object.entries(env)) {
-        vi.stubEnv(name, value);
+    if (withEthOverride) {
+        vi.doMock('../config/strategy.profile.js', async (importOriginal) => {
+            const actual = await importOriginal<typeof import('../config/strategy.profile.js')>();
+
+            return {
+                ...actual,
+                strategyProfile: {
+                    ...actual.strategyProfile,
+                    indicators: {
+                        ...actual.strategyProfile.indicators,
+                        assetSignalOverrides: {
+                            ETHUSDT: { stochastic: { longThreshold: 22 } },
+                        },
+                    },
+                },
+            };
+        });
     }
 
     try {
         return await run();
     } finally {
-        vi.unstubAllEnvs();
+        vi.doUnmock('../config/strategy.profile.js');
         vi.resetModules();
     }
 }
 
-const ETH_OVERRIDE = 'ETHUSDT=stochastic:longThreshold=22';
-
 afterEach(() => {
     vi.unstubAllEnvs();
+    vi.doUnmock('../config/strategy.profile.js');
     vi.resetModules();
 });
 
 describe('a market with thresholds of its own gets its own strategy version', () => {
     it('resolves two versions, one per configuration', async () => {
-        await withOverrides({ INDICATOR_ASSET_CONFIG: ETH_OVERRIDE }, async () => {
+        await withProfile(true, async () => {
             const { createStrategyVersionRepository } = await import(
                 './strategy-version.repository.js'
             );
@@ -75,7 +89,7 @@ describe('a market with thresholds of its own gets its own strategy version', ()
     });
 
     it('stores the thresholds it resolved, not the shipped ones', async () => {
-        await withOverrides({ INDICATOR_ASSET_CONFIG: ETH_OVERRIDE }, async () => {
+        await withProfile(true, async () => {
             const { createStrategyVersionRepository } = await import(
                 './strategy-version.repository.js'
             );
@@ -93,7 +107,7 @@ describe('a market with thresholds of its own gets its own strategy version', ()
     });
 
     it('gives the same answer twice for one market', async () => {
-        await withOverrides({ INDICATOR_ASSET_CONFIG: ETH_OVERRIDE }, async () => {
+        await withProfile(true, async () => {
             const { createStrategyVersionRepository } = await import(
                 './strategy-version.repository.js'
             );
@@ -127,7 +141,7 @@ describe('a market nobody configured runs the shipped configuration', () => {
         // holds a handful of rows. One row per market is not unreadable; one row
         // covering every market is a row whose measurements cannot be attributed
         // to anything. The cost was never tidiness, it was meaning.
-        await withOverrides({ INDICATOR_ASSET_CONFIG: ETH_OVERRIDE }, async () => {
+        await withProfile(true, async () => {
             const { createStrategyVersionRepository } = await import(
                 './strategy-version.repository.js'
             );
@@ -141,7 +155,7 @@ describe('a market nobody configured runs the shipped configuration', () => {
     });
 
     it('and unchanged by the mere presence of another market override', async () => {
-        await withOverrides({ INDICATOR_ASSET_CONFIG: ETH_OVERRIDE }, async () => {
+        await withProfile(true, async () => {
             const { createStrategyVersionRepository } = await import(
                 './strategy-version.repository.js'
             );
@@ -174,7 +188,7 @@ describe('a market nobody configured runs the shipped configuration', () => {
         // for, so two markets that resolve to the same settings collapsed onto one
         // row. Forward-only: nothing is re-attributed, and the rows that already
         // exist keep their hashes.
-        await withOverrides({}, async () => {
+        await withProfile(false, async () => {
             const { createStrategyVersionRepository } = await import(
                 './strategy-version.repository.js'
             );
@@ -188,7 +202,7 @@ describe('a market nobody configured runs the shipped configuration', () => {
 
         // And the same market asked twice is still one version, or the ladder
         // would never accumulate evidence at all.
-        await withOverrides({}, async () => {
+        await withProfile(false, async () => {
             const { createStrategyVersionRepository } = await import(
                 './strategy-version.repository.js'
             );
@@ -203,7 +217,7 @@ describe('a market nobody configured runs the shipped configuration', () => {
     it('and one market written two ways is still one version', async () => {
         // Case is not a fork. `BTCUSDT` and `btcusdt` are the same market, and
         // two versions would each believe they were this market's first sighting.
-        await withOverrides({}, async () => {
+        await withProfile(false, async () => {
             const { createStrategyVersionRepository } = await import(
                 './strategy-version.repository.js'
             );

@@ -350,9 +350,8 @@ describe('signal history schema', () => {
     });
 
     it('creates the tables on a database that has never been written to', async () => {
-        // A fresh deployment boots into a database with no tables and no
-        // migration bookkeeping, and the readiness probe has to be able to fix
-        // that on its own. Reaching that state from inside a test that already
+        // A fresh deployment has no tables or migration bookkeeping until the
+        // migration job runs. Reaching that state from inside a test that already
         // has a migrated database would mean dropping the tables every other
         // test in this file is using, so this one gets a schema of its own and
         // a second set of module registrations pointed at it — which is the
@@ -372,6 +371,9 @@ describe('signal history schema', () => {
 
             try {
                 expect(await migrations.currentSchemaVersion()).toBe(0);
+                await expect(repository.assertSignalHistorySchemaReady()).rejects.toThrow(
+                    /Run the db:migrate job/,
+                );
                 expect(await migrations.applyMigrations()).toBe(
                     migrations.LATEST_SCHEMA_VERSION,
                 );
@@ -395,8 +397,8 @@ describe('signal history schema', () => {
 
                 expect(await fresh.list('BTCUSDT', 10)).toEqual([makeEntry()]);
 
-                // Applying again is a no-op rather than a second set of
-                // tables, so a probe that runs every few seconds is free.
+                // Applying again is a no-op, so the migration job can be
+                // retried safely after an uncertain result.
                 expect(await migrations.applyMigrations()).toBe(
                     migrations.LATEST_SCHEMA_VERSION,
                 );

@@ -51,8 +51,12 @@ export interface BoundedWriteBuffer<T> {
      * the ceiling stays one ceiling for the process, and per-market buffers would
      * multiply the memory bound by the number of markets, which is the trade this
      * is deliberately not making.
+     *
+     * This is the buffer's half only: the durable lane counts its own queue and
+     * its own losses per market, and `mergeBacklogStates` below is where the
+     * two halves become the one record an operator reads.
      */
-    readonly byMarket: Readonly<Record<string, BacklogState>>;
+    readonly byMarket: MemoryBacklogStateByMarket;
     clear(): void;
 }
 
@@ -79,17 +83,73 @@ export interface BoundedWriteBufferOptions<T> {
  * because it is the buffer's own `size` and `droppedCount` under the names the
  * health endpoint has always used. The two counter names are not the same on
  * purpose: `buffered` is now, `dropped` is since the process started, and a
- * reader is meant to be able to tell that.
+ * reader is meant to be able to tell that. `spooled` joined them when the
+ * durable lane did: the memory bound and the disk bound are two ceilings over
+ * one series, and a reader who sees only the memory count would call a long
+ * outage survived when the entries are in fact sitting in a file.
  */
 export interface BacklogState {
-    /** Entries held for a retry. */
+    /** Entries held for a retry in memory. */
     buffered: number;
-    /** Entries lost to an overfull buffer since the process started. */
+    /** Entries lost to an overfull buffer, an overfull spool, or a torn line, since the process started. */
+    dropped: number;
+    /**
+     * Entries held on disk for a retry, on top of the memory bound.
+     *
+     * Declared here rather than left to each writer's return type because the
+     * three backlogs grew the third counter together, and a shape that said
+     * "two numbers" would have had every reader invent its own name for the
+     * third — or, likelier, keep reading two and miss the third entirely.
+     */
+    spooled: number;
+}
+
+/**
+ * The buffer's own half of a backlog, before the spool's half is merged in.
+ *
+ * Split from `BacklogState` rather than reused, because the buffer can only
+ * speak for what it holds and what it has dropped; the third counter belongs
+ * to the durable lane, and a buffer reporting `spooled: 0` would be a lie
+ * wearing the right type.
+ */
+export interface MemoryBacklogState {
+    buffered: number;
     dropped: number;
 }
 
 /** The per-market split of a buffer, keyed by market. */
+export type MemoryBacklogStateByMarket = Readonly<Record<string, MemoryBacklogState>>;
+
+/** The per-market split of a merged backlog, keyed by market. */
 export type BacklogStateByMarket = Readonly<Record<string, BacklogState>>;
+
+/**
+ * Merges the buffer's per-market counts with the spool's into the operator
+ * shape, over the union of the two key sets — a market that has only ever
+ * lost memory entries and a market that has only ever been spooled must both
+ * read as themselves, not as absent.
+ */
+export function mergeBacklogStates(
+    memory: MemoryBacklogStateByMarket,
+    spool: Readonly<Record<string, { spooled: number; dropped: number }>>,
+): BacklogStateByMarket {
+    const markets = new Set<string>([...Object.keys(memory), ...Object.keys(spool)]);
+
+    const merged: Record<string, BacklogState> = {};
+
+    for (const market of [...markets].sort()) {
+        const memoryState = memory[market] ?? { buffered: 0, dropped: 0 };
+        const spoolState = spool[market] ?? { spooled: 0, dropped: 0 };
+
+        merged[market] = {
+            buffered: memoryState.buffered,
+            dropped: memoryState.dropped + spoolState.dropped,
+            spooled: spoolState.spooled,
+        };
+    }
+
+    return merged;
+}
 
 export function createBoundedWriteBuffer<T>(
     options: BoundedWriteBufferOptions<T>,
@@ -134,7 +194,7 @@ export function createBoundedWriteBuffer<T>(
             return dropped;
         },
 
-        get byMarket(): BacklogStateByMarket {
+        get byMarket(): MemoryBacklogStateByMarket {
             // Counted from what is *in* the queue, not remembered: a market that
             // drained cleanly must read as 0 buffered, and a remembered count
             // would have to be decremented on every drain path to stay honest.
@@ -151,7 +211,7 @@ export function createBoundedWriteBuffer<T>(
                 ...droppedByMarket.keys(),
             ]);
 
-            const state: Record<string, BacklogState> = {};
+            const state: Record<string, MemoryBacklogState> = {};
 
             for (const market of [...markets].sort()) {
                 state[market] = {

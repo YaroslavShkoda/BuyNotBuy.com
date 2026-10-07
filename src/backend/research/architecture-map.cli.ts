@@ -10,7 +10,7 @@
  */
 
 
-import { readdirSync, readFileSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { MIGRATIONS } from '../db/migrations.js';
@@ -24,7 +24,7 @@ const symbols = audit(root);
 
 const pad = (value: string, width: number): string => value.padEnd(width);
 
-const migrationsSource = readFileSync(join(root, 'db', 'migrations.ts'), 'utf8');
+const migrationsSource = MIGRATIONS.map((migration) => migration.sql).join('\n');
 
 /** Table names, read out of the migration source rather than remembered. */
 const tables = [...migrationsSource.matchAll(/CREATE TABLE IF NOT EXISTS (\w+)/g)].map(

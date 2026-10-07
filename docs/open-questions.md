@@ -287,6 +287,9 @@ n^1.95. Весь фид из 50 286 баров — около 262 секунд �
 
 ### D1. `instrument_id`: ссылка, которой некому пользоваться
 
+**Решено в миграции 22.** См. обновление в конце этого файла; venue-specific
+mapping остаётся отдельным вопросом модели.
+
 **Вопрос.** Связывать ли снимки и свечи с таблицей `instrument` колонкой и
 внешним ключом — или отложить до появления кода, который читает по ссылке.
 
@@ -399,3 +402,14 @@ CLI единственным вызывающим и уточнить инвар
 
 **Что необратимо.** Ничего: незаявленное содержание можно объявить позже,
 объявлённое — снять. Цена выбора — работа и честность списка, а не схема.
+# Update — instrument identity
+
+Migration 22 adds a stable `instrument.id` and foreign keys from `market_candles`,
+`signal_history`, `signal_outcome`, and `signal_snapshot`. PostgreSQL fills and
+checks the link for new writes through a trigger. Existing rows are backfilled
+when their ticker exists in `instrument`; unmatched historical rows remain
+readable with a null link. This closes the schema-integrity gap for new data.
+
+Venue-specific symbols, spot versus futures contracts, aliases, and contract
+successors still need a separate venue-instrument mapping model. The current
+`instrument` row remains the canonical ticker pair.

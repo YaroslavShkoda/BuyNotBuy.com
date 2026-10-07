@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { booleanEnv } from '../config/env.boolean.js';
 
 /**
  * How the performance table is grouped and what it is allowed to claim.
@@ -38,7 +39,7 @@ const PerformanceConfigSchema = z
          * that there is not enough to say. They are different sentences and a
          * dashboard must not blur them.
          */
-        reportUnsampledAsNull: z.coerce.boolean(),
+        reportUnsampledAsNull: z.boolean(),
     })
     .refine(
         (config) =>
@@ -71,8 +72,7 @@ export const performanceConfig: PerformanceConfig =
         confidenceEdges: (
             process.env.PERFORMANCE_CONFIDENCE_EDGES ?? '0,25,40,55,70,85,100'
         ).split(','),
-        reportUnsampledAsNull: process.env.PERFORMANCE_REPORT_UNSAMPLED ??
-            'true',
+        reportUnsampledAsNull: booleanEnv('PERFORMANCE_REPORT_UNSAMPLED', true),
     });
 
 export const PerformanceConfigParser = PerformanceConfigSchema;

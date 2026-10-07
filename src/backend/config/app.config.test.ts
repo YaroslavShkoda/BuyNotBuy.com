@@ -143,16 +143,15 @@ describe('appConfig', () => {
         clearEnv();
     });
 
-    it('treats any other value of the proxy switch as off', async () => {
+    it('rejects an invalid value for the proxy switch', async () => {
         vi.resetModules();
         clearEnv();
 
         process.env.APP_TRUST_PROXY = 'yes';
 
-        const { appConfig } = await import('./app.config');
-
-        // Only the exact word enables it: a typo must fail closed.
-        expect(appConfig.trustProxy).toBe(false);
+        await expect(import('./app.config')).rejects.toThrow(
+            'APP_TRUST_PROXY must be either "true" or "false"',
+        );
 
         clearEnv();
     });

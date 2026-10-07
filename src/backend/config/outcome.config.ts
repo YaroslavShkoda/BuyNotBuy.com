@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { strategyProfile } from './strategy.profile.js';
 
 /**
  * How far out a signal is measured, and how close counts as right.
@@ -67,14 +68,8 @@ const OutcomeConfigSchema = z
 
 export type OutcomeConfig = z.infer<typeof OutcomeConfigSchema>;
 
-export const outcomeConfig: OutcomeConfig = OutcomeConfigSchema.parse({
-    horizons: (
-        process.env.OUTCOME_HORIZONS ?? '1,3,6,12,24,48,72'
-    ).split(','),
-    // One tenth of a percent: roughly the round trip on a liquid venue. A
-    // trade that did not clear this did not pay for itself.
-    breakevenPercent: process.env.OUTCOME_BREAKEVEN_PERCENT ?? '0.1',
-    trackExcursions: process.env.OUTCOME_TRACK_EXCURSIONS ?? 'true',
-});
+export const outcomeConfig: OutcomeConfig = OutcomeConfigSchema.parse(
+    strategyProfile.outcome,
+);
 
 export const OutcomeConfigParser = OutcomeConfigSchema;

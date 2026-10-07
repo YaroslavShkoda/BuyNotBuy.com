@@ -5,15 +5,13 @@ import { applyMigrations } from './migrations.js';
 import { closePool } from './pool.js';
 
 /**
- * The boot race, in a database.
+ * Concurrent migration jobs, in a database.
  *
- * Two instances starting together is the ordinary case, not an edge case: the
- * readiness probe and the server bootstrap both call `applyMigrations`. One
- * holds the lock and migrates; the other must wait it out. The version that used
+ * Two deployment jobs can overlap during a rollout. One holds the lock and
+ * migrates; the other must wait it out. The version that used
  * `pg_advisory_lock` inherited the pool's 5 second `lock_timeout`, failed the
- * wait, and propagated — and `startServer` answers a failed migration with
- * `process.exit(1)`, so a routine rolling deploy became a crash loop that
- * stopped only when the other instance happened to have finished.
+ * wait and propagated, so a concurrent migration job failed despite the first
+ * job making progress.
  *
  * The tests hold the lock from a separate connection, because that is the only
  * way to be genuinely sure it is already taken when `applyMigrations` runs.

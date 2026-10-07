@@ -271,6 +271,30 @@ export class AssetRepository {
                 [ticker, resolved.base.symbol, resolved.quote.symbol, resolved.market],
             );
 
+            // Migration 22 runs before this configured registry is seeded.
+            // Backfill legacy rows now that this instrument has a stable ID;
+            // the table trigger also verifies the ticker/ID pairing.
+            const instrument = await client.query<{ id: string }>(
+                'SELECT id FROM instrument WHERE ticker = $1',
+                [ticker],
+            );
+            const instrumentId = instrument.rows[0]?.id;
+
+            if (instrumentId !== undefined) {
+                for (const table of [
+                    'market_candles',
+                    'signal_history',
+                    'signal_outcome',
+                    'signal_snapshot',
+                ]) {
+                    await client.query(
+                        `UPDATE ${table} SET instrument_id = $1
+                         WHERE symbol = $2 AND instrument_id IS NULL`,
+                        [instrumentId, ticker],
+                    );
+                }
+            }
+
             return (result.rowCount ?? 0) > 0;
         });
     }

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { booleanEnv } from './env.boolean.js';
 
 const AppConfigSchema = z.object({
     port: z.coerce.number().int().positive(),
@@ -21,9 +22,9 @@ const AppConfigSchema = z.object({
     connectionTimeoutMs: z.coerce.number().int().positive(),
 
     /**
-     * Hard ceiling on one request. Must stay above the worst case the market
-     * transport can take — every retry plus every timeout — or the server
-     * would cut off a request the transport was about to answer.
+     * Maximum time to receive the complete HTTP request from the client.
+     * Fastify applies this at the socket layer; it does not cap handler work
+     * or provider calls, which have their own timeouts.
      */
     requestTimeoutMs: z.coerce.number().int().positive(),
 
@@ -103,6 +104,5 @@ export const appConfig: AppConfig = AppConfigSchema.parse({
         process.env.APP_HSTS_MAX_AGE ??
         '0',
 
-    trustProxy:
-        (process.env.APP_TRUST_PROXY ?? 'false') === 'true',
+    trustProxy: booleanEnv('APP_TRUST_PROXY', false),
 });

@@ -59,8 +59,8 @@ async function refusedBecauseOfNewerBuild(): Promise<never> {
 describe('migrations', () => {
     it('brings an empty database up to the version this build knows', async () => {
         // The setup file has already applied them, so applying again must be a
-        // no-op rather than an error: every service start runs this, and
-        // sixteen instances starting at once would run it sixteen times.
+        // no-op rather than an error, so a deployment job can be retried
+        // safely after an uncertain result.
         //
         // The budget is stated because this call takes the same migration
         // advisory lock every other suite in this database is contending for,

@@ -208,7 +208,7 @@ export function createOutcomeRepository(
                             $12, $13, $14, $15, $16, $17, $18, $19, $19
                          )
                          ON CONFLICT (
-                            symbol, provider, interval, signal_state_id, horizon_bars
+                            instrument_id, provider, interval, signal_state_id, horizon_bars
                          ) DO UPDATE SET
                             verdict = EXCLUDED.verdict,
                             entry_price = EXCLUDED.entry_price,
@@ -270,7 +270,8 @@ export function createOutcomeRepository(
             const result = await query(
                 `SELECT COUNT(DISTINCT signal_state_id) AS count
                  FROM signal_outcome
-                 WHERE symbol = $1 AND provider = $2 AND interval = $3
+                 WHERE instrument_id = (SELECT id FROM instrument WHERE ticker = $1)
+                   AND provider = $2 AND interval = $3
                    AND verdict IN ('unknown', 'expired')`,
                 [key.symbol, key.provider, key.interval],
             );
@@ -285,7 +286,8 @@ export function createOutcomeRepository(
             const result = await query(
                 `SELECT ${COLUMNS}
                  FROM signal_outcome
-                 WHERE symbol = $1 AND provider = $2 AND interval = $3
+                 WHERE instrument_id = (SELECT id FROM instrument WHERE ticker = $1)
+                   AND provider = $2 AND interval = $3
                    AND horizon_bars = $4
                  ORDER BY entry_timestamp DESC
                  LIMIT $5`,

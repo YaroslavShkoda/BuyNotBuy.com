@@ -9,13 +9,13 @@
 счётчик отвечает «сколько раз», датчик — «сколько сейчас», распределение —
 «насколько плохо и как часто».
 
-## counter (13)
+## counter (14)
 
-`market_cache_hits`, `market_cache_misses`, `market_cycle_failures`, `market_stale_served`, `provider_errors_total`, `provider_rate_limits`, `provider_requests_total`, `provider_retries`, `signal_changes_total`, `signal_generation_total`, `strategy_decision_write_failures`, `write_backlog_indicator_vote_dropped_total`, `write_backlog_signal_history_dropped_total`
+`market_cache_hits`, `market_cache_misses`, `market_cycle_failures`, `market_stale_served`, `provider_errors_total`, `provider_rate_limits`, `provider_requests_total`, `provider_retries`, `signal_changes_total`, `signal_generation_total`, `strategy_decision_write_failures`, `write_backlog_indicator_vote_dropped_total`, `write_backlog_signal_history_dropped_total`, `write_backlog_strategy_decision_dropped_total`
 
-## gauge (7)
+## gauge (11)
 
-`metric_series_limit`, `provider_circuit_open`, `provider_consecutive_failures`, `provider_error_rate`, `provider_health`, `write_backlog_indicator_vote_buffered`, `write_backlog_signal_history_buffered`
+`metric_series_limit`, `provider_circuit_open`, `provider_consecutive_failures`, `provider_error_rate`, `provider_health`, `write_backlog_indicator_vote_buffered`, `write_backlog_indicator_vote_spooled`, `write_backlog_signal_history_buffered`, `write_backlog_signal_history_spooled`, `write_backlog_strategy_decision_buffered`, `write_backlog_strategy_decision_spooled`
 
 ## distribution (4)
 

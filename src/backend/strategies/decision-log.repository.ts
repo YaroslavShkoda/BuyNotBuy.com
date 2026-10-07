@@ -77,13 +77,18 @@ export interface ShadowReport {
 export function createDecisionLogRepository(): DecisionLogRepository {
     return {
         async record(entry: DecisionEntry): Promise<void> {
+            // DO NOTHING is the replay guard, not a silent failure mode: the
+            // unique index on (symbol, created_at) means a row that already
+            // landed is the same fact arriving again, and a fact counted twice
+            // is not more evidence, it is wrong evidence.
             await query(
                 `INSERT INTO strategy_decision_log
                      (created_at, symbol, strategy_version_id,
                       primary_rule, primary_direction, primary_confidence,
                       fallback_rule, fallback_direction, fallback_confidence,
                       published_rule, published_direction, suppressed)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+                 ON CONFLICT (symbol, created_at) DO NOTHING`,
                 [
                     entry.at,
                     entry.symbol,

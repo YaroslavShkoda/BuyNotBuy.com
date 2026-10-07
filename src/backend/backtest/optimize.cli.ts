@@ -32,7 +32,11 @@ function integerEnv(name: string, fallback: number): number {
 
     const value = Number(raw);
 
-    return Number.isInteger(value) && value > 0 ? value : fallback;
+    if (!Number.isInteger(value) || value <= 0) {
+        throw new Error(`${name} must be a positive integer; received "${raw}"`);
+    }
+
+    return value;
 }
 
 async function main(): Promise<void> {

@@ -150,7 +150,9 @@ const TABLE = 'market_candles';
 
 function seriesPredicate(from: number): string {
     return `${TABLE}.provider = $${from}
-        AND ${TABLE}.symbol = $${from + 1}
+        AND ${TABLE}.instrument_id = (
+            SELECT id FROM instrument WHERE ticker = $${from + 1}
+        )
         AND ${TABLE}.interval = $${from + 2}`;
 }
 
@@ -171,7 +173,7 @@ const UPSERT_SQL = `
         open, high, low, close, volume, ingested_at, is_closed
     )
     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-    ON CONFLICT (provider, symbol, interval, timestamp) DO UPDATE SET
+    ON CONFLICT (instrument_id, provider, interval, timestamp) DO UPDATE SET
         open = EXCLUDED.open,
         high = EXCLUDED.high,
         low = EXCLUDED.low,
@@ -334,7 +336,7 @@ export function createCandleRepository(): CandleRepository {
                         open, high, low, close, volume, ingested_at, is_closed
                     )
                     VALUES ${rows.join(', ')}
-                    ON CONFLICT (provider, symbol, interval, timestamp) DO UPDATE SET
+                    ON CONFLICT (instrument_id, provider, interval, timestamp) DO UPDATE SET
                         open = EXCLUDED.open,
                         high = EXCLUDED.high,
                         low = EXCLUDED.low,

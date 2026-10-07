@@ -180,7 +180,7 @@ export function createSignalSnapshotRepository(): SignalSnapshotRepository {
                      provider, interval
                  )
                  VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, $10, $11)
-                 ON CONFLICT (symbol, input_hash) DO NOTHING
+                 ON CONFLICT (instrument_id, input_hash) DO NOTHING
                  RETURNING id`,
                 [
                     Date.now(),
@@ -204,7 +204,9 @@ export function createSignalSnapshotRepository(): SignalSnapshotRepository {
             }
 
             const existing = await query<{ id: number }>(
-                'SELECT id FROM signal_snapshot WHERE symbol = $1 AND input_hash = $2',
+                `SELECT id FROM signal_snapshot
+                 WHERE instrument_id = (SELECT id FROM instrument WHERE ticker = $1)
+                   AND input_hash = $2`,
                 [input.symbol, inputHash],
             );
 
@@ -235,7 +237,7 @@ export function createSignalSnapshotRepository(): SignalSnapshotRepository {
             const result = await query<SnapshotRow>(
                 `SELECT ${SELECT_COLUMNS}
                  FROM signal_snapshot
-                 WHERE symbol = $1
+                 WHERE instrument_id = (SELECT id FROM instrument WHERE ticker = $1)
                  ORDER BY created_at DESC, id DESC
                  LIMIT $2`,
                 [symbol, limit],

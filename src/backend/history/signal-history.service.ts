@@ -1,11 +1,16 @@
 import { historyConfig } from '../config/history.config.js';
 import { marketConfig } from '../config/market.config.js';
+import { writeSpoolConfig } from '../config/write-spool.config.js';
 import { configuredVenueFor } from '../market/market.provider.js';
 import type {
     BacklogState,
     BacklogStateByMarket,
 } from '../observability/bounded-write-buffer.js';
-import { createFlushGuard } from '../observability/bounded-write-buffer.js';
+import {
+    createFlushGuard,
+    mergeBacklogStates,
+} from '../observability/bounded-write-buffer.js';
+import { createWriteSpool } from '../observability/write-spool.js';
 import { getSignalHistoryRepository } from './signal-history.repository.js';
 import type {
     SignalHistoryEntry,
@@ -38,6 +43,34 @@ const MAX_ATTEMPTS = 5;
 
 const writeBuffer = createSignalHistoryWriteBuffer({
     maxSize: historyConfig.maxBufferedEntries,
+});
+
+/**
+ * Consecutive failed attempts per spooled entry.
+ *
+ * The same identity-keyed count the memory buffer keeps, and it starts from
+ * zero again for entries read back off the disk at boot — a restart is a fresh
+ * process making a fresh attempt, and the spooled entries that matter are the
+ * ones that have already been waiting longer than any memory-bound entry ever
+ * would.
+ */
+const spoolAttempts = new WeakMap<SignalHistoryEntry, number>();
+
+/**
+ * The durable overflow lane, one file per series in the configured directory.
+ *
+ * Entries the database refuses land here first and in the memory buffer only if
+ * the disk refuses them too — a spooled entry survives a crash, a deploy and an
+ * outage longer than the memory bound, which is the loss this exists to stop.
+ * The byte bound it evicts under is counted into the same dropped total the
+ * memory buffer reports.
+ */
+const spool = createWriteSpool<SignalHistoryEntry>({
+    name: 'signal_history',
+    directory: writeSpoolConfig.directory,
+    maxBytes: writeSpoolConfig.maxBytesPerWriter,
+    enabled: writeSpoolConfig.enabled,
+    marketOf: (entry) => entry.symbol,
 });
 
 /**
@@ -180,7 +213,14 @@ export async function recordSignalHistory(
         // answered.
         await maybeTrimRetention(entry.symbol);
     } catch (error) {
-        writeBuffer.push(entry);
+        // The durable lane first, the memory buffer only if the disk refuses
+        // too. Never both: the flush would write the entry twice — the upsert
+        // forgives that — but the two queues would no longer agree about who
+        // owns the entry, and one of them would hand it back after the other
+        // had already drained it.
+        if (!spool.append(entry)) {
+            writeBuffer.push(entry);
+        }
 
         logger?.warn(
             {
@@ -192,6 +232,7 @@ export async function recordSignalHistory(
                 // series. The symbol was in scope the whole time.
                 market: entry.symbol,
                 buffered: writeBuffer.size,
+                spooled: spool.size,
                 dropped: writeBuffer.droppedCount,
                 err: error,
             },
@@ -209,6 +250,111 @@ export async function recordSignalHistory(
 }
 
 async function writeBacklog(logger?: SignalHistoryLogger): Promise<number> {
+    // The file first: those entries have already survived at least one failure
+    // — often a whole outage — and draining the memory queue first would retry
+    // the youngest loss ahead of the oldest one.
+    const written = await drainSpoolBacklog(logger);
+
+    return written + (await drainMemoryBacklog(logger));
+}
+
+/**
+ * Drains the file-backed entries before the memory buffer's.
+ *
+ * The same shape as the memory drain below — every entry attempted, two
+ * consecutive failures stop the flush, a lone failure is retried a bounded
+ * number of times — with two differences the file forces:
+ *
+ * - A refused-but-not-given-up entry is `rotate`d to the back instead of
+ *   re-queued: the spool drains from the head, so leaving it there would
+ *   replay the same refusal at the next flush while every entry behind it
+ *   waited, which is precisely the stall the memory drain exists to prevent.
+ * - The file is rewritten once at the end of the drain, not once per confirmed
+ *   entry. A crash before that rewrite replays entries the database has
+ *   already accepted, and the upsert folds them away.
+ */
+async function drainSpoolBacklog(logger?: SignalHistoryLogger): Promise<number> {
+    let written = 0;
+    let consecutiveFailures = 0;
+    let givenUp = 0;
+
+    while (spool.size > 0) {
+        const entry = spool.peek();
+
+        if (entry === undefined) {
+            break;
+        }
+
+        try {
+            await getSignalHistoryRepository().record({
+                ...entry,
+                ...seriesFor(entry.symbol),
+            });
+
+            written += 1;
+            consecutiveFailures = 0;
+            spoolAttempts.delete(entry);
+            spool.confirm();
+        } catch (error) {
+            consecutiveFailures += 1;
+
+            // Two in a row is the database not answering — the same reading as
+            // the memory drain's, and the tail is left in the file untouched.
+            if (consecutiveFailures >= 2) {
+                logger?.warn(
+                    {
+                        event: 'signal_history_spool_flush_failed',
+                        written,
+                        spooled: spool.size,
+                        buffered: writeBuffer.size,
+                        err: error,
+                    },
+                    'signal_history_spool_flush_failed',
+                );
+
+                break;
+            }
+
+            const tries = (spoolAttempts.get(entry) ?? 0) + 1;
+
+            if (tries >= MAX_ATTEMPTS) {
+                spoolAttempts.delete(entry);
+                spool.drop();
+                givenUp += 1;
+
+                logger?.warn(
+                    {
+                        event: 'signal_history_spool_entry_given_up',
+                        attempts: tries,
+                        symbol: entry.symbol,
+                        timestamp: entry.timestamp,
+                        spooled: spool.size,
+                        err: error,
+                    },
+                    'signal_history_spool_entry_given_up',
+                );
+
+                continue;
+            }
+
+            spoolAttempts.set(entry, tries);
+            spool.rotate();
+        }
+    }
+
+    spool.compact();
+
+    if (givenUp > 0) {
+        logger?.warn(
+            { event: 'signal_history_spool_entries_given_up', givenUp },
+            'signal_history_spool_entries_given_up',
+        );
+    }
+
+    return written;
+}
+
+async function drainMemoryBacklog(logger?: SignalHistoryLogger): Promise<number> {
     if (writeBuffer.size === 0) {
         return 0;
     }
@@ -369,8 +515,14 @@ export function signalHistoryBacklog(): BacklogState & {
 } {
     return {
         buffered: writeBuffer.size,
-        dropped: writeBuffer.droppedCount,
-        byMarket: writeBuffer.byMarket,
+        // The spool's own losses — entries evicted past its byte bound, lines
+        // skipped at boot — are drops like the buffer's and land in the same
+        // total. An operator reads one number for "this series lost records";
+        // the underlying counters are still on the spool if the question ever
+        // has to be asked more precisely.
+        dropped: writeBuffer.droppedCount + spool.evictedCount + spool.tornCount,
+        spooled: spool.size,
+        byMarket: mergeBacklogStates(writeBuffer.byMarket, spool.byMarket),
     };
 }
 

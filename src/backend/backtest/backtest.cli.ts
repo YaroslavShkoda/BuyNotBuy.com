@@ -73,7 +73,11 @@ function numericEnv(name: string): number | undefined {
 
     const value = Number(raw);
 
-    return Number.isFinite(value) ? value : undefined;
+    if (!Number.isFinite(value)) {
+        throw new Error(`${name} must be a finite number; received "${raw}"`);
+    }
+
+    return value;
 }
 
 /**

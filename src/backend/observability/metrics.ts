@@ -278,6 +278,7 @@ export const METRIC_COUNTERS = [
     // kind they were or check that the exposition agreed with anything.
     'write_backlog_signal_history_dropped_total',
     'write_backlog_indicator_vote_dropped_total',
+    'write_backlog_strategy_decision_dropped_total',
 ] as const;
 
 export const METRIC_GAUGES = [
@@ -288,6 +289,10 @@ export const METRIC_GAUGES = [
     'metric_series_limit',
     'write_backlog_signal_history_buffered',
     'write_backlog_indicator_vote_buffered',
+    'write_backlog_strategy_decision_buffered',
+    'write_backlog_signal_history_spooled',
+    'write_backlog_indicator_vote_spooled',
+    'write_backlog_strategy_decision_spooled',
 ] as const;
 
 export const METRIC_DISTRIBUTIONS = [
@@ -333,6 +338,11 @@ export const METRIC_KIND: Readonly<Record<MetricName, MetricKind>> = {
     write_backlog_signal_history_dropped_total: 'counter',
     write_backlog_indicator_vote_buffered: 'gauge',
     write_backlog_indicator_vote_dropped_total: 'counter',
+    write_backlog_strategy_decision_buffered: 'gauge',
+    write_backlog_strategy_decision_dropped_total: 'counter',
+    write_backlog_signal_history_spooled: 'gauge',
+    write_backlog_indicator_vote_spooled: 'gauge',
+    write_backlog_strategy_decision_spooled: 'gauge',
 };
 
 export function metricKind(name: string): MetricKind | null {

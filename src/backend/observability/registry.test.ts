@@ -50,6 +50,11 @@ describe('the metrics the roadmap named are the metrics we publish', () => {
         'write_backlog_signal_history_dropped_total',
         'write_backlog_indicator_vote_buffered',
         'write_backlog_indicator_vote_dropped_total',
+        'write_backlog_strategy_decision_buffered',
+        'write_backlog_strategy_decision_dropped_total',
+        'write_backlog_signal_history_spooled',
+        'write_backlog_indicator_vote_spooled',
+        'write_backlog_strategy_decision_spooled',
     ];
 
     it('publishes exactly those, in one list, without duplicates', () => {

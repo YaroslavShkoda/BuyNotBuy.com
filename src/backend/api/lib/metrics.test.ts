@@ -145,6 +145,11 @@ describe('metrics exposition', () => {
             'buynotbuy_write_backlog_signal_history_dropped_total',
             'buynotbuy_write_backlog_indicator_vote_buffered',
             'buynotbuy_write_backlog_indicator_vote_dropped_total',
+            'buynotbuy_write_backlog_strategy_decision_buffered',
+            'buynotbuy_write_backlog_strategy_decision_dropped_total',
+            'buynotbuy_write_backlog_signal_history_spooled',
+            'buynotbuy_write_backlog_indicator_vote_spooled',
+            'buynotbuy_write_backlog_strategy_decision_spooled',
         ]) {
             expect(text).toContain(`# TYPE ${name}`);
         }
