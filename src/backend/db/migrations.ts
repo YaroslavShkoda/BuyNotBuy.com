@@ -1,7 +1,9 @@
 import type { PoolClient } from 'pg';
-import { getPool } from './pool.js';
 import type { Migration } from './migrations/types.js';
+import { getPool } from './pool.js';
+
 export type { Migration } from './migrations/types.js';
+
 import { migration001_signal_history } from './migrations/001_signal_history.js';
 import { migration002_indicator_vote } from './migrations/002_indicator_vote.js';
 import { migration003_strategy_version } from './migrations/003_strategy_version.js';
@@ -25,6 +27,7 @@ import { migration020_rate_limit_window } from './migrations/020_rate_limit_wind
 import { migration021_strategy_decision_log_natural_key } from './migrations/021_strategy_decision_log_natural_key.js';
 import { migration022_instrument_foreign_keys } from './migrations/022_instrument_foreign_keys.js';
 import { migration023_instrument_series_identity } from './migrations/023_instrument_series_identity.js';
+import { migration024_instrument_links_for_signal_data } from './migrations/024_instrument_links_for_signal_data.js';
 
 /** One module per migration; import order is the application order. */
 export const MIGRATIONS: readonly Migration[] = [
@@ -51,6 +54,7 @@ export const MIGRATIONS: readonly Migration[] = [
     migration021_strategy_decision_log_natural_key,
     migration022_instrument_foreign_keys,
     migration023_instrument_series_identity,
+    migration024_instrument_links_for_signal_data,
 ];
 
 /** Newest schema version this build knows how to produce. */

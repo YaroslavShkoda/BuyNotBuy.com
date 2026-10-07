@@ -146,7 +146,8 @@ export function createSignalLifecycleRepository(
         async getLive(key) {
             const result = await query(
                 `SELECT * FROM ${STATE_TABLE}
-                 WHERE symbol = $1 AND provider = $2 AND interval = $3`,
+                 WHERE instrument_id = (SELECT id FROM instrument WHERE ticker = $1)
+                   AND provider = $2 AND interval = $3`,
                 [key.symbol, key.provider, key.interval],
             );
 
@@ -169,7 +170,7 @@ export function createSignalLifecycleRepository(
                         snapshot_id, price, confidence,
                         published_at, candle_timestamp, created_at, updated_at
                      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11)
-                     ON CONFLICT (symbol, provider, interval) DO UPDATE SET
+                     ON CONFLICT (instrument_id, provider, interval) DO UPDATE SET
                         direction = EXCLUDED.direction,
                         status = EXCLUDED.status,
                         snapshot_id = EXCLUDED.snapshot_id,
@@ -241,7 +242,8 @@ export function createSignalLifecycleRepository(
         async closed(key, limit = 100) {
             const result = await query(
                 `SELECT * FROM ${STATE_TABLE}
-                 WHERE symbol = $1 AND provider = $2 AND interval = $3
+                 WHERE instrument_id = (SELECT id FROM instrument WHERE ticker = $1)
+                   AND provider = $2 AND interval = $3
                    AND status IN ('INVALIDATED', 'EXPIRED', 'CLOSED')
                  ORDER BY candle_timestamp DESC
                  LIMIT $4`,

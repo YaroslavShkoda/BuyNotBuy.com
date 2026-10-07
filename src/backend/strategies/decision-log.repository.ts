@@ -88,7 +88,7 @@ export function createDecisionLogRepository(): DecisionLogRepository {
                       fallback_rule, fallback_direction, fallback_confidence,
                       published_rule, published_direction, suppressed)
                  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-                 ON CONFLICT (symbol, created_at) DO NOTHING`,
+                 ON CONFLICT (instrument_id, created_at) DO NOTHING`,
                 [
                     entry.at,
                     entry.symbol,
@@ -133,7 +133,9 @@ export function createDecisionLogRepository(): DecisionLogRepository {
             // One statement with an optional predicate rather than two query
             // strings, so the scoped and unscoped shapes cannot drift apart as
             // the report grows another column.
-            const scope = symbol === undefined ? '' : 'AND symbol = $2';
+            const scope = symbol === undefined
+                ? ''
+                : 'AND instrument_id = (SELECT id FROM instrument WHERE ticker = $2)';
             const params = symbol === undefined ? [since] : [since, symbol];
 
             const { rows } = await query<{

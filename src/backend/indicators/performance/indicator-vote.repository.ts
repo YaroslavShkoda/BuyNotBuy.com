@@ -60,7 +60,7 @@ const UPSERT_SQL = `
         fwd_return_1h, fwd_return_4h, fwd_return_24h
     )
     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-    ON CONFLICT (symbol, vote_bucket, indicator) DO UPDATE SET
+    ON CONFLICT (instrument_id, vote_bucket, indicator) DO UPDATE SET
         timestamp = EXCLUDED.timestamp,
         signal = EXCLUDED.signal,
         weight = EXCLUDED.weight,
@@ -80,11 +80,11 @@ const UPSERT_SQL = `
  */
 const TRIM_SQL = `
     DELETE FROM ${INDICATOR_TABLE}
-    WHERE symbol = $1
+    WHERE instrument_id = (SELECT id FROM instrument WHERE ticker = $1)
       AND vote_bucket NOT IN (
         SELECT DISTINCT vote_bucket
         FROM ${INDICATOR_TABLE}
-        WHERE symbol = $1
+        WHERE instrument_id = (SELECT id FROM instrument WHERE ticker = $1)
         ORDER BY vote_bucket DESC
         LIMIT $2
     )
@@ -94,7 +94,7 @@ const SELECT_SQL = `
     SELECT timestamp, symbol, indicator, signal, weight, price,
            fwd_return_1h, fwd_return_4h, fwd_return_24h
     FROM ${INDICATOR_TABLE}
-    WHERE symbol = $1
+    WHERE instrument_id = (SELECT id FROM instrument WHERE ticker = $1)
     ORDER BY vote_bucket DESC, indicator
     LIMIT $2
 `;
@@ -103,7 +103,7 @@ const UNSETTLED_SQL = `
     SELECT timestamp, symbol, indicator, signal, price,
            fwd_return_1h, fwd_return_4h, fwd_return_24h
     FROM ${INDICATOR_TABLE}
-    WHERE symbol = $1
+    WHERE instrument_id = (SELECT id FROM instrument WHERE ticker = $1)
       AND (fwd_return_1h IS NULL
         OR fwd_return_4h IS NULL
         OR fwd_return_24h IS NULL)
@@ -120,7 +120,7 @@ function settleSql(horizon: ForwardHorizon): string {
     return `
         UPDATE ${INDICATOR_TABLE}
         SET fwd_return_${horizon} = $1
-        WHERE symbol = $2
+        WHERE instrument_id = (SELECT id FROM instrument WHERE ticker = $2)
           AND vote_bucket = $3
           AND indicator = $4
           AND fwd_return_${horizon} IS NULL
@@ -272,7 +272,8 @@ export function createIndicatorVoteRepository(
 
         async count(symbol: string): Promise<number> {
             const result = await query<{ total: number }>(
-                `SELECT COUNT(*) AS total FROM ${INDICATOR_TABLE} WHERE symbol = $1`,
+                `SELECT COUNT(*) AS total FROM ${INDICATOR_TABLE}
+                 WHERE instrument_id = (SELECT id FROM instrument WHERE ticker = $1)`,
                 [symbol],
             );
 

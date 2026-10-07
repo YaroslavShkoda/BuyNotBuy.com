@@ -404,11 +404,13 @@ CLI единственным вызывающим и уточнить инвар
 объявлённое — снять. Цена выбора — работа и честность списка, а не схема.
 # Update — instrument identity
 
-Migration 22 adds a stable `instrument.id` and foreign keys from `market_candles`,
-`signal_history`, `signal_outcome`, and `signal_snapshot`. PostgreSQL fills and
-checks the link for new writes through a trigger. Existing rows are backfilled
-when their ticker exists in `instrument`; unmatched historical rows remain
-readable with a null link. This closes the schema-integrity gap for new data.
+Migrations 22 and 24 add a stable `instrument.id` and foreign keys from
+`market_candles`, `signal_history`, `signal_outcome`, `signal_snapshot`,
+`indicator_vote`, `signal_state`, `signal_transition`, and
+`strategy_decision_log`. PostgreSQL fills and checks the link for new writes
+through a trigger. Existing rows are backfilled when their ticker exists in
+`instrument`; unmatched historical rows remain readable with a null link.
+Repository reads and upserts use the stable ID.
 
 Venue-specific symbols, spot versus futures contracts, aliases, and contract
 successors still need a separate venue-instrument mapping model. The current

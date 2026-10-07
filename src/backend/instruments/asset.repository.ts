@@ -286,6 +286,10 @@ export class AssetRepository {
                     'signal_history',
                     'signal_outcome',
                     'signal_snapshot',
+                    'indicator_vote',
+                    'signal_state',
+                    'signal_transition',
+                    'strategy_decision_log',
                 ]) {
                     await client.query(
                         `UPDATE ${table} SET instrument_id = $1
