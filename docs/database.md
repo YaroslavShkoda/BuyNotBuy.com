@@ -87,6 +87,7 @@
 
 | столбец | тип | null |
 |---|---|---|
+| `id` | `bigint` | нет |
 | `ticker` | `text` | нет |
 | `base_asset` | `text` | нет |
 | `quote_asset` | `text` | нет |

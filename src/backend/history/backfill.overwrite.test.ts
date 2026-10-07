@@ -33,7 +33,7 @@ const bar = (i: number): Candle => ({
  */
 describe('the backfill counts what it overwrote', () => {
     it('separates filling a gap from replacing a stored bar', async () => {
-        const symbol = `BF${Date.now().toString(36).toUpperCase()}`;
+        const symbol = `BF${Date.now().toString(36).toUpperCase()}USDT`;
         const key = { provider: 'test', symbol, interval: '1d' };
         const repository = createCandleRepository();
 
@@ -69,7 +69,7 @@ describe('the backfill counts what it overwrote', () => {
     }, 30_000);
 
     it('reports zero when the run only fills gaps', async () => {
-        const symbol = `BG${Date.now().toString(36).toUpperCase()}`;
+        const symbol = `BG${Date.now().toString(36).toUpperCase()}USDT`;
         const key = { provider: 'test', symbol, interval: '1d' };
         const repository = createCandleRepository();
 
@@ -103,7 +103,7 @@ describe('the backfill counts what it overwrote', () => {
     }, 30_000);
 
     it('never reports more overwritten than written', async () => {
-        const symbol = `BH${Date.now().toString(36).toUpperCase()}`;
+        const symbol = `BH${Date.now().toString(36).toUpperCase()}USDT`;
         const key = { provider: 'test', symbol, interval: '1d' };
         const repository = createCandleRepository();
 
