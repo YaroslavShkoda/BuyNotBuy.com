@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { seedTestInstrument } from '../test-support/test-database.js';
 import type { Candle } from '../types/market.js';
 import { runBackfill } from './backfill.service.js';
 import { createCandleRepository } from './candle.repository.js';
@@ -36,6 +37,8 @@ describe('the backfill counts what it overwrote', () => {
         const key = { provider: 'test', symbol, interval: '1d' };
         const repository = createCandleRepository();
 
+        await seedTestInstrument(symbol);
+
         // Three bars already stored: indices 0, 1, 2.
         await repository.bulkUpsert(key, [bar(0), bar(1), bar(2)]);
 
@@ -70,6 +73,8 @@ describe('the backfill counts what it overwrote', () => {
         const key = { provider: 'test', symbol, interval: '1d' };
         const repository = createCandleRepository();
 
+        await seedTestInstrument(symbol);
+
         await repository.bulkUpsert(key, [bar(0), bar(1), bar(2)]);
 
         // Strictly older than anything stored: a pure gap fill.
@@ -101,6 +106,8 @@ describe('the backfill counts what it overwrote', () => {
         const symbol = `BH${Date.now().toString(36).toUpperCase()}`;
         const key = { provider: 'test', symbol, interval: '1d' };
         const repository = createCandleRepository();
+
+        await seedTestInstrument(symbol);
         const provider = {
             getHistoricalCandles: async () => [],
             getAttributedCandles: async () => ({

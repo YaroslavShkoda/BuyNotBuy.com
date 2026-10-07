@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { getTestPool, truncateSignalTables } from '../test-support/test-database.js';
+import {
+    getTestPool,
+    seedTestInstrument,
+    truncateSignalTables,
+} from '../test-support/test-database.js';
 import { createEvidenceReader } from './evidence.repository.js';
 
 const DAY = 86_400_000;
@@ -28,6 +32,8 @@ describe('what a rule has actually done', () => {
      * signal gets its own market instead of fighting that index.
      */
     const aSignal = async (series: string, versionId: number): Promise<string> => {
+        await seedTestInstrument(series);
+
         const snap = await pool.query<{ id: string }>(
             `INSERT INTO signal_snapshot
                  (symbol, provider, interval, strategy_version_id, input_hash,
@@ -91,10 +97,10 @@ describe('what a rule has actually done', () => {
         // times, lets a rule clear a twenty-sample gate on three signals, and
         // reports nothing wrong at any step: every row is real and every count
         // is true. Only the evidence is smaller than it looks.
-        const stateId = await aSignal('SYM-A', version);
+        const stateId = await aSignal('SYMAUSDT', version);
 
         for (const horizon of [1, 3, 6, 12, 24, 48, 72]) {
-            await measured('SYM-A', stateId, version, 'correct', horizon);
+            await measured('SYMAUSDT', stateId, version, 'correct', horizon);
         }
 
         const evidence = await reader.evidenceFor(version, 6, null);
@@ -108,10 +114,10 @@ describe('what a rule has actually done', () => {
         // A signal can be right at six bars and wrong at seventy-two. Reading
         // every horizon at once would let a rule pick the distance that flatters
         // it, which is the same as having no rule at all.
-        const stateId = await aSignal('SYM-B', version);
+        const stateId = await aSignal('SYMBUSDT', version);
 
-        await measured('SYM-B', stateId, version, 'correct', 6);
-        await measured('SYM-B', stateId, version, 'incorrect', 72);
+        await measured('SYMBUSDT', stateId, version, 'correct', 6);
+        await measured('SYMBUSDT', stateId, version, 'incorrect', 72);
 
         const atSix = await reader.evidenceFor(version, 6, null);
         const atSeventyTwo = await reader.evidenceFor(version, 72, null);
@@ -127,7 +133,7 @@ describe('what a rule has actually done', () => {
         // silently drops the ones whose horizon has not closed. That makes
         // "wait for more signals" report that enough have already arrived, and
         // turns a rule that needs time into a rule that has had it.
-        await aSignal('SYM-C', version);
+        await aSignal('SYMCUSDT', version);
 
         const evidence = await reader.evidenceFor(version, 6, null);
 
@@ -136,11 +142,11 @@ describe('what a rule has actually done', () => {
     });
 
     it('does not count an unresolved verdict as an answer', async () => {
-        const ranOut = await aSignal('SYM-D', version);
-        const answered = await aSignal('SYM-E', version);
+        const ranOut = await aSignal('SYMDUSDT', version);
+        const answered = await aSignal('SYMEUSDT', version);
 
-        await measured('SYM-D', ranOut, version, 'expired', 6);
-        await measured('SYM-E', answered, version, 'correct', 6);
+        await measured('SYMDUSDT', ranOut, version, 'expired', 6);
+        await measured('SYMEUSDT', answered, version, 'correct', 6);
 
         const evidence = await reader.evidenceFor(version, 6, null);
 

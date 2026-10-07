@@ -1,11 +1,11 @@
-import type { IndicatorSignalOverrides, ResolvedIndicatorSignalConfig } from '../config/indicator.config.js';
-
+import type { ResolvedIndicatorSignalConfig } from '../config/indicator.config.js';
 import {
     emaDisplayName,
     INDICATOR_SIGNAL_CONFIG,
     indicatorConfig,
     momentumDisplayName,
 } from '../config/indicator.config.js';
+import type { IndicatorSignalOverrides } from '../config/strategy.profile.js';
 import type { MarketIndicators } from '../indicators/indicator.service.js';
 import {
     calculateConsensus,

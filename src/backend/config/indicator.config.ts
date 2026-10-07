@@ -2,8 +2,6 @@ import { z } from 'zod';
 import type { IndicatorSignalOverrides as ProfileIndicatorSignalOverrides } from './strategy.profile.js';
 import { strategyProfile, strategyProfileName } from './strategy.profile.js';
 
-export type IndicatorSignalOverrides = ProfileIndicatorSignalOverrides;
-
 const IndicatorConfigSchema = z
     .object({
         emaPeriod: z.number().int().positive(),
@@ -138,7 +136,7 @@ const IndicatorOverridesSchema = z.record(
 
 export const INDICATOR_ASSET_CONFIG = IndicatorOverridesSchema.parse(
     strategyProfile.indicators.assetSignalOverrides,
-) as Record<string, IndicatorSignalOverrides>;
+) as Record<string, ProfileIndicatorSignalOverrides>;
 
 for (const [instrument, override] of Object.entries(INDICATOR_ASSET_CONFIG)) {
     try {
@@ -192,7 +190,7 @@ export function signalConfigFor(instrument: string): ResolvedIndicatorSignalConf
 
 export function resolveSignalConfig(
     instrument: string,
-    assetOverrides: Record<string, IndicatorSignalOverrides>,
+    assetOverrides: Record<string, ProfileIndicatorSignalOverrides>,
 ): ResolvedIndicatorSignalConfig {
     const override = assetOverrides[instrument.toUpperCase()];
 
@@ -212,7 +210,7 @@ export function resolveSignalConfig(
 
 export function hasAssetSignalConfig(
     instrument: string,
-    assetOverrides: Record<string, IndicatorSignalOverrides> = INDICATOR_ASSET_CONFIG,
+    assetOverrides: Record<string, ProfileIndicatorSignalOverrides> = INDICATOR_ASSET_CONFIG,
 ): boolean {
     return assetOverrides[instrument.toUpperCase()] !== undefined;
 }

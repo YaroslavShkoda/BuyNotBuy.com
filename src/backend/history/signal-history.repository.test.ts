@@ -381,6 +381,22 @@ describe('signal history schema', () => {
                     migrations.LATEST_SCHEMA_VERSION,
                 );
 
+                for (const [symbol, category] of [
+                    ['BTC', 'crypto'],
+                    ['USDT', 'crypto'],
+                ] as const) {
+                    await pool.query(
+                        `INSERT INTO asset (symbol, category, status, source, decided_at)
+                         VALUES ($1, $2, 'active', 'configured', 0)
+                         ON CONFLICT (symbol) DO NOTHING`,
+                        [symbol, category],
+                    );
+                }
+                await pool.query(
+                    `INSERT INTO instrument (ticker, base_asset, quote_asset, market_kind)
+                     VALUES ('BTCUSDT', 'BTC', 'USDT', 'crypto')`,
+                );
+
                 // The tables the repository needs are the ones the migrations
                 // created — nothing else creates them.
                 const tables = await pool.query<{ name: string | null }>(

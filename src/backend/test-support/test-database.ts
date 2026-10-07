@@ -81,6 +81,33 @@ export function getTestPool(): Pool {
     return getPool();
 }
 
+/** Adds one valid canonical instrument to this test file's isolated schema. */
+export async function seedTestInstrument(ticker: string): Promise<void> {
+    const normalized = ticker.toUpperCase();
+    const base = normalized.slice(0, -2);
+    const quote = normalized.slice(-2);
+
+    if (base.length < 2 || base.length > 12 || base === quote) {
+        throw new Error(`Test ticker cannot be represented as an instrument: ${ticker}`);
+    }
+
+    for (const symbol of [base, quote]) {
+        await query(
+            `INSERT INTO asset (symbol, category, status, source, decided_at)
+             VALUES ($1, 'crypto', 'active', 'configured', 0)
+             ON CONFLICT (symbol) DO NOTHING`,
+            [symbol],
+        );
+    }
+
+    await query(
+        `INSERT INTO instrument (ticker, base_asset, quote_asset, market_kind)
+         VALUES ($1, $2, $3, 'crypto')
+         ON CONFLICT (ticker) DO NOTHING`,
+        [normalized, base, quote],
+    );
+}
+
 export async function truncateSignalTables(): Promise<void> {
     await query(
         // `signal_snapshot` was missing from this list, and a table that is not

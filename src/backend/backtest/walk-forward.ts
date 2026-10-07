@@ -1,5 +1,4 @@
 import type {
-    IndicatorSignalOverrides,
     ResolvedIndicatorSignalConfig,
 } from '../config/indicator.config.js';
 import {
@@ -7,6 +6,7 @@ import {
     requiredCandleCount,
     STOCHASTIC_THRESHOLD_GRID,
 } from '../config/indicator.config.js';
+import type { IndicatorSignalOverrides } from '../config/strategy.profile.js';
 import type { Candle } from '../types/market.js';
 import type { ExecutionConfig } from './execution.js';
 import { EXECUTION_CONFIG, fillPrice, roundTripCost } from './execution.js';
