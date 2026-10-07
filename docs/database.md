@@ -87,12 +87,12 @@
 
 | столбец | тип | null |
 |---|---|---|
-| `id` | `bigint` | нет |
 | `ticker` | `text` | нет |
 | `base_asset` | `text` | нет |
 | `quote_asset` | `text` | нет |
 | `market_kind` | `text` | нет |
 | `status` | `text` | нет |
+| `id` | `bigint` | нет |
 
 Ограничения:
 
