@@ -76,6 +76,7 @@
 | `fwd_return_1h` | `double precision` | да |
 | `fwd_return_4h` | `double precision` | да |
 | `fwd_return_24h` | `double precision` | да |
+| `instrument_id` | `bigint` | да |
 
 Ограничения:
 

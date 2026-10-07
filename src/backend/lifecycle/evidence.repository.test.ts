@@ -159,13 +159,13 @@ describe('what a rule has actually done', () => {
     });
 
     it('compares against the incumbent and not against itself', async () => {
-        const mine = await aSignal('SYM-F', version);
-        const second = await aSignal('SYM-G', version);
-        const theirs = await aSignal('SYM-H', other);
+        const mine = await aSignal('SYMFUSDT', version);
+        const second = await aSignal('SYMGUSDT', version);
+        const theirs = await aSignal('SYMHUSDT', other);
 
-        await measured('SYM-F', mine, version, 'correct', 6);
-        await measured('SYM-G', second, version, 'incorrect', 6);
-        await measured('SYM-H', theirs, other, 'correct', 6);
+        await measured('SYMFUSDT', mine, version, 'correct', 6);
+        await measured('SYMGUSDT', second, version, 'incorrect', 6);
+        await measured('SYMHUSDT', theirs, other, 'correct', 6);
 
         const evidence = await reader.evidenceFor(version, 6, other);
 

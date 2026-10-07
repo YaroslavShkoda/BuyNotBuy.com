@@ -84,10 +84,14 @@ export function getTestPool(): Pool {
 /** Adds one valid canonical instrument to this test file's isolated schema. */
 export async function seedTestInstrument(ticker: string): Promise<void> {
     const normalized = ticker.toUpperCase();
-    const base = normalized.slice(0, -2);
-    const quote = normalized.slice(-2);
+    const quote = ['USDT', 'USDC', 'USD', 'EUR', 'BTC'].find((suffix) =>
+        normalized.endsWith(suffix),
+    ) ?? 'USDT';
+    const base = normalized.endsWith(quote)
+        ? normalized.slice(0, -quote.length)
+        : normalized;
 
-    if (base.length < 2 || base.length > 12 || base === quote) {
+    if (!/^[A-Z0-9]{2,12}$/.test(base) || base === quote) {
         throw new Error(`Test ticker cannot be represented as an instrument: ${ticker}`);
     }
 
