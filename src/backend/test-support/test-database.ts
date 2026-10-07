@@ -106,6 +106,58 @@ beforeAll(async () => {
     // The tables the service writes into are the tables the tests assert on,
     // so the schema has to be the one migrations run against.
     await applyMigrations();
+
+    // Repository integration tests exercise persistence directly, without
+    // booting the application that normally seeds this reference data. Keep a
+    // small canonical test registry so the instrument foreign-key triggers
+    // enforce the same invariant in tests as they do after application boot.
+    const assets = [
+        ['BTC', 'crypto'],
+        ['ETH', 'crypto'],
+        ['XRP', 'crypto'],
+        ['SOL', 'crypto'],
+        ['ADA', 'crypto'],
+        ['DOGE', 'crypto'],
+        ['USDT', 'crypto'],
+        ['USDC', 'crypto'],
+        ['USD', 'fiat'],
+        ['EUR', 'fiat'],
+        ['ZZZ', 'crypto'],
+    ] as const;
+
+    for (const [symbol, category] of assets) {
+        await query(
+            `INSERT INTO asset (symbol, category, status, source, decided_at)
+             VALUES ($1, $2, 'active', 'configured', 0)
+             ON CONFLICT (symbol) DO NOTHING`,
+            [symbol, category],
+        );
+    }
+
+    const instruments = [
+        ['BTCUSDT', 'BTC', 'USDT', 'crypto'],
+        ['ETHUSDT', 'ETH', 'USDT', 'crypto'],
+        ['XRPUSDT', 'XRP', 'USDT', 'crypto'],
+        ['SOLUSDT', 'SOL', 'USDT', 'crypto'],
+        ['ADAUSDT', 'ADA', 'USDT', 'crypto'],
+        ['DOGEUSDT', 'DOGE', 'USDT', 'crypto'],
+        ['BTCUSDC', 'BTC', 'USDC', 'crypto'],
+        ['ETHBTC', 'ETH', 'BTC', 'crypto'],
+        ['XRPBTC', 'XRP', 'BTC', 'crypto'],
+        ['BTCUSD', 'BTC', 'USD', 'fiat'],
+        ['ETHUSD', 'ETH', 'USD', 'fiat'],
+        ['EURUSD', 'EUR', 'USD', 'fiat'],
+        ['ZZZUSD', 'ZZZ', 'USD', 'fiat'],
+    ] as const;
+
+    for (const [ticker, base, quote, marketKind] of instruments) {
+        await query(
+            `INSERT INTO instrument (ticker, base_asset, quote_asset, market_kind)
+             VALUES ($1, $2, $3, $4)
+             ON CONFLICT (ticker) DO NOTHING`,
+            [ticker, base, quote, marketKind],
+        );
+    }
 });
 
 /**
