@@ -48,7 +48,7 @@ export const STAGES = [
     'production',
 ] as const;
 
-export type Stage = (typeof STAGES)[number];
+type Stage = (typeof STAGES)[number];
 
 /**
  * Which stages a request serving a page may run.
@@ -91,7 +91,7 @@ export function isRuntimeStage(stage: Stage): boolean {
     return STAGE_SIDE[stage] === 'runtime';
 }
 
-export interface StageReport {
+interface StageReport {
     readonly stage: Stage;
     readonly side: 'runtime' | 'research';
     /** What the stage actually produced, in its own words. */
@@ -100,7 +100,7 @@ export interface StageReport {
     readonly measured: Readonly<Record<string, number | string | boolean>>;
 }
 
-export interface LabRun {
+interface LabRun {
     readonly stages: readonly StageReport[];
     readonly dataset: ReturnType<typeof summarize>;
     readonly splits: {
@@ -126,7 +126,7 @@ export interface LabRun {
     readonly why: string;
 }
 
-export interface LabOptions {
+interface LabOptions {
     featureConfig?: FeatureConfig;
     datasetConfig?: typeof DEFAULT_DATASET_CONFIG;
     walkForward?: Partial<WalkForwardOptions>;

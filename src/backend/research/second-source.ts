@@ -37,7 +37,7 @@ import type { Candle } from '../types/market.js';
 import type { PermutationResult } from './signal-power.js';
 import { forwardReturns, permutationPValue } from './signal-power.js';
 
-export interface SourceComparison {
+interface SourceComparison {
     readonly label: string;
     readonly bars: number;
     readonly first: number;

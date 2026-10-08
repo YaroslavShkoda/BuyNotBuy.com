@@ -5,13 +5,13 @@ import type {
 import { createBoundedWriteBuffer } from '../observability/bounded-write-buffer.js';
 import type { SignalHistoryEntry } from './signal-history.types.js';
 
-export interface SignalHistoryWriteBufferOptions {
+interface SignalHistoryWriteBufferOptions {
     /** Hard ceiling on buffered entries; oldest are dropped past this. */
     maxSize: number;
     now?: () => number;
 }
 
-export interface SignalHistoryWriteBuffer {
+interface SignalHistoryWriteBuffer {
     push(entry: SignalHistoryEntry): void;
     /** Oldest first, removed from the buffer as they are returned. */
     drain(): SignalHistoryEntry[];

@@ -42,14 +42,14 @@
 import type { StrategyModule } from '../strategies/types.js';
 import type { Candle } from '../types/market.js';
 
-export interface Bin {
+interface Bin {
     readonly label: string;
     readonly lower: number;
     readonly upper: number;
 }
 
 /** Fixed, round bins, because a binning chosen after seeing the data is a result. */
-export const CONFIDENCE_BINS: readonly Bin[] = [
+const CONFIDENCE_BINS: readonly Bin[] = [
     { label: '0.00–0.10', lower: 0, upper: 0.1 },
     { label: '0.10–0.20', lower: 0.1, upper: 0.2 },
     { label: '0.20–0.30', lower: 0.2, upper: 0.3 },
@@ -61,7 +61,7 @@ export const CONFIDENCE_BINS: readonly Bin[] = [
     { label: '0.80–1.00', lower: 0.8, upper: 1.01 },
 ];
 
-export interface BinReading {
+interface BinReading {
     readonly label: string;
     readonly bars: number;
     /** Share of bars in this bin whose next bar went up. */

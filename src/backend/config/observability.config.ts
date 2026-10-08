@@ -27,7 +27,7 @@ const ObservabilityConfigSchema = z.object({
     metricLabelLimit: z.coerce.number().int().min(4).max(64),
 });
 
-export type ObservabilityConfig = z.infer<typeof ObservabilityConfigSchema>;
+type ObservabilityConfig = z.infer<typeof ObservabilityConfigSchema>;
 
 export const observabilityConfig: ObservabilityConfig = ObservabilityConfigSchema.parse({
     requestIdHeader:

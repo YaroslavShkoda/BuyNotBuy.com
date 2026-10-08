@@ -12,7 +12,7 @@ import { calculateEMA } from './ema.js';
  * The reading is returned as a fraction, not a currency amount, so it can be
  * compared between instruments and rendered as a percentage.
  */
-export interface MacdResult {
+interface MacdResult {
     macd: number;
     signal: number;
     histogram: number;

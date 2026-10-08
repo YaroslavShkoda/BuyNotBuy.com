@@ -14,7 +14,7 @@ import { createMarketWorkers, type MarketWorkers } from './workers.js';
  * reverse. None of those steps know about HTTP, so none of them live in the
  * server file anymore; this file is where they learn their order.
  */
-export interface Runtime {
+interface Runtime {
     start(): Promise<void>;
 }
 

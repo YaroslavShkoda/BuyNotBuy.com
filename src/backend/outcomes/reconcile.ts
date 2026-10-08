@@ -30,7 +30,7 @@ import type { OutcomeRepository } from './outcome.repository.js';
  * measure the wrong one, and the series key is the thing that makes a
  * measurement attributable.
  */
-export interface SettleSeries {
+interface SettleSeries {
     readonly key: SeriesKey;
     /** Every bar available now, oldest first. Anything before an entry is ignored. */
     readonly candles: readonly Candle[];
@@ -48,7 +48,7 @@ export interface SettleSeries {
     readonly dataQuality?: number | null;
 }
 
-export interface SettleReport {
+interface SettleReport {
     /** Closed signals this pass looked at. */
     readonly examined: number;
     /** Rows written, horizons included: one signal at seven horizons is seven. */
@@ -101,7 +101,7 @@ export function closedByFor(status: string): 'invalidated' | 'expired' | 'revers
  * a plausible version instead would attach a measurement to a rule on the
  * strength of a coincidence.
  */
-export type VersionResolver = (snapshotId: string) => Promise<number | null>;
+type VersionResolver = (snapshotId: string) => Promise<number | null>;
 
 export async function reconcileSignalOutcomes(
     series: SettleSeries,

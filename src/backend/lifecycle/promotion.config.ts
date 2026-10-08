@@ -18,7 +18,7 @@ import { outcomeConfig } from '../config/outcome.config.js';
  * be accountable for once it starts losing money.
  */
 
-export const PromotionConfigSchema = z
+const PromotionConfigSchema = z
     .object({
         /** How long a rule must sit in shadow before it can be considered. */
         shadowMinimumMs: z.coerce.number().int().positive(),
@@ -94,7 +94,7 @@ export const PromotionConfigSchema = z
         },
     );
 
-export type PromotionConfig = z.infer<typeof PromotionConfigSchema>;
+type PromotionConfig = z.infer<typeof PromotionConfigSchema>;
 
 export const DEFAULT_PROMOTION_CONFIG: PromotionConfig =
     PromotionConfigSchema.parse({
@@ -130,7 +130,7 @@ export const DEFAULT_PROMOTION_CONFIG: PromotionConfig =
  * whose doc comment carried the two-ladder disagreement the removal settles.
  */
 
-export const RuleEvidenceSchema = z.object({
+const RuleEvidenceSchema = z.object({
     /** Signals the rule actually produced, resolved or not. */
     signals: z.coerce.number().int().nonnegative(),
     /** Resolved ones — an unresolved signal is a question, not an answer. */

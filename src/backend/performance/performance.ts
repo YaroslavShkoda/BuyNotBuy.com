@@ -245,7 +245,7 @@ export interface Bucket {
     readonly metrics: Metrics;
 }
 
-export interface ConfidenceBuckets {
+interface ConfidenceBuckets {
     readonly buckets: readonly Bucket[];
     /**
      * How much of the sample the buckets could not place.
@@ -309,7 +309,7 @@ export function confidenceBuckets(
     return { buckets, unplaced };
 }
 
-export type GroupedPerformance = ReadonlyMap<string, Metrics>;
+type GroupedPerformance = ReadonlyMap<string, Metrics>;
 
 /**
  * Groups by any key, skipping absent values.
@@ -396,7 +396,7 @@ export function byIndicator(
     return result;
 }
 
-export interface CombinationValue {
+interface CombinationValue {
     readonly metrics: Metrics;
     /** The same set of indicators, without the one being removed. */
     readonly lift: number | null;

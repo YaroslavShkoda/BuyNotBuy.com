@@ -46,12 +46,12 @@ import type { AnalysisTelemetryLogger } from './analysis.telemetry.js';
  * why it now takes one.
  */
 
-export interface MarketCycleLogger {
+interface MarketCycleLogger {
     warn(context: Record<string, unknown>, message: string): void;
     info(context: Record<string, unknown>, message: string): void;
 }
 
-export interface MarketCycleDeps {
+interface MarketCycleDeps {
     /** Telemetry, history and votes all took `app.log` in the old closure. */
     readonly logger: AnalysisTelemetryLogger &
         SignalHistoryLogger &
@@ -73,7 +73,7 @@ export interface MarketCycleDeps {
  * A summary rather than nothing, because "two markets, no bleed" is only a test
  * if the cycle says which rows it wrote.
  */
-export interface MarketObservation {
+interface MarketObservation {
     readonly market: string;
     readonly candles: number;
     readonly provider: string;
@@ -309,12 +309,12 @@ export async function observeMarket(
 }
 
 /** One market whose cycle did not finish, and what it threw. */
-export interface MarketFailure {
+interface MarketFailure {
     readonly market: string;
     readonly error: unknown;
 }
 
-export interface MarketsResult {
+interface MarketsResult {
     /** Markets whose cycle ran to the end, in the order given. */
     readonly observed: readonly string[];
     /** Markets that threw, in the order they failed. */

@@ -56,13 +56,13 @@ function lockKeyOf(key: string): number {
  * an edge. `app.log` satisfies it structurally, like it satisfies the
  * poller's.
  */
-export interface LeaseLogger {
+interface LeaseLogger {
     info(context: Record<string, unknown>, message: string): void;
     error(context: Record<string, unknown>, message: string): void;
     warn?(context: Record<string, unknown>, message: string): void;
 }
 
-export interface LeaseOptions {
+interface LeaseOptions {
     /** Name of the guarded resource, hashed into the lock and kept for logs. */
     readonly key: string;
     readonly logger: LeaseLogger;
@@ -70,7 +70,7 @@ export interface LeaseOptions {
     readonly connect?: () => Promise<PoolClient>;
 }
 
-export interface Lease {
+interface Lease {
     /**
      * One cheap query per call, every cycle.
      *

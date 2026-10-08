@@ -69,8 +69,8 @@ if (retiredSettings.length > 0) {
 }
 
 /** Strategy policy is selected as one reviewed unit. */
-export const StrategyProfileNameSchema = z.enum(['baseline']);
-export type StrategyProfileName = z.infer<typeof StrategyProfileNameSchema>;
+const StrategyProfileNameSchema = z.enum(['baseline']);
+type StrategyProfileName = z.infer<typeof StrategyProfileNameSchema>;
 
 /**
  * The single shipped profile keeps today's strategy arithmetic intact.
@@ -78,7 +78,7 @@ export type StrategyProfileName = z.infer<typeof StrategyProfileNameSchema>;
  * and a reproducible backtest; operators select a profile instead of setting
  * each related threshold independently.
  */
-export const STRATEGY_PROFILES = {
+const STRATEGY_PROFILES = {
     baseline: {
         indicators: {
             periods: {
@@ -144,7 +144,7 @@ export const STRATEGY_PROFILES = {
     },
 } as const;
 
-export type StrategyProfile = (typeof STRATEGY_PROFILES)[StrategyProfileName];
+type StrategyProfile = (typeof STRATEGY_PROFILES)[StrategyProfileName];
 
 const selectedProfile = StrategyProfileNameSchema.parse(
     process.env.STRATEGY_PROFILE ?? 'baseline',

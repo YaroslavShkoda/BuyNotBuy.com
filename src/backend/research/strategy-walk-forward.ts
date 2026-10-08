@@ -28,7 +28,7 @@ import { runStrategy } from './strategies.js';
  * result but an absent one.
  */
 
-export interface StrategyFold {
+interface StrategyFold {
     readonly fold: number;
     readonly startIndex: number;
     readonly endIndex: number;
@@ -73,7 +73,7 @@ export interface WalkForwardVerdict {
     readonly reason: string;
 }
 
-export interface StrategyWalkForwardOptions {
+interface StrategyWalkForwardOptions {
     readonly foldBars: number;
     readonly execution?: ExecutionConfig;
     readonly barsPerYear?: number;

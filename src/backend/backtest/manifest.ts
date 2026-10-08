@@ -15,7 +15,7 @@ import type { WalkForwardOptions, WalkForwardResult } from './walk-forward.js';
  * happened.
  */
 
-export interface ManifestInput {
+interface ManifestInput {
     readonly name: string;
     readonly recordedAt: number;
     readonly dataset: DatasetInput;
@@ -39,7 +39,7 @@ export interface ManifestInput {
  * datasets that differed only in their prices the same name. See
  * `experimentId` for the rest.
  */
-export function buildManifest(input: ManifestInput): ExperimentManifest {
+function buildManifest(input: ManifestInput): ExperimentManifest {
     // Parsed without the id, because the id is what the parse produces: a
     // schema that demanded a name before anything had been measured would be
     // asking for the answer first.

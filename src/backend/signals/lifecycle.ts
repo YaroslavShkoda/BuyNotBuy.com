@@ -39,7 +39,7 @@ export interface SignalCandidate {
     readonly candleTimestamp: number;
 }
 
-export type SignalDecision =
+type SignalDecision =
     /** Nothing live, and the panel has an opinion: open a new signal. */
     | { readonly kind: 'open'; readonly direction: SignalDirection }
     /**
@@ -59,7 +59,7 @@ export type SignalDecision =
     /** The live signal has been stopped against itself. */
     | { readonly kind: 'invalidate' };
 
-export interface DecidedTransition {
+interface DecidedTransition {
     readonly decision: SignalDecision;
     readonly toStatus: SignalStatus | null;
     /** True when the decision must be written down as a transition. */

@@ -48,7 +48,7 @@ export interface EvaluationCandidate {
     readonly note: string;
 }
 
-export interface HoldoutStatus {
+interface HoldoutStatus {
     readonly committedAt: number;
     readonly minimumBars: number;
     readonly barsAvailable: number;

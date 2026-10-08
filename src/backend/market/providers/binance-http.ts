@@ -15,7 +15,7 @@ import {
  * tests read the way they always have.
  */
 
-export interface BinanceRequestOptions {
+interface BinanceRequestOptions {
     url: string;
     /** Path only, so it is safe to put in logs and never carries a secret. */
     endpoint: string;

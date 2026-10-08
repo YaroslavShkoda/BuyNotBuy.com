@@ -38,7 +38,7 @@
  */
 
 /** A candle reduced to the only field this rule looks at. */
-export interface Observation {
+interface Observation {
     readonly timestamp: number;
 }
 
@@ -54,7 +54,7 @@ const DAY_MS = 86_400_000;
  */
 export const MINIMUM_WINDOW_MS = 14 * DAY_MS;
 
-export type Classification =
+type Classification =
     | {
           readonly verdict: 'crypto';
           readonly confidence: 'observed';

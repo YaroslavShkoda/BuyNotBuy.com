@@ -28,7 +28,7 @@ const HistoryConfigSchema = z.object({
     },
 );
 
-export type HistoryConfig = z.infer<typeof HistoryConfigSchema>;
+type HistoryConfig = z.infer<typeof HistoryConfigSchema>;
 
 export const historyConfig: HistoryConfig = HistoryConfigSchema.parse({
     // One entry per hour: 24 entries cover the last 24 hours.

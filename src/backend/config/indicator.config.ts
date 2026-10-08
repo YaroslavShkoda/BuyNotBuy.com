@@ -28,7 +28,7 @@ const IndicatorConfigSchema = z
         path: ['macdFastPeriod'],
     });
 
-export type IndicatorConfig = z.infer<typeof IndicatorConfigSchema>;
+type IndicatorConfig = z.infer<typeof IndicatorConfigSchema>;
 
 const periods = strategyProfile.indicators.periods;
 
@@ -83,8 +83,6 @@ const IndicatorSignalConfigSchema = z
 
 export const INDICATOR_SIGNAL_CONFIG = strategyProfile.indicators.signal;
 IndicatorSignalConfigSchema.parse(INDICATOR_SIGNAL_CONFIG);
-
-export type IndicatorSignalConfig = typeof INDICATOR_SIGNAL_CONFIG;
 
 export interface ResolvedIndicatorSignalConfig {
     stochastic: {

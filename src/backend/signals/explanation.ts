@@ -27,7 +27,7 @@ import type { IndicatorAnalysis, IndicatorSignal } from './signal.types.js';
  * sure the indicator was, because the question is what explained the result
  * rather than what the panel believed.
  */
-export interface ConfidenceFactor {
+interface ConfidenceFactor {
     readonly key: string;
     /** Shown to a person. */
     readonly label: string;
@@ -58,7 +58,7 @@ export interface RegimeContext {
     readonly unreliable: string | null;
 }
 
-export interface QualityContext {
+interface QualityContext {
     readonly score: number;
     readonly usable: boolean;
     /** The factor that dragged the score down, when one did. */

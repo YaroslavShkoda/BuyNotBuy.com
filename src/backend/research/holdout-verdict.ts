@@ -39,7 +39,7 @@ import { isKnownMetric, protocolFingerprint } from './holdout-protocol.js';
  * writer that accepted "just the profit factor" would be the same hole with a
  * database round trip in front of it.
  */
-export interface SealHoldoutInput {
+interface SealHoldoutInput {
     /** Bars of the held-out window, in the order the reader received them. */
     readonly candles: readonly Candle[];
     /** The protocol as it stood for this read. Stored so a later reshuffle shows. */
@@ -51,7 +51,7 @@ export interface SealHoldoutInput {
     readonly now?: number;
 }
 
-export interface SealedHoldoutVerdict {
+interface SealedHoldoutVerdict {
     readonly id: 1;
     readonly createdAt: number;
     readonly protocolFingerprint: string;

@@ -248,13 +248,13 @@ export const INDEX_PURPOSES = [
     },
 ] as const;
 
-export interface IndexAuditStore {
+interface IndexAuditStore {
     declare(now: number): Promise<void>;
     list(): Promise<{ table: string; index: string; purpose: string; requiredBy: string }[]>;
     reconcile(): Promise<IndexReconciliation>;
 }
 
-export interface IndexReconciliation {
+interface IndexReconciliation {
     /** Declared here and missing from the database. */
     readonly missing: readonly { table: string; index: string; requiredBy: string }[];
     /** Present in the database and declared nowhere. */

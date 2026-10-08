@@ -71,7 +71,7 @@ export function createRandom(seed: number): () => number {
     };
 }
 
-export interface Interval {
+interface Interval {
     readonly low: number;
     readonly high: number;
     /** Share of resamples below zero. The one-sided reading of a confidence. */
@@ -99,7 +99,7 @@ function percentile(sorted: readonly number[], fraction: number): number {
     );
 }
 
-export interface BootstrapResult {
+interface BootstrapResult {
     readonly statistic: number;
     readonly interval: Interval;
     readonly resamples: number;
@@ -217,7 +217,7 @@ export function permutationTest(
     };
 }
 
-export interface PathResult {
+interface PathResult {
     readonly finalReturn: number;
     readonly maxDrawdown: number;
     /** Longest run of consecutive losing trades, in trades. */
@@ -266,7 +266,7 @@ export function pathOf(returns: readonly number[]): PathResult {
     };
 }
 
-export interface MonteCarloResult {
+interface MonteCarloResult {
     readonly median: PathResult;
     /** Every outcome, sorted by final return. */
     readonly outcomes: readonly PathResult[];

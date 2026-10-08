@@ -22,7 +22,7 @@ import type { Candle } from '../types/market.js';
  * needs are not a choice anyone should be making per call: the series, the
  * derived price arrays, and the market facts around them.
  */
-export interface IndicatorContext {
+interface IndicatorContext {
     /**
      * The series. Not readonly, because the calculators this was extracted
      * from take a mutable array and copying it once per indicator per request
@@ -58,7 +58,7 @@ export interface IndicatorValue {
     readonly extra?: Readonly<Record<string, number>>;
 }
 
-export type IndicatorRole =
+type IndicatorRole =
     /** Takes a side. Enters the consensus. */
     | 'vote'
     /** Describes the market. Never enters the consensus. */

@@ -158,7 +158,7 @@ const BitgetResponseSchema = z.object({
     data: z.unknown().optional(),
 });
 
-export interface BitgetProviderOptions {
+interface BitgetProviderOptions {
     baseUrl?: string;
     symbol?: string;
     /** Binance-style, e.g. `1h`. Translated to Bitget's own spelling. */

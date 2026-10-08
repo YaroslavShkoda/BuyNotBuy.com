@@ -32,12 +32,12 @@ import { createMetrics, judgeSnapshot } from './metrics.js';
  * running.
  */
 
-export interface DatabaseProbe {
+interface DatabaseProbe {
     /** Resolves if the database answers, rejects if it does not. */
     ping(): Promise<void>;
 }
 
-export interface MarketProbe {
+interface MarketProbe {
     /**
      * The oldest bar across the markets this process observes, named.
      *
@@ -52,7 +52,7 @@ export interface MarketProbe {
     interval(): string;
 }
 
-export interface SnapshotProbe {
+interface SnapshotProbe {
     ageMs(): number;
     /**
      * A cached snapshot is serving the answer, and the answer is right.
@@ -72,7 +72,7 @@ export interface SnapshotProbe {
     oldestMarket(): string | null;
 }
 
-export interface HealthRegistryOptions {
+interface HealthRegistryOptions {
     database: DatabaseProbe;
     /**
      * Optional, and defaulting to the process's own reading, which is the point.
@@ -179,7 +179,7 @@ function observedBarProbe(clock: () => number): SnapshotProbe {
     };
 }
 
-export interface HealthRegistry {
+interface HealthRegistry {
     metrics(): Metrics;
     incidents(): IncidentLog;
     report(): Promise<HealthReport>;

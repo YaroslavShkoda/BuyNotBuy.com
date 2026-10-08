@@ -53,7 +53,7 @@ import ts from 'typescript-5';
 const SKIPPED = new Set(['test-support', 'node_modules', '.next', 'fixtures']);
 
 /** Path prefixes, relative to src/backend, allowed to name a symbol in code. */
-export interface Exception {
+interface Exception {
     readonly path: string;
     readonly reason: string;
 }
@@ -81,7 +81,7 @@ export const EXCEPTIONS: readonly Exception[] = [
     },
 ];
 
-export type OccurrenceKind = 'code' | 'comment';
+type OccurrenceKind = 'code' | 'comment';
 
 /**
  * How a market got into the source.
@@ -91,9 +91,9 @@ export type OccurrenceKind = 'code' | 'comment';
  * already found the literals; the identifier axis was measured separately and
  * came back empty, and a measurement nobody can repeat is a memory.
  */
-export type OccurrenceVia = 'literal' | 'identifier';
+type OccurrenceVia = 'literal' | 'identifier';
 
-export interface Occurrence {
+interface Occurrence {
     readonly file: string;
     readonly line: number;
     readonly value: string;
@@ -133,7 +133,7 @@ export function looksLikeMarketDefault(name: string): boolean {
 }
 
 /** Either identifier axis, which the two functions above are the two halves of. */
-export function looksLikeMarketBinding(name: string): boolean {
+function looksLikeMarketBinding(name: string): boolean {
     return looksLikeMarketIdentifier(name) || looksLikeMarketDefault(name);
 }
 

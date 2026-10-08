@@ -2,7 +2,7 @@ import type { FastifyReply } from 'fastify';
 
 import type { MarketFreshness } from '../../market/market-freshness.js';
 
-export interface FreshnessHeaders {
+interface FreshnessHeaders {
     stale: boolean;
     ageMs: number;
     freshness: MarketFreshness;

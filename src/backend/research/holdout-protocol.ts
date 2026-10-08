@@ -63,7 +63,7 @@ export const METRIC_KEYS = [
     'maxDrawdown',
 ] as const;
 
-export type MetricKey = (typeof METRIC_KEYS)[number];
+type MetricKey = (typeof METRIC_KEYS)[number];
 
 export interface HoldoutProtocol {
     /** Which statistics will be reported. Decided before the window fills. */
@@ -87,7 +87,7 @@ export function protocolFingerprint(protocol: HoldoutProtocol): string {
     return `metrics=${metrics};note=${protocol.note.trim()}`;
 }
 
-export function readMetrics(metrics: BacktestMetrics): MetricReadings {
+function readMetrics(metrics: BacktestMetrics): MetricReadings {
     return {
         totalReturn: metrics.totalReturn,
         profitFactor: metrics.profitFactor,

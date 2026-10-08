@@ -49,7 +49,7 @@ export interface FallbackFailureContext {
     err: unknown;
 }
 
-export interface AnalysisStageDurations {
+interface AnalysisStageDurations {
     marketDataDurationMs: number;
     indicatorsDurationMs: number;
     divergenceDurationMs: number;
@@ -102,7 +102,7 @@ export type AnalysisFailedStage =
     | 'divergence'
     | 'signal';
 
-export interface AnalysisErrorContext {
+interface AnalysisErrorContext {
     totalDurationMs: number;
     failedStage: AnalysisFailedStage;
     marketDataDurationMs?: number;

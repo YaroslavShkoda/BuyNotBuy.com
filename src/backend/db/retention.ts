@@ -119,7 +119,7 @@ export const DEFAULT_RETENTION_POLICIES: readonly RetentionPolicy[] =
         },
     ]);
 
-export interface PrunePlan {
+interface PrunePlan {
     readonly table: string;
     readonly cutoff: number;
     readonly keepDays: number;
@@ -139,7 +139,7 @@ export function cutoffFor(policy: RetentionPolicy, now: number): number {
     return now - policy.keepDays * 86_400_000;
 }
 
-export interface Plan {
+interface Plan {
     readonly applicable: readonly PrunePlan[];
     readonly refused: readonly { table: string; reason: string }[];
 }
@@ -179,7 +179,7 @@ export function planPrune(
     return { applicable, refused };
 }
 
-export interface UnknownTableReport {
+interface UnknownTableReport {
     readonly known: boolean;
     readonly reason: string;
 }

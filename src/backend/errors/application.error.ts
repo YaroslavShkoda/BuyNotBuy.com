@@ -10,7 +10,7 @@ export type ErrorCode =
     | 'NOT_FOUND'
     | 'INTERNAL_ERROR';
 
-export interface ApplicationErrorOptions {
+interface ApplicationErrorOptions {
     code: ErrorCode;
     statusCode: number;
     cause?: unknown;

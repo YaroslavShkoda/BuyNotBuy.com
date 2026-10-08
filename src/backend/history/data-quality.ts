@@ -26,7 +26,7 @@ export type QualityFactor =
     | 'venue'
     | 'validation';
 
-export interface QualityBreakdown {
+interface QualityBreakdown {
     readonly factor: QualityFactor;
     /** 0 means unusable, 1 means perfect. */
     readonly score: number;
@@ -34,7 +34,7 @@ export interface QualityBreakdown {
     readonly detail: string;
 }
 
-export interface DataQuality {
+interface DataQuality {
     /** 0..1. The mean of the factor scores. */
     readonly score: number;
     /** The floor. The mean alone hides a series that is fine everywhere except one hole. */
@@ -50,7 +50,7 @@ export interface DataQuality {
     readonly blockedBy: QualityFactor | null;
 }
 
-export interface DataQualityInput {
+interface DataQualityInput {
     readonly candles: readonly Candle[];
     readonly now: number;
     readonly intervalMs: number;
@@ -80,7 +80,7 @@ export interface DataQualityInput {
 }
 
 export const DEFAULT_REQUIRED_BARS = 200;
-export const DEFAULT_USABLE_THRESHOLD = 0.6;
+const DEFAULT_USABLE_THRESHOLD = 0.6;
 
 /**
  * The worst factor decides usability, not the mean.

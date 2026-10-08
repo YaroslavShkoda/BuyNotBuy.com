@@ -13,7 +13,7 @@ import type { CircuitBreakerState } from './circuit-breaker.js';
  * serving a five-minute-old price from a venue that has been refusing for an
  * hour without anybody noticing.
  */
-export type ProviderHealthState =
+type ProviderHealthState =
     /** Answered recently, no failures since. */
     | 'healthy'
     /** Answered, but not for a while. Suspect, not broken. */
@@ -27,7 +27,7 @@ export type ProviderHealthState =
     /** Worked before and is failing now. */
     | 'recovering';
 
-export interface ProviderHealthSnapshot {
+interface ProviderHealthSnapshot {
     provider: string;
     /** The market this record is about. Not implied by the venue. */
     market: string;
@@ -51,7 +51,7 @@ export interface ProviderHealthSnapshot {
     available: boolean;
 }
 
-export interface ProviderFailureReport {
+interface ProviderFailureReport {
     httpStatus?: number | undefined;
     /** True when the failure was a refusal to try again, not an outage. */
     definitive?: boolean | undefined;

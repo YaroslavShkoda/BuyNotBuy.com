@@ -73,7 +73,7 @@ export const REGIME_LEVELS = [
     'LOW_VOL',
 ] as const;
 
-export type RegimeLevel = (typeof REGIME_LEVELS)[number];
+type RegimeLevel = (typeof REGIME_LEVELS)[number];
 
 export function regimeLevel(value: number): RegimeLevel {
     return REGIME_LEVELS[value] ?? 'RANGE';

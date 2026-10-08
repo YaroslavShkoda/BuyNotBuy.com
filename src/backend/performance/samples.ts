@@ -34,7 +34,7 @@ import type {
  * mean anything, and the verdict `expired` is precisely the record of one where
  * they did not.
  */
-export interface ResolvedHorizon {
+interface ResolvedHorizon {
     readonly bars: number;
     readonly outcome: HorizonOutcome;
     /** Whether this horizon may be used, judged at `asOf`. */
@@ -88,7 +88,7 @@ export interface OutcomeWithPublication {
  * rows and reports the rest as "the performance" is the most dangerous shape
  * this function can return, because every number in it is true.
  */
-export interface PerformanceReport {
+interface PerformanceReport {
     readonly samples: readonly PerformanceSample[];
     /** Resolved signals that were measured. */
     readonly measured: number;

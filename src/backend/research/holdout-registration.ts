@@ -26,7 +26,7 @@ import { fromModule } from './strategies.js';
  * are different sentences and collapsing them would make "we looked again and
  * adjusted" indistinguishable from "we predicted and were wrong".
  */
-export interface RegisteredRule {
+interface RegisteredRule {
     readonly key: string;
     readonly note: string;
     /** Frozen at registration. Read back to detect a rule edited since. */

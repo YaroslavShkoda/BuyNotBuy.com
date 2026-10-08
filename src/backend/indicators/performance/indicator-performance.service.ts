@@ -109,7 +109,7 @@ const HOUR_MS_BY_HORIZON: Record<ForwardHorizon, number> = {
     '24h': FORWARD_HORIZONS['24h'] * HOUR_MS,
 };
 
-export interface SettleSummary {
+interface SettleSummary {
     /** Votes that still had at least one horizon waiting. */
     examined: number;
     /** Individual horizon values written, so one vote can add up to three. */

@@ -35,14 +35,14 @@ import { NEUTRAL_DECISION } from './types.js';
  * it, and does not prove it.
  */
 
-export interface VolatilityTrendConfig {
+interface VolatilityTrendConfig {
     /** ATR period. */
     readonly atrPeriod: number;
     /** Bars averaged to make the volatility benchmark. */
     readonly baselinePeriod: number;
 }
 
-export const VOLATILITY_TREND_CONFIG: VolatilityTrendConfig = {
+const VOLATILITY_TREND_CONFIG: VolatilityTrendConfig = {
     atrPeriod: 14,
     baselinePeriod: 40,
 };

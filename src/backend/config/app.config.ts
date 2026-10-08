@@ -56,7 +56,7 @@ const AppConfigSchema = z.object({
     trustProxy: z.boolean(),
 });
 
-export type AppConfig = z.infer<typeof AppConfigSchema>;
+type AppConfig = z.infer<typeof AppConfigSchema>;
 
 function parseCorsOrigins(raw: string | undefined): string[] {
     return (raw ?? '')

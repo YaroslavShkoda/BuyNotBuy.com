@@ -23,7 +23,7 @@ const STOP_REASONS: Record<BackfillResult['reason'], string> = {
     budget_exhausted: 'исчерпан бюджет свечей',
 };
 
-export interface BackfillReportInput {
+interface BackfillReportInput {
     readonly result: BackfillResult;
     readonly series: { provider: string; symbol: string; interval: string };
     readonly requested?: { until?: number; maxCandles?: number };

@@ -34,7 +34,7 @@ import { DEFAULT_FEATURE_CONFIG, FEATURE_NAMES, featureVersion } from './feature
  * that "byte for byte" is checkable rather than hoped for.
  */
 
-export const DATASET_SCHEMA_VERSION = 'ds1';
+const DATASET_SCHEMA_VERSION = 'ds1';
 
 export const DatasetRowSchema = z.object({
     /** Fixed order: FEATURE_NAMES. A map here would let a row be reordered. */
@@ -54,7 +54,7 @@ export const DatasetRowSchema = z.object({
 
 export type DatasetRow = z.infer<typeof DatasetRowSchema>;
 
-export interface DatasetConfig extends FeatureConfig {
+interface DatasetConfig extends FeatureConfig {
     symbol: string;
     /** Bars ahead the label looks. */
     horizonBars: number;
@@ -96,7 +96,7 @@ export function labelFor(
     return { label: outcome > 0 ? 1 : 0, outcome };
 }
 
-export interface BuildOptions {
+interface BuildOptions {
     /** Confidence per bar, carried into the vector as a feature. */
     confidences?: readonly number[];
     /** Bar-by-bar regime names, for the row's readable column. */
@@ -262,7 +262,7 @@ export function splitByTime(
     };
 }
 
-export interface Matrix {
+interface Matrix {
     /** Rows by FEATURE_NAMES, in that order. */
     readonly x: number[][];
     readonly y: number[];
@@ -295,7 +295,7 @@ export function toMatrix(
     };
 }
 
-export interface DatasetSummary {
+interface DatasetSummary {
     readonly rows: number;
     readonly labelled: number;
     readonly unlabelled: number;

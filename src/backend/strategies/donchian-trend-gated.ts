@@ -52,7 +52,7 @@ import { NEUTRAL_DECISION } from './types.js';
  * The number to watch is how often it would have disagreed.
  */
 
-export interface DonchianTrendGatedConfig {
+interface DonchianTrendGatedConfig {
     /** Bars in the breakout channel. */
     readonly channelPeriod: number;
     /** ATR period. */

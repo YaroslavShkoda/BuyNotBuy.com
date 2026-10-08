@@ -10,7 +10,7 @@ import type { SignalHistoryEntry, SignalHistorySeries } from './signal-history.t
 // every page load.
 const HOUR_MS = 3_600_000;
 
-export interface SignalHistoryRepositoryOptions {
+interface SignalHistoryRepositoryOptions {
     maxEntries: number;
 }
 

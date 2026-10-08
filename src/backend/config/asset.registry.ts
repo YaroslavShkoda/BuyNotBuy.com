@@ -59,7 +59,7 @@ const AssetRegistrySchema = z.object({
     quoteCurrencies: z.array(z.string().regex(TICKER)).min(1),
 });
 
-export type AssetRegistryConfig = z.infer<typeof AssetRegistrySchema>;
+type AssetRegistryConfig = z.infer<typeof AssetRegistrySchema>;
 
 const parseRegistry = (
     source: string,
@@ -124,7 +124,7 @@ const DEFAULT_REGISTRY_JSON = JSON.stringify({
     quoteCurrencies: ['USDT', 'USDC', 'BTC', 'USD', 'EUR', 'BRL'],
 });
 
-export const assetRegistryConfig = readRegistry();
+const assetRegistryConfig = readRegistry();
 
 const index = new Map<string, Asset>(
     assetRegistryConfig.assets.map((asset) => [asset.symbol, asset]),

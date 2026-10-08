@@ -21,7 +21,7 @@ import {
 // invariant 13. Re-exported below so this module's importers are unaffected.
 export type { DivergenceAnalysis } from '../types/analysis.js';
 
-export interface DivergenceOptions {
+interface DivergenceOptions {
     momentumPeriod?: number;
     leftWindow?: number;
     rightWindow?: number;

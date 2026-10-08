@@ -64,7 +64,7 @@ export interface PermutationResult {
     readonly draws: number;
 }
 
-export interface PermutationOptions {
+interface PermutationOptions {
     /** Relabellings. Enough that the p-value means something at its own resolution. */
     readonly draws?: number;
     /**

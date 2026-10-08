@@ -31,7 +31,7 @@ export type TrendRegime =
     | 'HIGH_VOL'
     | 'LOW_VOL';
 
-export interface RegimeInput {
+interface RegimeInput {
     readonly candles: readonly Candle[];
     /**
      * The timeframe these candles are on.
@@ -48,7 +48,7 @@ export interface RegimeInput {
     readonly interval?: string;
 }
 
-export interface RegimeReading {
+interface RegimeReading {
     /** How volatile the market is against its own recent history. */
     readonly volatility: VolatilityRegime;
     /** What is happening, where the volatility label may take precedence. */

@@ -28,7 +28,7 @@ export {
  * aftermath split the way it has to be — telemetry and publication per caller,
  * the history rows and the decision journal once per computation.
  */
-export interface AnalysisWithStatus extends MarketAnalysisStatus {
+interface AnalysisWithStatus extends MarketAnalysisStatus {
     analysis: MarketAnalysis;
     /**
      * Why the signal was published, in a form that can be argued with.

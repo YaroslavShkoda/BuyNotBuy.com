@@ -23,7 +23,7 @@ export interface CandleSeriesKey {
 }
 
 /** A candle as stored: the bar itself plus where it came from. */
-export interface StoredCandle extends Candle {
+interface StoredCandle extends Candle {
     readonly provider: string;
     readonly symbol: string;
     readonly interval: string;
@@ -32,7 +32,7 @@ export interface StoredCandle extends Candle {
     readonly ingestedAt: number;
 }
 
-export interface CandleReadOptions {
+interface CandleReadOptions {
     /**
      * Whether to leave out bars that are still forming.
      *
@@ -45,7 +45,7 @@ export interface CandleReadOptions {
     readonly closedOnly?: boolean;
 }
 
-export interface CandleWriteOptions {
+interface CandleWriteOptions {
     /** Defaults to true: an ordinary bar is assumed to have finished. */
     readonly isClosed?: boolean;
 }

@@ -27,7 +27,7 @@ import type { MarketDataProvider, ProviderCandles } from './providers/market-dat
  * cannot answer. After a run of primary successes the site moves back.
  */
 
-export interface FailoverProviderOptions {
+interface FailoverProviderOptions {
     /**
      * Consecutive successes on a backup before the primary is tried again.
      *

@@ -18,7 +18,7 @@ import { currentRegistry } from '../../observability/registry.js';
  * are read during, and the all-time numbers are already in the counters, which
  * do not decay.
  */
-export interface ProviderTelemetrySnapshot {
+interface ProviderTelemetrySnapshot {
     provider: string;
     /** The market this series is about. Not implied by the venue. */
     market: string;

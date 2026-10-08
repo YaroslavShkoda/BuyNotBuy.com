@@ -68,7 +68,7 @@ const SKIPPED = new Set(['test-support', 'node_modules', '.next', 'fixtures']);
  * design: it imports nothing, so a module importing it can never pull a
  * dependency in through the back door.
  */
-export interface Layer {
+interface Layer {
     readonly name: string;
     readonly composition: boolean;
     /** Layers this one may import. Empty means a leaf. */
@@ -199,9 +199,9 @@ function declarationOf(layer: string): Layer | undefined {
     return LAYERS.find((entry) => entry.name === layer);
 }
 
-export type ViolationKind = 'forbidden-layer' | 'unplaced-layer';
+type ViolationKind = 'forbidden-layer' | 'unplaced-layer';
 
-export interface Edge {
+interface Edge {
     readonly from: string;
     readonly to: string;
     /** The import specifier, kept so a report can point at the line. */
@@ -212,7 +212,7 @@ export interface Edge {
 }
 
 /** Edges a declared layer is not allowed to have. */
-export interface Violation extends Edge {
+interface Violation extends Edge {
     readonly kind: ViolationKind;
     readonly reason: string;
 }
@@ -398,7 +398,7 @@ function reasonFor(from: string, to: string): string {
  * no change to what the rule protects — the caller still imports the
  * implementation, and `layering-lint` still finds the same eleven files.
  */
-export function permitsEdge(edge: Edge): boolean {
+function permitsEdge(edge: Edge): boolean {
     return permitsFile(edge.from, edge.to);
 }
 
@@ -411,7 +411,7 @@ export function permitsFile(from: string, to: string): boolean {
 }
 
 /** A repository is the declared seam between a domain and the database. */
-export function isRepository(file: string): boolean {
+function isRepository(file: string): boolean {
     return file.endsWith('.repository.ts');
 }
 
@@ -432,7 +432,7 @@ export function violations(graph: Graph): Violation[] {
 }
 
 /** Layers with no declared place, which the roadmap does not name at all. */
-export function unplacedLayers(graph: Graph): string[] {
+function unplacedLayers(graph: Graph): string[] {
     const seen = new Set<string>();
 
     for (const edge of graph.edges) {
@@ -511,7 +511,7 @@ export function findCycle(graph: Graph, internal = false): Cycle | null {
     return found;
 }
 
-export interface LayerRow {
+interface LayerRow {
     readonly layer: string;
     readonly files: number;
     /** Edges leaving the layer. This is the layer's output. */
@@ -524,7 +524,7 @@ export interface LayerRow {
     readonly inFrom: Readonly<Record<string, number>>;
 }
 
-export interface Summary {
+interface Summary {
     readonly files: number;
     readonly edges: number;
     readonly internal: number;
@@ -546,7 +546,7 @@ export interface Summary {
     readonly internalCycle: Cycle | null;
 }
 
-export interface Cycle {
+interface Cycle {
     readonly files: readonly string[];
     readonly edges: readonly Edge[];
 }

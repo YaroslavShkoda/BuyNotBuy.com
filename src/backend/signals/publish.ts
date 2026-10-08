@@ -34,7 +34,7 @@ import { signalLifecycleRepository } from './lifecycle.repository.js';
  * so that silence cannot keep a dead signal alive. Passing a zero-confidence
  * candidate instead would be a different statement, and a wrong one.
  */
-export interface PublishSeries {
+interface PublishSeries {
     readonly key: SeriesKey;
     readonly candidate: SignalCandidate | null;
     /** Milliseconds one bar spans. The same number the bars were built with. */
@@ -63,7 +63,7 @@ export interface PublishSeries {
     readonly snapshotId?: string | null;
 }
 
-export interface PublishResult {
+interface PublishResult {
     /** True when a row and a transition were written. */
     readonly written: boolean;
     /** What the lifecycle decided, when it decided anything. */

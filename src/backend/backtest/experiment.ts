@@ -112,7 +112,7 @@ export const EXPERIMENT_IDENTITY_FIELDS = [
  * type error rather than something to work around — and it states the
  * direction of the dependency: nothing here can depend on being identified.
  */
-export type ExperimentIdentity = Omit<ExperimentManifest, 'id'>;
+type ExperimentIdentity = Omit<ExperimentManifest, 'id'>;
 
 /**
  * The canonical identity of an experiment, derived from its own contents.
@@ -172,7 +172,7 @@ export function experimentId(measured: ExperimentIdentity): string {
  * dataset is still available" fail for different reasons and get fixed in
  * different places.
  */
-export interface ReplayReadiness {
+interface ReplayReadiness {
     readonly replayable: boolean;
     readonly problems: readonly string[];
 }
@@ -224,7 +224,7 @@ export function checkReplayable(
     return { replayable: problems.length === 0, problems };
 }
 
-export interface VerifiedExperiment {
+interface VerifiedExperiment {
     readonly match: boolean;
     readonly differences: readonly { field: string; left: unknown; right: unknown }[];
     readonly reason: string;
@@ -291,7 +291,7 @@ export function verifyAgainst(
  * reproduced is the one a reader needs to see, and putting it behind three
  * that can is a way of making sure it is not read.
  */
-export interface AggregateRow {
+interface AggregateRow {
     readonly id: string;
     readonly name: string;
     readonly trades: number;

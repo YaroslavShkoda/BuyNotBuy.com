@@ -17,7 +17,7 @@ import type { Candle } from '../types/market.js';
  * twice.
  */
 
-export interface DirectionalMovement {
+interface DirectionalMovement {
     /** Strength of the upward direction, 0..100. */
     plusDI: number;
     /** Strength of the downward direction, 0..100. */

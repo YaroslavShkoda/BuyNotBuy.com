@@ -93,14 +93,14 @@ export interface SignalOutcome {
  * answered, because a stored maximum cannot say that, and an answer that
  * guessed would be worse than no answer.
  */
-export interface ExcursionQuestion {
+interface ExcursionQuestion {
     /** How far, as a fraction of the entry price, for the target. */
     readonly targetFraction: number;
     /** How far, as a positive fraction, for the stop. */
     readonly stopFraction: number;
 }
 
-export interface ExcursionAnswers {
+interface ExcursionAnswers {
     /** True only when the excursions were recorded at all. */
     readonly answered: boolean;
     readonly hitTarget: boolean;
@@ -136,7 +136,7 @@ export function readExcursions(
     };
 }
 
-export interface OutcomeInput {
+interface OutcomeInput {
     readonly symbol: string;
     /** The bar the signal was published on. */
     readonly entryTimestamp: number;

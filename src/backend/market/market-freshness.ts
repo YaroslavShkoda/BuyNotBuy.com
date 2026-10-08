@@ -40,7 +40,7 @@ export type MarketFreshness =
     | 'expired'
     | 'unavailable';
 
-export interface FreshnessInput {
+interface FreshnessInput {
     /** Age of the cached snapshot, or null when nothing is cached. */
     ageMs: number | null;
     /** Whether a venue answered this request. */

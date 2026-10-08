@@ -15,7 +15,7 @@ import { z } from 'zod';
  * because the alert has to be written per state.
  */
 
-export const HealthStateSchema = z.enum([
+const HealthStateSchema = z.enum([
     'ok',
     /** Working, on a fallback path. The answer is still right. */
     'degraded',
@@ -93,7 +93,7 @@ export function summarize(
     };
 }
 
-export const IncidentEventSchema = z.object({
+const IncidentEventSchema = z.object({
     at: z.coerce.number().int(),
     component: z.string().min(1),
     kind: z.enum([
@@ -106,9 +106,9 @@ export const IncidentEventSchema = z.object({
     detail: z.string().min(1),
 });
 
-export type IncidentEvent = z.infer<typeof IncidentEventSchema>;
+type IncidentEvent = z.infer<typeof IncidentEventSchema>;
 
-export interface Incident {
+interface Incident {
     readonly id: string;
     readonly component: string;
     readonly openedAt: number;
@@ -119,7 +119,7 @@ export interface Incident {
     readonly durationMs: number | null;
 }
 
-export interface IncidentState {
+interface IncidentState {
     readonly incidents: readonly Incident[];
     readonly open: readonly Incident[];
     readonly resolved: readonly Incident[];

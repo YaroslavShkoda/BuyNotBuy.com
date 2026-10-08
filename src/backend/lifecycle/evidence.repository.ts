@@ -23,7 +23,7 @@ import type { RuleEvidence } from './promotion.config.js';
  * had already been produced, and turning a rule that needs time into a rule
  * that has had it.
  */
-export interface EvidenceReader {
+interface EvidenceReader {
     /**
      * @param strategyVersionId the configuration under shadow
      * @param horizonBars the distance at which signals are judged

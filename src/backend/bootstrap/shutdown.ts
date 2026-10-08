@@ -16,7 +16,7 @@ import type { MarketWorkers } from './workers.js';
 
 type Log = FastifyInstance['log'];
 
-export interface ShutdownHandlers {
+interface ShutdownHandlers {
     log: Log;
     workers: MarketWorkers;
     /** Closes the HTTP server; the pool is closed here, after the backlogs drain. */

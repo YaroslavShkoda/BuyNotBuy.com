@@ -69,7 +69,7 @@ export const DATABASE_ACCESSORS: readonly string[] = [
  * one of the ten has tests. Moving them would have been forty-four import sites
  * and no change to what the rule protects.
  */
-export const DATABASE_BEARING_FILES: readonly string[] = ['*.repository.ts'];
+const DATABASE_BEARING_FILES: readonly string[] = ['*.repository.ts'];
 
 /** Whether this file is allowed to touch the database where it stands. */
 export function isSeam(file: string): boolean {
@@ -80,7 +80,7 @@ export function isSeam(file: string): boolean {
     });
 }
 
-export interface Exemption {
+interface Exemption {
     readonly file: string;
     readonly reason: string;
 }
@@ -94,7 +94,7 @@ export const EXEMPT: readonly Exemption[] = [
     },
 ];
 
-export interface Offence {
+interface Offence {
     /** Path relative to `src/backend`, with forward slashes. */
     readonly file: string;
     readonly line: number;

@@ -25,7 +25,7 @@ import { candleRepository } from './candle.repository.js';
  * that comes back wrong is dropped rather than stored.
  */
 
-export interface BackfillRequest {
+interface BackfillRequest {
     /** Which series to fill. */
     readonly key: CandleSeriesKey;
     /** Stop once this timestamp is covered. Defaults to the oldest bar wanted. */
@@ -78,7 +78,7 @@ export interface BackfillProgress {
     readonly rejected: number;
 }
 
-export type BackfillStopReason =
+type BackfillStopReason =
     | 'target_reached'
     | 'no_more_bars'
     | 'budget_exhausted';

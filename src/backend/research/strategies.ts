@@ -1,4 +1,3 @@
-import { z } from 'zod';
 import type { ExecutionConfig } from '../backtest/execution.js';
 import { EXECUTION_CONFIG, fillPrice, pricedTrade } from '../backtest/execution.js';
 import type { BacktestMetrics, Trade } from '../backtest/metrics.js';
@@ -63,7 +62,7 @@ export interface Strategy {
     decide(context: DecisionContext): Decision;
 }
 
-export interface DecisionContext {
+interface DecisionContext {
     readonly candles: readonly Candle[];
     readonly index: number;
     /** Rolling series, each element depending only on that bar and earlier. */
@@ -337,14 +336,14 @@ function series20(context: DecisionContext, name: string): readonly number[] {
 // The runner
 // ---------------------------------------------------------------------------
 
-export interface StrategyRun {
+interface StrategyRun {
     readonly strategy: string;
     readonly mechanism: string;
     readonly metrics: BacktestMetrics;
     readonly benchmarks: { buyAndHold: number; randomEntry: number };
 }
 
-export interface RunOptions {
+interface RunOptions {
     execution?: ExecutionConfig;
     barsPerYear?: number;
 }
@@ -576,13 +575,3 @@ function randomEntryBenchmark(
 }
 
 export { benchmarkMetrics };
-
-export const StrategyNameSchema = z.enum([
-    'buy-and-hold',
-    'donchian-20',
-    'donchian-55-long-only',
-    'ema-crossover-20-50',
-    'bollinger-reversion',
-    'rsi-reversion',
-    'donchian-trend-gated',
-]);

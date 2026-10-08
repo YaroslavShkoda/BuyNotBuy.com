@@ -28,7 +28,7 @@ import { NEUTRAL_DECISION } from './types.js';
  * be in a trending market for 19% of the time and to lose almost nothing when
  * it is not.
  */
-export interface DonchianConfig {
+interface DonchianConfig {
     readonly channelPeriod: number;
 }
 
@@ -36,7 +36,7 @@ export const DONCHIAN_CONFIG: DonchianConfig = {
     channelPeriod: 20,
 };
 
-export type DonchianInputs =
+type DonchianInputs =
     | { readonly ready: false; readonly decision: StrategyDecision }
     | {
           readonly ready: true;

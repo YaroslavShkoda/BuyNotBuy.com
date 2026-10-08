@@ -139,7 +139,7 @@ export class Reservoir {
     }
 }
 
-export interface DurationSnapshot {
+interface DurationSnapshot {
     readonly name: string;
     readonly seen: number;
     readonly mean: number;
@@ -308,10 +308,10 @@ export const METRIC_NAMES = [
     ...METRIC_DISTRIBUTIONS,
 ] as const;
 
-export type MetricName = (typeof METRIC_NAMES)[number];
+type MetricName = (typeof METRIC_NAMES)[number];
 
-export const MetricKindSchema = z.enum(['counter', 'gauge', 'distribution']);
-export type MetricKind = z.infer<typeof MetricKindSchema>;
+const MetricKindSchema = z.enum(['counter', 'gauge', 'distribution']);
+type MetricKind = z.infer<typeof MetricKindSchema>;
 
 export const METRIC_KIND: Readonly<Record<MetricName, MetricKind>> = {
     provider_retries: 'counter',

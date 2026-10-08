@@ -123,7 +123,7 @@ export function profileOf(
     };
 }
 
-export interface Comparison {
+interface Comparison {
     readonly key: string;
     readonly profile: RuleProfile;
     /** Coins whose exposure was close enough to compare. */

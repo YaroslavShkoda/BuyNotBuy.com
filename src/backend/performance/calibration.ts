@@ -17,7 +17,7 @@ import { computeMetrics, confidenceBuckets, groupBy } from './performance.js';
  * average cannot tell the two apart.
  */
 
-export interface CalibrationPoint {
+interface CalibrationPoint {
     /** Middle of the bucket, as a fraction. */
     readonly claimed: number;
     /** What actually happened, as a fraction. null below the sample floor. */
@@ -33,7 +33,7 @@ export interface CalibrationPoint {
     readonly gap: number | null;
 }
 
-export interface Calibration {
+interface Calibration {
     readonly points: readonly CalibrationPoint[];
     /**
      * How well the numbers line up overall, 0..1, and null when there is not
@@ -77,7 +77,7 @@ export interface Calibration {
 }
 
 /** Every market in a sample, named, sorted, and capped so it stays readable. */
-export function describeScope(
+function describeScope(
     samples: readonly PerformanceSample[],
     limit = 4,
 ): string | null {

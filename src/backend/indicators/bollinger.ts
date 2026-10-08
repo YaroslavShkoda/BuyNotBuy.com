@@ -15,7 +15,7 @@ import type { Candle } from '../types/market.js';
  * make the agreement figure rise without the signal getting any stronger, which
  * is the same objection that keeps RSI out.
  */
-export interface BollingerBands {
+interface BollingerBands {
     /** The moving average the bands are centred on. */
     middle: number;
     upper: number;

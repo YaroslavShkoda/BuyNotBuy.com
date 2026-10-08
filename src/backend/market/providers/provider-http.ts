@@ -70,7 +70,7 @@ function breakerFor(provider: string, market: string): CircuitBreaker {
     return created;
 }
 
-export interface ProviderRequestOptions {
+interface ProviderRequestOptions {
     /**
      * Which venue this call is for.
      *

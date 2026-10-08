@@ -172,7 +172,7 @@ function observedMarkets(primary: string): readonly string[] {
  * question, while parsing and validating it stays with the runtime that
  * builds the failover chain.
  */
-export interface MarketEnv {
+interface MarketEnv {
     primaryProvider: MarketProviderName;
     symbol: string;
     fallbackSymbol: string;

@@ -38,7 +38,7 @@ export interface VenueCapability {
     readonly intervals: readonly string[];
 }
 
-export type RouteRejection =
+type RouteRejection =
     /** No venue at all was offered, so there was nothing to choose. */
     | 'no_venues_configured'
     /** A venue was asked and none of them lists this ticker. */

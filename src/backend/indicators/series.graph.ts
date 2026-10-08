@@ -19,7 +19,7 @@ import { calculateEMA } from './ema.js';
  * from the inside of a ninety-line function.
  */
 
-export interface SeriesContext {
+interface SeriesContext {
     readonly candles: readonly Candle[];
     readonly closes: readonly number[];
 }
@@ -46,18 +46,18 @@ export interface SeriesDefinition {
  * recomputed would look identical from the outside and cost the same as no
  * cache at all.
  */
-export interface SeriesGraphStats {
+interface SeriesGraphStats {
     readonly computed: ReadonlyMap<string, number>;
     readonly reused: ReadonlyMap<string, number>;
 }
 
-export interface ResolvedSeries {
+interface ResolvedSeries {
     /** Every requested series and everything it needed, by key. */
     readonly values: ReadonlyMap<string, unknown>;
     readonly stats: SeriesGraphStats;
 }
 
-export interface SeriesGraph {
+interface SeriesGraph {
     register(definition: SeriesDefinition): void;
     get(key: string): SeriesDefinition | undefined;
     list(): SeriesDefinition[];

@@ -37,7 +37,7 @@ export type ProviderFailureKind =
     | 'circuit_open'
     | 'insufficient_history';
 
-export interface ProviderErrorContext {
+interface ProviderErrorContext {
     provider: string;
     /** Path only. Never a full URL: a query string can carry a signature. */
     endpoint?: string | undefined;
@@ -48,7 +48,7 @@ export interface ProviderErrorContext {
     details?: Record<string, unknown> | undefined;
 }
 
-export interface ProviderErrorOptions extends MarketDataErrorOptions {
+interface ProviderErrorOptions extends MarketDataErrorOptions {
     context: ProviderErrorContext;
     /**
      * Correlation id, when the failure happened inside a request.

@@ -51,7 +51,7 @@ const root = resolve(here, '..');
  * `query` is assignable to this — its `values` parameter has a default — so
  * nothing has to be wrapped to satisfy it.
  */
-export type Query = <Row extends QueryResultRow = QueryResultRow>(
+type Query = <Row extends QueryResultRow = QueryResultRow>(
     text: string,
 ) => Promise<{ rows: Row[] }>;
 
@@ -76,13 +76,13 @@ interface IndexRow {
     definition: string;
 }
 
-export interface ColumnFact {
+interface ColumnFact {
     readonly name: string;
     readonly type: string;
     readonly nullable: boolean;
 }
 
-export interface TableFact {
+interface TableFact {
     readonly name: string;
     readonly columns: readonly ColumnFact[];
     readonly checks: readonly string[];
@@ -232,7 +232,7 @@ const BANNER = (command: string): string =>
  * is a copy. Half of these files existed as hand-written descriptions of code,
  * and the ones that survived were the ones nobody opened again.
  */
-export const GENERATOR_COMMAND =
+const GENERATOR_COMMAND =
     'node --env-file=.env --import=tsx src/backend/research/docs-generate.cli.ts';
 
 /**

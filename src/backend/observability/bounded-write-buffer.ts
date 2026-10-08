@@ -60,7 +60,7 @@ export interface BoundedWriteBuffer<T> {
     clear(): void;
 }
 
-export interface BoundedWriteBufferOptions<T> {
+interface BoundedWriteBufferOptions<T> {
     /** Hard ceiling on buffered entries; oldest are dropped past this. */
     maxSize: number;
     /** Which record this buffer holds, for the operator reading a counter. */
@@ -112,7 +112,7 @@ export interface BacklogState {
  * to the durable lane, and a buffer reporting `spooled: 0` would be a lie
  * wearing the right type.
  */
-export interface MemoryBacklogState {
+interface MemoryBacklogState {
     buffered: number;
     dropped: number;
 }
@@ -239,7 +239,7 @@ export function createBoundedWriteBuffer<T>(
  * harmless, but the interleaving is not something to reason about at three in
  * the morning.
  */
-export interface FlushGuard {
+interface FlushGuard {
     /** Runs the given flush, or joins the one already running. */
     (flush: () => Promise<number>): Promise<number>;
 }

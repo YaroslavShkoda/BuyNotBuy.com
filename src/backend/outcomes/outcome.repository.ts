@@ -19,7 +19,7 @@ import { measureOutcome } from './outcome.js';
  * audited cannot be used to promote a strategy.
  */
 
-export interface OutcomeSeriesKey {
+interface OutcomeSeriesKey {
     symbol: string;
     provider: string;
     interval: string;
@@ -40,7 +40,7 @@ export interface SettleInput {
     readonly now: number;
 }
 
-export interface OutcomeRow {
+interface OutcomeRow {
     readonly id: string;
     readonly symbol: string;
     readonly provider: string;
@@ -114,7 +114,7 @@ export interface OutcomeRepository {
     deleteBefore(cutoff: number): Promise<number>;
 }
 
-export type OutcomeQuery = (
+type OutcomeQuery = (
     text: string,
     values?: readonly unknown[],
 ) => Promise<QueryResult<QueryResultRow>>;

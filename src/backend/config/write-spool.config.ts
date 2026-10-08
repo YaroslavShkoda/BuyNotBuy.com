@@ -22,7 +22,7 @@ const WriteSpoolConfigSchema = z.object({
     maxBytesPerWriter: z.coerce.number().int().positive(),
 });
 
-export type WriteSpoolConfig = z.infer<typeof WriteSpoolConfigSchema>;
+type WriteSpoolConfig = z.infer<typeof WriteSpoolConfigSchema>;
 
 export const writeSpoolConfig: WriteSpoolConfig = WriteSpoolConfigSchema.parse({
     // The spool is the answer to "what happens to the write backlogs when the

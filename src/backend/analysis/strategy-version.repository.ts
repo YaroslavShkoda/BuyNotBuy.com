@@ -32,7 +32,7 @@ export interface StrategyVersion {
  * a stage record that does not exist for a configuration first seen at runtime.
  */
 
-export interface StrategyVersionRepository {
+interface StrategyVersionRepository {
     /**
      * The version this market's running configuration belongs to, creating it
      * the first time that configuration is seen.

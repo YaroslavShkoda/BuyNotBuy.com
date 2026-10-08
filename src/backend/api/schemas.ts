@@ -26,7 +26,7 @@ export const IndicatorSignalSchema = z.enum(SIGNAL_DIRECTIONS);
 
 export const IndicatorKeySchema = z.enum(INDICATOR_KEYS);
 
-export const IndicatorAnalysisSchema = z.object({
+const IndicatorAnalysisSchema = z.object({
     key: IndicatorKeySchema,
     name: z.string(),
     signal: IndicatorSignalSchema,
@@ -34,14 +34,14 @@ export const IndicatorAnalysisSchema = z.object({
     weight: z.number().min(0).max(1),
 });
 
-export const SignalResultSchema = z.object({
+const SignalResultSchema = z.object({
     signal: IndicatorSignalSchema,
     confidence: z.number().min(0).max(100),
     reason: z.string(),
     indicators: z.array(IndicatorAnalysisSchema),
 });
 
-export const AssetPriceSchema = z.object({
+const AssetPriceSchema = z.object({
     symbol: z.string(),
     price: z.number(),
 });
@@ -60,7 +60,7 @@ export const MarketDataSchema = z.object({
     candles: z.array(CandleSchema),
 });
 
-export const MarketIndicatorsSchema = z.object({
+const MarketIndicatorsSchema = z.object({
     ema300: z.number(),
     stochastic: z.number(),
     momentum: z.number(),
@@ -73,13 +73,13 @@ export const MarketIndicatorsSchema = z.object({
     }),
 });
 
-export const MomentumAnalysisSchema = z.object({
+const MomentumAnalysisSchema = z.object({
     period: z.number(),
     current: z.number(),
     series: z.array(z.number().nullable()),
 });
 
-export const DivergencePointSchema = z.object({
+const DivergencePointSchema = z.object({
     index: z.number().int().min(0),
     confirmedAtIndex: z.number().int().min(0),
     age: z.number().int().min(0),
@@ -87,7 +87,7 @@ export const DivergencePointSchema = z.object({
     momentum: z.number(),
 });
 
-export const DivergenceResultSchema = z.object({
+const DivergenceResultSchema = z.object({
     type: z.enum(DIVERGENCE_TYPES),
     previous: DivergencePointSchema,
     current: DivergencePointSchema,
@@ -117,7 +117,7 @@ export const MarketAnalysisSchema = z.object({
     }),
 });
 
-export const SignalHistoryEntrySchema = z.object({
+const SignalHistoryEntrySchema = z.object({
     timestamp: z.number(),
     symbol: z.string(),
     signal: IndicatorSignalSchema,
@@ -125,13 +125,13 @@ export const SignalHistoryEntrySchema = z.object({
     price: z.number(),
 });
 
-export const SignalHistoryLastTransitionSchema = z.object({
+const SignalHistoryLastTransitionSchema = z.object({
     from: IndicatorSignalSchema,
     to: IndicatorSignalSchema,
     timestamp: z.number(),
 });
 
-export const SignalHistorySummarySchema = z.object({
+const SignalHistorySummarySchema = z.object({
     currentSignal: IndicatorSignalSchema.nullable(),
     // Durations are elapsed hours, so a run that started within the current
     // hour legitimately measures zero.

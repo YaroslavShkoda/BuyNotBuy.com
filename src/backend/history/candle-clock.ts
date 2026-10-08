@@ -13,7 +13,7 @@
  * measured against it is measured against something that no longer exists.
  */
 
-export interface CandleClock {
+interface CandleClock {
     /** The interval in milliseconds. */
     readonly intervalMs: number;
 }
@@ -25,7 +25,7 @@ export interface CandleClock {
  * function because the venue labels bars its own way and the question is worth
  * one name rather than a subtraction repeated at each call site.
  */
-export function candleOpenTime(candle: CandleClock, timestamp: number): number {
+function candleOpenTime(candle: CandleClock, timestamp: number): number {
     return timestamp;
 }
 

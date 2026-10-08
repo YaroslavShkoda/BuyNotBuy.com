@@ -34,7 +34,7 @@ export interface SignalStateRow {
     readonly updatedAt: number;
 }
 
-export interface SignalTransitionRow {
+interface SignalTransitionRow {
     readonly id: string;
     readonly stateId: string;
     readonly symbol: string;
@@ -56,7 +56,7 @@ export interface SeriesKey {
     readonly interval: string;
 }
 
-export interface WriteSignal {
+interface WriteSignal {
     readonly direction: SignalDirection;
     readonly status: SignalStatus;
     readonly snapshotId?: string | null;
@@ -130,7 +130,7 @@ function toTransition(row: QueryResultRow): SignalTransitionRow {
     };
 }
 
-export type SignalQuery = (
+type SignalQuery = (
     text: string,
     values?: readonly unknown[],
 ) => Promise<QueryResult<QueryResultRow>>;

@@ -40,8 +40,8 @@ import { createVolatilityTrend } from './volatility-trend.js';
  * name attached, after watching it.
  */
 
-export const FallbackModeSchema = z.enum(['shadow', 'active']);
-export type FallbackMode = z.infer<typeof FallbackModeSchema>;
+const FallbackModeSchema = z.enum(['shadow', 'active']);
+type FallbackMode = z.infer<typeof FallbackModeSchema>;
 
 const StrategyKeySchema = z.enum([
     'consensus-primary',
@@ -103,7 +103,7 @@ export function readFallbackConfig(
     return { key: parsed.data, mode: mode.data };
 }
 
-export type StrategyFactory = () => StrategyModule;
+type StrategyFactory = () => StrategyModule;
 
 /**
  * The catalogue.
@@ -137,7 +137,7 @@ export const STRATEGY_FACTORIES: Readonly<
     'volatility-trend': () => createVolatilityTrend(),
 };
 
-export interface RegistryOptions {
+interface RegistryOptions {
     /**
      * The primary's computation: the existing consensus, given the price and
      * the closes its EMA confirmation needs.
@@ -150,7 +150,7 @@ export interface RegistryOptions {
     readonly emaConfirmBars?: number;
 }
 
-export interface Registry {
+interface Registry {
     readonly primary: StrategyModule;
     readonly fallback: StrategyModule | null;
     readonly config: FallbackConfig;
@@ -344,21 +344,6 @@ export function resolveSignal(
         fallbackDecision,
         suppressed: false,
     };
-}
-
-let shared: Registry | null = null;
-
-/**
- * Production's registry, built once.
- *
- * Assembled here rather than lazily, because the consensus computation needs
- * the indicators and only the analysis service has them. The returned value is
- * the registry every consumer shares.
- */
-export function configureRegistry(options: RegistryOptions): Registry {
-    shared = createRegistry(options);
-
-    return shared;
 }
 
 export type { StrategyContext, StrategyDecision, StrategyKey, StrategyModule };

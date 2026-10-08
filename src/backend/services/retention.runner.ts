@@ -13,7 +13,7 @@ import type { RetentionStore } from '../db/retention.store.js';
  * one round trip and cannot delete anything a minute of extra running would not
  * have deleted anyway.
  */
-export interface RetentionRunner {
+interface RetentionRunner {
     /**
      * Prunes if it is due, and says which of the two things happened.
      *

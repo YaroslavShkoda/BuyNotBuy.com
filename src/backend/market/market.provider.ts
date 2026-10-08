@@ -381,7 +381,7 @@ export function activeVenueForMarket(instrument: string): string | null {
     return provider instanceof FailoverProvider ? provider.activeVenue : provider.name;
 }
 
-export interface VenueWatcherLogger {
+interface VenueWatcherLogger {
     warn(context: Record<string, unknown>, message: string): void;
     info?(context: Record<string, unknown>, message: string): void;
 }

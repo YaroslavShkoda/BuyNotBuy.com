@@ -16,7 +16,7 @@ import { computeMetrics, groupBy } from './performance.js';
  * between the best and the worst regime is the finding — not the mean.
  */
 
-export interface RegimePerformance {
+interface RegimePerformance {
     readonly metrics: Metrics;
     /**
      * How far this regime sits from the overall accuracy, as a fraction.
@@ -28,7 +28,7 @@ export interface RegimePerformance {
     readonly lift: number | null;
 }
 
-export interface RegimeBreakdown {
+interface RegimeBreakdown {
     readonly byRegime: ReadonlyMap<string, RegimePerformance>;
     /** The regime the system is best in, if the sample supports naming one. */
     readonly strongest: string | null;

@@ -66,7 +66,7 @@ export interface InstrumentRow {
  * different people: one by whoever suspended the asset, the other by whoever
  * mistyped the symbol.
  */
-export type Tradability =
+type Tradability =
     | { readonly tradable: true; readonly instrument: Instrument }
     | { readonly tradable: false; readonly reason: TradabilityReason };
 

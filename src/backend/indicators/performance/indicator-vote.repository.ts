@@ -17,7 +17,7 @@ const HOUR_MS = 3_600_000;
  */
 const INDICATOR_TABLE = 'indicator_vote';
 
-export interface IndicatorVoteRepositoryOptions {
+interface IndicatorVoteRepositoryOptions {
     maxEntries: number;
 }
 

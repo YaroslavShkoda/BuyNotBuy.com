@@ -129,7 +129,7 @@ export function sameDataset(left: Dataset, right: Dataset): boolean {
     );
 }
 
-export interface DatasetDifference {
+interface DatasetDifference {
     readonly field: string;
     readonly left: string | number;
     readonly right: string | number;
@@ -169,7 +169,7 @@ export function diffDatasets(
  * Deliberately narrow. This is what survives the crossing between the two sides
  * of the evidence chain, and nothing more.
  */
-export interface SnapshotExtent {
+interface SnapshotExtent {
     readonly firstCandleTs: number;
     readonly lastCandleTs: number;
     readonly candleCount: number;

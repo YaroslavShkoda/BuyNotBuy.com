@@ -73,7 +73,7 @@ import { join } from 'node:path';
  * It lives in `observability` for the same reason the bounded buffers do:
  * everything may count through it, and it touches no database.
  */
-export interface WriteSpool<T> {
+interface WriteSpool<T> {
     /**
      * Appends the entry durably, or reports that it could not. `false` sends
      * the writer to its memory buffer; the queue and the file are only ever
@@ -130,15 +130,15 @@ export interface WriteSpool<T> {
  * there is no entry to ask a market of, and that loss is counted in the
  * totals only.
  */
-export interface SpoolBacklogState {
+interface SpoolBacklogState {
     spooled: number;
     dropped: number;
 }
 
 /** The per-market split of a spool, keyed by market. */
-export type SpoolBacklogStateByMarket = Readonly<Record<string, SpoolBacklogState>>;
+type SpoolBacklogStateByMarket = Readonly<Record<string, SpoolBacklogState>>;
 
-export interface WriteSpoolOptions<T> {
+interface WriteSpoolOptions<T> {
     /**
      * Which series this spool holds, for the file name and the operator
      * reading a counter: `signal_history`, `indicator_vote`, `strategy_decision`.

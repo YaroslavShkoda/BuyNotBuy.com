@@ -31,7 +31,7 @@
  * open far too late.
  */
 
-export interface SingleFlight<T> {
+interface SingleFlight<T> {
     /**
      * Runs `work`, or joins the call already in flight.
      *
@@ -97,7 +97,7 @@ export function createSingleFlight<T>(): SingleFlight<T> {
     };
 }
 
-export interface KeyedSingleFlight<T> {
+interface KeyedSingleFlight<T> {
     /** The coalescer for one market, created on first use and then reused. */
     forMarket(key: string): SingleFlight<T>;
     /** Markets with a coalescer, whether or not one is running. */

@@ -21,7 +21,7 @@ import { strategyProfile, strategyProfileName } from './strategy.profile.js';
  * same argument covers the thresholds — a table that blended them would be a
  * series no configuration ever produced, with every individual number right.
  */
-export interface StrategyFingerprint {
+interface StrategyFingerprint {
     /** Machine-readable, order-independent hash of every setting below. */
     hash: string;
     config: Record<string, unknown>;

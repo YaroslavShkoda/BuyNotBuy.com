@@ -25,7 +25,7 @@ import { detectSpike } from './optimizer.js';
  * so showing only the top of the ranking shows exactly the part that says least
  * about whether the winner is real.
  */
-export const SHOWN = 10;
+const SHOWN = 10;
 
 function percent(value: number): string {
     return `${(value * 100).toFixed(2)}%`;
@@ -46,7 +46,7 @@ function row(rank: number, candidate: ScoredCandidate): string {
     );
 }
 
-export interface SearchReportInput {
+interface SearchReportInput {
     readonly result: SearchResult;
     readonly market: { instrument: string; interval: string; candles: number };
     readonly window: { startIndex: number; endIndex: number };

@@ -48,7 +48,7 @@ const HOUR = 3_600_000;
 const DAY = 86_400_000;
 const MINIMUM_HOURS = 24;
 
-export interface DroppedDay {
+interface DroppedDay {
     readonly timestamp: number;
     readonly hours: number;
     /** The high the partial day reached, which is not the day's high. */
@@ -56,7 +56,7 @@ export interface DroppedDay {
     readonly partialLow: number;
 }
 
-export interface Coverage {
+interface Coverage {
     readonly complete: Candle[];
     readonly dropped: readonly DroppedDay[];
     /** Candles for every day, incomplete ones included and clearly marked. */

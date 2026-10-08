@@ -68,7 +68,7 @@ export const EMA_INDICATOR: IndicatorDefinition = {
     },
 };
 
-export const STOCHASTIC_INDICATOR: IndicatorDefinition = {
+const STOCHASTIC_INDICATOR: IndicatorDefinition = {
     key: 'stochastic',
     name: `Stochastic ${indicatorConfig.stochasticPeriod}`,
     role: 'vote',
@@ -81,7 +81,7 @@ export const STOCHASTIC_INDICATOR: IndicatorDefinition = {
     }),
 };
 
-export const MOMENTUM_INDICATOR: IndicatorDefinition = {
+const MOMENTUM_INDICATOR: IndicatorDefinition = {
     key: 'momentum',
     name: `Momentum ${indicatorConfig.momentumPeriod}`,
     role: 'vote',
@@ -104,7 +104,7 @@ export const MOMENTUM_INDICATOR: IndicatorDefinition = {
  * getting any stronger. Adding one to the vote is a change to the signal, not
  * to the display, and it is a change to be made on evidence.
  */
-export const ATR_INDICATOR: IndicatorDefinition = {
+const ATR_INDICATOR: IndicatorDefinition = {
     key: 'atr',
     name: `ATR ${indicatorConfig.atrPeriod}`,
     role: 'context',
@@ -114,7 +114,7 @@ export const ATR_INDICATOR: IndicatorDefinition = {
     }),
 };
 
-export const RSI_INDICATOR: IndicatorDefinition = {
+const RSI_INDICATOR: IndicatorDefinition = {
     key: 'rsi',
     name: `RSI ${indicatorConfig.rsiPeriod}`,
     role: 'context',
@@ -124,7 +124,7 @@ export const RSI_INDICATOR: IndicatorDefinition = {
     }),
 };
 
-export const MACD_INDICATOR: IndicatorDefinition = {
+const MACD_INDICATOR: IndicatorDefinition = {
     key: 'macd',
     name: `MACD ${indicatorConfig.macdFastPeriod}/${indicatorConfig.macdSlowPeriod}/${indicatorConfig.macdSignalPeriod}`,
     role: 'context',
@@ -148,7 +148,7 @@ export const MACD_INDICATOR: IndicatorDefinition = {
     },
 };
 
-export const BOLLINGER_INDICATOR: IndicatorDefinition = {
+const BOLLINGER_INDICATOR: IndicatorDefinition = {
     key: 'bollinger',
     name: `Bollinger ${indicatorConfig.bollingerPeriod}/${indicatorConfig.bollingerStdDev}`,
     role: 'context',
@@ -175,7 +175,7 @@ export const BOLLINGER_INDICATOR: IndicatorDefinition = {
     },
 };
 
-export const ADX_INDICATOR: IndicatorDefinition = {
+const ADX_INDICATOR: IndicatorDefinition = {
     key: 'adx',
     name: `ADX ${indicatorConfig.adxPeriod}`,
     role: 'context',

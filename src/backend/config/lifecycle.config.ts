@@ -16,7 +16,7 @@ import { strategyProfile } from './strategy.profile.js';
  * it as a new signal double-counts it, and measuring it as unchanged hides the
  * fact that it was re-published at all.
  */
-export const SignalStatusSchema = z.enum([
+const SignalStatusSchema = z.enum([
     'GENERATED',
     'ACTIVE',
     'UPDATED',
@@ -27,7 +27,7 @@ export const SignalStatusSchema = z.enum([
 
 export type SignalStatus = z.infer<typeof SignalStatusSchema>;
 
-export const SignalDirectionSchema = z.enum(['LONG', 'SHORT']);
+const SignalDirectionSchema = z.enum(['LONG', 'SHORT']);
 export type SignalDirection = z.infer<typeof SignalDirectionSchema>;
 
 /**

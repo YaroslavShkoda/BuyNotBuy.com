@@ -11,7 +11,7 @@
  * After the cooldown one request is let through as a probe. If it succeeds the
  * breaker closes; if it fails the cooldown starts again.
  */
-export interface CircuitBreakerOptions {
+interface CircuitBreakerOptions {
     failureThreshold: number;
     cooldownMs: number;
     now?: () => number;

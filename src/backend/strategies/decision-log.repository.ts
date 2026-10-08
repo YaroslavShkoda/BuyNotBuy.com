@@ -59,7 +59,7 @@ export interface DecisionLogRepository {
  * only the disagreement count would make the quiet case look uninteresting
  * rather than empty.
  */
-export interface ShadowReport {
+interface ShadowReport {
     readonly cycles: number;
     readonly suppressed: number;
     readonly agreement: number;

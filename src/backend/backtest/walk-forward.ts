@@ -45,7 +45,7 @@ export interface WalkForwardOptions extends PlanShape {
     barsPerYear: number;
 }
 
-export interface WalkForwardFold {
+interface WalkForwardFold {
     fold: number;
     startIndex: number;
     endIndex: number;

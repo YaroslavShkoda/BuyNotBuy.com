@@ -81,7 +81,7 @@ const DatabaseConfigSchema = z.object({
     path: ['lockTimeoutMs'],
 });
 
-export type DatabaseConfig = z.infer<typeof DatabaseConfigSchema>;
+type DatabaseConfig = z.infer<typeof DatabaseConfigSchema>;
 
 export const databaseConfig: DatabaseConfig = DatabaseConfigSchema.parse({
     // No default: a service that silently picks a database is a service that

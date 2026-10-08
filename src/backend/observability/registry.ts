@@ -27,7 +27,7 @@ import {
  * new series on every process start.
  */
 
-export const LABEL_VALUE_PATTERN = /^[a-zA-Z0-9_.:\-/]{0,64}$/;
+const LABEL_VALUE_PATTERN = /^[a-zA-Z0-9_.:\-/]{0,64}$/;
 
 /**
  * A label value that would break the exposition.
@@ -72,7 +72,7 @@ export function seriesKey(name: string, labels: Record<string, string> = {}): st
 }
 
 /** The inverse of `seriesKey`, used to re-render a series with more labels. */
-export function splitKey(key: string): { name: string; labels: Record<string, string> } {
+function splitKey(key: string): { name: string; labels: Record<string, string> } {
     const open = key.indexOf('{');
 
     if (open === -1) {
@@ -104,7 +104,7 @@ export function splitKey(key: string): { name: string; labels: Record<string, st
  * One group, always. `m{x="1"}{quantile="0.5"}` is not a series a scraper can
  * read, and a scraper that cannot read one line rejects the document.
  */
-export function renderWith(
+function renderWith(
     name: string,
     labels: Record<string, string>,
     suffix = '',
@@ -124,7 +124,7 @@ export function renderWith(
     return `${name}${suffix}{${rendered}}`;
 }
 
-export interface ExpositionOptions {
+interface ExpositionOptions {
     /** A prefix for every metric, so two services can share a database. */
     namespace?: string;
     now?: number;
@@ -326,13 +326,13 @@ export class MetricRegistry {
     }
 }
 
-export const observabilityMetricSchema = z.object({
+const observabilityMetricSchema = z.object({
     name: z.string().min(1),
     kind: z.enum(['counter', 'gauge', 'distribution']),
     description: z.string().min(1),
 });
 
-export type ObservabilityMetric = z.infer<typeof observabilityMetricSchema>;
+type ObservabilityMetric = z.infer<typeof observabilityMetricSchema>;
 
 /**
  * What each metric is for, in one place.

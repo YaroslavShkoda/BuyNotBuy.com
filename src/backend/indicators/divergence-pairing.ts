@@ -1,4 +1,4 @@
-export interface DivergencePair {
+interface DivergencePair {
     previousPriceIndex: number;
     previousMomentumIndex: number;
     currentPriceIndex: number;

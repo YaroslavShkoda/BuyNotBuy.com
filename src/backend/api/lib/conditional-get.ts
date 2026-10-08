@@ -10,7 +10,7 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
  * usually did not change and pays for the full candle series every time. A
  * 304 answers that in a few bytes.
  */
-export interface ETagOptions {
+interface ETagOptions {
     /**
      * Top-level fields that change on every read and say nothing about the
      * market.

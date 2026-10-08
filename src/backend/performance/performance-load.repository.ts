@@ -23,13 +23,13 @@ import { query } from '../db/pool.js';
 import type { SignalOutcome } from '../outcomes/outcome.js';
 import type { OutcomeWithPublication } from './samples.js';
 
-export interface PerformanceSeriesKey {
+interface PerformanceSeriesKey {
     readonly symbol: string;
     readonly provider: string;
     readonly interval: string;
 }
 
-export interface PerformanceLoad {
+interface PerformanceLoad {
     /**
      * How many rows to read.
      *

@@ -101,7 +101,7 @@ export interface WalkForwardPlan {
  */
 export const DEFAULT_VALIDATION_RATIO = 0.3;
 
-export interface PlanOptions {
+interface PlanOptions {
     /**
      * Share of the training span held back for validation, 0..1 exclusive.
      *
@@ -195,7 +195,7 @@ export function buildWalkForwardPlan(
     };
 }
 
-export interface LeakageFinding {
+interface LeakageFinding {
     readonly fold: number;
     readonly kind:
         /** The test window reaches into the bars the parameters were fitted on. */
@@ -211,7 +211,7 @@ export interface LeakageFinding {
     readonly detail: string;
 }
 
-export interface LeakageAudit {
+interface LeakageAudit {
     readonly findings: readonly LeakageFinding[];
     readonly clean: boolean;
 }
@@ -296,7 +296,7 @@ export function auditWalkForwardPlan(
     return { findings, clean: findings.length === 0 };
 }
 
-export interface ValidationVerdict {
+interface ValidationVerdict {
     readonly fold: number;
     readonly accepted: boolean;
     /**

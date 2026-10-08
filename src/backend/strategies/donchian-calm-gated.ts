@@ -53,7 +53,7 @@ import { NEUTRAL_DECISION } from './types.js';
  * thing that is in doubt.
  */
 
-export interface DonchianCalmGatedConfig {
+interface DonchianCalmGatedConfig {
     /** Bars in the breakout channel. */
     readonly channelPeriod: number;
     /** ATR period. */
@@ -62,7 +62,7 @@ export interface DonchianCalmGatedConfig {
     readonly atrBaselinePeriod: number;
 }
 
-export const DONCHIAN_CALM_GATED_CONFIG: DonchianCalmGatedConfig = {
+const DONCHIAN_CALM_GATED_CONFIG: DonchianCalmGatedConfig = {
     channelPeriod: 20,
     atrPeriod: 14,
     atrBaselinePeriod: 40,

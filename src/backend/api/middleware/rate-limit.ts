@@ -1,6 +1,6 @@
 import { MarketDataError } from '../../errors/market-data.error.js';
 
-export interface RateLimitDecision {
+interface RateLimitDecision {
     allowed: boolean;
     remaining: number;
     /** Epoch milliseconds at which the current window ends. */
@@ -15,7 +15,7 @@ export interface RateLimiterDatabase {
     ) => Promise<{ rows: T[] }>;
 }
 
-export interface PostgresRateLimiterOptions {
+interface PostgresRateLimiterOptions {
     max: number;
     windowMs: number;
     database: RateLimiterDatabase;

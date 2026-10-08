@@ -39,7 +39,7 @@ export const CANDIDATE_STAGES = [
 
 export type CandidateStage = (typeof CANDIDATE_STAGES)[number];
 
-export interface StrategyRuleRecord {
+interface StrategyRuleRecord {
     readonly id: number;
     readonly ruleId: string;
     readonly stage: CandidateStage;
@@ -105,7 +105,7 @@ export interface GateCheck {
     readonly strategyVersionId: number | null;
 }
 
-export interface StrategyRuleRepository {
+interface StrategyRuleRepository {
     /** Every stage change a rule has ever been through, oldest first. */
     history(ruleId: string): Promise<readonly StrategyRuleRecord[]>;
     current(ruleId: string): Promise<StrategyRuleRecord | null>;

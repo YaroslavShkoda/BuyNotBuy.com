@@ -51,7 +51,7 @@ export const DEFAULT_RULES = 400;
 export const DEFAULT_EXPOSURE = 0.4;
 export const DEFAULT_SEED = 0x7a1e_5e11;
 
-export interface PassRates {
+interface PassRates {
     /** Share of rules clearing "≥ share of folds positive AND worst fold > 0". */
     readonly atHalf: number;
     readonly atSixty: number;

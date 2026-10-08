@@ -49,7 +49,7 @@ function requestErrorStatus(error: unknown): number | undefined {
     return typeof code === 'string' ? REQUEST_ERROR_STATUS[code] : undefined;
 }
 
-export function toPublicError(error: unknown): { statusCode: number; body: ApiErrorResponse } {
+function toPublicError(error: unknown): { statusCode: number; body: ApiErrorResponse } {
     if (error instanceof ApplicationError) {
         return {
             statusCode: error.statusCode,

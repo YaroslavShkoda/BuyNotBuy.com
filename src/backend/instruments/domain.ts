@@ -111,7 +111,7 @@ export interface Instrument {
 }
 
 export const MARKET_KINDS = ['crypto', 'fiat', 'mixed', 'unknown'] as const;
-export type MarketKind = (typeof MARKET_KINDS)[number];
+type MarketKind = (typeof MARKET_KINDS)[number];
 
 /**
  * Splits a ticker into base and quote.

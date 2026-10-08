@@ -99,7 +99,7 @@ const RegimeConfigSchema = z.object({
     path: ['minimumDays'],
 });
 
-export type RegimeConfig = z.infer<typeof RegimeConfigSchema>;
+type RegimeConfig = z.infer<typeof RegimeConfigSchema>;
 
 export const regimeConfig: RegimeConfig = RegimeConfigSchema.parse({
     ...strategyProfile.regime,

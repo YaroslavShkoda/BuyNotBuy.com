@@ -4,7 +4,7 @@ export interface PollerLogger {
     warn?(context: Record<string, unknown>, message: string): void;
 }
 
-export interface PollerOptions {
+interface PollerOptions {
     intervalMs: number;
     /** One cycle. Rejections are the poller's own problem, never the caller's. */
     run: () => Promise<unknown>;

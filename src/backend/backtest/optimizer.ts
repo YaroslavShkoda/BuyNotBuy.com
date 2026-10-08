@@ -40,7 +40,7 @@ export interface ScoredCandidate extends Candidate {
     readonly stability: number;
 }
 
-export interface WindowScore {
+interface WindowScore {
     readonly trades: number;
     /** Mean net return per trade, or null when nothing traded. */
     readonly expectancy: number | null;
@@ -131,7 +131,7 @@ export function enumerateGrid(
  * and terrible on the second is reported as two scores rather than one good
  * one.
  */
-export function scoreCandidate(
+function scoreCandidate(
     candles: Candle[],
     startIndex: number,
     endIndex: number,
@@ -175,7 +175,7 @@ export function scoreCandidate(
     return scores;
 }
 
-export interface OptimizerInput {
+interface OptimizerInput {
     readonly candles: Candle[];
     /** The only bars the search is allowed to look at. */
     readonly startIndex: number;
@@ -248,7 +248,7 @@ export function optimize(input: OptimizerInput): SearchResult {
     };
 }
 
-export interface SpikeVerdict {
+interface SpikeVerdict {
     readonly spike: boolean;
     /**
      * How much of the winner's score its best neighbour keeps.

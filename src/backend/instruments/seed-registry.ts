@@ -1,7 +1,7 @@
 import type { AssetRepository } from './asset.repository.js';
 import type { Asset } from './domain.js';
 
-export interface SeededRegistry {
+interface SeededRegistry {
     /** Assets newly written. Existing rows are left exactly as they were. */
     readonly assetsInserted: number;
     /** The configured instrument, and whether this call was what created it. */

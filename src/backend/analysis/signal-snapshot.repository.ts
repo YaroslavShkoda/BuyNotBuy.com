@@ -4,7 +4,7 @@ import { query } from '../db/pool.js';
 import type { Candle } from '../types/market.js';
 import type { StrategyVersion } from './strategy-version.repository.js';
 
-export interface StoredSnapshot {
+interface StoredSnapshot {
     id: number;
     createdAt: number;
     symbol: string;
@@ -28,7 +28,7 @@ export interface StoredSnapshot {
     readonly interval: string | null;
 }
 
-export interface SignalSnapshotRepository {
+interface SignalSnapshotRepository {
     /**
      * Stores a snapshot, or returns the one already stored for the same inputs.
      *

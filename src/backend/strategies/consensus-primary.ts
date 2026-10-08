@@ -21,7 +21,7 @@ import { NEUTRAL_DECISION } from './types.js';
  * deliberately not handed the indicator service. Recomputing them here would
  * give two versions of every reading, and they would drift.
  */
-export interface ConsensusPrimaryConfig {
+interface ConsensusPrimaryConfig {
     /** How many trailing closes the EMA confirmation reads. */
     readonly emaConfirmBars: number;
 }
