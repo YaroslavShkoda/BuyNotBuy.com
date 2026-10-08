@@ -119,6 +119,7 @@
 | `volume` | `double precision` | нет |
 | `ingested_at` | `bigint` | нет |
 | `is_closed` | `boolean` | нет |
+| `instrument_id` | `bigint` | да |
 
 Ограничения:
 
@@ -183,6 +184,7 @@
 | `data_quality_usable` | `boolean` | да |
 | `data_quality_worst` | `text` | да |
 | `signal_state_id` | `bigint` | да |
+| `instrument_id` | `bigint` | да |
 
 Ограничения:
 
@@ -214,6 +216,7 @@
 | `strategy_version_id` | `bigint` | да |
 | `created_at` | `bigint` | нет |
 | `updated_at` | `bigint` | нет |
+| `instrument_id` | `bigint` | да |
 
 Ограничения:
 
@@ -239,6 +242,7 @@
 | `candles_hash` | `text` | нет |
 | `provider` | `text` | да |
 | `interval` | `text` | да |
+| `instrument_id` | `bigint` | да |
 
 ### `signal_state`
 
@@ -257,6 +261,7 @@
 | `candle_timestamp` | `bigint` | нет |
 | `created_at` | `bigint` | нет |
 | `updated_at` | `bigint` | нет |
+| `instrument_id` | `bigint` | да |
 
 Ограничения:
 
@@ -300,6 +305,7 @@
 | `candle_timestamp` | `bigint` | нет |
 | `price` | `double precision` | нет |
 | `created_at` | `bigint` | нет |
+| `instrument_id` | `bigint` | да |
 
 Ограничения:
 
@@ -323,6 +329,7 @@
 | `published_rule` | `text` | нет |
 | `published_direction` | `text` | нет |
 | `suppressed` | `boolean` | нет |
+| `instrument_id` | `bigint` | да |
 
 Ограничения:
 
@@ -342,7 +349,7 @@
 | `config` | `jsonb` | нет |
 | `config_hash` | `text` | нет |
 
-## Индексы (42)
+## Индексы (55)
 
 | индекс | таблица |
 |---|---|
@@ -350,11 +357,15 @@
 | `holdout_verdict_pkey` | `holdout_verdict` |
 | `index_audit_pkey` | `index_audit` |
 | `idx_indicator_vote_unsettled` | `indicator_vote` |
+| `indicator_vote_instrument_bucket_unique` | `indicator_vote` |
 | `indicator_vote_pkey` | `indicator_vote` |
 | `instrument_base_idx` | `instrument` |
+| `instrument_id_unique` | `instrument` |
 | `instrument_pkey` | `instrument` |
 | `instrument_quote_idx` | `instrument` |
 | `idx_market_candles_recent` | `market_candles` |
+| `market_candles_instrument_bar_unique` | `market_candles` |
+| `market_candles_instrument_series_idx` | `market_candles` |
 | `market_candles_pkey` | `market_candles` |
 | `market_candles_provider_symbol_interval_timestamp_key` | `market_candles` |
 | `rate_limit_window_pkey` | `rate_limit_window` |
@@ -364,16 +375,23 @@
 | `schema_migrations_pkey` | `schema_migrations` |
 | `idx_signal_history_regime` | `signal_history` |
 | `idx_signal_history_series_time` | `signal_history` |
+| `signal_history_instrument_bucket_unique` | `signal_history` |
+| `signal_history_instrument_series_idx` | `signal_history` |
 | `signal_history_pkey` | `signal_history` |
 | `idx_signal_outcome_regime` | `signal_outcome` |
 | `idx_signal_outcome_series` | `signal_outcome` |
 | `idx_signal_outcome_unresolved` | `signal_outcome` |
+| `signal_outcome_instrument_horizon_unique` | `signal_outcome` |
+| `signal_outcome_instrument_series_idx` | `signal_outcome` |
 | `signal_outcome_pkey` | `signal_outcome` |
 | `signal_outcome_symbol_provider_interval_signal_state_id_hor_key` | `signal_outcome` |
 | `idx_signal_snapshot_created` | `signal_snapshot` |
+| `signal_snapshot_instrument_hash_unique` | `signal_snapshot` |
+| `signal_snapshot_instrument_idx` | `signal_snapshot` |
 | `signal_snapshot_pkey` | `signal_snapshot` |
 | `signal_snapshot_symbol_input_hash_key` | `signal_snapshot` |
 | `idx_signal_state_status` | `signal_state` |
+| `signal_state_instrument_series_unique` | `signal_state` |
 | `signal_state_pkey` | `signal_state` |
 | `signal_state_symbol_provider_interval_key` | `signal_state` |
 | `idx_signal_strategy_version_config` | `signal_strategy_version` |
@@ -381,9 +399,11 @@
 | `signal_strategy_version_pkey` | `signal_strategy_version` |
 | `idx_signal_transition_series` | `signal_transition` |
 | `idx_signal_transition_state` | `signal_transition` |
+| `signal_transition_instrument_series_idx` | `signal_transition` |
 | `signal_transition_pkey` | `signal_transition` |
 | `idx_strategy_decision_log_rule` | `strategy_decision_log` |
 | `idx_strategy_decision_log_time` | `strategy_decision_log` |
+| `strategy_decision_instrument_time_unique` | `strategy_decision_log` |
 | `strategy_decision_log_pkey` | `strategy_decision_log` |
 | `ux_strategy_decision_log_symbol_cycle` | `strategy_decision_log` |
 | `strategy_version_config_hash_key` | `strategy_version` |
