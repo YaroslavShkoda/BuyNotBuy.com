@@ -1,5 +1,3 @@
-import { quoteAssetOf } from '../lib/quote-asset';
-
 import type { Candle } from '../types/analysis';
 
 /**
@@ -35,7 +33,8 @@ interface VolumePlotProps {
     candles: Candle[];
     /** Heights in 0..1, aligned index-for-index with `candles`. */
     scale: number[];
-    symbol: string;
+    /** The quote currency the volumes are denominated in, named by the registry. */
+    quote: string | null;
     barStep: number;
     chartWidth: number;
 }
@@ -49,8 +48,7 @@ function formatCandleTime(timestamp: number): string {
     });
 }
 
-export function VolumePlot({ candles, scale, symbol, barStep, chartWidth }: VolumePlotProps) {
-    const quoteAsset = quoteAssetOf(symbol);
+export function VolumePlot({ candles, scale, quote, barStep, chartWidth }: VolumePlotProps) {
 
     return (
         <div
@@ -95,10 +93,10 @@ export function VolumePlot({ candles, scale, symbol, barStep, chartWidth }: Volu
                                 {formatCandleTime(candle.timestamp)}
                             </span>
                             <span className="volume-tooltip-value">
-                                {EXACT_RU.format(candle.volume)} {quoteAsset}
+                                {EXACT_RU.format(candle.volume)}{quote !== null ? ` ${quote}` : ''}
                             </span>
                             <span className="volume-tooltip-compact">
-                                ≈ {COMPACT_RU.format(candle.volume)} {quoteAsset}
+                                ≈ {COMPACT_RU.format(candle.volume)}{quote !== null ? ` ${quote}` : ''}
                             </span>
                         </span>
                     </div>

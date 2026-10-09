@@ -1,4 +1,3 @@
-import { quoteAssetOf } from '../lib/quote-asset';
 import { buildVolumeScale } from '../lib/volume-scale';
 import { summariseVolume } from '../lib/volume-summary';
 import type { Candle } from '../types/analysis';
@@ -7,6 +6,8 @@ import { VolumePlot } from './volume-plot';
 interface MarketChartProps {
     candles: Candle[];
     symbol: string;
+    /** The quote currency the candles are denominated in, named by the registry; null when it cannot be named. */
+    quote: string | null;
     ema300: number;
 }
 
@@ -147,7 +148,7 @@ function formatCandleTime(timestamp: number): string {
     return CANDLE_TIME.format(timestamp);
 }
 
-function VolumeStats({ candles, symbol }: { candles: Candle[]; symbol: string }) {
+function VolumeStats({ candles, quote }: { candles: Candle[]; quote: string | null }) {
     const summary = summariseVolume(candles);
 
     if (summary.count === 0) {
@@ -199,13 +200,13 @@ function VolumeStats({ candles, symbol }: { candles: Candle[]; symbol: string })
             <div className="volume-stat">
                 <span className="volume-stat-label">ВСЕГО</span>
                 <strong>{COMPACT_VOLUME.format(summary.total)}</strong>
-                <small>{quoteAssetOf(symbol)}</small>
+                <small>{quote ?? '—'}</small>
             </div>
         </div>
     );
 }
 
-export function MarketChart({ candles, symbol, ema300 }: MarketChartProps) {
+export function MarketChart({ candles, symbol, quote, ema300 }: MarketChartProps) {
     const visibleCandles = getVisibleCandles(candles);
     const closes = visibleCandles.map((candle) => candle.close);
     const hasEma = Number.isFinite(ema300);
@@ -346,7 +347,7 @@ export function MarketChart({ candles, symbol, ema300 }: MarketChartProps) {
                                     {formatCandleTime(candle.timestamp)}
                                 </span>
                                 <span className="price-tooltip-value">
-                                    {PRICE.format(candle.close)} {quoteAssetOf(symbol)}
+                                    {PRICE.format(candle.close)}{quote !== null ? ` ${quote}` : ''}
                                 </span>
                                 <span className="price-tooltip-compact">
                                     {move >= 0 ? '+' : ''}{move.toFixed(2)}% за час
@@ -369,17 +370,17 @@ export function MarketChart({ candles, symbol, ema300 }: MarketChartProps) {
     </div>
     <div className="volume-heading">
         <span>ОБЪЁМ ТОРГОВ</span>
-        <span>{quoteAssetOf(symbol)}</span>
+        <span>{quote ?? '—'}</span>
     </div>
         <VolumePlot
             candles={visibleCandles}
             scale={volumeScale}
-            symbol={symbol}
+            quote={quote}
             barStep={barStep}
             chartWidth={chartWidth}
         />
     </div>
-        <VolumeStats candles={visibleCandles} symbol={symbol} />
+        <VolumeStats candles={visibleCandles} quote={quote} />
         </section>
     );
 }

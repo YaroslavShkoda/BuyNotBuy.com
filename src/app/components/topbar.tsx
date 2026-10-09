@@ -1,8 +1,6 @@
 import Image from 'next/image';
 import Link from 'next/link';
 
-import { getAssetInfo } from '../lib/assets';
-
 export function formatUpdatedAt(timestamp: number, now: Date = new Date()): string {
     // Guard against zero/negative timestamps: they would render a misleading
     // "ОБНОВЛЕНО 03:00" from 1970 epoch leftovers instead of an explicit absence marker.
@@ -34,7 +32,7 @@ export interface TopbarMarketLink {
 
 interface TopbarProps {
     updatedAt: number;
-    /** Symbol the current page is about; names the terminal subtitle. */
+    /** Display name of the current market, as the registry spells it; names the terminal subtitle. */
     assetName?: string;
     /** Active instruments for the switcher; absent when the registry is unreachable. */
     markets?: TopbarMarketLink[];
@@ -43,7 +41,7 @@ interface TopbarProps {
 export function Topbar({ updatedAt, assetName, markets = [] }: TopbarProps) {
     const subject = assetName === undefined
         ? 'BITCOIN'
-        : getAssetInfo(assetName).name.toUpperCase();
+        : assetName.toUpperCase();
 
     return (
         <header className="topbar">

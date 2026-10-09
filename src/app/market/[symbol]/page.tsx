@@ -51,7 +51,7 @@ export default async function MarketPage({
 
             <Topbar
                 updatedAt={analysis.timestamp}
-                assetName={market.price.symbol}
+                assetName={market.instrument?.name ?? market.price.symbol}
                 markets={marketLinks}
             />
 
@@ -61,9 +61,14 @@ export default async function MarketPage({
                     history={history}
                     candles={market.candles}
                     symbol={market.price.symbol}
+                    instrument={market.instrument}
                     ema300={analysis.indicators.ema300}
                 />
-                <MarketDetails candles={market.candles} analysis={analysis} symbol={market.price.symbol} />
+                <MarketDetails
+                    candles={market.candles}
+                    analysis={analysis}
+                    quote={market.instrument?.quote ?? null}
+                />
             </div>
         </main>
     );

@@ -47,8 +47,8 @@
     pointer-events: none;
 }
 
-/* The badge sits beside the asset name. Driven by the asset map in
-   lib/assets.ts — one glyph per asset. The tile is always square (aspect-ratio)
+/* The badge sits beside the asset name. One mark per asset, chosen by
+   hero.tsx from the registry's answer. The tile is always square (aspect-ratio)
    and sized on its own vw curve, so it can never smear into a vertical strip. */
 .hero-asset-line {
     display: flex;
@@ -101,8 +101,8 @@
     gap: clamp(16px, 1.8vw, 32px);
 }
 
-/* The badge sits beside the asset name and its price. Driven by the asset map
-   in lib/assets.ts — one glyph per asset. The tile is always square
+/* The badge sits beside the asset name and its price. One mark per asset,
+   chosen by hero.tsx from the registry's answer. The tile is always square
    (aspect-ratio) and sized on its own vw curve, so it can never smear into a
    vertical strip. Top-aligned, so the name starts level with the top of the
    tile rather than floating in the middle of it — the price now stacks under

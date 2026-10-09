@@ -1,21 +1,21 @@
-// Frontend view of backend contract (src/backend/types/*).
-// Keep field-compatible with backend MarketAnalysis.
-export interface Candle {
-    timestamp: number;
-    open: number;
-    high: number;
-    low: number;
-    close: number;
-    /** Notional volume, in the pair's quote currency. See backend Candle. */
-    volume: number;
-}
+import { z } from 'zod';
 
-export interface AssetPrice {
-    symbol: string;
-    price: number;
-}
+import {
+    CandleSchema,
+    DivergenceAnalysisSchema,
+    IndicatorKeySchema,
+    IndicatorSignalSchema,
+    MarketAnalysisSchema,
+} from '../../backend/api/schemas';
 
-export type IndicatorSignal = 'LONG' | 'SHORT' | 'NEUTRAL';
+// The wire contract, not a mirror of it. Every type here is derived from the
+// schema the backend parses with on the way out — the same object this side
+// validates with on the way in — so a field renamed or retyped on the backend
+// is a compile error here instead of a page drawn from a stale copy.
+
+export type Candle = z.infer<typeof CandleSchema>;
+
+export type IndicatorSignal = z.infer<typeof IndicatorSignalSchema>;
 
 /**
  * Stable identity of an indicator, separate from its display name.
@@ -24,83 +24,12 @@ export type IndicatorSignal = 'LONG' | 'SHORT' | 'NEUTRAL';
  * configurable period would otherwise leave every row blank the moment it
  * changed — the row would stop being recognised as an EMA at all.
  */
-export type IndicatorKey = 'ema' | 'stochastic' | 'momentum';
+export type IndicatorKey = z.infer<typeof IndicatorKeySchema>;
 
-export interface IndicatorAnalysis {
-    key: IndicatorKey;
-    name: string;
-    signal: IndicatorSignal;
-    reason: string;
-    /** Strength of this vote in [0, 1]; 0 means "no opinion". */
-    weight: number;
-}
+export type IndicatorAnalysis = MarketAnalysis['signal']['indicators'][number];
 
-export interface SignalResult {
-    signal: IndicatorSignal;
-    confidence: number;
-    reason: string;
-    indicators: IndicatorAnalysis[];
-}
+export type SignalResult = MarketAnalysis['signal'];
 
-export interface MarketIndicators {
-    ema300: number;
-    stochastic: number;
-    momentum: number;
-    /** True range as a fraction of price; context, not a vote. */
-    atr: number;
-    rsi: number;
-    macd: {
-        macd: number;
-        signal: number;
-        histogram: number;
-    };
-}
+export type DivergenceAnalysis = z.infer<typeof DivergenceAnalysisSchema>;
 
-export interface MomentumAnalysis {
-    period: number;
-    current: number;
-    series: Array<number | null>;
-}
-
-export type DivergenceType = 'BULLISH' | 'BEARISH' | 'NONE';
-
-export interface DivergencePoint {
-    index: number;
-    /** First bar that made this pivot knowable. */
-    confirmedAtIndex: number;
-    /** Bars elapsed since confirmation. */
-    age: number;
-    price: number;
-    momentum: number;
-}
-
-export interface DivergenceResult {
-    type: DivergenceType;
-    previous: DivergencePoint;
-    current: DivergencePoint;
-}
-
-export interface DivergenceAnalysis {
-    bullish: DivergenceResult | null;
-    bearish: DivergenceResult | null;
-}
-
-export interface MarketAnalysis {
-    timestamp: number;
-    price: number;
-    indicators: MarketIndicators;
-    signal: SignalResult;
-    momentum: MomentumAnalysis;
-    divergence: DivergenceAnalysis;
-    /** The periods every indicator was actually computed with. */
-    periods: {
-        ema: number;
-        stochastic: number;
-        momentum: number;
-        atr: number;
-        rsi: number;
-        macdFast: number;
-        macdSlow: number;
-        macdSignal: number;
-    };
-}
+export type MarketAnalysis = z.infer<typeof MarketAnalysisSchema>;

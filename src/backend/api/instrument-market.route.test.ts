@@ -3,7 +3,7 @@ import Fastify from 'fastify';
 import { describe, expect, it, vi } from 'vitest';
 import { currentCandles } from '../test-support/candles.js';
 
-import { MarketDataSchema } from './schemas.js';
+import { MarketResponseSchema } from './schemas.js';
 
 /**
  * `/api/instruments/:ticker/market` — the market-data sibling of the analysis
@@ -86,13 +86,57 @@ describe('GET /api/instruments/:ticker/market', () => {
         expect((response.json() as { price: { price: number } }).price.price).toBeLessThan(2000);
     });
 
-    it('passes the schema the frozen route is held to', async () => {
+    it('carries the registry answer about the market alongside the data', async () => {
         const response = await (await app()).inject({
             method: 'GET',
             url: '/api/instruments/BTCUSDT/market',
         });
 
-        expect(() => MarketDataSchema.parse(response.json())).not.toThrow();
+        const body = MarketResponseSchema.parse(response.json());
+
+        expect(body.instrument).toEqual({
+            ticker: 'BTCUSDT',
+            base: 'BTC',
+            quote: 'USDT',
+            name: 'Bitcoin',
+            displaySymbol: 'BTCUSDT',
+        });
+    });
+
+    it('names each market from the registry and leaves an unresolvable one unnamed', async () => {
+        const application = await app();
+
+        const eth = MarketResponseSchema.parse(
+            (
+                await application.inject({
+                    method: 'GET',
+                    url: '/api/instruments/ETHUSDT/market',
+                })
+            ).json(),
+        );
+
+        expect(eth.instrument).toEqual({
+            ticker: 'ETHUSDT',
+            base: 'ETH',
+            quote: 'USDT',
+            name: 'Ethereum',
+            displaySymbol: 'ETHUSDT',
+        });
+
+        // The provider answers for anything; the registry does not resolve a
+        // ticker that ends in no registered quote. Data with no name is the
+        // honest answer — not a guessed descriptor.
+        const unnamed = MarketResponseSchema.parse(
+            (
+                await application.inject({
+                    method: 'GET',
+                    url: '/api/instruments/ZZZZZ/market',
+                })
+            ).json(),
+        );
+
+        expect(unnamed.instrument).toBeNull();
+        expect(unnamed.price.symbol).toBe('ZZZZZ');
     });
 
     it('gives a different answer for a different market', async () => {

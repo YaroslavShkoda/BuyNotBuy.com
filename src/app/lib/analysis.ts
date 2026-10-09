@@ -1,4 +1,5 @@
-﻿import type { MarketAnalysis } from '../types/analysis';
+﻿import { MarketAnalysisSchema } from '../../backend/api/schemas';
+import type { MarketAnalysis } from '../types/analysis';
 import { fetchJson } from './api-error';
 
 export function analysisUrl(instrument?: string): string {
@@ -10,5 +11,5 @@ export function analysisUrl(instrument?: string): string {
 }
 
 export async function getAnalysis(instrument?: string): Promise<MarketAnalysis> {
-    return fetchJson<MarketAnalysis>(analysisUrl(instrument));
+    return fetchJson(analysisUrl(instrument), MarketAnalysisSchema);
 }

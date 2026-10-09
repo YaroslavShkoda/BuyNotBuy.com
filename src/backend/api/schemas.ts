@@ -60,6 +60,39 @@ export const MarketDataSchema = z.object({
     candles: z.array(CandleSchema),
 });
 
+/**
+ * The registry's answer to "what is this market", travelling with its data.
+ *
+ * Written because the quote currency of a pair used to be re-derived on the
+ * client from the symbol string — a longest-suffix guess against a list copied
+ * from the one that lives here, and two lists that agree on the day they are
+ * written and that nothing holds together afterwards. The split is a lookup,
+ * not a rule (`instruments/domain.ts`), the lookup already happened here, and
+ * a wire that carries the symbol but not its answer makes every client guess
+ * again.
+ *
+ * `displaySymbol` is the domain's `label()`: the market's own name, which is
+ * not always the ticker's own name. A client that formats nothing cannot
+ * format it differently from the registry, and a fiat pair arrives as
+ * `EUR/USD` rather than being printed as a venue ticker.
+ *
+ * `null`, not a guessed descriptor, when the ticker does not resolve against
+ * the registry. The data still flows — a provider may answer for a market the
+ * registry cannot name — and the inability to name it is stated rather than
+ * papered over with a default quote.
+ */
+export const MarketInstrumentSchema = z.object({
+    ticker: z.string(),
+    base: z.string(),
+    quote: z.string(),
+    name: z.string(),
+    displaySymbol: z.string(),
+});
+
+export const MarketResponseSchema = MarketDataSchema.extend({
+    instrument: MarketInstrumentSchema.nullable(),
+});
+
 const MarketIndicatorsSchema = z.object({
     ema300: z.number(),
     stochastic: z.number(),

@@ -1,4 +1,4 @@
-import { getAssetInfo } from '../lib/assets';
+import type { MarketInstrument } from '../lib/market';
 import type { Candle, MarketAnalysis } from '../types/analysis';
 import type { SignalHistoryResponse } from '../types/history';
 import { MarketChart } from './market-chart';
@@ -10,6 +10,8 @@ interface HeroProps {
     history: SignalHistoryResponse | null;
     candles: Candle[];
     symbol: string;
+    /** The registry's answer about this market; null when it has none. */
+    instrument: MarketInstrument | null;
     ema300: number;
 }
 
@@ -37,9 +39,13 @@ function BitcoinMark() {
     );
 }
 
-export function Hero({ analysis, history, candles, symbol, ema300 }: HeroProps) {
+export function Hero({ analysis, history, candles, symbol, instrument, ema300 }: HeroProps) {
     const { signal, indicators, price, momentum } = analysis;
-    const asset = getAssetInfo(symbol);
+    // Name and display form come from the registry, not from a parse of the
+    // symbol; when the registry cannot name the market, the raw ticker is the
+    // honest fallback and the base the glyph falls back to.
+    const name = instrument?.name ?? symbol;
+    const base = instrument?.base ?? symbol;
 
     return (
             <section className="hero depth-surface">
@@ -52,11 +58,11 @@ export function Hero({ analysis, history, candles, symbol, ema300 }: HeroProps) 
                             left edge beside the badge. */}
                         <div className="hero-asset-line">
                             <span className="hero-asset-glyph" aria-hidden="true">
-                                {asset.glyph === '₿' ? <BitcoinMark /> : asset.glyph}
+                                {base === 'BTC' ? <BitcoinMark /> : base.charAt(0)}
                             </span>
 
                             <div className="hero-asset-text">
-                                <h1>{asset.name}</h1>
+                                <h1>{name}</h1>
 
                                 <div className="hero-price-block">
                                     <span className="hero-price">
@@ -67,7 +73,7 @@ export function Hero({ analysis, history, candles, symbol, ema300 }: HeroProps) 
                                     </span>
 
                                     <span className="hero-price-label">
-                                        {asset.ticker} / {asset.quote}
+                                        {instrument?.displaySymbol ?? symbol}
                                     </span>
                                 </div>
                             </div>
@@ -77,7 +83,12 @@ export function Hero({ analysis, history, candles, symbol, ema300 }: HeroProps) 
                     {/* The market chart lives directly under the asset block in the
                         left column of the unified hero panel. */}
                     <div className="hero-chart">
-                        <MarketChart candles={candles} symbol={symbol} ema300={ema300} />
+                        <MarketChart
+                            candles={candles}
+                            symbol={symbol}
+                            quote={instrument?.quote ?? null}
+                            ema300={ema300}
+                        />
                     </div>
                 </div>
 

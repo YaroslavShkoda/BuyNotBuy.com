@@ -1,16 +1,16 @@
 import { formatMomentumPercent, formatPercent, formatSignedPercent } from '../lib/format-momentum';
-import { quoteAssetOf } from '../lib/quote-asset';
 import type { Candle, DivergenceAnalysis, MarketAnalysis } from '../types/analysis';
 
 interface MarketDetailsProps {
     candles: Candle[];
     analysis: MarketAnalysis;
     /**
-     * Needed to name the currency the volume column is counted in. The analysis
-     * payload carries only a price, because nothing else in it has an opinion
-     * about which pair is being shown.
+     * The currency the volume column is counted in, named by the registry. The
+     * analysis payload carries only a price, and the market payload names the
+     * pair authoritatively — so the table receives the answer rather than
+     * re-deriving it from a symbol string.
      */
-    symbol: string;
+    quote: string | null;
 }
 
 function compactNumber(value: number) {
@@ -95,7 +95,7 @@ export function describeDivergence(divergence: DivergenceAnalysis): DivergencePr
     };
 }
 
-export function MarketDetails({ candles, analysis, symbol }: MarketDetailsProps) {
+export function MarketDetails({ candles, analysis, quote }: MarketDetailsProps) {
     // The grid stretches both cards to the same height, so the activity table
     // has to carry the difference: the left card is tall because its captions
     // wrap, and this one used to stop after five rows with dead space under it.
@@ -210,7 +210,7 @@ export function MarketDetails({ candles, analysis, symbol }: MarketDetailsProps)
                     </header>
                     <div className="candle-table-wrap">
                         <table className="candle-table">
-                            <thead><tr><th>ВРЕМЯ</th><th>ЗАКРЫТИЕ</th><th>ДИАПАЗОН</th><th>ОБЪЁМ, {quoteAssetOf(symbol)}</th></tr></thead>
+                            <thead><tr><th>ВРЕМЯ</th><th>ЗАКРЫТИЕ</th><th>ДИАПАЗОН</th><th>ОБЪЁМ{quote !== null ? `, ${quote}` : ''}</th></tr></thead>
                             <tbody>{recent.map((candle) => (
                                 <tr key={candle.timestamp}>
                                     <td>{new Date(candle.timestamp).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</td>

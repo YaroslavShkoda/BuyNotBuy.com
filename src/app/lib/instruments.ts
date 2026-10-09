@@ -1,17 +1,14 @@
+import { z } from 'zod';
+
+import { InstrumentsResponseSchema } from '../../backend/api/schemas';
 import { fetchJson } from './api-error';
 
-export interface InstrumentSummary {
-    ticker: string;
-    status: 'active' | 'inactive';
-}
+type InstrumentRow = z.infer<typeof InstrumentsResponseSchema>['instruments'][number];
 
-interface InstrumentsResponse {
-    instruments: InstrumentSummary[];
-}
-
-export async function getInstruments(): Promise<InstrumentSummary[]> {
-    const response = await fetchJson<InstrumentsResponse>(
+export async function getInstruments(): Promise<InstrumentRow[]> {
+    const response = await fetchJson(
         `${process.env.BACKEND_URL}/api/instruments`,
+        InstrumentsResponseSchema,
     );
 
     return response.instruments;

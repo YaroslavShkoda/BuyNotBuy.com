@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { z } from 'zod';
 
 import { BackendApiError, fetchJson } from './api-error';
 
@@ -26,7 +27,10 @@ describe('fetchJson', () => {
     it('returns parsed JSON on 200 + valid JSON', async () => {
         vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okResponse({ price: 80000 })));
 
-        const result = await fetchJson<{ price: number }>('http://backend/api/market');
+        const result = await fetchJson(
+            'http://backend/api/market',
+            z.object({ price: z.number() }),
+        );
 
         expect(result).toEqual({ price: 80000 });
     });
@@ -35,11 +39,27 @@ describe('fetchJson', () => {
         const fetchMock = vi.fn().mockResolvedValue(okResponse({}));
         vi.stubGlobal('fetch', fetchMock);
 
-        await fetchJson('http://backend/api/market');
+        await fetchJson('http://backend/api/market', z.object({}));
 
         expect(fetchMock).toHaveBeenCalledWith('http://backend/api/market', {
             cache: 'no-store',
         });
+    });
+
+    it('throws a contract error when 200 JSON violates the schema', async () => {
+        vi.stubGlobal(
+            'fetch',
+            vi.fn().mockResolvedValue(okResponse({ price: 'banana' })),
+        );
+
+        const error = (await fetchJson(
+            'http://backend/api/market',
+            z.object({ price: z.number() }),
+        ).catch((e: unknown) => e)) as Error;
+
+        expect(error.message).toContain('does not match the contract');
+        expect(error.message).toContain('price');
+        expect(error.cause).toBeDefined();
     });
 
     it('throws BackendApiError on 4xx + valid API error body', async () => {
@@ -52,7 +72,7 @@ describe('fetchJson', () => {
             ),
         );
 
-        const error = (await fetchJson('http://backend/api/market').catch((e: unknown) => e)) as BackendApiError;
+        const error = (await fetchJson('http://backend/api/market', z.unknown()).catch((e: unknown) => e)) as BackendApiError;
 
         expect(error).toBeInstanceOf(BackendApiError);
         expect(error.status).toBe(400);
@@ -69,7 +89,7 @@ describe('fetchJson', () => {
             ),
         );
 
-        const error = (await fetchJson('http://backend/api/analysis').catch((e: unknown) => e)) as BackendApiError;
+        const error = (await fetchJson('http://backend/api/analysis', z.unknown()).catch((e: unknown) => e)) as BackendApiError;
 
         expect(error).toBeInstanceOf(BackendApiError);
         expect(error.status).toBe(503);
@@ -84,7 +104,7 @@ describe('fetchJson', () => {
             })),
         );
 
-        const error = (await fetchJson('http://backend/api/market').catch((e: unknown) => e)) as Error;
+        const error = (await fetchJson('http://backend/api/market', z.unknown()).catch((e: unknown) => e)) as Error;
 
         expect(error).not.toBeInstanceOf(BackendApiError);
         expect(error.message).toBe('Backend returned 503');
@@ -102,7 +122,7 @@ describe('fetchJson', () => {
             } as unknown as Response),
         );
 
-        const error = (await fetchJson('http://backend/api/market').catch((e: unknown) => e)) as Error;
+        const error = (await fetchJson('http://backend/api/market', z.unknown()).catch((e: unknown) => e)) as Error;
 
         expect(error.message).toBe('Backend returned invalid JSON');
         expect(error.cause).toBeInstanceOf(SyntaxError);
@@ -120,7 +140,7 @@ describe('fetchJson', () => {
             } as unknown as Response),
         );
 
-        const error = (await fetchJson('http://backend/api/market').catch((e: unknown) => e)) as Error;
+        const error = (await fetchJson('http://backend/api/market', z.unknown()).catch((e: unknown) => e)) as Error;
 
         expect(error.message).toBe('Backend returned invalid JSON');
     });
@@ -129,7 +149,7 @@ describe('fetchJson', () => {
         const networkError = new TypeError('fetch failed');
         vi.stubGlobal('fetch', vi.fn().mockRejectedValue(networkError));
 
-        const error = (await fetchJson('http://backend/api/market').catch((e: unknown) => e)) as Error;
+        const error = (await fetchJson('http://backend/api/market', z.unknown()).catch((e: unknown) => e)) as Error;
 
         expect(error).toBe(networkError);
     });

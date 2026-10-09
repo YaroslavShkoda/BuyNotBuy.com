@@ -1,3 +1,4 @@
+import { SignalHistoryResponseSchema } from '../../backend/api/schemas';
 import type { SignalHistoryResponse } from '../types/history';
 import { fetchJson } from './api-error';
 
@@ -15,5 +16,5 @@ export function signalHistoryUrl(instrument?: string): string {
 export async function getSignalHistory(
     instrument?: string,
 ): Promise<SignalHistoryResponse> {
-    return fetchJson<SignalHistoryResponse>(signalHistoryUrl(instrument));
+    return fetchJson(signalHistoryUrl(instrument), SignalHistoryResponseSchema);
 }
