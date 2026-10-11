@@ -1,6 +1,10 @@
 import type { QueryResult, QueryResultRow } from 'pg';
 import { outcomeConfig } from '../config/outcome.config.js';
-import { query as defaultQuery, withTransaction } from '../db/pool.js';
+import {
+	query as defaultQuery,
+	resolveInstrumentId,
+	withTransaction,
+} from '../db/pool.js';
 import type { Candle } from '../types/market.js';
 import type { OutcomeVerdict, SignalOutcome } from './outcome.js';
 import { measureOutcome } from './outcome.js';
@@ -20,103 +24,103 @@ import { measureOutcome } from './outcome.js';
  */
 
 interface OutcomeSeriesKey {
-    symbol: string;
-    provider: string;
-    interval: string;
+	symbol: string;
+	provider: string;
+	interval: string;
 }
 
 export interface SettleInput {
-    readonly key: OutcomeSeriesKey;
-    readonly stateId?: number | null;
-    readonly direction: 'LONG' | 'SHORT';
-    readonly entryTimestamp: number;
-    readonly entryPrice: number;
-    /** Every bar available after the entry, oldest first. */
-    readonly candles: readonly Candle[];
-    readonly closedBy?: SignalOutcome['closedBy'];
-    readonly regime?: string | null;
-    readonly dataQuality?: number | null;
-    readonly strategyVersionId?: number | null;
-    readonly now: number;
+	readonly key: OutcomeSeriesKey;
+	readonly stateId?: number | null;
+	readonly direction: "LONG" | "SHORT";
+	readonly entryTimestamp: number;
+	readonly entryPrice: number;
+	/** Every bar available after the entry, oldest first. */
+	readonly candles: readonly Candle[];
+	readonly closedBy?: SignalOutcome["closedBy"];
+	readonly regime?: string | null;
+	readonly dataQuality?: number | null;
+	readonly strategyVersionId?: number | null;
+	readonly now: number;
 }
 
 interface OutcomeRow {
-    readonly id: string;
-    readonly symbol: string;
-    readonly provider: string;
-    readonly interval: string;
-    readonly stateId: number | null;
-    readonly direction: 'LONG' | 'SHORT';
-    readonly verdict: OutcomeVerdict;
-    readonly horizonBars: number;
-    readonly entryTimestamp: number;
-    readonly entryPrice: number;
-    readonly exitTimestamp: number | null;
-    readonly exitPrice: number | null;
-    readonly returnFraction: number | null;
-    readonly maxFavourable: number | null;
-    readonly maxAdverse: number | null;
-    readonly closedBy: SignalOutcome['closedBy'];
-    readonly regime: string | null;
-    readonly dataQuality: number | null;
-    readonly strategyVersionId: number | null;
-    readonly createdAt: number;
-    readonly updatedAt: number;
+	readonly id: string;
+	readonly symbol: string;
+	readonly provider: string;
+	readonly interval: string;
+	readonly stateId: number | null;
+	readonly direction: "LONG" | "SHORT";
+	readonly verdict: OutcomeVerdict;
+	readonly horizonBars: number;
+	readonly entryTimestamp: number;
+	readonly entryPrice: number;
+	readonly exitTimestamp: number | null;
+	readonly exitPrice: number | null;
+	readonly returnFraction: number | null;
+	readonly maxFavourable: number | null;
+	readonly maxAdverse: number | null;
+	readonly closedBy: SignalOutcome["closedBy"];
+	readonly regime: string | null;
+	readonly dataQuality: number | null;
+	readonly strategyVersionId: number | null;
+	readonly createdAt: number;
+	readonly updatedAt: number;
 }
 
 export interface OutcomeRepository {
-    /**
-     * Measures a signal and stores one row per horizon, updating in place.
-     *
-     * A signal that was unresolved last run and is resolved now is the same
-     * measurement finished, not a second one. The unique key is what makes that
-     * true, and it is why a report over this table can be trusted not to count
-     * the same trade twice.
-     */
-    settle(input: SettleInput): Promise<OutcomeRow[]>;
-    /**
-     * How many signals of this series are still waiting for bars.
-     *
-     * **A count, counted.** This used to be a length of a limited list: `SELECT
-     * DISTINCT ON (...) ... LIMIT 500`, with the caller taking `.length` and
-     * reporting it as a number. Two things were wrong with that and neither was
-     * about the limit itself.
-     *
-     * The query had **no predicate on the market at all**, so a scan running for
-     * BTCUSDT reported ETHUSDT's waiting signals in `stillWaiting` — a field
-     * logged per market, `{ market, ...measured }`, next to `examined` and `rows`,
-     * which were that market's alone. One line of a report had no market in it.
-     *
-     * And the `LIMIT` combined with `ORDER BY symbol` decided *which* markets
-     * appeared: the tail past 500 rows was dropped, alphabetically, without a
-     * word. So the same deployment reported a different number for the same market
-     * depending on what other markets existed — not slightly different, since
-     * `stillWaiting` is a whole-number gauge read as a backlog.
-     *
-     * Counting distinct `signal_state_id` rather than rows is deliberate and was
-     * the point of the old `DISTINCT ON`: one signal waiting on several horizons
-     * is one signal waiting, not seven.
-     */
-    countUnresolved(key: OutcomeSeriesKey): Promise<number>;
-    /** Every measurement for one series at one horizon. */
-    forSeries(
-        key: OutcomeSeriesKey,
-        horizonBars: number,
-        limit?: number,
-    ): Promise<OutcomeRow[]>;
-    /**
-     * Removes measurements whose signal is older than the cutoff.
-     *
-     * Scoped through `signal_state` rather than by age alone: a measurement
-     * whose live signal is still current is not a measurement that has been
-     * superseded, however old its entry bar.
-     */
-    deleteBefore(cutoff: number): Promise<number>;
+	/**
+	 * Measures a signal and stores one row per horizon, updating in place.
+	 *
+	 * A signal that was unresolved last run and is resolved now is the same
+	 * measurement finished, not a second one. The unique key is what makes that
+	 * true, and it is why a report over this table can be trusted not to count
+	 * the same trade twice.
+	 */
+	settle(input: SettleInput): Promise<OutcomeRow[]>;
+	/**
+	 * How many signals of this series are still waiting for bars.
+	 *
+	 * **A count, counted.** This used to be a length of a limited list: `SELECT
+	 * DISTINCT ON (...) ... LIMIT 500`, with the caller taking `.length` and
+	 * reporting it as a number. Two things were wrong with that and neither was
+	 * about the limit itself.
+	 *
+	 * The query had **no predicate on the market at all**, so a scan running for
+	 * BTCUSDT reported ETHUSDT's waiting signals in `stillWaiting` — a field
+	 * logged per market, `{ market, ...measured }`, next to `examined` and `rows`,
+	 * which were that market's alone. One line of a report had no market in it.
+	 *
+	 * And the `LIMIT` combined with `ORDER BY symbol` decided *which* markets
+	 * appeared: the tail past 500 rows was dropped, alphabetically, without a
+	 * word. So the same deployment reported a different number for the same market
+	 * depending on what other markets existed — not slightly different, since
+	 * `stillWaiting` is a whole-number gauge read as a backlog.
+	 *
+	 * Counting distinct `signal_state_id` rather than rows is deliberate and was
+	 * the point of the old `DISTINCT ON`: one signal waiting on several horizons
+	 * is one signal waiting, not seven.
+	 */
+	countUnresolved(key: OutcomeSeriesKey): Promise<number>;
+	/** Every measurement for one series at one horizon. */
+	forSeries(
+		key: OutcomeSeriesKey,
+		horizonBars: number,
+		limit?: number,
+	): Promise<OutcomeRow[]>;
+	/**
+	 * Removes measurements whose signal is older than the cutoff.
+	 *
+	 * Scoped through `signal_state` rather than by age alone: a measurement
+	 * whose live signal is still current is not a measurement that has been
+	 * superseded, however old its entry bar.
+	 */
+	deleteBefore(cutoff: number): Promise<number>;
 }
 
 type OutcomeQuery = (
-    text: string,
-    values?: readonly unknown[],
+	text: string,
+	values?: readonly unknown[],
 ) => Promise<QueryResult<QueryResultRow>>;
 
 const COLUMNS = `
@@ -127,76 +131,70 @@ const COLUMNS = `
 `;
 
 function toRow(row: QueryResultRow): OutcomeRow {
-    return {
-        id: String(row.id),
-        symbol: row.symbol,
-        provider: row.provider,
-        interval: row.interval,
-        stateId: row.signal_state_id === null ? null : Number(row.signal_state_id),
-        direction: row.direction,
-        verdict: row.verdict,
-        horizonBars: Number(row.horizon_bars),
-        entryTimestamp: Number(row.entry_timestamp),
-        entryPrice: Number(row.entry_price),
-        exitTimestamp:
-            row.exit_timestamp === null ? null : Number(row.exit_timestamp),
-        exitPrice: row.exit_price === null ? null : Number(row.exit_price),
-        returnFraction:
-            row.return_fraction === null ? null : Number(row.return_fraction),
-        maxFavourable:
-            row.max_favourable === null ? null : Number(row.max_favourable),
-        maxAdverse:
-            row.max_adverse === null ? null : Number(row.max_adverse),
-        closedBy: row.closed_by,
-        regime: row.regime,
-        dataQuality:
-            row.data_quality === null ? null : Number(row.data_quality),
-        strategyVersionId:
-            row.strategy_version_id === null
-                ? null
-                : Number(row.strategy_version_id),
-        createdAt: Number(row.created_at),
-        updatedAt: Number(row.updated_at),
-    };
+	return {
+		id: String(row.id),
+		symbol: row.symbol,
+		provider: row.provider,
+		interval: row.interval,
+		stateId: row.signal_state_id === null ? null : Number(row.signal_state_id),
+		direction: row.direction,
+		verdict: row.verdict,
+		horizonBars: Number(row.horizon_bars),
+		entryTimestamp: Number(row.entry_timestamp),
+		entryPrice: Number(row.entry_price),
+		exitTimestamp:
+			row.exit_timestamp === null ? null : Number(row.exit_timestamp),
+		exitPrice: row.exit_price === null ? null : Number(row.exit_price),
+		returnFraction:
+			row.return_fraction === null ? null : Number(row.return_fraction),
+		maxFavourable:
+			row.max_favourable === null ? null : Number(row.max_favourable),
+		maxAdverse: row.max_adverse === null ? null : Number(row.max_adverse),
+		closedBy: row.closed_by,
+		regime: row.regime,
+		dataQuality: row.data_quality === null ? null : Number(row.data_quality),
+		strategyVersionId:
+			row.strategy_version_id === null ? null : Number(row.strategy_version_id),
+		createdAt: Number(row.created_at),
+		updatedAt: Number(row.updated_at),
+	};
 }
 
 export function createOutcomeRepository(
-    query: OutcomeQuery = (text, values) =>
-        defaultQuery(text, values as unknown[]),
-    transaction: <T>(
-        work: (client: { query: OutcomeQuery }) => Promise<T>,
-    ) => Promise<T> = withTransaction,
+	query: OutcomeQuery = (text, values) =>
+		defaultQuery(text, values as unknown[]),
+	transaction: <T>(
+		work: (client: { query: OutcomeQuery }) => Promise<T>,
+	) => Promise<T> = withTransaction,
 ): OutcomeRepository {
-    return {
-        async settle(input) {
-            const outcome = measureOutcome({
-                symbol: input.key.symbol,
-                entryTimestamp: input.entryTimestamp,
-                entryPrice: input.entryPrice,
-                direction: input.direction,
-                candles: input.candles,
-                config: outcomeConfig,
-                ...(input.closedBy === undefined
-                    ? {}
-                    : { closedBy: input.closedBy }),
-            });
+	return {
+		async settle(input) {
+			const outcome = measureOutcome({
+				symbol: input.key.symbol,
+				entryTimestamp: input.entryTimestamp,
+				entryPrice: input.entryPrice,
+				direction: input.direction,
+				candles: input.candles,
+				config: outcomeConfig,
+				...(input.closedBy === undefined ? {} : { closedBy: input.closedBy }),
+			});
 
-            // One transaction for the whole set of horizons. A signal measured
-            // at one bar and not at twelve is not a partial answer, it is a
-            // table that will report a different hit rate depending on which
-            // rows happened to make it in.
-            return transaction(async (client) => {
-                const inside = client.query.bind(client) as OutcomeQuery;
-                const written: OutcomeRow[] = [];
+			// One transaction for the whole set of horizons. A signal measured
+			// at one bar and not at twelve is not a partial answer, it is a
+			// table that will report a different hit rate depending on which
+			// rows happened to make it in.
+			return transaction(async (client) => {
+				const inside = client.query.bind(client) as OutcomeQuery;
+				const written: OutcomeRow[] = [];
 
-                for (const horizon of outcome.horizons) {
-                    const forward = input.candles.filter(
-                        (candle) => candle.timestamp > input.entryTimestamp,
-                    );
-                    const end = forward[horizon.bars - 1];
+				for (const horizon of outcome.horizons) {
+					const forward = input.candles.filter(
+						(candle) => candle.timestamp > input.entryTimestamp,
+					);
+					const end = forward[horizon.bars - 1];
 
-                    const result = await inside(
-                        `INSERT INTO signal_outcome (
+					const result = await inside(
+						`INSERT INTO signal_outcome (
                             symbol, provider, interval, signal_state_id,
                             direction, verdict, horizon_bars,
                             entry_timestamp, entry_price, exit_timestamp, exit_price,
@@ -230,86 +228,98 @@ export function createOutcomeRepository(
                          -- was already recorded and acted on.
                          WHERE signal_outcome.verdict IN ('unknown', 'expired')
                          RETURNING *`,
-                        [
-                            input.key.symbol,
-                            input.key.provider,
-                            input.key.interval,
-                            input.stateId ?? null,
-                            input.direction,
-                            horizon.verdict,
-                            horizon.bars,
-                            input.entryTimestamp,
-                            input.entryPrice,
-                            end?.timestamp ?? null,
-                            end?.close ?? null,
-                            horizon.returnFraction,
-                            horizon.maxFavourable,
-                            horizon.maxAdverse,
-                            outcome.closedBy,
-                            input.regime ?? null,
-                            input.dataQuality ?? null,
-                            input.strategyVersionId ?? null,
-                            input.now,
-                        ],
-                    );
+						[
+							input.key.symbol,
+							input.key.provider,
+							input.key.interval,
+							input.stateId ?? null,
+							input.direction,
+							horizon.verdict,
+							horizon.bars,
+							input.entryTimestamp,
+							input.entryPrice,
+							end?.timestamp ?? null,
+							end?.close ?? null,
+							horizon.returnFraction,
+							horizon.maxFavourable,
+							horizon.maxAdverse,
+							outcome.closedBy,
+							input.regime ?? null,
+							input.dataQuality ?? null,
+							input.strategyVersionId ?? null,
+							input.now,
+						],
+					);
 
-                    const row = result.rows[0];
+					const row = result.rows[0];
 
-                    if (row !== undefined) {
-                        written.push(toRow(row));
-                    }
-                }
+					if (row !== undefined) {
+						written.push(toRow(row));
+					}
+				}
 
-                return written;
-            });
-        },
+				return written;
+			});
+		},
 
-        async countUnresolved(key) {
-            // Scoped to the series, and with no `LIMIT`: this is a count, and a
-            // limited count is a count of whatever the planner returned first.
-            const result = await query(
-                `SELECT COUNT(DISTINCT signal_state_id) AS count
+		async countUnresolved(key) {
+			const instrumentId = await resolveInstrumentId(key.symbol);
+
+			if (instrumentId === null) {
+				return 0;
+			}
+
+			// Scoped to the series, and with no `LIMIT`: this is a count, and a
+			// limited count is a count of whatever the planner returned first.
+			const result = await query(
+				`SELECT COUNT(DISTINCT signal_state_id) AS count
                  FROM signal_outcome
-                 WHERE instrument_id = (SELECT id FROM instrument WHERE ticker = $1)
+                 WHERE instrument_id = $1
                    AND provider = $2 AND interval = $3
                    AND verdict IN ('unknown', 'expired')`,
-                [key.symbol, key.provider, key.interval],
-            );
+				[instrumentId, key.provider, key.interval],
+			);
 
-            // Postgres returns `COUNT` as text, and a JS number is what every
-            // caller and every gauge wants; a string here would compare unequal to
-            // the number it printed as.
-            return Number((result.rows[0] as QueryResultRow | undefined)?.count ?? 0);
-        },
+			// Postgres returns `COUNT` as text, and a JS number is what every
+			// caller and every gauge wants; a string here would compare unequal to
+			// the number it printed as.
+			return Number((result.rows[0] as QueryResultRow | undefined)?.count ?? 0);
+		},
 
-        async forSeries(key, horizonBars, limit = 10_000) {
-            const result = await query(
-                `SELECT ${COLUMNS}
+		async forSeries(key, horizonBars, limit = 10_000) {
+			const instrumentId = await resolveInstrumentId(key.symbol);
+
+			if (instrumentId === null) {
+				return [];
+			}
+
+			const result = await query(
+				`SELECT ${COLUMNS}
                  FROM signal_outcome
-                 WHERE instrument_id = (SELECT id FROM instrument WHERE ticker = $1)
+                 WHERE instrument_id = $1
                    AND provider = $2 AND interval = $3
                    AND horizon_bars = $4
                  ORDER BY entry_timestamp DESC
                  LIMIT $5`,
-                [key.symbol, key.provider, key.interval, horizonBars, limit],
-            );
+				[instrumentId, key.provider, key.interval, horizonBars, limit],
+			);
 
-            return result.rows.map(toRow);
-        },
+			return result.rows.map(toRow);
+		},
 
-        async deleteBefore(cutoff) {
-            const result = await query(
-                `DELETE FROM signal_outcome
+		async deleteBefore(cutoff) {
+			const result = await query(
+				`DELETE FROM signal_outcome
                  WHERE entry_timestamp < $1
                    AND (signal_state_id IS NULL OR signal_state_id NOT IN (
                        SELECT id FROM signal_state WHERE updated_at >= $1
                    ))`,
-                [cutoff],
-            );
+				[cutoff],
+			);
 
-            return result.rowCount ?? 0;
-        },
-    };
+			return result.rowCount ?? 0;
+		},
+	};
 }
 
 export const outcomeRepository: OutcomeRepository = createOutcomeRepository();

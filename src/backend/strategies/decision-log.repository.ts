@@ -1,4 +1,4 @@
-import { query } from '../db/pool.js';
+import { query, resolveInstrumentId } from '../db/pool.js';
 
 import type { SignalDirection } from '../types/direction.js';
 import type { StrategyKey } from './types.js';
@@ -19,34 +19,34 @@ import type { StrategyKey } from './types.js';
  */
 
 export interface DecisionEntry {
-    readonly symbol: string;
-    readonly strategyVersionId: number | null;
-    readonly primary: {
-        readonly rule: StrategyKey;
-        readonly direction: SignalDirection;
-        readonly confidence: number;
-    };
-    readonly fallback: {
-        readonly rule: StrategyKey;
-        readonly direction: SignalDirection;
-        readonly confidence: number;
-    } | null;
-    readonly publishedRule: StrategyKey;
-    readonly publishedDirection: SignalDirection;
-    readonly suppressed: boolean;
-    readonly at: number;
+	readonly symbol: string;
+	readonly strategyVersionId: number | null;
+	readonly primary: {
+		readonly rule: StrategyKey;
+		readonly direction: SignalDirection;
+		readonly confidence: number;
+	};
+	readonly fallback: {
+		readonly rule: StrategyKey;
+		readonly direction: SignalDirection;
+		readonly confidence: number;
+	} | null;
+	readonly publishedRule: StrategyKey;
+	readonly publishedDirection: SignalDirection;
+	readonly suppressed: boolean;
+	readonly at: number;
 }
 
 export interface DecisionLogRepository {
-    record(entry: DecisionEntry): Promise<void>;
-    /**
-     * Everything the shadow period has collected, in one number.
-     *
-     * `symbol` narrows the report to one asset. Omitting it asks a different
-     * question and says so — see the implementation for why the blended figure
-     * is kept rather than removed.
-     */
-    shadowReport(since: number, symbol?: string): Promise<ShadowReport>;
+	record(entry: DecisionEntry): Promise<void>;
+	/**
+	 * Everything the shadow period has collected, in one number.
+	 *
+	 * `symbol` narrows the report to one asset. Omitting it asks a different
+	 * question and says so — see the implementation for why the blended figure
+	 * is kept rather than removed.
+	 */
+	shadowReport(since: number, symbol?: string): Promise<ShadowReport>;
 }
 
 /**
@@ -60,91 +60,104 @@ export interface DecisionLogRepository {
  * rather than empty.
  */
 interface ShadowReport {
-    readonly cycles: number;
-    readonly suppressed: number;
-    readonly agreement: number;
-    readonly byDirection: Readonly<
-        Record<SignalDirection, number>
-    >;
-    readonly breakdown: readonly {
-        readonly rule: StrategyKey;
-        readonly cycles: number;
-        readonly suppressed: number;
-        readonly agreement: number;
-    }[];
+	readonly cycles: number;
+	readonly suppressed: number;
+	readonly agreement: number;
+	readonly byDirection: Readonly<Record<SignalDirection, number>>;
+	readonly breakdown: readonly {
+		readonly rule: StrategyKey;
+		readonly cycles: number;
+		readonly suppressed: number;
+		readonly agreement: number;
+	}[];
 }
 
 export function createDecisionLogRepository(): DecisionLogRepository {
-    return {
-        async record(entry: DecisionEntry): Promise<void> {
-            // DO NOTHING is the replay guard, not a silent failure mode: the
-            // unique index on (symbol, created_at) means a row that already
-            // landed is the same fact arriving again, and a fact counted twice
-            // is not more evidence, it is wrong evidence.
-            await query(
-                `INSERT INTO strategy_decision_log
+	return {
+		async record(entry: DecisionEntry): Promise<void> {
+			// DO NOTHING is the replay guard, not a silent failure mode: the
+			// unique index on (symbol, created_at) means a row that already
+			// landed is the same fact arriving again, and a fact counted twice
+			// is not more evidence, it is wrong evidence.
+			await query(
+				`INSERT INTO strategy_decision_log
                      (created_at, symbol, strategy_version_id,
                       primary_rule, primary_direction, primary_confidence,
                       fallback_rule, fallback_direction, fallback_confidence,
                       published_rule, published_direction, suppressed)
                  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
                  ON CONFLICT (instrument_id, created_at) DO NOTHING`,
-                [
-                    entry.at,
-                    entry.symbol,
-                    entry.strategyVersionId,
-                    entry.primary.rule,
-                    entry.primary.direction,
-                    entry.primary.confidence,
-                    entry.fallback?.rule ?? null,
-                    entry.fallback?.direction ?? null,
-                    entry.fallback?.confidence ?? null,
-                    entry.publishedRule,
-                    entry.publishedDirection,
-                    entry.suppressed,
-                ],
-            );
-        },
+				[
+					entry.at,
+					entry.symbol,
+					entry.strategyVersionId,
+					entry.primary.rule,
+					entry.primary.direction,
+					entry.primary.confidence,
+					entry.fallback?.rule ?? null,
+					entry.fallback?.direction ?? null,
+					entry.fallback?.confidence ?? null,
+					entry.publishedRule,
+					entry.publishedDirection,
+					entry.suppressed,
+				],
+			);
+		},
 
-        /**
-         * **The asset filter is optional on purpose, and both halves of that
-         * are decisions.**
-         *
-         * The table has carried `symbol` since it was created and `record()`
-         * writes it on every row, so the reader could always have asked for one
-         * asset and never did. It reported agreement across every asset the
-         * system trades — which is the shape `evidenceFor` has and the reason
-         * `strategy/cross-asset-isolation.test.ts` exists: a blend that no
-         * single asset produced. Here it feeds the publication question, so the
-         * blend is not merely present, it is the number a rule would be judged
-         * by: a fallback that agrees on one asset and disagrees on another
-         * reports the average, and the average can clear a bar that neither
-         * asset clears.
-         *
-         * Narrowing it fixes the question rather than the arithmetic. Making it
-         * mandatory would also be defensible, and there is only one configured
-         * asset today, so nothing would break — but a mandatory filter removes
-         * the system-wide view rather than labelling it, and a report nobody can
-         * ask for globally is a report that gets asked for globally through a
-         * second, hand-written query within a month. The blend stays reachable
-         * and is now the thing you have to choose rather than inherit.
-         */
-        async shadowReport(since: number, symbol?: string): Promise<ShadowReport> {
-            // One statement with an optional predicate rather than two query
-            // strings, so the scoped and unscoped shapes cannot drift apart as
-            // the report grows another column.
-            const scope = symbol === undefined
-                ? ''
-                : 'AND instrument_id = (SELECT id FROM instrument WHERE ticker = $2)';
-            const params = symbol === undefined ? [since] : [since, symbol];
+		/**
+		 * **The asset filter is optional on purpose, and both halves of that
+		 * are decisions.**
+		 *
+		 * The table has carried `symbol` since it was created and `record()`
+		 * writes it on every row, so the reader could always have asked for one
+		 * asset and never did. It reported agreement across every asset the
+		 * system trades — which is the shape `evidenceFor` has and the reason
+		 * `strategy/cross-asset-isolation.test.ts` exists: a blend that no
+		 * single asset produced. Here it feeds the publication question, so the
+		 * blend is not merely present, it is the number a rule would be judged
+		 * by: a fallback that agrees on one asset and disagrees on another
+		 * reports the average, and the average can clear a bar that neither
+		 * asset clears.
+		 *
+		 * Narrowing it fixes the question rather than the arithmetic. Making it
+		 * mandatory would also be defensible, and there is only one configured
+		 * asset today, so nothing would break — but a mandatory filter removes
+		 * the system-wide view rather than labelling it, and a report nobody can
+		 * ask for globally is a report that gets asked for globally through a
+		 * second, hand-written query within a month. The blend stays reachable
+		 * and is now the thing you have to choose rather than inherit.
+		 */
+		async shadowReport(since: number, symbol?: string): Promise<ShadowReport> {
+			// One statement with an optional predicate rather than two query
+			// strings, so the scoped and unscoped shapes cannot drift apart as
+			// the report grows another column.
+			let scope = "";
+			let params: unknown[] = [since];
 
-            const { rows } = await query<{
-                fallback_rule: StrategyKey | null;
-                cycles: string;
-                suppressed: string;
-                agreed: string;
-            }>(
-                `SELECT fallback_rule,
+			if (symbol !== undefined) {
+				const instrumentId = await resolveInstrumentId(symbol);
+
+				if (instrumentId === null) {
+					return {
+						cycles: 0,
+						suppressed: 0,
+						agreement: 0,
+						byDirection: { LONG: 0, SHORT: 0, NEUTRAL: 0 },
+						breakdown: [],
+					};
+				}
+
+				scope = "AND instrument_id = $2";
+				params = [since, instrumentId];
+			}
+
+			const { rows } = await query<{
+				fallback_rule: StrategyKey | null;
+				cycles: string;
+				suppressed: string;
+				agreed: string;
+			}>(
+				`SELECT fallback_rule,
                         COUNT(*)                                       AS cycles,
                         COUNT(*) FILTER (WHERE suppressed)             AS suppressed,
                         COUNT(*) FILTER (WHERE NOT suppressed
@@ -156,77 +169,79 @@ export function createDecisionLogRepository(): DecisionLogRepository {
                     ${scope}
                   GROUP BY fallback_rule
                   ORDER BY fallback_rule`,
-                params,
-            );
+				params,
+			);
 
-            const breakdown = rows.map((row) => {
-                const cycles = Number(row.cycles);
+			const breakdown = rows.map((row) => {
+				const cycles = Number(row.cycles);
 
-                return {
-                    rule: row.fallback_rule as StrategyKey,
-                    cycles,
-                    suppressed: Number(row.suppressed),
-                    agreement:
-                        cycles - Number(row.suppressed) === 0
-                            ? 0
-                            : Number(row.agreed) /
-                              (cycles - Number(row.suppressed)),
-                };
-            });
+				return {
+					rule: row.fallback_rule as StrategyKey,
+					cycles,
+					suppressed: Number(row.suppressed),
+					agreement:
+						cycles - Number(row.suppressed) === 0
+							? 0
+							: Number(row.agreed) / (cycles - Number(row.suppressed)),
+				};
+			});
 
-            const cycles = breakdown.reduce((sum, row) => sum + row.cycles, 0);
-            const suppressed = breakdown.reduce(
-                (sum, row) => sum + row.suppressed,
-                0,
-            );
-            const publishable = cycles - suppressed;
+			const cycles = breakdown.reduce((sum, row) => sum + row.cycles, 0);
+			const suppressed = breakdown.reduce(
+				(sum, row) => sum + row.suppressed,
+				0,
+			);
+			const publishable = cycles - suppressed;
 
-            // The same scope as above. Leaving this one unscoped would be worse
-            // than leaving both unscoped: the report would answer "for this
-            // asset" with a breakdown that agreed and a direction tally that did
-            // not, and the two numbers are read side by side.
-            const byDirection = await query<{
-                fallback_direction: SignalDirection;
-                count: string;
-            }>(
-                `SELECT fallback_direction, COUNT(*) AS count
+			// The same scope as above. Leaving this one unscoped would be worse
+			// than leaving both unscoped: the report would answer "for this
+			// asset" with a breakdown that agreed and a direction tally that did
+			// not, and the two numbers are read side by side.
+			const byDirection = await query<{
+				fallback_direction: SignalDirection;
+				count: string;
+			}>(
+				`SELECT fallback_direction, COUNT(*) AS count
                    FROM strategy_decision_log
                   WHERE created_at >= $1
                     AND fallback_direction IS NOT NULL
                     ${scope}
                   GROUP BY fallback_direction`,
-                params,
-            );
+				params,
+			);
 
-            const counts: Record<SignalDirection, number> = {
-                LONG: 0,
-                SHORT: 0,
-                NEUTRAL: 0,
-            };
+			const counts: Record<SignalDirection, number> = {
+				LONG: 0,
+				SHORT: 0,
+				NEUTRAL: 0,
+			};
 
-            for (const row of byDirection.rows) {
-                counts[row.fallback_direction] = Number(row.count);
-            }
+			for (const row of byDirection.rows) {
+				counts[row.fallback_direction] = Number(row.count);
+			}
 
-            return {
-                cycles,
-                suppressed,
-                agreement:
-                    publishable === 0
-                        ? 0
-                        : breakdown.reduce((sum, row) => sum + row.agreement * (row.cycles - row.suppressed), 0) /
-                          publishable,
-                byDirection: counts,
-                breakdown,
-            };
-        },
-    };
+			return {
+				cycles,
+				suppressed,
+				agreement:
+					publishable === 0
+						? 0
+						: breakdown.reduce(
+								(sum, row) =>
+									sum + row.agreement * (row.cycles - row.suppressed),
+								0,
+							) / publishable,
+				byDirection: counts,
+				breakdown,
+			};
+		},
+	};
 }
 
 let shared: DecisionLogRepository | null = null;
 
 export function getDecisionLogRepository(): DecisionLogRepository {
-    shared ??= createDecisionLogRepository();
+	shared ??= createDecisionLogRepository();
 
-    return shared;
+	return shared;
 }

@@ -36,21 +36,21 @@ types.setTypeParser(types.builtins.INT8, (value) => Number.parseInt(value, 10));
  * legitimate deployment choice, not something this pool gets to discard.
  */
 function connectionStringWithTimeouts(): string {
-    const parsed = new URL(databaseConfig.connectionString);
-    const carried = parsed.searchParams.get('options');
+	const parsed = new URL(databaseConfig.connectionString);
+	const carried = parsed.searchParams.get("options");
 
-    const parts = [
-        `-c statement_timeout=${databaseConfig.statementTimeoutMs}`,
-        `-c lock_timeout=${databaseConfig.lockTimeoutMs}`,
-    ];
+	const parts = [
+		`-c statement_timeout=${databaseConfig.statementTimeoutMs}`,
+		`-c lock_timeout=${databaseConfig.lockTimeoutMs}`,
+	];
 
-    if (carried !== null && carried !== '') {
-        parts.unshift(carried);
-    }
+	if (carried !== null && carried !== "") {
+		parts.unshift(carried);
+	}
 
-    parsed.searchParams.set('options', parts.join(' '));
+	parsed.searchParams.set("options", parts.join(" "));
 
-    return parsed.toString();
+	return parsed.toString();
 }
 
 let pool: Pool | null = null;
@@ -63,15 +63,15 @@ let pool: Pool | null = null;
  * above it without ever intending to touch a database.
  */
 export function getPool(): Pool {
-    pool ??= new Pool({
-        connectionString: connectionStringWithTimeouts(),
-        max: databaseConfig.poolMax,
-        idleTimeoutMillis: databaseConfig.idleTimeoutMs,
-        connectionTimeoutMillis: databaseConfig.connectionTimeoutMs,
-        application_name: databaseConfig.applicationName,
-    });
+	pool ??= new Pool({
+		connectionString: connectionStringWithTimeouts(),
+		max: databaseConfig.poolMax,
+		idleTimeoutMillis: databaseConfig.idleTimeoutMs,
+		connectionTimeoutMillis: databaseConfig.connectionTimeoutMs,
+		application_name: databaseConfig.applicationName,
+	});
 
-    return pool;
+	return pool;
 }
 
 /**
@@ -83,35 +83,40 @@ export function getPool(): Pool {
  * codebase and is what somebody would search for when a query got slow.
  */
 function operationOf(text: string): string {
-    const trimmed = text.trimStart();
+	const trimmed = text.trimStart();
 
-    for (const line of trimmed.split('\n')) {
-        const match = /^\s*(?:--[^\n]*\n\s*)*(select|insert|update|delete|with)\b/i.exec(line);
+	for (const line of trimmed.split("\n")) {
+		const match =
+			/^\s*(?:--[^\n]*\n\s*)*(select|insert|update|delete|with)\b/i.exec(line);
 
-        if (match !== null) {
-            return match[1]?.toLowerCase() ?? 'other';
-        }
-    }
+		if (match !== null) {
+			return match[1]?.toLowerCase() ?? "other";
+		}
+	}
 
-    return 'other';
+	return "other";
 }
 
 export async function query<Row extends QueryResultRow>(
-    text: string,
-    values: readonly unknown[] = [],
+	text: string,
+	values: readonly unknown[] = [],
 ): Promise<QueryResult<Row>> {
-    const startedAt = performance.now();
+	const startedAt = performance.now();
 
-    try {
-        return await getPool().query<Row>(text, values as unknown[]);
-    } finally {
-        // In a finally, not after: a duration recorded only on the success path
-        // describes how fast the database is when it agrees, which is the half
-        // nobody is paged about. The slow query is the one that timed out.
-        currentRegistry().observe('database_query_duration', performance.now() - startedAt, {
-            operation: operationOf(text),
-        });
-    }
+	try {
+		return await getPool().query<Row>(text, values as unknown[]);
+	} finally {
+		// In a finally, not after: a duration recorded only on the success path
+		// describes how fast the database is when it agrees, which is the half
+		// nobody is paged about. The slow query is the one that timed out.
+		currentRegistry().observe(
+			"database_query_duration",
+			performance.now() - startedAt,
+			{
+				operation: operationOf(text),
+			},
+		);
+	}
 }
 
 /**
@@ -123,30 +128,30 @@ export async function query<Row extends QueryResultRow>(
  * interleave its own statement into the middle of this one.
  */
 export async function withTransaction<T>(
-    work: (client: PoolClient) => Promise<T>,
+	work: (client: PoolClient) => Promise<T>,
 ): Promise<T> {
-    const client = await getPool().connect();
+	const client = await getPool().connect();
 
-    try {
-        await client.query('BEGIN');
+	try {
+		await client.query("BEGIN");
 
-        try {
-            const result = await work(client);
-            await client.query('COMMIT');
+		try {
+			const result = await work(client);
+			await client.query("COMMIT");
 
-            return result;
-        } catch (error) {
-            // A rollback that fails means the connection itself is gone, and
-            // its error would replace the one that actually describes what
-            // went wrong. The work failed either way; the work's own error is
-            // the one worth reporting.
-            await client.query('ROLLBACK').catch(() => undefined);
+			return result;
+		} catch (error) {
+			// A rollback that fails means the connection itself is gone, and
+			// its error would replace the one that actually describes what
+			// went wrong. The work failed either way; the work's own error is
+			// the one worth reporting.
+			await client.query("ROLLBACK").catch(() => undefined);
 
-            throw error;
-        }
-    } finally {
-        client.release();
-    }
+			throw error;
+		}
+	} finally {
+		client.release();
+	}
 }
 
 /**
@@ -157,17 +162,29 @@ export async function withTransaction<T>(
  * holes in it.
  */
 export async function closePool(): Promise<void> {
-    const current = pool;
-    pool = null;
+	const current = pool;
+	pool = null;
 
-    if (current === null) {
-        return;
-    }
+	if (current === null) {
+		return;
+	}
 
-    await current.end();
+	await current.end();
+}
+
+/** Resolves a ticker to its stable instrument id. Returns null when it does not exist. */
+export async function resolveInstrumentId(
+	ticker: string,
+): Promise<number | null> {
+	const result = await query<{ id: number }>(
+		"SELECT id FROM instrument WHERE ticker = $1",
+		[ticker],
+	);
+
+	return result.rows[0]?.id ?? null;
 }
 
 /** Whether a pool exists. Used by shutdown paths that must not create one. */
 export function isPoolOpen(): boolean {
-    return pool !== null;
+	return pool !== null;
 }

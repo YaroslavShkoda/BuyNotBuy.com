@@ -1,9 +1,15 @@
 import { historyConfig } from '../config/history.config.js';
 import { marketConfig } from '../config/market.config.js';
-import { currentSchemaVersion, LATEST_SCHEMA_VERSION } from '../db/migrations.js';
-import { query } from '../db/pool.js';
+import {
+	currentSchemaVersion,
+	LATEST_SCHEMA_VERSION,
+} from '../db/migrations.js';
+import { query, resolveInstrumentId } from '../db/pool.js';
 
-import type { SignalHistoryEntry, SignalHistorySeries } from './signal-history.types.js';
+import type {
+	SignalHistoryEntry,
+	SignalHistorySeries,
+} from './signal-history.types.js';
 
 // Signal snapshots are hourly by design, so a one-record-per-hour bucket keeps
 // the history meaningful in hours instead of duplicating the same state for
@@ -11,50 +17,56 @@ import type { SignalHistoryEntry, SignalHistorySeries } from './signal-history.t
 const HOUR_MS = 3_600_000;
 
 interface SignalHistoryRepositoryOptions {
-    maxEntries: number;
+	maxEntries: number;
 }
 
 export interface SignalHistoryRepository {
-    record(entry: SignalHistoryEntry): Promise<void>;
-    list(
-        symbol: string,
-        limit: number,
-        before?: number,
-        series?: Partial<SignalHistorySeries>,
-    ): Promise<SignalHistoryEntry[]>;
-    /**
-     * Drops entries past the retention limit for one series. Returns how many.
-     *
-     * Scoped to a series, not to a symbol: a symbol analysed at two intervals
-     * has one limit shared by two histories, and whichever wrote last would
-     * quietly cut the other's retention.
-     */
-    trimRetention(symbol: string, series?: Partial<SignalHistorySeries>): Promise<number>;
-    /** Schema version currently stored in the database. */
-    schemaVersion(): Promise<number>;
-    /**
-     * Server-side timeouts in force on this pool's connections.
-     *
-     * `statement_timeout` and `lock_timeout` are GUCs the server holds per
-     * connection, so they can only be read back from a connection they were
-     * set on. That is exactly why a health endpoint has to ask the pool rather
-     * than open a connection of its own and assume.
-     */
-    durabilitySettings(): Promise<{ statementTimeout: string; lockTimeout: string }>;
+	record(entry: SignalHistoryEntry): Promise<void>;
+	list(
+		symbol: string,
+		limit: number,
+		before?: number,
+		series?: Partial<SignalHistorySeries>,
+	): Promise<SignalHistoryEntry[]>;
+	/**
+	 * Drops entries past the retention limit for one series. Returns how many.
+	 *
+	 * Scoped to a series, not to a symbol: a symbol analysed at two intervals
+	 * has one limit shared by two histories, and whichever wrote last would
+	 * quietly cut the other's retention.
+	 */
+	trimRetention(
+		symbol: string,
+		series?: Partial<SignalHistorySeries>,
+	): Promise<number>;
+	/** Schema version currently stored in the database. */
+	schemaVersion(): Promise<number>;
+	/**
+	 * Server-side timeouts in force on this pool's connections.
+	 *
+	 * `statement_timeout` and `lock_timeout` are GUCs the server holds per
+	 * connection, so they can only be read back from a connection they were
+	 * set on. That is exactly why a health endpoint has to ask the pool rather
+	 * than open a connection of its own and assume.
+	 */
+	durabilitySettings(): Promise<{
+		statementTimeout: string;
+		lockTimeout: string;
+	}>;
 }
 
 interface SignalHistoryRow {
-    timestamp: number;
-    symbol: string;
-    provider: string;
-    interval: string;
-    signal: string;
-    consensus: number;
-    price: number;
-    regime: string | null;
-    data_quality: number | null;
-    data_quality_usable: boolean | null;
-    data_quality_worst: string | null;
+	timestamp: number;
+	symbol: string;
+	provider: string;
+	interval: string;
+	signal: string;
+	consensus: number;
+	price: number;
+	regime: string | null;
+	data_quality: number | null;
+	data_quality_usable: boolean | null;
+	data_quality_worst: string | null;
 }
 
 /** Newest analysis of the hour wins; a late-arriving older snapshot
@@ -103,14 +115,14 @@ const UPSERT_SQL = `
  */
 const TRIM_SQL = `
     DELETE FROM signal_history
-    WHERE instrument_id = (SELECT id FROM instrument WHERE ticker = $1)
+    WHERE instrument_id = $1
       AND provider = $2
       AND interval = $3
       AND hour_bucket < COALESCE(
           (
               SELECT hour_bucket
               FROM signal_history
-              WHERE instrument_id = (SELECT id FROM instrument WHERE ticker = $1)
+              WHERE instrument_id = $1
                 AND provider = $2 AND interval = $3
               ORDER BY hour_bucket DESC
               LIMIT 1 OFFSET $4 - 1
@@ -128,7 +140,7 @@ const COLUMNS = `
 const SELECT_SQL = `
     SELECT ${COLUMNS}
     FROM signal_history
-    WHERE instrument_id = (SELECT id FROM instrument WHERE ticker = $1)
+    WHERE instrument_id = $1
       AND provider = $2 AND interval = $3
     ORDER BY hour_bucket DESC
     LIMIT $4
@@ -143,7 +155,7 @@ const SELECT_SQL = `
 const SELECT_BEFORE_SQL = `
     SELECT ${COLUMNS}
     FROM signal_history
-    WHERE instrument_id = (SELECT id FROM instrument WHERE ticker = $1)
+    WHERE instrument_id = $1
       AND provider = $2 AND interval = $3
       AND hour_bucket < $4
     ORDER BY hour_bucket DESC
@@ -151,129 +163,140 @@ const SELECT_BEFORE_SQL = `
 `;
 
 export function createSignalHistoryRepository(
-    options: SignalHistoryRepositoryOptions,
+	options: SignalHistoryRepositoryOptions,
 ): SignalHistoryRepository {
-    /**
-     * Fills in the series a caller did not name.
-     *
-     * Defaulting rather than requiring keeps every existing call site correct:
-     * a symbol analysed at one interval is a series, and a caller that has
-     * never heard of a second one should not have to say so on every write.
-     */
-    const seriesOf = (
-        symbol: string,
-        series: Partial<SignalHistorySeries> | undefined,
-    ): SignalHistorySeries => ({
-        symbol,
-        provider: series?.provider ?? marketConfig.provider,
-        interval: series?.interval ?? marketConfig.candleInterval,
-    });
+	/**
+	 * Fills in the series a caller did not name.
+	 *
+	 * Defaulting rather than requiring keeps every existing call site correct:
+	 * a symbol analysed at one interval is a series, and a caller that has
+	 * never heard of a second one should not have to say so on every write.
+	 */
+	const seriesOf = (
+		symbol: string,
+		series: Partial<SignalHistorySeries> | undefined,
+	): SignalHistorySeries => ({
+		symbol,
+		provider: series?.provider ?? marketConfig.provider,
+		interval: series?.interval ?? marketConfig.candleInterval,
+	});
 
-    return {
-        async record(entry: SignalHistoryEntry): Promise<void> {
-            // Not a transaction any more. It held a paired trim, and the trim
-            // was the reason: retention now runs on its own cadence, and a
-            // single upsert does not need an explicit transaction to be atomic.
-            const series = seriesOf(entry.symbol, entry);
-            const context = entry.context;
+	return {
+		async record(entry: SignalHistoryEntry): Promise<void> {
+			// Not a transaction any more. It held a paired trim, and the trim
+			// was the reason: retention now runs on its own cadence, and a
+			// single upsert does not need an explicit transaction to be atomic.
+			const series = seriesOf(entry.symbol, entry);
+			const context = entry.context;
 
-            await query(UPSERT_SQL, [
-                series.symbol,
-                series.provider,
-                series.interval,
-                Math.floor(entry.timestamp / HOUR_MS),
-                entry.timestamp,
-                entry.signal,
-                Math.round(entry.consensus),
-                entry.price,
-                context?.regime ?? null,
-                context?.dataQuality ?? null,
-                context?.dataQualityUsable ?? null,
-                context?.dataQualityWorst ?? null,
-            ]);
-        },
+			await query(UPSERT_SQL, [
+				series.symbol,
+				series.provider,
+				series.interval,
+				Math.floor(entry.timestamp / HOUR_MS),
+				entry.timestamp,
+				entry.signal,
+				Math.round(entry.consensus),
+				entry.price,
+				context?.regime ?? null,
+				context?.dataQuality ?? null,
+				context?.dataQualityUsable ?? null,
+				context?.dataQualityWorst ?? null,
+			]);
+		},
 
-        async trimRetention(
-            symbol: string,
-            series?: Partial<SignalHistorySeries>,
-        ): Promise<number> {
-            const resolved = seriesOf(symbol, series);
+		async trimRetention(
+			symbol: string,
+			series?: Partial<SignalHistorySeries>,
+		): Promise<number> {
+			const resolved = seriesOf(symbol, series);
+			const instrumentId = await resolveInstrumentId(resolved.symbol);
 
-            // `RETURNING` is what lets a data-modifying statement sit in a CTE
-            // and still be counted; without it PostgreSQL rejects the query
-            // rather than silently running the delete and discarding it.
-            const result = await query<{ count: number }>(
-                `WITH deleted AS (${TRIM_SQL})
+			if (instrumentId === null) {
+				return 0;
+			}
+
+			// `RETURNING` is what lets a data-modifying statement sit in a CTE
+			// and still be counted; without it PostgreSQL rejects the query
+			// rather than silently running the delete and discarding it.
+			const result = await query<{ count: number }>(
+				`WITH deleted AS (${TRIM_SQL})
                  SELECT COUNT(*)::int AS count FROM deleted`,
-                [
-                    resolved.symbol,
-                    resolved.provider,
-                    resolved.interval,
-                    options.maxEntries,
-                ],
-            );
+				[
+					instrumentId,
+					resolved.provider,
+					resolved.interval,
+					options.maxEntries,
+				],
+			);
 
-            return result.rows[0]?.count ?? 0;
-        },
+			return result.rows[0]?.count ?? 0;
+		},
 
-        async list(
-            symbol: string,
-            limit: number,
-            before?: number,
-            series?: Partial<SignalHistorySeries>,
-        ): Promise<SignalHistoryEntry[]> {
-            const resolved = seriesOf(symbol, series);
-            const result = await query<SignalHistoryRow>(
-                before === undefined ? SELECT_SQL : SELECT_BEFORE_SQL,
-                before === undefined
-                    ? [resolved.symbol, resolved.provider, resolved.interval, limit]
-                    : [resolved.symbol, resolved.provider, resolved.interval, before, limit],
-            );
+		async list(
+			symbol: string,
+			limit: number,
+			before?: number,
+			series?: Partial<SignalHistorySeries>,
+		): Promise<SignalHistoryEntry[]> {
+			const resolved = seriesOf(symbol, series);
+			const instrumentId = await resolveInstrumentId(resolved.symbol);
 
-            // The signal column is guarded by a CHECK constraint at the
-            // storage layer, so the narrow cast cannot receive foreign values.
-            return result.rows.map((row) => ({
-                timestamp: row.timestamp,
-                symbol: row.symbol,
-                provider: row.provider,
-                interval: row.interval,
-                signal: row.signal as SignalHistoryEntry['signal'],
-                consensus: row.consensus,
-                price: row.price,
-                context: {
-                    regime: row.regime,
-                    dataQuality: row.data_quality,
-                    dataQualityUsable: row.data_quality_usable,
-                    dataQualityWorst: row.data_quality_worst,
-                },
-            }));
-        },
+			if (instrumentId === null) {
+				return [];
+			}
 
-        async schemaVersion(): Promise<number> {
-            return currentSchemaVersion();
-        },
+			const result = await query<SignalHistoryRow>(
+				before === undefined ? SELECT_SQL : SELECT_BEFORE_SQL,
+				before === undefined
+					? [instrumentId, resolved.provider, resolved.interval, limit]
+					: [instrumentId, resolved.provider, resolved.interval, before, limit],
+			);
 
-        async durabilitySettings(): Promise<{
-            statementTimeout: string;
-            lockTimeout: string;
-        }> {
-            // One round trip for both: this runs on the readiness probe, and
-            // the values are settings of the same connection, so asking twice
-            // would only add a second way for the two answers to disagree.
-            const result = await query<{
-                statement_timeout: string;
-                lock_timeout: string;
-            }>(
-                `SELECT current_setting('statement_timeout') AS statement_timeout,
+			// The signal column is guarded by a CHECK constraint at the
+			// storage layer, so the narrow cast cannot receive foreign values.
+			return result.rows.map((row) => ({
+				timestamp: row.timestamp,
+				symbol: row.symbol,
+				provider: row.provider,
+				interval: row.interval,
+				signal: row.signal as SignalHistoryEntry["signal"],
+				consensus: row.consensus,
+				price: row.price,
+				context: {
+					regime: row.regime,
+					dataQuality: row.data_quality,
+					dataQualityUsable: row.data_quality_usable,
+					dataQualityWorst: row.data_quality_worst,
+				},
+			}));
+		},
+
+		async schemaVersion(): Promise<number> {
+			return currentSchemaVersion();
+		},
+
+		async durabilitySettings(): Promise<{
+			statementTimeout: string;
+			lockTimeout: string;
+		}> {
+			// One round trip for both: this runs on the readiness probe, and
+			// the values are settings of the same connection, so asking twice
+			// would only add a second way for the two answers to disagree.
+			const result = await query<{
+				statement_timeout: string;
+				lock_timeout: string;
+			}>(
+				`SELECT current_setting('statement_timeout') AS statement_timeout,
                         current_setting('lock_timeout') AS lock_timeout`,
-            );
+			);
 
-            return {
-                statementTimeout: result.rows[0]?.statement_timeout ?? '',
-                lockTimeout: result.rows[0]?.lock_timeout ?? '',
-            };
-        },
-    };
+			return {
+				statementTimeout: result.rows[0]?.statement_timeout ?? "",
+				lockTimeout: result.rows[0]?.lock_timeout ?? "",
+			};
+		},
+	};
 }
 
 let repositoryInstance: SignalHistoryRepository | null = null;
@@ -284,11 +307,11 @@ let repositoryInstance: SignalHistoryRepository | null = null;
  * mean to reach one.
  */
 export function getSignalHistoryRepository(): SignalHistoryRepository {
-    repositoryInstance ??= createSignalHistoryRepository({
-        maxEntries: historyConfig.maxEntries,
-    });
+	repositoryInstance ??= createSignalHistoryRepository({
+		maxEntries: historyConfig.maxEntries,
+	});
 
-    return repositoryInstance;
+	return repositoryInstance;
 }
 
 /**
@@ -299,12 +322,12 @@ export function getSignalHistoryRepository(): SignalHistoryRepository {
  * deployments run `npm run db:migrate` as a separate job.
  */
 export async function assertSignalHistorySchemaReady(): Promise<void> {
-    const version = await currentSchemaVersion();
+	const version = await currentSchemaVersion();
 
-    if (version !== LATEST_SCHEMA_VERSION) {
-        throw new Error(
-            `Database schema is at version ${version}; this application requires ` +
-                `version ${LATEST_SCHEMA_VERSION}. Run the db:migrate job before deploying the application.`,
-        );
-    }
+	if (version !== LATEST_SCHEMA_VERSION) {
+		throw new Error(
+			`Database schema is at version ${version}; this application requires ` +
+				`version ${LATEST_SCHEMA_VERSION}. Run the db:migrate job before deploying the application.`,
+		);
+	}
 }
