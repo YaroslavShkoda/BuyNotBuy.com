@@ -216,6 +216,14 @@ export const InstrumentAssetSchema = z.object({
 
 export const InstrumentSchema = z.object({
     ticker: z.string(),
+    /**
+     * The base asset's name as the configuration registry spells it ("Solana",
+     * not "SOL"), or `null` when the registry cannot name an asset the database
+     * knows. Sourced from the same pure lookup the market endpoint makes, so a
+     * client that searches markets by name never keeps its own symbol-to-name
+     * list that drifts from this one.
+     */
+    name: z.string().nullable(),
     base: InstrumentAssetSchema,
     quote: InstrumentAssetSchema,
     market: z.enum(MARKET_KINDS),

@@ -126,45 +126,172 @@
     letter-spacing: 0.12em;
 }
 
-/* Market switcher: one pill per active instrument, the current one lit.
-   Same pill geometry as .topbar-updated so the bar reads as one row of
-   controls rather than two different vocabularies of chip. */
-.topbar-markets {
-    display: flex;
-    align-items: center;
-    gap: 2px;
+/* Market switcher: a pill that names the current market and opens a
+   searchable list of every instrument the registry serves. Same pill
+   geometry as .topbar-updated so the bar reads as one row of controls
+   rather than two different vocabularies of chip. */
+.topbar-switcher {
+    position: relative;
 
     margin-right: 8px;
-    padding: 3px;
+}
+
+.topbar-switcher-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+
+    padding: 7px 10px;
 
     border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 999px;
 
-    background: rgba(255, 255, 255, 0.04);
-}
-
-.topbar-market-link {
-    padding: 6px 10px;
-
-    border-radius: 999px;
-
     color: var(--color-text-muted);
+    background: rgba(255, 255, 255, 0.04);
 
+    font: inherit;
     font-size: 9px;
     font-weight: 700;
     letter-spacing: 0.12em;
-    text-decoration: none;
+    text-transform: uppercase;
     white-space: nowrap;
+    cursor: pointer;
 }
 
-.topbar-market-link:hover {
+.topbar-switcher-toggle:hover,
+.topbar-switcher-toggle.is-active {
+    color: var(--color-text);
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.topbar-switcher-caret {
+    flex: 0 0 auto;
+
+    transition: transform 0.15s ease;
+}
+
+.topbar-switcher-toggle[aria-expanded='true'] .topbar-switcher-caret {
+    transform: rotate(180deg);
+}
+
+.topbar-switcher-panel {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    z-index: 20;
+
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+
+    width: 216px;
+    max-width: calc(100vw - 32px);
+    padding: 10px;
+
+    border: 1px solid var(--color-border);
+    border-radius: 14px;
+
+    /* The bar's own flat fill, a step more opaque: the panel floats over
+       candles and must stay legible over whatever passes beneath it. */
+    background: rgba(10, 12, 14, 0.94);
+
+    box-shadow:
+        0 18px 55px rgba(0, 0, 0, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.055);
+
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+}
+
+.topbar-switcher-search {
+    width: 100%;
+    padding: 7px 10px;
+
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 9px;
+
+    color: var(--color-text);
+    background: rgba(255, 255, 255, 0.04);
+
+    font: inherit;
+    font-size: 11px;
+}
+
+.topbar-switcher-search::placeholder {
+    color: var(--color-text-muted);
+}
+
+.topbar-switcher-search:focus {
+    outline: none;
+
+    border-color: rgba(255, 255, 255, 0.24);
+}
+
+.topbar-switcher-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+
+    max-height: 264px;
+    margin: 0;
+    padding: 0;
+    overflow-y: auto;
+
+    list-style: none;
+}
+
+.topbar-switcher-option {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+
+    padding: 7px 9px;
+
+    border-radius: 8px;
+
+    color: var(--color-text-muted);
+    text-decoration: none;
+}
+
+.topbar-switcher-option:hover {
     color: var(--color-text);
     background: rgba(255, 255, 255, 0.06);
 }
 
-.topbar-market-link.is-active {
+.topbar-switcher-option.is-active {
     color: var(--color-text);
     background: rgba(255, 255, 255, 0.1);
+}
+
+.topbar-switcher-ticker {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+}
+
+.topbar-switcher-name {
+    overflow: hidden;
+
+    color: var(--color-text-muted);
+    font-size: 9px;
+    font-weight: 650;
+    letter-spacing: 0.08em;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.topbar-switcher-option.is-active .topbar-switcher-name {
+    color: var(--color-text-muted);
+}
+
+.topbar-switcher-empty {
+    margin: 0;
+    padding: 9px;
+
+    color: var(--color-text-muted);
+    font-size: 10px;
+    letter-spacing: 0.04em;
 }
 
 .topbar-updated-dot {

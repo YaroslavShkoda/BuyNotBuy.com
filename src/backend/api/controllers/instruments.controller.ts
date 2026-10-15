@@ -1,3 +1,4 @@
+import { resolveInstrument } from '../../config/asset.registry.js';
 import type { AssetRow, InstrumentRow, TradabilityReason } from '../../instruments/asset.repository.js';
 import { getAssetRepository } from '../../instruments/asset.repository.js';
 import type { AssetCategory, AssetStatus } from '../../instruments/domain.js';
@@ -60,6 +61,11 @@ function toDto(
 ): InstrumentDto {
     return {
         ticker: instrument.ticker,
+        // The registry's name for the base asset — the same pure, I/O-free
+        // lookup the market endpoint makes — so both endpoints name a pair
+        // identically. `null` when the registry cannot name what the database
+        // knows, never a guessed label.
+        name: resolveInstrument(instrument.ticker)?.base.name ?? null,
         base,
         quote,
         market: instrument.marketKind,

@@ -1,5 +1,6 @@
 import Image from 'next/image';
-import Link from 'next/link';
+
+import { type MarketOption, MarketSwitcher } from './market-switcher';
 
 export function formatUpdatedAt(timestamp: number, now: Date = new Date()): string {
     // Guard against zero/negative timestamps: they would render a misleading
@@ -24,18 +25,12 @@ export function formatUpdatedAt(timestamp: number, now: Date = new Date()): stri
         });
 }
 
-export interface TopbarMarketLink {
-    ticker: string;
-    href: string;
-    active: boolean;
-}
-
 interface TopbarProps {
     updatedAt: number;
     /** Display name of the current market, as the registry spells it; names the terminal subtitle. */
     assetName?: string;
     /** Active instruments for the switcher; absent when the registry is unreachable. */
-    markets?: TopbarMarketLink[];
+    markets?: MarketOption[];
 }
 
 export function Topbar({ updatedAt, assetName, markets = [] }: TopbarProps) {
@@ -71,24 +66,12 @@ export function Topbar({ updatedAt, assetName, markets = [] }: TopbarProps) {
                 as a second quote. What is left is the brand and the only thing
                 the bar says that the hero does not: how fresh the data is. */}
             <div className="topbar-market">
-                {markets.length > 0 && (
-                    <nav className="topbar-markets" aria-label="Рынки">
-                        {markets.map((market) => (
-                            <Link
-                                key={market.ticker}
-                                href={market.href}
-                                className={
-                                    market.active
-                                        ? 'topbar-market-link is-active'
-                                        : 'topbar-market-link'
-                                }
-                                aria-current={market.active ? 'page' : undefined}
-                            >
-                                {market.ticker}
-                            </Link>
-                        ))}
-                    </nav>
-                )}
+                {/* A switcher, not a row of pills: the registry decides how many
+                    markets exist, and a row that grows with it would push the
+                    one thing this bar says (how fresh the data is) out of the
+                    header. The search names the market the way the registry
+                    does, so nothing here guesses. */}
+                <MarketSwitcher markets={markets} />
                 <span className="topbar-updated">
                     <span className="topbar-updated-dot" />
                     ОБНОВЛЕНО {formatUpdatedAt(updatedAt)}

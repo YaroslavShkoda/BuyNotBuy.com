@@ -38,6 +38,9 @@ export default async function MarketPage({
         .filter((row) => row.status === 'active')
         .map((row) => ({
             ticker: row.ticker,
+            // The registry's name travels with the link, so the switcher
+            // searches "Solana" without keeping its own symbol-to-name list.
+            name: row.name ?? undefined,
             href: `/market/${row.ticker}`,
             active: row.ticker === market.price.symbol,
         }));

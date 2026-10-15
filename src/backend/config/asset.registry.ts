@@ -115,6 +115,7 @@ const DEFAULT_REGISTRY_JSON = JSON.stringify({
         { symbol: 'BTC', name: 'Bitcoin', category: 'crypto' },
         { symbol: 'ETH', name: 'Ethereum', category: 'crypto' },
         { symbol: 'XRP', name: 'XRP', category: 'crypto' },
+        { symbol: 'SOL', name: 'Solana', category: 'crypto' },
         { symbol: 'USDT', name: 'Tether', category: 'crypto' },
         { symbol: 'USDC', name: 'USD Coin', category: 'crypto' },
         { symbol: 'USD', name: 'US Dollar', category: 'fiat' },

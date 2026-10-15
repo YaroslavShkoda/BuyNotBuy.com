@@ -36,6 +36,19 @@ describe('the default registry', () => {
     it('resolves a symbol that the registry is meant to resolve', () => {
         expect(resolveInstrument('BTCUSDT')?.quote.symbol).toBe('USDT');
     });
+
+    it('resolves the configured multi-market deployment, including SOLUSDT', () => {
+        // A market the deployment observes but the registry cannot split is a
+        // process that refuses to start, so every configured ticker has to be
+        // answerable here before any venue is asked about it.
+        for (const ticker of ['BTCUSDT', 'ETHUSDT', 'SOLUSDT']) {
+            const instrument = resolveInstrument(ticker);
+
+            expect(instrument?.base.symbol).toBe(ticker.slice(0, -4));
+            expect(instrument?.quote.symbol).toBe('USDT');
+            expect(instrument?.market).toBe('crypto');
+        }
+    });
 });
 
 describe('a symbol the registry can act on', () => {
