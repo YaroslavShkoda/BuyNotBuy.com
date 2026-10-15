@@ -38,7 +38,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import ts from 'typescript-5';
 
-const SKIPPED = new Set(['test-support', 'node_modules', '.next', 'fixtures']);
+const SKIPPED = new Set(['test-support', 'node_modules', '.next', 'fixtures', 'dist']);
 
 /**
  * The layers, and who may import whom.

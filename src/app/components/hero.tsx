@@ -15,27 +15,13 @@ interface HeroProps {
     ema300: number;
 }
 
-// The asset badge used to render the "₿" character straight from the map. That
-// glyph lives in U+20BF, which plenty of system fonts simply do not ship (a
-// missing codepoint renders as a tofu box), and font-weight: 700 is often
-// synthesised by smearing, which looks soft at badge size. A path stays sharp
-// at any resolution and inherits the accent colour from the tile.
-function BitcoinMark() {
+function AssetMark({ base }: { base: string }) {
+    // A generic initial works for every registry asset and does not imply a
+    // special case or icon mapping that the registry does not provide.
     return (
-        <svg
-            className="hero-asset-mark"
-            viewBox="0 0 48 48"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={2.8}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-        >
-            {/* Two bowls, the shared stem, and the four tick marks above/below. */}
-            <path d="M15 10h10a7 7 0 0 1 0 14H15M15 24h11a7 7 0 0 1 0 14H15M15 10v28" />
-            <path d="M21 10V4M29 10V4M21 38v6M29 38v6" />
-        </svg>
+        <span className="hero-asset-mark hero-asset-letter" aria-hidden="true">
+            {Array.from(base)[0] ?? '?'}
+        </span>
     );
 }
 
@@ -46,6 +32,9 @@ export function Hero({ analysis, history, candles, symbol, instrument, ema300 }:
     // honest fallback and the base the glyph falls back to.
     const name = instrument?.name ?? symbol;
     const base = instrument?.base ?? symbol;
+    // The quote currency the price is denominated in. Null means the registry
+    // could not name it, and an unlabelled number beats a wrong label.
+    const quote = instrument?.quote ?? null;
 
     return (
             <section className="hero depth-surface">
@@ -58,7 +47,7 @@ export function Hero({ analysis, history, candles, symbol, instrument, ema300 }:
                             left edge beside the badge. */}
                         <div className="hero-asset-line">
                             <span className="hero-asset-glyph" aria-hidden="true">
-                                {base === 'BTC' ? <BitcoinMark /> : base.charAt(0)}
+                                <AssetMark base={base} />
                             </span>
 
                             <div className="hero-asset-text">
@@ -66,10 +55,11 @@ export function Hero({ analysis, history, candles, symbol, instrument, ema300 }:
 
                                 <div className="hero-price-block">
                                     <span className="hero-price">
-                                        ${price.toLocaleString('en-US', {
+                                        {price.toLocaleString('en-US', {
                                             minimumFractionDigits: 2,
                                             maximumFractionDigits: 2,
                                         })}
+                                        {quote !== null ? ` ${quote}` : ''}
                                     </span>
 
                                     <span className="hero-price-label">
@@ -96,6 +86,7 @@ export function Hero({ analysis, history, candles, symbol, instrument, ema300 }:
                     <SignalPanel
                         signal={signal}
                         periods={analysis.periods}
+                        quote={quote}
                         indicatorValues={{
                             ema300: indicators.ema300,
                             stochastic: indicators.stochastic,

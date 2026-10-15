@@ -360,7 +360,7 @@ export function MarketChart({ candles, symbol, quote, ema300 }: MarketChartProps
         </div>
         {hasEma && (
             <span className="chart-ema-label" style={{ top: `${emaLabelTop}%` }}>
-                EMA 300 · ${ema300.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                EMA 300 · {ema300.toLocaleString('en-US', { maximumFractionDigits: 0 })}{quote !== null ? ` ${quote}` : ''}
             </span>
         )}
     </div>

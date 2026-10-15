@@ -129,7 +129,8 @@ describe('indicator values survive a configurable period', () => {
 
         // `maximumFractionDigits` is a ceiling, not a floor: 1234.5 is
         // rendered without a trailing zero rather than padded to two places.
-        expect(getIndicatorValueText('ema', values)).toBe('$1,234.5');
+        expect(getIndicatorValueText('ema', values)).toBe('1,234.5');
+        expect(getIndicatorValueText('ema', values, 'USDT')).toBe('1,234.5 USDT');
         expect(getIndicatorValueText('stochastic', values)).toBe('42.13');
         expect(getIndicatorValueText('momentum', values)).toBe('-1.50%');
     });

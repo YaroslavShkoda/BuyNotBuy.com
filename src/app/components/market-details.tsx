@@ -4,12 +4,8 @@ import type { Candle, DivergenceAnalysis, MarketAnalysis } from '../types/analys
 interface MarketDetailsProps {
     candles: Candle[];
     analysis: MarketAnalysis;
-    /**
-     * The currency the volume column is counted in, named by the registry. The
-     * analysis payload carries only a price, and the market payload names the
-     * pair authoritatively — so the table receives the answer rather than
-     * re-deriving it from a symbol string.
-     */
+    /** The resolved ticker and quote currency come from the instrument registry. */
+    symbol: string;
     quote: string | null;
 }
 
@@ -19,6 +15,12 @@ function compactNumber(value: number) {
 
 function price(value: number) {
     return value.toLocaleString('en-US', { maximumFractionDigits: 2 });
+}
+
+function withQuote(value: number, quote: string | null): string {
+    const formatted = price(value);
+
+    return quote === null ? formatted : `${formatted} ${quote}`;
 }
 
 export function getStochasticZone(value: number): string {
@@ -35,8 +37,10 @@ export interface DivergencePresentation {
     detail: string | null;
 }
 
-function formatDivergencePrice(value: number): string {
-    return `$${Math.round(value).toLocaleString('en-US')}`;
+function formatDivergencePrice(value: number, quote: string | null): string {
+    const formatted = Math.round(value).toLocaleString('en-US');
+
+    return quote === null ? formatted : `${formatted} ${quote}`;
 }
 
 function formatDivergenceMomentum(value: number): string {
@@ -64,7 +68,10 @@ function pluralizeBars(value: number): string {
     return 'свечей';
 }
 
-export function describeDivergence(divergence: DivergenceAnalysis): DivergencePresentation {
+export function describeDivergence(
+    divergence: DivergenceAnalysis,
+    quote: string | null = null,
+): DivergencePresentation {
     const found = divergence.bullish ?? divergence.bearish;
 
     if (found === null) {
@@ -91,11 +98,11 @@ export function describeDivergence(divergence: DivergenceAnalysis): DivergencePr
     return {
         label: isBullish ? 'Бычья дивергенция' : 'Медвежья дивергенция',
         tone: isBullish ? 'positive' : 'negative',
-        detail: `Цена: ${formatDivergencePrice(previous.price)} → ${formatDivergencePrice(current.price)} (${priceDirection}) · Momentum: ${formatDivergenceMomentum(previous.momentum)} → ${formatDivergenceMomentum(current.momentum)} (${momentumDirection}) · Подтверждена ${current.age} ${pluralizeBars(current.age)} назад`,
+        detail: `Цена: ${formatDivergencePrice(previous.price, quote)} → ${formatDivergencePrice(current.price, quote)} (${priceDirection}) · Momentum: ${formatDivergenceMomentum(previous.momentum)} → ${formatDivergenceMomentum(current.momentum)} (${momentumDirection}) · Подтверждена ${current.age} ${pluralizeBars(current.age)} назад`,
     };
 }
 
-export function MarketDetails({ candles, analysis, quote }: MarketDetailsProps) {
+export function MarketDetails({ candles, analysis, symbol, quote }: MarketDetailsProps) {
     // The grid stretches both cards to the same height, so the activity table
     // has to carry the difference: the left card is tall because its captions
     // wrap, and this one used to stop after five rows with dead space under it.
@@ -114,7 +121,7 @@ export function MarketDetails({ candles, analysis, quote }: MarketDetailsProps) 
     const emaVote = analysis.signal.indicators.find(
         (indicator) => indicator.key === 'ema',
     );
-    const divergence = describeDivergence(analysis.divergence);
+    const divergence = describeDivergence(analysis.divergence, quote);
     const momentumPeriod = analysis.momentum.period;
     const indicators = analysis.indicators;
     const periods = analysis.periods;
@@ -136,7 +143,7 @@ export function MarketDetails({ candles, analysis, quote }: MarketDetailsProps) 
                         <div className="indicator-list">
                             <div className="indicator-row">
                                 <div><span>{emaLabel}</span><small>Долгосрочный тренд</small></div>
-                                <div className="indicator-reading"><strong>${price(analysis.indicators.ema300)}</strong><span className={aboveEma ? 'reading-positive' : 'reading-negative'}>{aboveEma ? 'Цена выше EMA' : 'Цена ниже EMA'}</span></div>
+                                <div className="indicator-reading"><strong>{withQuote(analysis.indicators.ema300, quote)}</strong><span className={aboveEma ? 'reading-positive' : 'reading-negative'}>{aboveEma ? 'Цена выше EMA' : 'Цена ниже EMA'}</span></div>
                             </div>
                         </div>
                     </div>
@@ -214,8 +221,8 @@ export function MarketDetails({ candles, analysis, quote }: MarketDetailsProps) 
                             <tbody>{recent.map((candle) => (
                                 <tr key={candle.timestamp}>
                                     <td>{new Date(candle.timestamp).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</td>
-                                    <td className={candle.close >= candle.open ? 'reading-positive' : 'reading-negative'}>${price(candle.close)}</td>
-                                    <td>${price(candle.low)} — ${price(candle.high)}</td>
+                                    <td className={candle.close >= candle.open ? 'reading-positive' : 'reading-negative'}>{withQuote(candle.close, quote)}</td>
+                                    <td>{withQuote(candle.low, quote)} — {withQuote(candle.high, quote)}</td>
                                     <td>{compactNumber(candle.volume)}</td>
                                 </tr>
                             ))}</tbody>
@@ -224,7 +231,7 @@ export function MarketDetails({ candles, analysis, quote }: MarketDetailsProps) 
                     </div>
                 </article>
             </section>
-            <footer className="dashboard-footer"><span>BUYNOTBUY <i>·</i> BTC / USDT</span><span>АНАЛИЗ ОБНОВЛЯЕТСЯ ВМЕСТЕ С РЫНОЧНЫМИ ДАННЫМИ</span></footer>
+            <footer className="dashboard-footer"><span>BUYNOTBUY <i>·</i> {symbol}</span><span>АНАЛИЗ ОБНОВЛЯЕТСЯ ВМЕСТЕ С РЫНОЧНЫМИ ДАННЫМИ</span></footer>
         </>
     );
 }

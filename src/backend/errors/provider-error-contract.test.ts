@@ -66,7 +66,7 @@ describe('provider failures are classified, not read', () => {
 
             const text = readFileSync(file, 'utf8');
 
-            for (const [index, line] of text.split('\n').entries()) {
+            for (const [index, line] of text.split(/\r?\n/).entries()) {
                 // **Both of these were strings, not regular expressions**, so
                 // neither one ever matched anything: `replaceAll('//.*', '')`
                 // searches for the five literal characters `//.*`, which no line

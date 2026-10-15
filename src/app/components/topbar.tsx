@@ -39,9 +39,10 @@ interface TopbarProps {
 }
 
 export function Topbar({ updatedAt, assetName, markets = [] }: TopbarProps) {
-    const subject = assetName === undefined
-        ? 'BITCOIN'
-        : assetName.toUpperCase();
+    // No hardcoded asset: an absent name means the registry has not spoken, and
+    // the subtitle then says what is true ("INTELLIGENCE TERMINAL") rather than
+    // what used to be true (that the only market was Bitcoin).
+    const subject = assetName === undefined ? null : assetName.toUpperCase();
 
     return (
         <header className="topbar">
@@ -59,7 +60,7 @@ export function Topbar({ updatedAt, assetName, markets = [] }: TopbarProps) {
                 <div className="topbar-brand-copy">
                     <span className="topbar-name">BuyNotBuy</span>
                     <span className="topbar-subtitle">
-                        {subject} INTELLIGENCE TERMINAL
+                        {subject === null ? 'INTELLIGENCE TERMINAL' : `${subject} INTELLIGENCE TERMINAL`}
                     </span>
                 </div>
             </div>

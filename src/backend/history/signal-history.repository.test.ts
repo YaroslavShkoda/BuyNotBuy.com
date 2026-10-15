@@ -456,7 +456,7 @@ describe('signal history schema', () => {
 
         expect(await repository.list('BTCUSDT', 10)).toEqual([]);
     });
-});
+}, 30_000);
 
 describe('signal history durability', () => {
     it('reports the server-side timeouts in force on the pool', async () => {

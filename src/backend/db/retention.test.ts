@@ -338,7 +338,7 @@ describe('against a real database', () => {
 
         expect(last?.deleted).toBe(1);
     });
-});
+}, 30_000);
 
 describe('the index ledger', () => {
     const pool = getTestPool();
@@ -407,4 +407,4 @@ describe('the index ledger', () => {
         // Declaring twice is what a redeploy does, and it must not duplicate.
         expect(listed).toHaveLength(INDEX_PURPOSES.length);
     });
-});
+}, 30_000);

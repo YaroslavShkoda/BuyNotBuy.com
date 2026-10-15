@@ -86,11 +86,14 @@
     user-select: none;
 }
 
-/* Vector asset mark (see BitcoinMark in hero.tsx). Sized as a percentage of the
-   tile so it stays crisp at any breakpoint and inherits the accent colour. */
+/* Keep the registry-backed asset initial centered in the same badge used by the
+   former vector mark. */
 .hero-asset-mark {
-    width: 56%;
-    height: 56%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
 }
 
 .hero-heading {

@@ -36,12 +36,12 @@ describe('divergence presentation', () => {
             bearish: null,
         };
 
-        const presentation = describeDivergence(divergence);
+        const presentation = describeDivergence(divergence, 'USDT');
 
         expect(presentation.label).toBe('Бычья дивергенция');
         expect(presentation.tone).toBe('positive');
         expect(presentation.detail).toBe(
-            'Цена: $67,400 → $66,900 (ниже) · Momentum: -1.2% → -0.9% (выше) · Подтверждена 16 свечей назад',
+            'Цена: 67,400 USDT → 66,900 USDT (ниже) · Momentum: -1.2% → -0.9% (выше) · Подтверждена 16 свечей назад',
         );
     });
 
@@ -106,12 +106,12 @@ describe('divergence presentation', () => {
             },
         };
 
-        const presentation = describeDivergence(divergence);
+        const presentation = describeDivergence(divergence, 'USDT');
 
         expect(presentation.label).toBe('Медвежья дивергенция');
         expect(presentation.tone).toBe('negative');
         expect(presentation.detail).toBe(
-            'Цена: $70,000 → $71,200 (выше) · Momentum: +1.5% → +0.9% (ниже) · Подтверждена 3 свечи назад',
+            'Цена: 70,000 USDT → 71,200 USDT (выше) · Momentum: +1.5% → +0.9% (ниже) · Подтверждена 3 свечи назад',
         );
     });
 

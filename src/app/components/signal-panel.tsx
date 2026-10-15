@@ -61,6 +61,7 @@ interface SignalPanelProps {
     signal: SignalResult;
     indicatorValues: IndicatorValue;
     periods: Periods;
+    quote: string | null;
 }
 
 export function getConfidenceWidth(confidence: number): string {
@@ -72,10 +73,16 @@ export function getConfidenceWidth(confidence: number): string {
 // Format a single indicator's numeric value, keyed by the stable indicator key
 // rather than by the label. Matching on the label meant the row rendered
 // nothing the moment a period changed, because "Momentum 100" stopped matching.
-export function getIndicatorValueText(key: IndicatorKey, values: IndicatorValue): string | null {
+export function getIndicatorValueText(
+    key: IndicatorKey,
+    values: IndicatorValue,
+    quote: string | null = null,
+): string | null {
     switch (key) {
-        case 'ema':
-            return `$${values.ema300.toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
+        case 'ema': {
+            const formatted = values.ema300.toLocaleString('en-US', { maximumFractionDigits: 2 });
+            return quote === null ? formatted : `${formatted} ${quote}`;
+        }
         case 'stochastic':
             return values.stochastic.toFixed(2);
         case 'momentum':
@@ -120,7 +127,7 @@ export function getVoteSummary(
     return null;
 }
 
-export function SignalPanel({ signal, indicatorValues, periods }: SignalPanelProps) {
+export function SignalPanel({ signal, indicatorValues, periods, quote }: SignalPanelProps) {
     const signalClass = signal.signal.toLowerCase();
     const voteSummary = getVoteSummary(signal.indicators, signal.signal);
     const contextIndicators = getContextIndicators(indicatorValues, periods);
@@ -163,7 +170,7 @@ export function SignalPanel({ signal, indicatorValues, periods }: SignalPanelPro
             <div className="signal-indicators">
                             {signal.indicators.map((indicator) => {
                                 const vote = indicator.signal.toLowerCase();
-                                const indicatorValue = getIndicatorValueText(indicator.key, indicatorValues);
+                                const indicatorValue = getIndicatorValueText(indicator.key, indicatorValues, quote);
 
                                 return (
                                     <div

@@ -50,7 +50,7 @@ import { join, relative, sep } from 'node:path';
 import ts from 'typescript-5';
 
 /** Directories the audit does not descend into at all. */
-const SKIPPED = new Set(['test-support', 'node_modules', '.next', 'fixtures']);
+const SKIPPED = new Set(['test-support', 'node_modules', '.next', 'fixtures', 'dist']);
 
 /** Path prefixes, relative to src/backend, allowed to name a symbol in code. */
 interface Exception {

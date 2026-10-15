@@ -67,6 +67,7 @@ export default async function MarketPage({
                 <MarketDetails
                     candles={market.candles}
                     analysis={analysis}
+                    symbol={market.price.symbol}
                     quote={market.instrument?.quote ?? null}
                 />
             </div>
