@@ -22,11 +22,12 @@
  * serving BTC candles to someone who asked for EUR is the failure this whole
  * phase exists to prevent.
  */
+import type { CandleInterval } from '../types/candle-interval.js';
 
 /** A market asked for, as a ticker and a candle interval. */
 export interface MarketRequest {
     readonly instrument: string;
-    readonly interval: string;
+    readonly interval: CandleInterval;
 }
 
 /** What one venue declares it can serve. */
@@ -35,7 +36,7 @@ export interface VenueCapability {
     /** Tickers this venue is declared to trade. */
     readonly instruments: readonly string[];
     /** Candle intervals this venue is declared to serve. */
-    readonly intervals: readonly string[];
+    readonly intervals: readonly CandleInterval[];
 }
 
 type RouteRejection =

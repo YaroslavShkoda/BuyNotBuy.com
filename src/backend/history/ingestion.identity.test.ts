@@ -57,6 +57,7 @@ function venue(
         getAttributedCandles: async () => ({
             venue: 'binance',
             symbol,
+            interval: '1h' as const,
             candles: [...candles],
         }),
         getHistoricalCandles: async () => {

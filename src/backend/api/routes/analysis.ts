@@ -5,6 +5,7 @@ import { sendWithEtag } from '../lib/conditional-get.js';
 import {
     setDataFreshnessHeaders,
 } from '../lib/data-freshness.js';
+import { intervalQuery } from '../lib/interval-query.js';
 
 export async function analysisRoutes(
     app: FastifyInstance,
@@ -13,6 +14,8 @@ export async function analysisRoutes(
         const result = await getAnalysis(
             request.log,
             request.id,
+            undefined,
+            intervalQuery(request.query),
         );
 
         // Freshness is set before the conditional check so a 304 still says

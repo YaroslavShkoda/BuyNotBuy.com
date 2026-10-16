@@ -1,7 +1,8 @@
-import { marketConfig } from '../config/market.config.js';
+import { CANDLE_INTERVAL_MS, marketConfig } from '../config/market.config.js';
 import { ApplicationError } from '../errors/application.error.js';
 import { configuredVenueFor, marketProviderFor } from '../market/market.provider.js';
 import type { MarketDataProvider } from '../market/providers/market-data.provider.js';
+import type { CandleInterval } from '../types/candle-interval.js';
 import type { Candle } from '../types/market.js';
 
 import type { CandleRepository, CandleSeriesKey } from './candle.repository.js';
@@ -83,7 +84,7 @@ export async function ingestOnce(
     // all, and it also gives the refusal below something to refuse: a market no
     // venue serves now raises here, naming the market, instead of quietly
     // answering with the primary's bars.
-    const provider = options.provider ?? marketProviderFor(options.key.symbol);
+    const provider = options.provider ?? marketProviderFor(options.key.symbol, options.key.interval);
     const now = options.now ?? Date.now;
     const limit = options.limit ?? marketConfig.defaultCandleLimit;
     const at = now();
@@ -217,12 +218,21 @@ function splitByAge(
  * no venue serves rather than naming the primary, because a key that silently
  * names the wrong venue is worse than a refusal: it writes.
  */
-export function configuredSeries(instrument?: string): CandleSeriesKey {
+export function configuredSeries(
+    instrument?: string,
+    interval?: CandleInterval,
+): CandleSeriesKey {
     const symbol = instrument ?? marketConfig.symbol;
+    const series = interval ?? marketConfig.candleInterval;
 
     return {
-        provider: configuredVenueFor(symbol),
+        provider: configuredVenueFor(symbol, series),
         symbol,
-        interval: marketConfig.candleInterval,
+        interval: series,
     };
+}
+
+/** The bar length of a series key, from the shared vocabulary. */
+export function seriesIntervalMs(key: CandleSeriesKey): number {
+    return CANDLE_INTERVAL_MS[key.interval];
 }

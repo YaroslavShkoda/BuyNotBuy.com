@@ -48,6 +48,7 @@ function answering(venue: string, price: number): MarketDataProvider {
         getAttributedCandles: async () => ({
             venue,
             symbol: 'BTCUSDT',
+            interval: '1h',
             candles: [],
         }),
     };
@@ -113,6 +114,7 @@ describe('failover across an open circuit', () => {
                         getAttributedCandles: async () => ({
                             venue: 'bitget',
                             symbol: 'BTCUSDT',
+                            interval: '1h',
                             candles: [],
                         }),
                     },

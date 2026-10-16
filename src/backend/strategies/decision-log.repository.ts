@@ -1,5 +1,6 @@
 import { query, resolveInstrumentId } from '../db/pool.js';
 
+import type { CandleInterval } from '../types/candle-interval.js';
 import type { SignalDirection } from '../types/direction.js';
 import type { StrategyKey } from './types.js';
 
@@ -20,6 +21,15 @@ import type { StrategyKey } from './types.js';
 
 export interface DecisionEntry {
 	readonly symbol: string;
+	/**
+	 * The series the decision belongs to.
+	 *
+	 * A decision is a statement about one series at one bar length, and the
+	 * natural key that keeps a replay from counting twice has to say which —
+	 * otherwise a 15m cycle and the 1h cycle of the same millisecond would be
+	 * one decision, and one of them would silently never be recorded.
+	 */
+	readonly interval: CandleInterval;
 	readonly strategyVersionId: number | null;
 	readonly primary: {
 		readonly rule: StrategyKey;
@@ -45,8 +55,12 @@ export interface DecisionLogRepository {
 	 * `symbol` narrows the report to one asset. Omitting it asks a different
 	 * question and says so — see the implementation for why the blended figure
 	 * is kept rather than removed.
+	 *
+	 * `interval` narrows the report to one series the same way. Unset keeps the
+	 * record-wide blend, so a caller that never heard of a second interval
+	 * reads exactly what it always read.
 	 */
-	shadowReport(since: number, symbol?: string): Promise<ShadowReport>;
+	shadowReport(since: number, symbol?: string, interval?: CandleInterval): Promise<ShadowReport>;
 }
 
 /**
@@ -74,35 +88,36 @@ interface ShadowReport {
 
 export function createDecisionLogRepository(): DecisionLogRepository {
 	return {
-		async record(entry: DecisionEntry): Promise<void> {
-			// DO NOTHING is the replay guard, not a silent failure mode: the
-			// unique index on (symbol, created_at) means a row that already
-			// landed is the same fact arriving again, and a fact counted twice
-			// is not more evidence, it is wrong evidence.
-			await query(
-				`INSERT INTO strategy_decision_log
-                     (created_at, symbol, strategy_version_id,
-                      primary_rule, primary_direction, primary_confidence,
-                      fallback_rule, fallback_direction, fallback_confidence,
-                      published_rule, published_direction, suppressed)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-                 ON CONFLICT (instrument_id, created_at) DO NOTHING`,
-				[
-					entry.at,
-					entry.symbol,
-					entry.strategyVersionId,
-					entry.primary.rule,
-					entry.primary.direction,
-					entry.primary.confidence,
-					entry.fallback?.rule ?? null,
-					entry.fallback?.direction ?? null,
-					entry.fallback?.confidence ?? null,
-					entry.publishedRule,
-					entry.publishedDirection,
-					entry.suppressed,
-				],
-			);
-		},
+	async record(entry: DecisionEntry): Promise<void> {
+		// DO NOTHING is the replay guard, not a silent failure mode: the
+		// unique index on (instrument_id, interval, created_at) means a row
+		// that already landed is the same fact arriving again, and a fact
+		// counted twice is not more evidence, it is wrong evidence.
+		await query(
+			`INSERT INTO strategy_decision_log
+                 (created_at, symbol, interval, strategy_version_id,
+                  primary_rule, primary_direction, primary_confidence,
+                  fallback_rule, fallback_direction, fallback_confidence,
+                  published_rule, published_direction, suppressed)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+             ON CONFLICT (instrument_id, interval, created_at) DO NOTHING`,
+			[
+				entry.at,
+				entry.symbol,
+				entry.interval,
+				entry.strategyVersionId,
+				entry.primary.rule,
+				entry.primary.direction,
+				entry.primary.confidence,
+				entry.fallback?.rule ?? null,
+				entry.fallback?.direction ?? null,
+				entry.fallback?.confidence ?? null,
+				entry.publishedRule,
+				entry.publishedDirection,
+				entry.suppressed,
+			],
+		);
+	},
 
 		/**
 		 * **The asset filter is optional on purpose, and both halves of that
@@ -127,7 +142,7 @@ export function createDecisionLogRepository(): DecisionLogRepository {
 		 * second, hand-written query within a month. The blend stays reachable
 		 * and is now the thing you have to choose rather than inherit.
 		 */
-		async shadowReport(since: number, symbol?: string): Promise<ShadowReport> {
+		async shadowReport(since: number, symbol?: string, interval?: CandleInterval): Promise<ShadowReport> {
 			// One statement with an optional predicate rather than two query
 			// strings, so the scoped and unscoped shapes cannot drift apart as
 			// the report grows another column.
@@ -149,6 +164,11 @@ export function createDecisionLogRepository(): DecisionLogRepository {
 
 				scope = "AND instrument_id = $2";
 				params = [since, instrumentId];
+			}
+
+			if (interval !== undefined) {
+				scope += ` AND interval = $${params.length + 1}`;
+				params = [...params, interval];
 			}
 
 			const { rows } = await query<{

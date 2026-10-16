@@ -23,7 +23,7 @@ const { mockMarketDataProvider, mockAnyProviderAvailable } = vi.hoisted(() => {
         getCandles: vi.fn(async (limit = 900) => currentCandles(limit, baseOf(instrument))),
         getAttributedCandles: vi.fn(async (limit?: number) => ({
             venue: 'binance',
-            symbol: instrument,
+            symbol: instrument,            interval: '1h',
             candles: currentCandles(limit ?? 900, baseOf(instrument)),
         })),
         getAttributedPrice: vi.fn(async () => ({
@@ -48,7 +48,7 @@ vi.mock('../market/market.provider.js', () => ({
             getCandles: vi.fn(async (limit = 900) => currentCandles(limit, base)),
             getAttributedCandles: vi.fn(async (limit?: number) => ({
                 venue: 'binance',
-                symbol: instrument,
+                symbol: instrument,                interval: '1h',
                 candles: currentCandles(limit ?? 900, base),
             })),
             getAttributedPrice: vi.fn(async () => ({

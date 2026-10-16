@@ -7,6 +7,7 @@ const NOW = 1_760_000_000_000;
 
 const entry = (over: Partial<DecisionEntry> = {}): DecisionEntry => ({
     symbol: 'BTCUSDT',
+    interval: '1h',
     strategyVersionId: null,
     at: NOW,
     primary: {

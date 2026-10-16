@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { MAX_CANDLE_LIMIT, marketConfig } from '../../config/market.config.js';
 import { MarketDataError } from '../../errors/market-data.error.js';
 import { ProviderError } from '../../errors/provider.error.js';
+import type { CandleInterval } from '../../types/candle-interval.js';
 import type {
     AssetPrice,
     Candle,
@@ -105,9 +106,9 @@ export class BinanceProvider implements MarketDataProvider {
      * constructor, `this` everywhere — so the fix is not a new idea but the
      * removal of a copy that had drifted from it.
      */
-    readonly interval: string;
+    readonly interval: CandleInterval;
 
-    constructor(symbol: string = marketConfig.symbol, interval: string = marketConfig.candleInterval) {
+    constructor(symbol: string = marketConfig.symbol, interval: CandleInterval = marketConfig.candleInterval) {
         this.symbol = symbol;
         this.interval = interval;
     }
@@ -158,6 +159,7 @@ export class BinanceProvider implements MarketDataProvider {
         return {
             venue: this.name,
             symbol: this.symbol,
+            interval: this.interval,
             candles: await this.fetchKlines(limit),
         };
     }

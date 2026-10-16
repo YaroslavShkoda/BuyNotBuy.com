@@ -64,6 +64,7 @@ function venue(
                 return {
                     venue: name,
                     symbol: marketConfig.symbol,
+                    interval: '1h',
                     candles: currentCandles(5),
                 };
             },
@@ -143,6 +144,7 @@ describe('failover attribution', () => {
                 getAttributedCandles: async () => ({
                     venue: 'bitget',
                     symbol: 'ETHUSDT',
+                    interval: '1h' as const,
                     candles: [],
                 }),
             },

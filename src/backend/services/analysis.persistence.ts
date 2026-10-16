@@ -1,7 +1,6 @@
 import { getSignalSnapshotRepository } from '../analysis/signal-snapshot.repository.js';
 import { getStrategyVersionRepository } from '../analysis/strategy-version.repository.js';
 import { historyConfig } from '../config/history.config.js';
-import { marketConfig } from '../config/market.config.js';
 import { writeSpoolConfig } from '../config/write-spool.config.js';
 import { recordSignalHistory } from '../history/signal-history.service.js';
 import type { SignalContext, SignalHistoryLogger } from '../history/signal-history.types.js';
@@ -85,6 +84,11 @@ export function writeHistory(
         {
             timestamp: input.analysis.timestamp,
             symbol: input.symbol,
+            // The series the row belongs to. The repository would default it
+            // to the configured interval; naming it here is what lets a
+            // non-default interval's row land in its own series instead of
+            // overwriting the configured one's.
+            interval: input.analysis.interval,
             signal: input.analysis.signal.signal,
             consensus: input.analysis.signal.confidence,
             price: input.analysis.price,
@@ -177,7 +181,11 @@ export async function storeSnapshot(
             // snapshot is silently discarded as a duplicate of the first, and
             // the row that survives is attributed to whichever arrived first.
             provider: input.provider,
-            interval: marketConfig.candleInterval,
+            // The snapshot's own interval, from the analysis it stores — the
+            // same place its input hash comes from. Hardcoding the configured
+            // interval here would file a 15m analysis under the 1h series and
+            // let its hash collide with that hour's real snapshot.
+            interval: input.snapshot.interval,
             snapshot: input.snapshot,
         });
 
@@ -319,6 +327,8 @@ async function resolveStrategyVersionId(symbol: string): Promise<number | null> 
 export async function recordStrategyDecisions(
     input: {
         symbol: string;
+        /** The series this cycle belongs to; one symbol at two intervals is two journals. */
+        interval: MarketAnalysis['interval'];
         published: ResolvedSignal;
     },
     logger?: SignalHistoryLogger,
@@ -337,6 +347,7 @@ export async function recordStrategyDecisions(
     try {
         entry = {
             symbol: input.symbol,
+            interval: input.interval,
             // The version is resolved before the row is built, and its failure
             // does not cost the cycle: the row keeps its content with a null
             // version, which is the state the column and the evidence gate

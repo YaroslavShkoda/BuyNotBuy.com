@@ -1,5 +1,5 @@
 import { indicatorConfig, signalConfigFor } from '../config/indicator.config.js';
-import { marketConfig } from '../config/market.config.js';
+import { CANDLE_INTERVAL_MS, marketConfig } from '../config/market.config.js';
 import { assessDataQuality } from '../history/data-quality.js';
 import type { SignalContext } from '../history/signal-history.types.js';
 import type { DivergenceAnalysis } from '../indicators/divergence.service.js';
@@ -89,6 +89,7 @@ export interface AnalysisComputation {
      */
     readonly market: {
         readonly symbol: string;
+        readonly interval: MarketRequest['interval'];
         readonly candles: Candle[];
         readonly provider: string;
     };
@@ -332,6 +333,7 @@ export async function computeAnalysis(
     const signalDurationMs = completedDurations.signalDurationMs ?? 0;
 
     const analysis: MarketAnalysis = {
+        interval: marketData.interval,
         timestamp: Date.now(),
         price: marketData.price.price,
         indicators: toWireIndicators(indicators),
@@ -381,6 +383,7 @@ export async function computeAnalysis(
         },
         market: {
             symbol: marketData.price.symbol,
+            interval: marketData.interval,
             candles: marketData.candles,
             provider: marketData.provider,
         },
@@ -400,7 +403,7 @@ export async function computeAnalysis(
                     provider: marketProvider,
                     symbol: marketData.price.symbol,
                     candleCount: marketData.candles.length,
-                    candleInterval: marketConfig.candleInterval,
+                    candleInterval: marketData.interval,
                     marketTimestamp: marketData.timestamp,
                     // The state, not just the boolean. "Stale" covers a
                     // snapshot behind the market and a snapshot that is
@@ -455,7 +458,10 @@ function analysisContext(
         const quality = assessDataQuality({
             candles: marketData.candles,
             now,
-            intervalMs: marketConfig.candleIntervalMs,
+            // The bar length of the series in hand, not the configured one's:
+            // a gap check run at the wrong bar length calls a daily series
+            // gappy and a 15m series stale.
+            intervalMs: CANDLE_INTERVAL_MS[marketData.interval],
             provider: marketData.provider,
         });
         // The regime window is a length in time, so it needs to know how long a
@@ -464,7 +470,7 @@ function analysisContext(
         // days hourly, 12 hours on a minute chart.
         const regime = assessRegime({
             candles: marketData.candles,
-            interval: marketConfig.candleInterval,
+            interval: marketData.interval,
         });
 
         return {

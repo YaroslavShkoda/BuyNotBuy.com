@@ -16,7 +16,7 @@
  */
 
 import { requiredCandleCount } from '../config/indicator.config.js';
-import { marketConfig } from '../config/market.config.js';
+import { CandleIntervalSchema, marketConfig } from '../config/market.config.js';
 import { getMarketData } from '../market/market.service.js';
 import { describeSearch } from './optimize.report.js';
 import { optimize } from './optimizer.js';
@@ -41,7 +41,11 @@ function integerEnv(name: string, fallback: number): number {
 
 async function main(): Promise<void> {
     const instrument = process.env['OPTIMIZE_INSTRUMENT'] ?? marketConfig.symbol;
-    const interval = process.env['OPTIMIZE_INTERVAL'] ?? marketConfig.candleInterval;
+    // Parsed through the vocabulary so an unsupported OPTIMIZE_INTERVAL is
+    // named at the boundary rather than failing as a type error below.
+    const interval = CandleIntervalSchema.parse(
+        process.env['OPTIMIZE_INTERVAL'] ?? marketConfig.candleInterval,
+    );
     const wanted = integerEnv('OPTIMIZE_CANDLES', 1_000);
     const limit = integerEnv('OPTIMIZE_LIMIT', 400);
 

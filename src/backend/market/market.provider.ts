@@ -1,6 +1,7 @@
 import type { MarketProviderName } from '../config/market.config.js';
 import { marketConfig } from '../config/market.config.js';
 import { MarketDataError } from '../errors/market-data.error.js';
+import type { CandleInterval } from '../types/candle-interval.js';
 import type { VenueCapability } from './capability.js';
 import { describeRoute, route, serves } from './capability.js';
 import { FailoverProvider } from './failover.provider.js';
@@ -43,6 +44,7 @@ import { isVenueAvailable } from './providers/provider-http.js';
 function createVenue(
     name: MarketProviderName,
     symbol: string,
+    interval: CandleInterval,
 ): {
     name: string;
     provider: MarketDataProvider;
@@ -51,7 +53,7 @@ function createVenue(
         case 'binance':
             return {
                 name,
-                provider: new BinanceProvider(symbol),
+                provider: new BinanceProvider(symbol, interval),
             };
 
         case 'bitget':
@@ -60,13 +62,14 @@ function createVenue(
                 provider: new BitgetProvider({
                     baseUrl: marketConfig.fallbackBaseUrl,
                     symbol,
+                    candleInterval: interval,
                 }),
             };
 
         case 'mock':
             return {
                 name,
-                provider: new MockProvider(symbol),
+                provider: new MockProvider(symbol, interval),
             };
 
         default:
@@ -77,20 +80,27 @@ function createVenue(
 }
 
 /**
- * The chain serving a routed market, keyed by market.
+ * The chain serving a routed market, keyed by market *and* interval.
  *
  * Memoised because a chain carries state worth keeping: a circuit breaker that
  * resets every request cannot open, a recovery counter that starts over cannot
  * complete, and a failover chain that forgets which venue just timed out will try
  * it again first.
  *
- * Keyed by market alone, because the value *is* the market's chain — venue order
- * inside it comes from the capability table, not from the key.
+ * Keyed by market and interval together, because the value is one series'
+ * chain: the providers inside are built against one interval each, and serving
+ * a 15m request from a chain of 1h-bound venues would be a wrong-market answer
+ * in exactly the shape the multi-market work exists to prevent — right ticker,
+ * plausible candles, wrong series. Venue order inside comes from the capability
+ * table, not from the key.
  */
 const routedChains = new Map<string, MarketDataProvider>();
 
 function createMarketDataProvider(): MarketDataProvider {
-    const primary = createVenue(marketConfig.provider, marketConfig.symbol);
+    // The configured interval is this chain's: it serves the frozen routes and
+    // the background cycle, which are the callers that mean the deployment's
+    // own resolution. Any other interval is a routed chain below.
+    const primary = createVenue(marketConfig.provider, marketConfig.symbol, marketConfig.candleInterval);
 
     if (marketConfig.fallbackProviders.length === 0) {
         return primary.provider;
@@ -119,7 +129,7 @@ function createMarketDataProvider(): MarketDataProvider {
         .filter((name) => name !== marketConfig.provider && serving.includes(name))
         .map((name) => ({
             name,
-            provider: createVenue(name, marketConfig.symbol).provider,
+            provider: createVenue(name, marketConfig.symbol, marketConfig.candleInterval).provider,
         }));
 
     return new FailoverProvider(primary, backups);
@@ -173,7 +183,10 @@ export function configuredVenueCapabilities(): VenueCapability[] {
  * a market the primary does not serve, because that writes plausible rows into
  * the wrong series and every later read of them is a read of another asset.
  */
-export function configuredVenueFor(instrument: string): string {
+export function configuredVenueFor(
+    instrument: string,
+    interval: CandleInterval = marketConfig.candleInterval,
+): string {
     const wanted = instrument.trim().toUpperCase();
 
     if (wanted === marketConfig.symbol.toUpperCase()) {
@@ -181,15 +194,15 @@ export function configuredVenueFor(instrument: string): string {
     }
 
     const found = route(
-        { instrument: wanted, interval: marketConfig.candleInterval },
+        { instrument: wanted, interval },
         configuredVenueCapabilities(),
         configuredMarketVenues(),
     );
 
     if (!found.ok) {
         throw new MarketDataError(
-            describeRoute(found, { instrument: wanted, interval: marketConfig.candleInterval }),
-            { code: 'MARKET_PROVIDER_ERROR', cause: { requestedSymbol: wanted, reason: found.reason } },
+            describeRoute(found, { instrument: wanted, interval }),
+            { code: 'MARKET_PROVIDER_ERROR', cause: { requestedSymbol: wanted, requestedInterval: interval, reason: found.reason } },
         );
     }
 
@@ -209,10 +222,13 @@ export function configuredVenueFor(instrument: string): string {
  * deployment's own statement of what it serves, so "not declared" means "not
  * offered" rather than "assumed available".
  */
-export function venuesServing(instrument: string): MarketProviderName[] {
+export function venuesServing(
+    instrument: string,
+    interval: CandleInterval = marketConfig.candleInterval,
+): MarketProviderName[] {
     const request = {
         instrument: instrument.trim().toUpperCase(),
-        interval: marketConfig.candleInterval,
+        interval,
     };
 
     const capabilities = configuredVenueCapabilities();
@@ -242,23 +258,26 @@ export function venuesServing(instrument: string): MarketProviderName[] {
  * that configures nothing new keeps working and keeps its existing refusal for a
  * symbol the registry cannot parse.
  */
-export function marketProviderFor(instrument: string): MarketDataProvider {
+export function marketProviderFor(
+    instrument: string,
+    interval: CandleInterval = marketConfig.candleInterval,
+): MarketDataProvider {
     const wanted = instrument.trim().toUpperCase();
 
-    if (wanted === marketConfig.symbol.toUpperCase()) {
+    if (wanted === marketConfig.symbol.toUpperCase() && interval === marketConfig.candleInterval) {
         return marketDataProvider;
     }
 
     const found = route(
-        { instrument: wanted, interval: marketConfig.candleInterval },
+        { instrument: wanted, interval },
         configuredVenueCapabilities(),
         configuredMarketVenues(),
     );
 
     if (!found.ok) {
         throw new MarketDataError(
-            describeRoute(found, { instrument: wanted, interval: marketConfig.candleInterval }),
-            { code: 'MARKET_PROVIDER_ERROR', cause: { requestedSymbol: wanted, reason: found.reason } },
+            describeRoute(found, { instrument: wanted, interval }),
+            { code: 'MARKET_PROVIDER_ERROR', cause: { requestedSymbol: wanted, requestedInterval: interval, reason: found.reason } },
         );
     }
 
@@ -284,7 +303,8 @@ export function marketProviderFor(instrument: string): MarketDataProvider {
     // live inside it, so a fresh chain per request would reset both on every
     // request — a breaker that cannot stay open and a recovery that can never
     // complete.
-    const cached = routedChains.get(wanted);
+    const chainKey = `${wanted}|${interval}`;
+    const cached = routedChains.get(chainKey);
 
     if (cached !== undefined) {
         return cached;
@@ -292,21 +312,21 @@ export function marketProviderFor(instrument: string): MarketDataProvider {
 
     // The routed venue leads, not the configured primary: it is the one the route
     // chose for this market. The rest are the configured venues that declare the
-    // same market, in configured preference order.
+    // same market at the same interval, in configured preference order.
     const ordered: MarketProviderName[] = [
         found.venue as MarketProviderName,
-        ...venuesServing(wanted).filter((name) => name !== found.venue),
+        ...venuesServing(wanted, interval).filter((name) => name !== found.venue),
     ];
 
     const chain = new FailoverProvider(
-        { name: ordered[0]!, provider: createVenue(ordered[0]!, wanted).provider },
+        { name: ordered[0]!, provider: createVenue(ordered[0]!, wanted, interval).provider },
         ordered.slice(1).map((name) => ({
             name,
-            provider: createVenue(name, wanted).provider,
+            provider: createVenue(name, wanted, interval).provider,
         })),
     );
 
-    routedChains.set(wanted, chain);
+    routedChains.set(chainKey, chain);
 
     return chain;
 }
@@ -360,8 +380,11 @@ export function configuredMarketVenues(): string[] {
  * is keyed by venue **and** market, so a circuit opened by one series refuses that
  * series alone.
  */
-export function anyMarketProviderAvailable(instrument: string): boolean {
-    return venuesServing(instrument).some((venue) => isVenueAvailable(venue, instrument));
+export function anyMarketProviderAvailable(
+    instrument: string,
+    interval: CandleInterval = marketConfig.candleInterval,
+): boolean {
+    return venuesServing(instrument, interval).some((venue) => isVenueAvailable(venue, instrument));
 }
 
 /**

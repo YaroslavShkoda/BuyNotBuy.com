@@ -121,7 +121,7 @@ describe('strategy decision write spool', () => {
         venue.refuse();
 
         await recordStrategyDecisions(
-            { symbol: 'BTCUSDT', published: resolved() },
+            { symbol: 'BTCUSDT', interval: '1h', published: resolved() },
             reporting,
         );
 
@@ -142,7 +142,7 @@ describe('strategy decision write spool', () => {
 
         venue.refuse();
         await recordStrategyDecisions(
-            { symbol: 'BTCUSDT', published: resolved() },
+            { symbol: 'BTCUSDT', interval: '1h', published: resolved() },
             reporting,
         );
 
@@ -176,7 +176,7 @@ describe('strategy decision write spool', () => {
         venue.refuse();
 
         await recordStrategyDecisions(
-            { symbol: 'BTCUSDT', published: resolved() },
+            { symbol: 'BTCUSDT', interval: '1h', published: resolved() },
             reporting,
         );
 
@@ -196,7 +196,7 @@ describe('strategy decision write spool', () => {
 
         venue.refuse();
         await recordStrategyDecisions(
-            { symbol: 'BTCUSDT', published: resolved() },
+            { symbol: 'BTCUSDT', interval: '1h', published: resolved() },
             reporting,
         );
 

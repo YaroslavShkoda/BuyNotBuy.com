@@ -1,3 +1,5 @@
+import type { CandleInterval } from './candle-interval.js';
+
 export interface AssetPrice {
     symbol: string;
     price: number;
@@ -39,8 +41,8 @@ export interface MarketData {
     provider: string;
     /** The symbol this snapshot was requested for. */
     symbol: string;
-    /** Candle interval as configured, e.g. `1h`. */
-    interval: string;
+    /** The bar length this snapshot was requested at, from the supported set. */
+    interval: CandleInterval;
     /**
      * Market time: the close of the newest closed candle, in epoch
      * milliseconds.

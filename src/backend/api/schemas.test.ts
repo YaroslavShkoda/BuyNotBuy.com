@@ -28,6 +28,7 @@ interface DivergenceFixture {
 interface AnalysisFixture {
     timestamp: number;
     price: number;
+    interval: string;
     indicators: {
         ema300: number;
         stochastic: number;
@@ -78,6 +79,7 @@ function validAnalysis(): AnalysisFixture {
     return {
         timestamp: 123456789,
         price: 80000,
+        interval: '1h',
         indicators: {
             ema300: 78000,
             stochastic: 20,

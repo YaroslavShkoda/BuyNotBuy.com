@@ -1,10 +1,12 @@
 import { marketConfig } from '../config/market.config.js';
 import type { SignalHistoryLogger } from '../history/signal-history.types.js';
+import { settleForwardReturns } from '../indicators/performance/indicator-performance.service.js';
 import { marketKey, resolveRequest } from '../market/market.service.js';
 import { createKeyedSingleFlight } from '../observability/single-flight.js';
 import type { SignalExplanation } from '../signals/explanation.js';
 import { recordPublishedSignal } from '../signals/signal-publication.js';
 import type { MarketAnalysis } from '../types/analysis.js';
+import type { CandleInterval } from '../types/candle-interval.js';
 import type { AnalysisComputation, MarketAnalysisStatus } from './analysis.engine.js';
 import { computeAnalysis } from './analysis.engine.js';
 import {
@@ -53,12 +55,14 @@ export async function analyzeMarket(
     requestId?: string,
     historyLogger?: SignalHistoryLogger,
     instrument?: string | undefined,
+    interval?: CandleInterval | undefined,
 ): Promise<MarketAnalysis> {
     const { analysis } = await analyzeMarketWithStatus(
         logger,
         requestId,
         historyLogger,
         instrument,
+        interval,
     );
 
     return analysis;
@@ -98,8 +102,19 @@ export async function analyzeMarketWithStatus(
      * series, and `marketKey` says so.
      */
     instrument?: string | undefined,
+    /**
+     * The bar length to analyse at, or the configured one.
+     *
+     * Defaulted for the same reason `instrument` is: the frozen route, the
+     * poller and the background cycle all mean the configured interval, and a
+     * caller that names a second one is the exception that says so.
+     */
+    interval?: CandleInterval | undefined,
 ): Promise<AnalysisWithStatus> {
-    const request = resolveRequest({ instrument, interval: marketConfig.candleInterval });
+    const request = resolveRequest({
+        instrument,
+        interval: interval ?? marketConfig.candleInterval,
+    });
     let result: AnalysisComputation;
     let leader: boolean;
 
@@ -150,7 +165,7 @@ export async function analyzeMarketWithStatus(
     // then ETHUSDT publishing SHORT counted as a change while neither market
     // changed — so the counter meant "how often two markets disagree" instead of
     // "how often this market revises itself".
-    recordPublishedSignal(result.analysis.signal.signal, request.instrument);
+    recordPublishedSignal(result.analysis.signal.signal, marketKey(request));
 
     // The history is per computation. This is the write that must not repeat:
     // N rows for one hour would tell the calibration code that the market held
@@ -167,6 +182,22 @@ export async function analyzeMarketWithStatus(
             },
             historyLogger,
         );
+
+        // The settlement of this series' own votes, driven by the same
+        // computation that produced the newest ones. The background cycle
+        // settles the configured series every poll; a series at any other
+        // interval has no background, so its horizons would stay null for
+        // ever without the request that created the votes also closing them.
+        // Fail-open like every write on this path, and idempotent: a settled
+        // horizon is guarded by its own null check.
+        void settleForwardReturns(
+            result.market.symbol,
+            result.market.candles,
+            undefined,
+            historyLogger,
+            undefined,
+            result.market.interval,
+        ).catch(() => undefined);
 
         // The decision journal travels under the same leader gate as the
         // history: once per computation, never once per caller. Written down
@@ -186,6 +217,7 @@ export async function analyzeMarketWithStatus(
             void recordStrategyDecisions(
                 {
                     symbol: result.market.symbol,
+                    interval: result.market.interval,
                     published: result.resolved,
                 },
                 historyLogger,

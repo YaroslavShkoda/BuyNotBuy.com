@@ -1,8 +1,9 @@
 import { requiredCandleCount } from '../config/indicator.config.js';
-import { MAX_CANDLE_LIMIT, marketConfig } from '../config/market.config.js';
+import { CANDLE_INTERVAL_MS, MAX_CANDLE_LIMIT, marketConfig } from '../config/market.config.js';
 import { MarketDataError } from '../errors/market-data.error.js';
 import { currentRegistry } from '../observability/registry.js';
 import { createKeyedSingleFlight } from '../observability/single-flight.js';
+import type { CandleInterval } from '../types/candle-interval.js';
 import type { AssetPrice, MarketData } from '../types/market.js';
 import { assertCandleSeries } from './candle-validation.js';
 import type { MarketRequest } from './capability.js';
@@ -82,7 +83,7 @@ const inFlight = new Map<string, Promise<MarketDataResult>>();
  * default would be two places where a change has to be remembered.
  */
 export function resolveRequest(
-    request?: { instrument?: string | undefined; interval?: string | undefined },
+    request?: { instrument?: string | undefined; interval?: CandleInterval | undefined },
 ): MarketRequest {
     return {
         instrument: request?.instrument ?? marketConfig.symbol,
@@ -141,7 +142,7 @@ function countCacheEvent(name: string, market: string): void {
 }
 
 export async function getMarketData(
-    request?: { instrument?: string | undefined; interval?: string | undefined },
+    request?: { instrument?: string | undefined; interval?: CandleInterval | undefined },
 ): Promise<MarketDataResult> {
     const wanted = resolveRequest(request);
     const key = marketKey(wanted);
@@ -161,7 +162,7 @@ export async function getMarketData(
         // binance serving BTCUSDT and bitget serving ETHUSDT, a cache hit for
         // ETHUSDT was told binance was fine and reported `fresh` with
         // `X-Data-Stale: false` while the only venue trading ETHUSDT refused.
-        const anyProviderAvailable = anyMarketProviderAvailable(wanted.instrument);
+        const anyProviderAvailable = anyMarketProviderAvailable(wanted.instrument, wanted.interval);
 
         countCacheEvent('market_cache_hits', wanted.instrument);
 
@@ -233,7 +234,7 @@ async function fetchAndCache(request: MarketRequest): Promise<MarketDataResult> 
         const freshness = classifyFreshness({
             ageMs: fallback === null ? null : ageMs,
             providerAnswered: false,
-            anyProviderAvailable: anyMarketProviderAvailable(request.instrument),
+            anyProviderAvailable: anyMarketProviderAvailable(request.instrument, request.interval),
             toleratedIssues: [],
             requiredCandles:
                 fallback === null ? undefined : fallback.data.candles.length,
@@ -271,8 +272,8 @@ async function fetchAndCache(request: MarketRequest): Promise<MarketDataResult> 
 }
 
 async function fetchMarketData(request: MarketRequest): Promise<MarketData> {
-    const { venue, symbol, candles } =
-        await marketProviderFor(request.instrument).getAttributedCandles(
+    const { venue, symbol, interval, candles } =
+        await marketProviderFor(request.instrument, request.interval).getAttributedCandles(
             resolveCandleLimit(),
         );
 
@@ -299,21 +300,38 @@ async function fetchMarketData(request: MarketRequest): Promise<MarketData> {
         );
     }
 
+    // The same check on the other axis. Every venue in the chain was built
+    // against one interval, so a mismatch here means a chain answered with a
+    // series it was never asked for — hourly bars on a daily request, shaped
+    // like an answer and worth nothing.
+    if (interval !== request.interval) {
+        throw new MarketDataError(
+            'Market data provider answered with a different interval than requested',
+            {
+                code: 'MARKET_PROVIDER_ERROR',
+                cause: {
+                    provider: venue,
+                    requestedInterval: request.interval,
+                    answeredInterval: interval,
+                },
+            },
+        );
+    }
+
     // Every provider funnels through here, so the invariants the indicators
     // rely on are checked exactly once. An unsorted or impossible series would
     // otherwise produce a confident signal from wrong numbers.
     //
-    // The interval is passed so the check can also see a hole in the middle of
-    // the series and a series that simply stopped updating. Both produce a
-    // well-formed signal from a market that is not the one being displayed,
-    // and neither is visible to any other check: the bars are sorted, unique,
-    // finite, and have consistent ranges.
+    // The requested interval's own duration, not the configured one's: the two
+    // agree on the default path and disagree the moment a request names a
+    // different resolution, and a hole check run at the wrong bar length calls
+    // a daily series gappy and a 15m series stale.
     assertCandleSeries(
         candles,
         Date.now(),
         venue,
         MAX_CANDLE_LIMIT,
-        marketConfig.candleIntervalMs,
+        CANDLE_INTERVAL_MS[request.interval],
     );
 
     const lastCandle = candles.at(-1);
@@ -332,7 +350,7 @@ async function fetchMarketData(request: MarketRequest): Promise<MarketData> {
         );
     }
 
-    // The dashboard is a snapshot of the last fully closed hour, so the
+    // The dashboard is a snapshot of the last fully closed bar, so the
     // reference price comes from that same candle instead of a live ticker
     // call: the signal, the chart and the "price above/below EMA" reading all
     // have to be computed against the same time base.
@@ -347,7 +365,7 @@ async function fetchMarketData(request: MarketRequest): Promise<MarketData> {
         interval: request.interval,
         // Market time, not fetch time. The two differ by up to one interval and
         // only this one belongs in a record meant to be replayed.
-        timestamp: lastCandle.timestamp + marketConfig.candleIntervalMs,
+        timestamp: lastCandle.timestamp + CANDLE_INTERVAL_MS[request.interval],
     };
 }
 

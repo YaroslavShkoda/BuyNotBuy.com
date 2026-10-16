@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { SUPPORTED_CANDLE_INTERVALS } from '../types/candle-interval.js';
 import type { MarketProviderName } from '../types/venue.js';
 import { VenueCapabilitySchema } from './market.schema.js';
 
@@ -24,14 +25,21 @@ export function parseVenueCapabilities(
     primary: MarketProviderName,
     primarySymbol: string,
     fallbackSymbol: string,
-    interval: string,
 ): z.infer<typeof VenueCapabilitySchema>[] {
     if (raw === undefined || raw.trim() === '') {
+        // Every supported interval, not just the configured one. The configured
+        // interval is what the *background* pipeline computes; the capability
+        // table answers "who can serve what", and a deployment that names no
+        // table of its own is served by venues that can answer all four
+        // intervals for the markets it already trades. Defaulting the table to
+        // the single configured interval would make `?interval=15m` a routing
+        // refusal on a deployment where the venue itself answers 15m — the
+        // declaration would be narrower than the fact it describes.
         return [
             {
                 venue: primary,
                 instruments: [primarySymbol],
-                intervals: [interval],
+                intervals: [...SUPPORTED_CANDLE_INTERVALS],
             },
             {
                 // Was `MarketProviderSchema.parse('bitget') as MarketProviderName`:
@@ -41,7 +49,7 @@ export function parseVenueCapabilities(
                 // vocabulary were separate.
                 venue: 'bitget' as const,
                 instruments: [fallbackSymbol],
-                intervals: [interval],
+                intervals: [...SUPPORTED_CANDLE_INTERVALS],
             },
         ].filter(
             (entry, index, all) =>

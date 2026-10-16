@@ -15,41 +15,41 @@
 
 | слой | файлов | вход | выход | род |
 |---|---|---|---|---|
-| `types` | 4 | 93 | 0 | сквозной лист |
-| `errors` | 3 | 19 | 0 | сквозной лист |
-| `config` | 21 | 98 | 9 | сквозной лист |
+| `types` | 5 | 117 | 0 | сквозной лист |
+| `errors` | 3 | 20 | 0 | сквозной лист |
+| `config` | 21 | 100 | 13 | сквозной лист |
 | `instruments` | 4 | 11 | 2 | сквозной лист |
-| `db` | 31 | 34 | 2 | ядро |
-| `market` | 16 | 27 | 39 | ядро |
-| `indicators` | 21 | 25 | 36 | ядро |
-| `strategies` | 11 | 49 | 7 | ядро |
+| `db` | 32 | 34 | 2 | ядро |
+| `market` | 16 | 27 | 46 | ядро |
+| `indicators` | 21 | 26 | 40 | ядро |
+| `strategies` | 11 | 49 | 8 | ядро |
 | `signals` | 8 | 15 | 15 | ядро |
-| `history` | 11 | 20 | 31 | ядро |
+| `history` | 11 | 20 | 36 | ядро |
 | `outcomes` | 3 | 4 | 9 | ядро |
 | `performance` | 6 | 6 | 5 | ядро |
 | `analysis` | 2 | 4 | 6 | ядро |
 | `backtest` | 14 | 23 | 29 | ядро |
-| `services` | 11 | 13 | 80 | составляющий |
-| `api` | 26 | 12 | 44 | составляющий |
+| `services` | 11 | 13 | 81 | составляющий |
+| `api` | 27 | 12 | 50 | составляющий |
 | `research` | 45 | 0 | 122 | составляющий |
 | `observability` | 7 | 28 | 3 | сквозной лист |
 
 ### Куда каждый слой импортирует
 
-- `config` → `instruments` (2), `strategies` (1), `types` (6)
+- `config` → `instruments` (2), `strategies` (1), `types` (10)
 - `instruments` → `config` (1), `db` (1)
 - `db` → `config` (1), `observability` (1)
-- `market` → `config` (14), `errors` (12), `observability` (5), `types` (8)
-- `indicators` → `config` (8), `db` (1), `errors` (1), `observability` (4), `types` (22)
-- `strategies` → `db` (2), `types` (5)
+- `market` → `config` (14), `errors` (12), `observability` (5), `types` (15)
+- `indicators` → `config` (9), `db` (1), `errors` (1), `observability` (4), `types` (25)
+- `strategies` → `db` (2), `types` (6)
 - `signals` → `config` (9), `db` (1), `indicators` (1), `observability` (1), `types` (3)
-- `history` → `config` (8), `db` (3), `errors` (1), `market` (8), `observability` (6), `signals` (1), `types` (4)
+- `history` → `config` (8), `db` (3), `errors` (1), `market` (8), `observability` (6), `signals` (1), `types` (9)
 - `outcomes` → `config` (3), `db` (1), `signals` (2), `types` (3)
 - `performance` → `config` (1), `db` (1), `outcomes` (3)
 - `analysis` → `config` (3), `db` (2), `types` (1)
 - `backtest` → `config` (15), `indicators` (2), `market` (5), `observability` (1), `signals` (2), `types` (4)
-- `services` → `analysis` (4), `config` (11), `db` (2), `history` (13), `indicators` (11), `instruments` (2), `lifecycle` (2), `market` (6), `observability` (6), `outcomes` (1), `signals` (9), `strategies` (6), `types` (7)
-- `api` → `config` (12), `db` (2), `errors` (5), `history` (3), `indicators` (3), `instruments` (5), `market` (7), `observability` (2), `services` (3), `signals` (1), `types` (1)
+- `services` → `analysis` (4), `config` (10), `db` (2), `history` (13), `indicators` (12), `instruments` (2), `lifecycle` (2), `market` (6), `observability` (6), `outcomes` (1), `signals` (9), `strategies` (6), `types` (8)
+- `api` → `config` (14), `db` (2), `errors` (6), `history` (3), `indicators` (3), `instruments` (5), `market` (7), `observability` (2), `services` (3), `signals` (1), `types` (4)
 - `research` → `backtest` (23), `config` (4), `db` (12), `indicators` (6), `observability` (1), `performance` (6), `strategies` (41), `types` (29)
 - `observability` → `config` (1), `db` (2)
 

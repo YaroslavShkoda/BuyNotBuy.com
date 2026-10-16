@@ -331,7 +331,7 @@ draft, because nothing has approved it». Звучало как правило, 
 |---|---|
 | **Запрещает** | `indicators → db` |
 | **Обеспечен** | **не обеспечен** |
-| **Где нарушено** | `indicators/performance/indicator-vote.repository.ts:2` → `db/` |
+| **Где нарушено** | `indicators/performance/indicator-vote.repository.ts:3` → `db/` |
 | **Статус** | нарушено по построению, а не по ошибке: репозитории лежат в папках доменов |
 
 Решение — не запретить импорт, а перенести репозитории (PHASE 5). Пока они

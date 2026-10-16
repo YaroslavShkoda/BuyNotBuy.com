@@ -11,6 +11,7 @@ import {
     mergeBacklogStates,
 } from '../observability/bounded-write-buffer.js';
 import { createWriteSpool } from '../observability/write-spool.js';
+import type { CandleInterval } from '../types/candle-interval.js';
 import { getSignalHistoryRepository } from './signal-history.repository.js';
 import type {
     SignalHistoryEntry,
@@ -137,20 +138,25 @@ const lastTrimAt = new Map<string, number>();
  */
 async function maybeTrimRetention(
     symbol: string,
+    interval?: CandleInterval,
     now: number = Date.now(),
 ): Promise<number> {
-    const last = lastTrimAt.get(symbol);
+    // The window is the series', not the symbol's: one symbol at two intervals
+    // is two histories with two retention budgets, and a shared window would
+    // let whichever series wrote last skip the other's trim.
+    const seriesKey = `${symbol}|${interval ?? marketConfig.candleInterval}`;
+    const last = lastTrimAt.get(seriesKey);
 
     if (last !== undefined && now - last < RETENTION_MIN_INTERVAL_MS) {
         return 0;
     }
 
-    lastTrimAt.set(symbol, now);
+    lastTrimAt.set(seriesKey, now);
 
     try {
         return await getSignalHistoryRepository().trimRetention(
             symbol,
-            seriesFor(symbol),
+            seriesFor(symbol, interval),
         );
     } catch {
         return 0;
@@ -191,10 +197,13 @@ async function maybeTrimRetention(
  * key built from the answering venue would split one market's history across two
  * series every time the primary failed over.
  */
-function seriesFor(symbol: string): { provider: string; interval: string } {
+function seriesFor(
+    symbol: string,
+    interval?: CandleInterval,
+): { provider: string; interval: CandleInterval } {
     return {
-        provider: configuredVenueFor(symbol),
-        interval: marketConfig.candleInterval,
+        provider: configuredVenueFor(symbol, interval),
+        interval: interval ?? marketConfig.candleInterval,
     };
 }
 
@@ -205,13 +214,13 @@ export async function recordSignalHistory(
     try {
         await getSignalHistoryRepository().record({
                 ...entry,
-                ...seriesFor(entry.symbol),
+                ...seriesFor(entry.symbol, entry.interval),
             });
 
         // The upsert succeeded, so the write path is healthy and this is a
         // good moment to do the housekeeping against a database that just
         // answered.
-        await maybeTrimRetention(entry.symbol);
+        await maybeTrimRetention(entry.symbol, entry.interval);
     } catch (error) {
         // The durable lane first, the memory buffer only if the disk refuses
         // too. Never both: the flush would write the entry twice — the upsert
@@ -288,7 +297,7 @@ async function drainSpoolBacklog(logger?: SignalHistoryLogger): Promise<number> 
         try {
             await getSignalHistoryRepository().record({
                 ...entry,
-                ...seriesFor(entry.symbol),
+                ...seriesFor(entry.symbol, entry.interval),
             });
 
             written += 1;
@@ -388,7 +397,7 @@ async function drainMemoryBacklog(logger?: SignalHistoryLogger): Promise<number>
         try {
             await getSignalHistoryRepository().record({
                 ...entry,
-                ...seriesFor(entry.symbol),
+                ...seriesFor(entry.symbol, entry.interval),
             });
 
             written += 1;
@@ -543,8 +552,9 @@ export async function getSignalHistory(
     limit: number,
     before?: number,
     symbol: string = marketConfig.symbol,
+    interval?: CandleInterval,
 ): Promise<SignalHistoryEntry[]> {
-    return getSignalHistoryRepository().list(symbol, limit, before, seriesFor(symbol));
+    return getSignalHistoryRepository().list(symbol, limit, before, seriesFor(symbol, interval));
 }
 
 const HOUR_MS = 3_600_000;

@@ -72,6 +72,7 @@ vi.mock('./market.provider.js', () => ({
             return {
                 venue: 'binance',
                 symbol,
+                interval: '1h',
                 candles: seriesFor(symbol, limit),
             };
         }),

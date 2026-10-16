@@ -252,7 +252,7 @@ describe('which market a backtest measures', () => {
 
 describe('properties', () => {
     const instrument = fc.stringMatching(/^[A-Z]{3,10}USDT$/);
-    const interval = fc.constantFrom('1m', '5m', '1h', '4h', '1d');
+    const interval = fc.constantFrom('15m', '1h', '4h', '1d');
 
     // The work is async and `fast-check` wants a synchronous answer, so the
     // samples are drawn first and the runs happen outside the property. My

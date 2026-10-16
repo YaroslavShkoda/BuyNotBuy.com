@@ -1,5 +1,6 @@
 import { query } from '../db/pool.js';
 
+import type { CandleInterval } from '../types/candle-interval.js';
 import type { Candle } from '../types/market.js';
 
 /**
@@ -19,7 +20,7 @@ import type { Candle } from '../types/market.js';
 export interface CandleSeriesKey {
 	readonly provider: string;
 	readonly symbol: string;
-	readonly interval: string;
+	readonly interval: CandleInterval;
 	/** Stable identity when known — avoids the subquery below. */
 	readonly instrumentId?: number | null;
 }

@@ -36,7 +36,7 @@ const { mockMarketDataProvider, mockAnyProviderAvailable } = vi.hoisted(() => {
             ...base,
             getAttributedCandles: vi.fn(async (limit?: number) => ({
                 venue: 'binance',
-                symbol: 'BTCUSDT',
+                symbol: 'BTCUSDT',                interval: '1h',
                 candles: await base.getCandles(limit),
             })),
         },

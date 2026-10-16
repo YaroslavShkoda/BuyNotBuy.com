@@ -1,3 +1,4 @@
+import type { CandleInterval } from '../../types/candle-interval.js';
 import type {
     AssetPrice,
     Candle,
@@ -13,11 +14,18 @@ import type {
  * wrong the moment two requests overlap: the second one to finish is the one
  * whose answer is in the hand, and the state's `preferred` index belongs to
  * whichever request last moved it.
+ *
+ * The interval travels the same way. Each provider instance is built against
+ * one, and the envelope is where the caller checks that the series it received
+ * is the series it asked for — the same guard the symbol check makes, for the
+ * axis this file used to be silent about.
  */
 export interface ProviderCandles {
     venue: string;
     /** The ticker this venue was actually asked for. */
     symbol: string;
+    /** The bar length this venue was built to serve. */
+    interval: CandleInterval;
     candles: Candle[];
 }
 

@@ -58,6 +58,7 @@ function venue(candles: readonly Candle[]): MarketDataProvider & {
         getAttributedCandles: async () => ({
             venue: 'binance',
             symbol: BTC.symbol,
+            interval: '1h' as const,
             candles: [...candles],
         }),
         getHistoricalCandles: async () => {

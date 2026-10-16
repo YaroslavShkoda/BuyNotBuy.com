@@ -11,6 +11,7 @@ import {
 } from '../../observability/bounded-write-buffer.js';
 import { createWriteSpool } from '../../observability/write-spool.js';
 import type { MarketAnalysis } from '../../types/analysis.js';
+import type { CandleInterval } from '../../types/candle-interval.js';
 import type { SignalDirection } from '../../types/direction.js';
 import type { Candle } from '../../types/market.js';
 import type {
@@ -152,6 +153,10 @@ export async function recordIndicatorVotes(
         (indicator) => ({
             timestamp: analysis.timestamp,
             symbol,
+            // The series the vote belongs to. The analysis names it, so the
+            // batch carries its series through the backlog and the spool and
+            // replays into the same one it was recorded under.
+            interval: analysis.interval,
             // The key, not the name. The row is keyed on the indicator, so
             // storing the label would split the series in two the first time
             // the label changed — and "Momentum 100" changes the moment the
@@ -170,7 +175,7 @@ export async function recordIndicatorVotes(
     );
 
     try {
-        await repository.record(votes);
+        await repository.record(votes, analysis.interval);
     } catch (error) {
         // Durable lane first, memory buffer only if the disk refuses too —
         // never both, or the flush would replay the batch from one queue after
@@ -530,6 +535,8 @@ export async function settleForwardReturns(
     horizonMsByName: Record<string, number> = HOUR_MS_BY_HORIZON,
     logger?: IndicatorLogger,
     repository: IndicatorVoteRepository = getIndicatorVoteRepository(),
+    /** The series to settle; the configured one when unnamed. */
+    interval?: CandleInterval,
 ): Promise<SettleSummary> {
     let unsettled;
 
@@ -537,6 +544,7 @@ export async function settleForwardReturns(
         unsettled = await repository.listUnsettled(
             symbol,
             historyConfig.maxEntries,
+            interval,
         );
     } catch (error) {
         logger?.warn(
@@ -644,7 +652,7 @@ export async function settleForwardReturns(
 
     if (updates.length > 0) {
         try {
-            await repository.settle(symbol, updates);
+            await repository.settle(symbol, updates, interval);
         } catch (error) {
             logger?.warn(
                 { event: 'indicator_vote_settle_failed', err: error },
@@ -668,10 +676,12 @@ export async function summarizeIndicatorPerformance(
     symbol: string,
     horizons: ForwardHorizon[] = [...FORWARD_HORIZON_NAMES],
     repository: IndicatorVoteRepository = getIndicatorVoteRepository(),
+    interval?: CandleInterval,
 ): Promise<IndicatorPerformance[]> {
     const votes = await repository.list(
         symbol,
         historyConfig.maxEntries * 4,
+        interval,
     );
 
     const byIndicator = new Map<

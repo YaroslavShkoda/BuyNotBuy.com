@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { CandleIntervalSchema } from '../config/market.config.js';
 import { DIVERGENCE_TYPES } from '../indicators/divergence.js';
 import { ASSET_CATEGORIES, ASSET_STATUSES, MARKET_KINDS, TRADABILITY_REASONS } from '../instruments/domain.js';
 import { INDICATOR_KEYS } from '../signals/signal.types.js';
@@ -91,6 +92,15 @@ export const MarketInstrumentSchema = z.object({
 
 export const MarketResponseSchema = MarketDataSchema.extend({
     instrument: MarketInstrumentSchema.nullable(),
+    /**
+     * The bar length the candles below were fetched at.
+     *
+     * Additive. The candles alone cannot say what their own spacing is — a
+     * client inferring it from the timestamp deltas reads the gap in a
+     * weekend, not the interval — and a client that can request more than one
+     * resolution must be able to tell which one it received.
+     */
+    interval: CandleIntervalSchema,
 });
 
 const MarketIndicatorsSchema = z.object({
@@ -132,6 +142,7 @@ export const DivergenceAnalysisSchema = z.object({
 });
 
 export const MarketAnalysisSchema = z.object({
+    interval: CandleIntervalSchema,
     timestamp: z.number(),
     price: z.number(),
     indicators: MarketIndicatorsSchema,
@@ -153,6 +164,8 @@ export const MarketAnalysisSchema = z.object({
 const SignalHistoryEntrySchema = z.object({
     timestamp: z.number(),
     symbol: z.string(),
+    /** The series the entry belongs to; every table row already carries it. */
+    interval: z.string(),
     signal: IndicatorSignalSchema,
     consensus: z.number().min(0).max(100),
     price: z.number(),

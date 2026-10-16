@@ -5,12 +5,13 @@ import { sendWithEtag } from '../lib/conditional-get.js';
 import {
     setDataFreshnessHeaders,
 } from '../lib/data-freshness.js';
+import { intervalQuery } from '../lib/interval-query.js';
 
 export async function marketRoutes(
     app: FastifyInstance,
 ) {
     app.get('/api/market', async (request, reply) => {
-        const result = await getMarket();
+        const result = await getMarket(undefined, intervalQuery(request.query));
 
         // Freshness is set before the conditional check so a 304 still says
         // whether the answer behind it is old. A client that skips the body

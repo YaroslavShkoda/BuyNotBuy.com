@@ -12,6 +12,7 @@ function makeEntry(overrides: Partial<SignalHistoryEntry> = {}): SignalHistoryEn
     return {
         timestamp: 1_737_950_400_000,
         symbol: 'BTCUSDT',
+        interval: '1h',
         signal: 'SHORT',
         consensus: 67,
         price: 100_000,

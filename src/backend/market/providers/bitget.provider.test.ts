@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { MAX_CANDLE_LIMIT } from '../../config/market.config.js';
 import { MarketDataError } from '../../errors/market-data.error.js';
+import type { CandleInterval } from '../../types/candle-interval.js';
 import { BitgetProvider } from './bitget.provider.js';
 import { resetProviderTransport } from './provider-http.js';
 
@@ -103,7 +105,10 @@ describe('Bitget candles', () => {
     });
 
     it('refuses an interval the venue does not offer, by name', async () => {
-        expect(() => new BitgetProvider({ candleInterval: '2h' })).toThrow(/2h/);
+        // `'2h'` is outside the supported vocabulary, so the type would refuse
+        // it before the constructor could — the cast is the test reaching past
+        // the compile-time guard to prove the runtime one still holds.
+        expect(() => new BitgetProvider({ candleInterval: '2h' as CandleInterval })).toThrow(/2h/);
     });
 
     it('reads a row into a candle', async () => {
@@ -186,10 +191,19 @@ describe('Bitget candles', () => {
         expect(stub).toHaveBeenCalled();
 
         for (const [url] of stub.mock.calls) {
-            const limit = Number(new URL(String(url)).searchParams.get('limit'));
+            const parsed = new URL(String(url));
+            const limit = Number(parsed.searchParams.get('limit'));
 
-            expect(limit).toBeLessThanOrEqual(480);
             expect(limit).toBeGreaterThan(0);
+            expect(limit).toBeLessThanOrEqual(MAX_CANDLE_LIMIT);
+
+            if (parsed.searchParams.has('endTime')) {
+                // The zero-rows trap is specific to paged requests: with
+                // `endTime` set, a limit above ~480 answers empty with a
+                // success code. A cursor-less first request honours the
+                // documented 1000 cap, so it is asserted against that instead.
+                expect(limit).toBeLessThanOrEqual(480);
+            }
         }
     });
 

@@ -1,6 +1,7 @@
 import type { FastifyBaseLogger } from 'fastify';
 import type { MarketFreshness } from '../../market/market-freshness.js';
 import { analyzeMarketWithStatus } from '../../services/analysis.service.js';
+import type { CandleInterval } from '../../types/candle-interval.js';
 import { MarketAnalysisSchema } from '../schemas.js';
 
 export interface ControllerResult<T> {
@@ -22,6 +23,7 @@ export async function getAnalysis(
     logger?: FastifyBaseLogger,
     requestId?: string,
     instrument?: string | undefined,
+    interval?: CandleInterval | undefined,
 ): Promise<ControllerResult<ReturnType<typeof MarketAnalysisSchema.parse>>> {
     const adapter = logger === undefined
         ? undefined
@@ -50,6 +52,7 @@ export async function getAnalysis(
             requestId,
             logger,
             instrument,
+            interval,
         );
 
     return {

@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { consensusConfig } from '../../config/consensus.config.js';
 
 const mockAnalysis = {
+    interval: '1h' as const,
     timestamp: 123456789,
     price: 80000,    indicators: {
         ema300: 78000,

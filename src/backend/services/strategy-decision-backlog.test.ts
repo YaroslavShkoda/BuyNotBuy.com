@@ -100,7 +100,7 @@ describe('strategy decision write backlog', () => {
         decisionRepositoryThatFails(1);
 
         await recordStrategyDecisions(
-            { symbol: 'BTCUSDT', published: resolved() },
+            { symbol: 'BTCUSDT', interval: '1h', published: resolved() },
             reporting,
         );
 
@@ -115,7 +115,7 @@ describe('strategy decision write backlog', () => {
         decisionRepositoryThatFails(Number.POSITIVE_INFINITY);
 
         await recordStrategyDecisions(
-            { symbol: 'BTCUSDT', published: resolved() },
+            { symbol: 'BTCUSDT', interval: '1h', published: resolved() },
             reporting,
         );
 
@@ -137,7 +137,7 @@ describe('strategy decision write backlog', () => {
         const { repository, written } = decisionRepositoryThatFails(1);
 
         await recordStrategyDecisions(
-            { symbol: 'BTCUSDT', published: resolved() },
+            { symbol: 'BTCUSDT', interval: '1h', published: resolved() },
             reporting,
         );
         await flushStrategyDecisionBacklog(undefined, repository);
@@ -157,7 +157,7 @@ describe('strategy decision write backlog', () => {
         const { repository, rows } = decisionRepositoryThatFails(1);
 
         await recordStrategyDecisions(
-            { symbol: 'BTCUSDT', published: resolved() },
+            { symbol: 'BTCUSDT', interval: '1h', published: resolved() },
             reporting,
         );
         await flushStrategyDecisionBacklog(undefined, repository);
@@ -179,7 +179,7 @@ describe('strategy decision write backlog', () => {
         const { repository, rows } = decisionRepositoryThatFails(1);
 
         await recordStrategyDecisions(
-            { symbol: 'BTCUSDT', published: resolved() },
+            { symbol: 'BTCUSDT', interval: '1h', published: resolved() },
             reporting,
         );
 
@@ -196,7 +196,7 @@ describe('strategy decision write backlog', () => {
 
         await expect(
             recordStrategyDecisions(
-                { symbol: 'BTCUSDT', published: resolved() },
+                { symbol: 'BTCUSDT', interval: '1h', published: resolved() },
                 reporting,
             ),
         ).resolves.toBeUndefined();
@@ -207,11 +207,11 @@ describe('strategy decision write backlog', () => {
         const { repository } = decisionRepositoryThatFails(Number.POSITIVE_INFINITY);
 
         await recordStrategyDecisions(
-            { symbol: 'BTCUSDT', published: resolved() },
+            { symbol: 'BTCUSDT', interval: '1h', published: resolved() },
             reporting,
         );
         await recordStrategyDecisions(
-            { symbol: 'ETHUSDT', published: resolved() },
+            { symbol: 'ETHUSDT', interval: '1h', published: resolved() },
             reporting,
         );
 
@@ -249,15 +249,15 @@ describe('a refused row does not stop the ones behind it', () => {
         decisionRepositoryThatFails(Number.POSITIVE_INFINITY);
 
         await recordStrategyDecisions(
-            { symbol: 'BTCUSDT', published: resolved() },
+            { symbol: 'BTCUSDT', interval: '1h', published: resolved() },
             reporting,
         );
         await recordStrategyDecisions(
-            { symbol: 'ETHUSDT', published: resolved() },
+            { symbol: 'ETHUSDT', interval: '1h', published: resolved() },
             reporting,
         );
         await recordStrategyDecisions(
-            { symbol: 'BTCUSDT', published: resolved() },
+            { symbol: 'BTCUSDT', interval: '1h', published: resolved() },
             reporting,
         );
 
@@ -288,7 +288,7 @@ describe('a refused row does not stop the ones behind it', () => {
         const { repository } = decisionRepositoryThatFails(Number.POSITIVE_INFINITY);
 
         await recordStrategyDecisions(
-            { symbol: 'BTCUSDT', published: resolved() },
+            { symbol: 'BTCUSDT', interval: '1h', published: resolved() },
             reporting,
         );
 

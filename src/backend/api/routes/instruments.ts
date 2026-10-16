@@ -4,6 +4,7 @@ import { instrumentPayload, instrumentsPayload } from '../controllers/instrument
 import { getMarket } from '../controllers/market.controller.js';
 import { sendWithEtag } from '../lib/conditional-get.js';
 import { setDataFreshnessHeaders } from '../lib/data-freshness.js';
+import { intervalQuery } from '../lib/interval-query.js';
 import { InstrumentProblemSchema } from '../schemas.js';
 
 /**
@@ -44,6 +45,7 @@ export async function instrumentRoutes(app: FastifyInstance): Promise<void> {
             request.log,
             request.id,
             ticker.trim().toUpperCase(),
+            intervalQuery(request.query),
         );
 
         // Freshness headers before the conditional check, exactly as
@@ -62,7 +64,10 @@ export async function instrumentRoutes(app: FastifyInstance): Promise<void> {
 
     app.get('/api/instruments/:ticker/market', async (request, reply) => {
         const { ticker } = request.params as { ticker: string };
-        const result = await getMarket(ticker.trim().toUpperCase());
+        const result = await getMarket(
+            ticker.trim().toUpperCase(),
+            intervalQuery(request.query),
+        );
 
         setDataFreshnessHeaders(reply, result);
 

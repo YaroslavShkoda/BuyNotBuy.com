@@ -1,4 +1,5 @@
 import type { IndicatorSignal } from '../signals/signal.types.js';
+import type { CandleInterval } from '../types/candle-interval.js';
 
 /**
  * The series a history row belongs to.
@@ -44,7 +45,7 @@ export interface SignalHistoryEntry {
      * than an open nullable.
      */
     provider?: string;
-    interval?: string;
+    interval?: CandleInterval;
     signal: IndicatorSignal;
     consensus: number;
     price: number;

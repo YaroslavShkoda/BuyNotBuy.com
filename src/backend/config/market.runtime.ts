@@ -46,7 +46,6 @@ export const marketConfig: MarketConfig = MarketConfigSchema.parse({
         env.primaryProvider,
         env.symbol,
         env.fallbackSymbol,
-        env.candleInterval,
     ),
 
     candleIntervalMs: intervalMs(env.candleInterval),

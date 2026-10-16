@@ -67,6 +67,7 @@ function venue(
         getAttributedCandles: async () => ({
             venue: 'binance',
             symbol: BTC.symbol,
+            interval: '1h',
             candles: [...series],
         }),
         getHistoricalCandles: async (limit: number, before?: number) => {

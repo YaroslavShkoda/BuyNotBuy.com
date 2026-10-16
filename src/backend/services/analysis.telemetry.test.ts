@@ -45,6 +45,7 @@ describe('analysis.telemetry', () => {
     it('builds completed telemetry without candles or series', () => {
         const telemetry = buildAnalysisTelemetry(
             {
+                interval: '1h',
                 timestamp: 1,
                 price: 100,
                 indicators: {

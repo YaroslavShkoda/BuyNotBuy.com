@@ -14,6 +14,7 @@ const { mockMarketDataProvider, mockAnyProviderAvailable } = vi.hoisted(() => ({
         getAttributedCandles: vi.fn(async (limit?: number) => ({
             venue: 'binance',
             symbol: mockMarketDataProvider.symbol,
+            interval: '1h',
             candles: (await mockMarketDataProvider.getCandles(limit)) as Candle[],
         })),
     },

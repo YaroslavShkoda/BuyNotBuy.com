@@ -77,6 +77,7 @@ describe('GET /api/signal-history', () => {
             historyConfig.maxEntries,
             undefined,
             'ETHUSDT',
+            undefined,
         );
         expect(response.json().entries[0]?.symbol).toBe('ETHUSDT');
 
@@ -123,6 +124,7 @@ describe('GET /api/signal-history', () => {
             historyConfig.maxEntries,
             undefined,
             marketConfig.symbol,
+            undefined,
         );
 
         await app.close();
@@ -150,6 +152,7 @@ describe('GET /api/signal-history', () => {
                 {
                     timestamp: entry.timestamp,
                     symbol: entry.symbol,
+                    interval: entry.interval,
                     signal: entry.signal,
                     consensus: entry.consensus,
                     price: entry.price,
@@ -181,6 +184,7 @@ describe('GET /api/signal-history', () => {
             historyConfig.maxEntries,
             undefined,
             'BTCUSDT',
+            undefined,
         );
 
         await app.close();
@@ -205,6 +209,7 @@ describe('GET /api/signal-history', () => {
             historyConfig.maxEntries,
             undefined,
             'BTCUSDT',
+            undefined,
         );
 
         await app.close();

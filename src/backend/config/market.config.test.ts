@@ -50,14 +50,22 @@ describe('marketConfig', () => {
             baseUrl: 'https://data-api.binance.vision',
             fallbackBaseUrl: 'https://api.bitget.com',
             // PHASE 3.1, derived from the settings above rather than declared
-            // separately: each venue serves the ticker it was built with, at the
-            // configured interval. Two entries survive even though both name
-            // BTCUSDT — deduplication is by venue, because a backup trading the
-            // same market is the ordinary deployment and is exactly the case the
-            // capability model exists to express.
+            // separately: each venue serves the ticker it was built with, at
+            // every interval the deployment supports. Two entries survive even
+            // though both name BTCUSDT — deduplication is by venue, because a
+            // backup trading the same market is the ordinary deployment and is
+            // exactly the case the capability model exists to express.
             venueCapabilities: [
-                { venue: 'binance', instruments: ['BTCUSDT'], intervals: ['1h'] },
-                { venue: 'bitget', instruments: ['BTCUSDT'], intervals: ['1h'] },
+                {
+                    venue: 'binance',
+                    instruments: ['BTCUSDT'],
+                    intervals: ['15m', '1h', '4h', '1d'],
+                },
+                {
+                    venue: 'bitget',
+                    instruments: ['BTCUSDT'],
+                    intervals: ['15m', '1h', '4h', '1d'],
+                },
             ],
             symbol: 'BTCUSDT',
             // Unset means exactly one market. A deployment that sets nothing is
@@ -121,10 +129,21 @@ describe('marketConfig', () => {
             fallbackBaseUrl: 'https://backup.example.com',
             // Both venues trade ETHUSDT here, and both entries survive: the
             // deduplication is by venue, not by ticker. A backup serving the same
-            // market is the ordinary deployment, not a contradiction.
+            // market is the ordinary deployment, not a contradiction. The
+            // intervals are the supported set, not the configured one: the
+            // configured 15m is what the background computes, the table says
+            // who can answer what.
             venueCapabilities: [
-                { venue: 'binance', instruments: ['ETHUSDT'], intervals: ['15m'] },
-                { venue: 'bitget', instruments: ['ETHUSDT'], intervals: ['15m'] },
+                {
+                    venue: 'binance',
+                    instruments: ['ETHUSDT'],
+                    intervals: ['15m', '1h', '4h', '1d'],
+                },
+                {
+                    venue: 'bitget',
+                    instruments: ['ETHUSDT'],
+                    intervals: ['15m', '1h', '4h', '1d'],
+                },
             ],
             symbol: 'ETHUSDT',
             // MARKET_SYMBOL is set and MARKET_SYMBOLS is not, so the list is the

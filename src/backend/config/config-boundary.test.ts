@@ -76,8 +76,16 @@ describe('configuration boundary hardening (task 7)', () => {
             baseUrl: 'https://example.com',
             fallbackBaseUrl: 'https://api.bitget.com',
             venueCapabilities: [
-                { venue: 'binance', instruments: ['BTCUSDT'], intervals: ['1h'] },
-                { venue: 'bitget', instruments: ['BTCUSDT'], intervals: ['1h'] },
+                {
+                    venue: 'binance',
+                    instruments: ['BTCUSDT'],
+                    intervals: ['15m', '1h', '4h', '1d'],
+                },
+                {
+                    venue: 'bitget',
+                    instruments: ['BTCUSDT'],
+                    intervals: ['15m', '1h', '4h', '1d'],
+                },
             ],
             symbol: 'BTCUSDT',
             // One market by default. The list is a seam, not a switch: it holds

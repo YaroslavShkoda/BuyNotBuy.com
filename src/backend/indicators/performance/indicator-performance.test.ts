@@ -91,6 +91,7 @@ function analysisWith(
     timestamp = HOUR,
 ): MarketAnalysis {
     return {
+        interval: '1h',
         timestamp,
         price,
         indicators: {

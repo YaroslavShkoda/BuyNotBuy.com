@@ -1,6 +1,6 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
-
+import type { CandleInterval } from '../types/candle-interval.js';
 import {
     describeRoute,
     type MarketRequest,
@@ -12,7 +12,7 @@ import {
 const binance: VenueCapability = {
     venue: 'binance',
     instruments: ['BTCUSDT', 'ETHUSDT'],
-    intervals: ['1m', '1h', '1d'],
+    intervals: ['15m', '1h', '1d'],
 };
 
 const bitget: VenueCapability = {
@@ -21,7 +21,7 @@ const bitget: VenueCapability = {
     intervals: ['1h', '4h'],
 };
 
-const ask = (instrument: string, interval = '1h'): MarketRequest => ({ instrument, interval });
+const ask = (instrument: string, interval: CandleInterval = '1h'): MarketRequest => ({ instrument, interval });
 
 /** The refusal, or a failure the test itself caused. */
 function refused(result: ReturnType<typeof route>): Extract<ReturnType<typeof route>, { ok: false }> {
@@ -179,7 +179,7 @@ describe('properties', () => {
         .map((instruments) => ({
             venue: 'v1',
             instruments,
-            intervals: ['1m', '1h', '1d'],
+            intervals: ['15m', '1h', '1d'] as const,
         }));
 
     it('never returns a venue that does not serve the request', () => {
@@ -192,7 +192,7 @@ describe('properties', () => {
                     minLength: 1,
                     maxLength: 5,
                 }),
-                fc.constantFrom('1m', '1h', '1d', '4h'),
+                fc.constantFrom('15m', '1h', '1d', '4h'),
                 (capabilities, venues, interval) => {
                     const request: MarketRequest = { instrument: venues[0] as string, interval };
                     const found = route(request, capabilities, venues);
@@ -227,7 +227,7 @@ describe('properties', () => {
 
     it('always explains itself, whatever it decided', () => {
         fc.assert(
-            fc.property(fc.constantFrom('BTCUSDT', 'ETHUSDT', 'ZZZUSD'), fc.constantFrom('1h', '3d'), (instrument, interval) => {
+            fc.property(fc.constantFrom('BTCUSDT', 'ETHUSDT', 'ZZZUSD'), fc.constantFrom('1h', '4h'), (instrument, interval) => {
                 const request: MarketRequest = { instrument, interval };
                 const found = route(request, [binance, bitget], ['binance', 'bitget']);
 

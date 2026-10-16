@@ -43,6 +43,7 @@ function venue(
             return {
                 venue: name,
                 symbol: PRICE.symbol,
+                interval: '1h',
                 candles: await (behaviour.candles
                     ? behaviour.candles()
                     : Promise.resolve([])),

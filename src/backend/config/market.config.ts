@@ -20,7 +20,9 @@
  *   between fields no single field can carry.
  */
 
+export type { CandleInterval } from '../types/candle-interval.js';
+export { CANDLE_INTERVAL_MS, SUPPORTED_CANDLE_INTERVALS } from '../types/candle-interval.js';
 export { MAX_CANDLE_LIMIT } from './market.defaults.js';
 export { marketConfig } from './market.runtime.js';
 export type { MarketConfig, MarketProviderName } from './market.schema.js';
-export { MarketProviderSchema } from './market.schema.js';
+export { CandleIntervalSchema, MarketProviderSchema } from './market.schema.js';

@@ -5,6 +5,7 @@ import {
 	LATEST_SCHEMA_VERSION,
 } from '../db/migrations.js';
 import { query, resolveInstrumentId } from '../db/pool.js';
+import type { CandleInterval } from '../types/candle-interval.js';
 
 import type {
 	SignalHistoryEntry,
@@ -259,7 +260,7 @@ export function createSignalHistoryRepository(
 				timestamp: row.timestamp,
 				symbol: row.symbol,
 				provider: row.provider,
-				interval: row.interval,
+				interval: row.interval as CandleInterval,
 				signal: row.signal as SignalHistoryEntry["signal"],
 				consensus: row.consensus,
 				price: row.price,

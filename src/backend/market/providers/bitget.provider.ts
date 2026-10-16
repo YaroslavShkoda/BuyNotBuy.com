@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { MAX_CANDLE_LIMIT, marketConfig } from '../../config/market.config.js';
 import { MarketDataError } from '../../errors/market-data.error.js';
 import { ProviderError } from '../../errors/provider.error.js';
+import type { CandleInterval } from '../../types/candle-interval.js';
 import type {
     AssetPrice,
     Candle,
@@ -62,14 +63,17 @@ const SUCCESS_CODE = '00000';
 const PAGED_LIMIT = 200;
 
 /**
- * How far back this endpoint reaches.
+ * How far past the requested span the walk may go before it stops.
  *
- * Roughly 60 days, and it is the same for every limit tested from 50 to 1000:
- * beyond that `endTime` returns nothing. The live window is 900 hourly candles
- * — about 37 days — so the site is served well within reach, but a request for
- * deep history cannot be filled from here and would be silently short.
+ * The old guard was a fixed 60 days, and it was measured against one interval
+ * and one season of the endpoint: paged against the live API it now reaches
+ * 166 days on `4h` and 996 on `1d`, so a fixed 60 would have cut off exactly
+ * the series the walk exists to fetch — a 900-bar daily warm-up is 900 days,
+ * and the endpoint serves it. The horizon below is therefore derived from the
+ * span the caller asked for, with margin for a sparse tail, rather than from
+ * a number that was true once.
  */
-const REACH_MS = 60 * 24 * 3_600_000;
+const REACH_MARGIN_MS = 30 * 24 * 3_600_000;
 
 /**
  * Codes that mean the request itself is wrong, so trying it again is pointless
@@ -162,7 +166,7 @@ interface BitgetProviderOptions {
     baseUrl?: string;
     symbol?: string;
     /** Binance-style, e.g. `1h`. Translated to Bitget's own spelling. */
-    candleInterval?: string;
+    candleInterval?: CandleInterval;
     defaultCandleLimit?: number;
 }
 
@@ -171,6 +175,8 @@ export class BitgetProvider implements MarketDataProvider {
 
     private readonly baseUrl: string;
     readonly symbol: string;
+    /** The Binance-style label this venue was built to serve. */
+    private readonly intervalLabel: CandleInterval;
     private readonly interval: { granularity: string; durationMs: number };
     private readonly defaultCandleLimit: number;
 
@@ -181,6 +187,7 @@ export class BitgetProvider implements MarketDataProvider {
             options.defaultCandleLimit ?? marketConfig.defaultCandleLimit;
 
         const requested = options.candleInterval ?? marketConfig.candleInterval;
+        this.intervalLabel = requested;
         const mapped = GRANULARITIES[requested];
 
         if (mapped === undefined) {
@@ -265,6 +272,7 @@ export class BitgetProvider implements MarketDataProvider {
         return {
             venue: this.name,
             symbol: this.symbol,
+            interval: this.intervalLabel,
             candles: await this.fetchCandles(limit),
         };
     }
@@ -276,32 +284,46 @@ export class BitgetProvider implements MarketDataProvider {
      * explicitly, or a backtest spends its whole sample on the indicator
      * warm-up and has nothing left to evaluate.
      *
+     * Two endpoint facts shape the walk. With `endTime` set, a page larger
+     * than `PAGED_LIMIT` is answered with **zero rows and a success code** —
+     * so the walk always pages at the size the endpoint actually honours. And
+     * some granularities silently clamp even a fresh, cursor-less request:
+     * `1day` answers `limit=900` with the latest 300 bars, no error — so a
+     * short first page means "keep walking", not "that is all there is". The
+     * daily 900-bar window therefore arrives as four pages, and the caller
+     * sees one complete series either way.
+     *
      * The walk stops on an empty page, but an empty page is also what this
      * endpoint returns when the request is out of reach rather than out of
-     * data. The two are told apart by the reach: once the walk is asking about
-     * a time this endpoint does not serve, an empty page is the expected
-     * answer and the loop would otherwise keep asking.
+     * data. The two are told apart by a horizon derived from the span the
+     * caller asked for: once the walk is asking about a time no series of
+     * `limit` bars of this interval could reach, an empty page is the
+     * expected answer and the loop would otherwise keep asking.
      */
     async getHistoricalCandles(
         limit: number,
         before?: number,
     ): Promise<Candle[]> {
-        if (limit <= MAX_CANDLE_LIMIT) {
-            const page = await this.fetchCandles(limit, endTimeBefore(before));
+        const firstPage = await this.fetchCandles(
+            Math.min(limit, MAX_CANDLE_LIMIT),
+            endTimeBefore(before),
+        );
 
-            return before === undefined
-                ? page
-                : page.filter((candle) => candle.timestamp < before);
-        }
+        const collected: Candle[] = before === undefined
+            ? [...firstPage]
+            : firstPage.filter((candle) => candle.timestamp < before);
 
         const pageSize = PAGED_LIMIT;
-        const collected: Candle[] = [];
-        const horizon = Date.now() - REACH_MS;
+        const spanMs = limit * this.interval.durationMs;
+        const horizon = (before ?? Date.now()) - spanMs - REACH_MARGIN_MS;
 
-        // Seeded from the caller's cursor: a backfill that re-reads from the
-        // present on every page never reaches anything older than its own first
-        // page, and reports progress while doing it.
-        let oldestSeen = before ?? Number.POSITIVE_INFINITY;
+        // Seeded from what the first page actually returned, not from the
+        // caller's cursor: a cursor-seeded walk would re-read the bar at the
+        // cursor, and a short silent clamp would leave `oldestSeen` ahead of
+        // the data already in hand.
+        let oldestSeen = collected[0]?.timestamp
+            ?? before
+            ?? Number.POSITIVE_INFINITY;
 
         while (collected.length < limit) {
             const page = await this.fetchCandles(
@@ -329,9 +351,10 @@ export class BitgetProvider implements MarketDataProvider {
 
             oldestSeen = oldest;
 
-            if (oldest <= horizon) {
-                // Past what this endpoint serves, so the next page is empty by
-                // construction rather than because the data ran out.
+            if (oldestSeen <= horizon) {
+                // Past what a series of this span can reach, so the next page
+                // is empty by construction rather than because the data ran
+                // out.
                 break;
             }
         }

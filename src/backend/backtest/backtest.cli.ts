@@ -15,7 +15,7 @@
  *   BACKTEST_FEE_RATE=0 BACKTEST_SLIPPAGE_RATE=0 npm run backtest
  */
 
-import { marketConfig } from '../config/market.config.js';
+import { CandleIntervalSchema, marketConfig } from '../config/market.config.js';
 import type { BacktestReport } from './backtest.service.js';
 import { runBacktest } from './backtest.service.js';
 import type { ExecutionConfig } from './execution.js';
@@ -414,7 +414,12 @@ async function main(): Promise<void> {
     // the process happened to be configured with.
     const report = await runBacktest(overridesFromEnv(), {
         instrument: process.env['BACKTEST_INSTRUMENT'] ?? marketConfig.symbol,
-        interval: process.env['BACKTEST_INTERVAL'] ?? marketConfig.candleInterval,
+        // Parsed through the vocabulary rather than cast, so an unsupported
+        // BACKTEST_INTERVAL is named at the boundary instead of failing as a
+        // type error one layer down.
+        interval: CandleIntervalSchema.parse(
+            process.env['BACKTEST_INTERVAL'] ?? marketConfig.candleInterval,
+        ),
     });
 
     console.log(describe(report));

@@ -1,5 +1,6 @@
 import { marketConfig } from '../../config/market.config.js';
 
+import { CANDLE_INTERVAL_MS, type CandleInterval } from '../../types/candle-interval.js';
 import type {
     AssetPrice,
     Candle,
@@ -12,8 +13,19 @@ export class MockProvider implements MarketDataProvider {
 
     readonly symbol: string;
 
-    constructor(symbol: string = marketConfig.symbol) {
+    /**
+     * The interval the mock builds its bars at, defaulting to the configured
+     * one. A mock bound to one interval while the request names another would
+     * put hourly bars on a daily chart — series-shaped, finite, and wrong in
+     * the exact way a real venue's would not be.
+     */
+    private readonly interval: CandleInterval;
+    private readonly intervalMs: number;
+
+    constructor(symbol: string = marketConfig.symbol, interval: CandleInterval = marketConfig.candleInterval) {
         this.symbol = symbol;
+        this.interval = interval;
+        this.intervalMs = CANDLE_INTERVAL_MS[interval];
     }
 
     async getPrice(): Promise<AssetPrice> {
@@ -35,6 +47,7 @@ export class MockProvider implements MarketDataProvider {
         return {
             venue: this.name,
             symbol: this.symbol,
+            interval: this.interval,
             candles: this.buildCandles(limit),
         };
     }
@@ -51,7 +64,7 @@ export class MockProvider implements MarketDataProvider {
     private buildCandles(limit: number): Candle[] {
         const candles: Candle[] = [];
 
-        const intervalMs = 60 * 60 * 1000;
+        const intervalMs = this.intervalMs;
         const count = Math.max(0, limit - 1);
 
         // Anchored to the current hour rather than to a fixed date, because a

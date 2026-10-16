@@ -1,3 +1,4 @@
+import type { CandleInterval } from '../../types/candle-interval.js';
 import type { SignalDirection } from '../../types/direction.js';
 
 /**
@@ -34,6 +35,16 @@ export const FORWARD_HORIZON_NAMES: readonly ForwardHorizon[] = [
 export interface IndicatorVote {
     timestamp: number;
     symbol: string;
+    /**
+     * The series the vote belongs to.
+     *
+     * Optional in the type so a hand-built vote in a test can omit it, but
+     * always set by the one production writer: the analysis knows the interval
+     * it computed at, and a vote that travels through the backlog without one
+     * would land in the configured series on replay — a 15m vote filed under
+     * 1h, invisible until the hit rates quietly disagree with the candles.
+     */
+    interval?: CandleInterval;
     /** Matches `IndicatorAnalysis.name`, so a vote is traceable to its reason. */
     indicator: string;
     signal: SignalDirection;

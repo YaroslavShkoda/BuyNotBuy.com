@@ -15,7 +15,7 @@ const { mockMarketDataProvider, mockAnyProviderAvailable } = vi.hoisted(() => ({
          */
         getAttributedCandles: vi.fn(async (limit?: number) => ({
             venue: 'binance',
-            symbol: 'BTCUSDT',
+            symbol: 'BTCUSDT',            interval: '1h',
             candles: (await mockMarketDataProvider.getCandles(limit)) as Candle[],
         })),
     },
@@ -441,7 +441,7 @@ describe('market.service', () => {
         it('records the venue that actually answered', async () => {
             mockMarketDataProvider.getAttributedCandles.mockResolvedValueOnce({
                 venue: 'bitget',
-                symbol: 'BTCUSDT',
+                symbol: 'BTCUSDT',                interval: '1h',
                 candles: series([80000]),
             });
 
@@ -473,7 +473,7 @@ describe('market.service', () => {
             // publishing its price under the primary's ticker is not.
             mockMarketDataProvider.getAttributedCandles.mockResolvedValueOnce({
                 venue: 'bitget',
-                symbol: 'ETHUSDT',
+                symbol: 'ETHUSDT',                interval: '1h',
                 candles: series([3000]),
             });
 

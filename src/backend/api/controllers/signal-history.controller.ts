@@ -2,7 +2,7 @@ import type { FastifyBaseLogger } from 'fastify';
 import { z } from 'zod';
 import { resolveInstrument } from '../../config/asset.registry.js';
 import { historyConfig } from '../../config/history.config.js';
-import { marketConfig } from '../../config/market.config.js';
+import { CandleIntervalSchema, marketConfig } from '../../config/market.config.js';
 import { ApplicationError } from '../../errors/application.error.js';
 import { getSignalHistory as readSignalHistory, summarizeHistory } from '../../history/signal-history.service.js';
 import { bucketOf, decodeCursor, encodeCursor } from '../lib/history-cursor.js';
@@ -25,6 +25,12 @@ const SignalHistoryQuerySchema = z.object({
      * well-formed answer about the market this deployment is configured around.
      */
     instrument: z.string().min(1).optional(),
+    /**
+     * Which series to describe. Optional, and the configured interval when
+     * absent — for the same additive reason as `instrument`: a client that
+     * never heard of a second interval keeps reading exactly what it read.
+     */
+    interval: CandleIntervalSchema.optional(),
 });
 
 /**
@@ -68,7 +74,7 @@ export async function getSignalHistory(
         });
     }
 
-    const { limit, cursor, instrument } = parsedQuery.data;
+    const { limit, cursor, instrument, interval } = parsedQuery.data;
 
     let before: number | undefined;
 
@@ -108,6 +114,7 @@ export async function getSignalHistory(
         historyConfig.maxEntries,
         undefined,
         market,
+        interval,
     );
 
     // One extra row answers "is there a next page?" without a second query.
@@ -116,7 +123,7 @@ export async function getSignalHistory(
     const entries =
         before === undefined
             ? fullHistory.slice(0, limit + 1)
-            : await readSignalHistory(limit + 1, before, market);
+            : await readSignalHistory(limit + 1, before, market, interval);
     const hasMore = entries.length > limit;
     const page = hasMore ? entries.slice(0, limit) : entries;
     const last = page.at(-1);

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { CANDLE_INTERVAL_MS, SUPPORTED_CANDLE_INTERVALS } from '../types/candle-interval.js';
 import type { MarketProviderName } from '../types/venue.js';
 import { MARKET_VENUES } from '../types/venue.js';
 import { MAX_CANDLE_LIMIT } from './market.defaults.js';
@@ -28,6 +29,18 @@ import { MAX_CANDLE_LIMIT } from './market.defaults.js';
 export const MarketProviderSchema = z.enum(MARKET_VENUES);
 
 /**
+ * The candle intervals this build can compute, as one validator.
+ *
+ * A closed list rather than the old "looks like `1m`–`1w`" shape, because an
+ * interval is not a string the venues happen to spell: it keys every series in
+ * storage, decides the bar duration the series validator checks holes against,
+ * and buckets the vote settlement. An interval the rest of the pipeline cannot
+ * reason about must be refused here, at the boundary, rather than discovered
+ * as a silently short series or a vote that never settles.
+ */
+export const CandleIntervalSchema = z.enum(SUPPORTED_CANDLE_INTERVALS);
+
+/**
  * What each venue is declared to serve, PHASE 3.1.
  *
  * **Derived from the settings that already exist rather than a new one.** The
@@ -44,7 +57,7 @@ export const MarketProviderSchema = z.enum(MARKET_VENUES);
 export const VenueCapabilitySchema = z.object({
     venue: MarketProviderSchema,
     instruments: z.array(z.string().min(1)).min(1),
-    intervals: z.array(z.string().regex(/^[0-9]+[mhdw]$/)).min(1),
+    intervals: z.array(CandleIntervalSchema).min(1),
 });
 
 export const MarketConfigSchema = z.object({
@@ -125,11 +138,7 @@ export const MarketConfigSchema = z.object({
         .regex(/^[A-Z0-9]{1,32}$/, {
             message: 'Fallback symbol must be an uppercase alphanumeric ticker',
         }),
-    candleInterval: z.string()
-        .min(1)
-        .regex(/^[0-9]+[mhdw]$/, {
-            message: 'Candle interval must look like 1m, 4h, 1d or 1w',
-        }),
+    candleInterval: CandleIntervalSchema,
     /**
      * The same interval in milliseconds, derived from the same setting.
      *
@@ -244,7 +253,14 @@ export const MarketConfigSchema = z.object({
 }).refine((config) => config.cacheTtlMs <= config.maxStaleMs, {
     message: 'Cache TTL must not exceed the maximum age for serving stale data',
     path: ['cacheTtlMs'],
-});
+}).refine(
+    (config) => config.candleIntervalMs === CANDLE_INTERVAL_MS[config.candleInterval],
+    {
+        message:
+            'candleIntervalMs must be the duration of candleInterval, so the series validator and the storage buckets describe the same bar the venues are asked for',
+        path: ['candleIntervalMs'],
+    },
+);
 
 export type MarketConfig = z.infer<typeof MarketConfigSchema>;
 

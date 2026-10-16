@@ -43,6 +43,7 @@ function venue(
         (async (): Promise<ProviderCandles> => ({
             venue: name,
             symbol: SYMBOL,
+            interval: '1h',
             candles: await series(),
         }));
 

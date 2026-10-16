@@ -1,3 +1,4 @@
+import type { CandleInterval } from './candle-interval.js';
 import type { SignalDirection } from './direction.js';
 
 /**
@@ -162,6 +163,16 @@ export interface IndicatorPeriods {
 }
 
 export interface MarketAnalysis {
+    /**
+     * The bar length this analysis was computed at.
+     *
+     * Two intervals of one symbol are two series and two answers, so the
+     * answer names which one it is. Additive on the contract: a client that
+     * never reads it loses nothing, and one that shows two intervals side by
+     * side no longer has to trust that the URL it asked is the URL that
+     * answered.
+     */
+    interval: CandleInterval;
     timestamp: number;
     price: number;
     /**

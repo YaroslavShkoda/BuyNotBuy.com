@@ -3,7 +3,7 @@
 
 # База данных
 
-Версий миграций: **24**, последняя — v24 «instrument_links_for_signal_data».
+Версий миграций: **25**, последняя — v25 «series_interval_in_votes_and_decisions».
 
 Ниже — схема в том виде, в каком её строят текущие миграции, прочитанная
 из каталога сервера, а не из текста SQL. Таблица ограничений `CHECK` в
@@ -77,6 +77,7 @@
 | `fwd_return_4h` | `double precision` | да |
 | `fwd_return_24h` | `double precision` | да |
 | `instrument_id` | `bigint` | да |
+| `interval` | `text` | нет |
 
 Ограничения:
 
@@ -330,6 +331,7 @@
 | `published_direction` | `text` | нет |
 | `suppressed` | `boolean` | нет |
 | `instrument_id` | `bigint` | да |
+| `interval` | `text` | нет |
 
 Ограничения:
 
@@ -357,7 +359,7 @@
 | `holdout_verdict_pkey` | `holdout_verdict` |
 | `index_audit_pkey` | `index_audit` |
 | `idx_indicator_vote_unsettled` | `indicator_vote` |
-| `indicator_vote_instrument_bucket_unique` | `indicator_vote` |
+| `indicator_vote_instrument_interval_bucket_unique` | `indicator_vote` |
 | `indicator_vote_pkey` | `indicator_vote` |
 | `instrument_base_idx` | `instrument` |
 | `instrument_id_unique` | `instrument` |
@@ -403,9 +405,9 @@
 | `signal_transition_pkey` | `signal_transition` |
 | `idx_strategy_decision_log_rule` | `strategy_decision_log` |
 | `idx_strategy_decision_log_time` | `strategy_decision_log` |
-| `strategy_decision_instrument_time_unique` | `strategy_decision_log` |
+| `strategy_decision_instrument_interval_time_unique` | `strategy_decision_log` |
 | `strategy_decision_log_pkey` | `strategy_decision_log` |
-| `ux_strategy_decision_log_symbol_cycle` | `strategy_decision_log` |
+| `ux_strategy_decision_log_symbol_interval_cycle` | `strategy_decision_log` |
 | `strategy_version_config_hash_key` | `strategy_version` |
 | `strategy_version_pkey` | `strategy_version` |
 
