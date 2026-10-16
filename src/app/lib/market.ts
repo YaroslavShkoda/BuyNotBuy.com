@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { MarketInstrumentSchema, MarketResponseSchema } from '../../backend/api/schemas';
+import type { CandleInterval } from '../../backend/types/candle-interval';
 import { fetchJson } from './api-error';
 
 /**
@@ -18,14 +19,23 @@ export type MarketInstrument = z.infer<typeof MarketInstrumentSchema>;
 
 type MarketResponse = z.infer<typeof MarketResponseSchema>;
 
-export function marketUrl(instrument?: string): string {
+export function marketUrl(
+    instrument?: string,
+    interval?: CandleInterval,
+): string {
     const base = process.env.BACKEND_URL;
+    const intervalQuery = interval === undefined
+        ? ''
+        : `?interval=${encodeURIComponent(interval)}`;
 
     return instrument === undefined
-        ? `${base}/api/market`
-        : `${base}/api/instruments/${encodeURIComponent(instrument)}/market`;
+        ? `${base}/api/market${intervalQuery}`
+        : `${base}/api/instruments/${encodeURIComponent(instrument)}/market${intervalQuery}`;
 }
 
-export async function getMarket(instrument?: string): Promise<MarketResponse> {
-    return fetchJson(marketUrl(instrument), MarketResponseSchema);
+export async function getMarket(
+    instrument?: string,
+    interval?: CandleInterval,
+): Promise<MarketResponse> {
+    return fetchJson(marketUrl(instrument, interval), MarketResponseSchema);
 }

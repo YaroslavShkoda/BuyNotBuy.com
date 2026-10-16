@@ -1,4 +1,8 @@
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
+import type { CandleInterval } from '../../backend/types/candle-interval';
+import { candleStepLabel } from '../lib/interval';
 import type { Candle } from '../types/analysis';
 import {
     computeChartScale,
@@ -198,5 +202,71 @@ describe('chart time window derived from candle timestamps', () => {
 
     it('falls back to a dash placeholder for invalid timestamps', () => {
         expect(formatAxisTime(Number.NaN, 0)).toBe('—');
+    });
+});
+
+describe('chart captions per timeframe', () => {
+    it('names the candle step of every supported interval', () => {
+        expect(candleStepLabel('15m')).toBe('15 минут');
+        expect(candleStepLabel('1h')).toBe('час');
+        expect(candleStepLabel('4h')).toBe('4 часа');
+        expect(candleStepLabel('1d')).toBe('сутки');
+    });
+
+    it('names the visible window from candle timestamps, not from a hardcoded hour', () => {
+        const hourly = Array.from(
+            { length: 48 },
+            (_, index) => makeTimedCandle(index, 80_000 + index),
+        );
+        expect(getWindowLabel(hourly)).toBe('48 ч');
+
+        const quarterHourly = hourly.map((candle, index) => ({
+            ...candle,
+            timestamp: 1_700_000_000_000 + index * 15 * 60_000,
+        }));
+        expect(getWindowLabel(quarterHourly)).toBe('12 ч');
+
+        const daily = hourly.map((candle, index) => ({
+            ...candle,
+            timestamp: 1_700_000_000_000 + index * 24 * hourMs,
+        }));
+        expect(getWindowLabel(daily)).toBe('48 дн');
+    });
+});
+
+describe('chart markup wires the interval captions', () => {
+    function renderChart(candles: Candle[], interval: CandleInterval): string {
+        return renderToStaticMarkup(
+            createElement(MarketChart, {
+                candles,
+                symbol: 'BTCUSDT',
+                quote: 'USDT',
+                ema300: 90_000,
+                interval,
+            }),
+        );
+    }
+
+    it('labels tooltips and volume stats with the active interval', () => {
+        const hourly = Array.from(
+            { length: 48 },
+            (_, index) => makeTimedCandle(index, 80_000 + index),
+        );
+        const markup = renderChart(hourly, '15m');
+
+        expect(markup).toContain('за 15 минут');
+        expect(markup).toContain('типичная свеча');
+        expect(markup).toContain('за 48 ч');
+        expect(markup).toContain('href="/market/BTCUSDT?interval=1d"');
+        expect(markup).toContain('interval-option is-active');
+        expect(markup).toContain('aria-current="page"');
+    });
+
+    it('keeps the switcher when the candles are empty', () => {
+        const markup = renderChart([], '4h');
+
+        expect(markup).toContain('Нет данных по свечам');
+        expect(markup).toContain('interval-switcher');
+        expect(markup).toContain('aria-current="page"');
     });
 });

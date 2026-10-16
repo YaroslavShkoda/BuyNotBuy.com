@@ -1,6 +1,9 @@
+import type { CandleInterval } from '../../backend/types/candle-interval';
+import { candleStepLabel } from '../lib/interval';
 import { buildVolumeScale } from '../lib/volume-scale';
 import { summariseVolume } from '../lib/volume-summary';
 import type { Candle } from '../types/analysis';
+import { IntervalSwitcher } from './interval-switcher';
 import { VolumePlot } from './volume-plot';
 
 interface MarketChartProps {
@@ -9,6 +12,7 @@ interface MarketChartProps {
     /** The quote currency the candles are denominated in, named by the registry; null when it cannot be named. */
     quote: string | null;
     ema300: number;
+    interval: CandleInterval;
 }
 
 const chartWidth = 900;
@@ -148,7 +152,15 @@ function formatCandleTime(timestamp: number): string {
     return CANDLE_TIME.format(timestamp);
 }
 
-function VolumeStats({ candles, quote }: { candles: Candle[]; quote: string | null }) {
+function VolumeStats({
+    candles,
+    quote,
+    windowLabel,
+}: {
+    candles: Candle[];
+    quote: string | null;
+    windowLabel: string | null;
+}) {
     const summary = summariseVolume(candles);
 
     if (summary.count === 0) {
@@ -175,13 +187,13 @@ function VolumeStats({ candles, quote }: { candles: Candle[]; quote: string | nu
             <div className="volume-stat">
                 <span className="volume-stat-label">СРЕДНЕЕ</span>
                 <strong>{COMPACT_VOLUME.format(summary.average)}</strong>
-                <small>за {summary.count} ч</small>
+                <small>{windowLabel !== null ? `за ${windowLabel}` : '—'}</small>
             </div>
 
             <div className="volume-stat">
                 <span className="volume-stat-label">МЕДИАНА</span>
                 <strong>{COMPACT_VOLUME.format(summary.median)}</strong>
-                <small>типичный час</small>
+                <small>типичная свеча</small>
             </div>
 
             {/* The one figure that is scale-free: it reads the same on a quiet
@@ -206,7 +218,7 @@ function VolumeStats({ candles, quote }: { candles: Candle[]; quote: string | nu
     );
 }
 
-export function MarketChart({ candles, symbol, quote, ema300 }: MarketChartProps) {
+export function MarketChart({ candles, symbol, quote, ema300, interval }: MarketChartProps) {
     const visibleCandles = getVisibleCandles(candles);
     const closes = visibleCandles.map((candle) => candle.close);
     const hasEma = Number.isFinite(ema300);
@@ -241,6 +253,9 @@ export function MarketChart({ candles, symbol, quote, ema300 }: MarketChartProps
                 <span className="eyebrow">PRICE ACTION</span>
                 <h2>Движение рынка</h2>
             </div>
+            <div className="chart-side">
+                <IntervalSwitcher symbol={symbol} interval={interval} />
+            </div>
         </div>
 
         <p className="table-empty">Нет данных по свечам</p>
@@ -262,11 +277,14 @@ export function MarketChart({ candles, symbol, quote, ema300 }: MarketChartProps
             </span>
             <h2>Движение рынка</h2>
         </div>
-        <div className="chart-summary">
-                            <span className={change >= 0 ? 'chart-change positive' : 'chart-change negative'}>
-                                {change >= 0 ? '+' : ''}{change.toFixed(2)}% <span>{windowLabel !== null ? `за ${windowLabel} · ` : ''}{symbol}</span>
-                            </span>
-                        </div>
+        <div className="chart-side">
+            <IntervalSwitcher symbol={symbol} interval={interval} />
+            <div className="chart-summary">
+                <span className={change >= 0 ? 'chart-change positive' : 'chart-change negative'}>
+                    {change >= 0 ? '+' : ''}{change.toFixed(2)}% <span>{windowLabel !== null ? `за ${windowLabel} · ` : ''}{symbol}</span>
+                </span>
+            </div>
+        </div>
     </div>
     <div className="chart-plot">
         <div className="chart-axis-labels" aria-hidden="true">
@@ -350,7 +368,7 @@ export function MarketChart({ candles, symbol, quote, ema300 }: MarketChartProps
                                     {PRICE.format(candle.close)}{quote !== null ? ` ${quote}` : ''}
                                 </span>
                                 <span className="price-tooltip-compact">
-                                    {move >= 0 ? '+' : ''}{move.toFixed(2)}% за час
+                                    {move >= 0 ? '+' : ''}{move.toFixed(2)}% за {candleStepLabel(interval)}
                                 </span>
                             </span>
                         </div>
@@ -380,7 +398,7 @@ export function MarketChart({ candles, symbol, quote, ema300 }: MarketChartProps
             chartWidth={chartWidth}
         />
     </div>
-        <VolumeStats candles={visibleCandles} quote={quote} />
+        <VolumeStats candles={visibleCandles} quote={quote} windowLabel={windowLabel} />
         </section>
     );
 }

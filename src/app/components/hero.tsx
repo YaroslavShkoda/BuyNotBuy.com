@@ -1,3 +1,4 @@
+import type { CandleInterval } from '../../backend/types/candle-interval';
 import type { MarketInstrument } from '../lib/market';
 import type { Candle, MarketAnalysis } from '../types/analysis';
 import type { SignalHistoryResponse } from '../types/history';
@@ -13,6 +14,7 @@ interface HeroProps {
     /** The registry's answer about this market; null when it has none. */
     instrument: MarketInstrument | null;
     ema300: number;
+    interval: CandleInterval;
 }
 
 function AssetMark({ base }: { base: string }) {
@@ -25,7 +27,7 @@ function AssetMark({ base }: { base: string }) {
     );
 }
 
-export function Hero({ analysis, history, candles, symbol, instrument, ema300 }: HeroProps) {
+export function Hero({ analysis, history, candles, symbol, instrument, ema300, interval }: HeroProps) {
     const { signal, indicators, price, momentum } = analysis;
     // Name and display form come from the registry, not from a parse of the
     // symbol; when the registry cannot name the market, the raw ticker is the
@@ -78,6 +80,7 @@ export function Hero({ analysis, history, candles, symbol, instrument, ema300 }:
                             symbol={symbol}
                             quote={instrument?.quote ?? null}
                             ema300={ema300}
+                            interval={interval}
                         />
                     </div>
                 </div>

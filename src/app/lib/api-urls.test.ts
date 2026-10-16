@@ -49,4 +49,37 @@ describe('backend url builders', () => {
             `${BACKEND}/api/signal-history?limit=24&instrument=A%26B`,
         );
     });
+
+    it('interval: rides as a query parameter on every builder', () => {
+        process.env.BACKEND_URL = BACKEND;
+
+        expect(marketUrl('BTCUSDT', '15m')).toBe(
+            `${BACKEND}/api/instruments/BTCUSDT/market?interval=15m`,
+        );
+        expect(marketUrl(undefined, '1d')).toBe(`${BACKEND}/api/market?interval=1d`);
+        expect(analysisUrl('ETHUSDT', '4h')).toBe(
+            `${BACKEND}/api/instruments/ETHUSDT/analysis?interval=4h`,
+        );
+        expect(analysisUrl(undefined, '1h')).toBe(`${BACKEND}/api/analysis?interval=1h`);
+        expect(signalHistoryUrl('BTCUSDT', '1d')).toBe(
+            `${BACKEND}/api/signal-history?limit=24&instrument=BTCUSDT&interval=1d`,
+        );
+        expect(signalHistoryUrl(undefined, '4h')).toBe(
+            `${BACKEND}/api/signal-history?limit=24&interval=4h`,
+        );
+    });
+
+    it('interval: absent when the caller did not ask for one', () => {
+        process.env.BACKEND_URL = BACKEND;
+
+        expect(marketUrl('BTCUSDT', undefined)).toBe(
+            `${BACKEND}/api/instruments/BTCUSDT/market`,
+        );
+        expect(analysisUrl('ETHUSDT', undefined)).toBe(
+            `${BACKEND}/api/instruments/ETHUSDT/analysis`,
+        );
+        expect(signalHistoryUrl('BTCUSDT', undefined)).toBe(
+            `${BACKEND}/api/signal-history?limit=24&instrument=BTCUSDT`,
+        );
+    });
 });
