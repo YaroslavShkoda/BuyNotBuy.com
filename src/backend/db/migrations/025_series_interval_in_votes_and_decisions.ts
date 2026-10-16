@@ -63,6 +63,21 @@ export const migration025_series_interval_in_votes_and_decisions: Migration = {
 
         -- Down (forward-only ledger; recorded here, not automated):
         --
+        -- Preconditions, checked in order before starting:
+        --   * All writers (app and CLI) are stopped for the duration.
+        --   * A fresh, restore-verified backup exists.
+        --   * schema_migrations holds exactly 25 rows with max(version) = 25.
+        --     If any version above 25 is present, or the ledger or schema is
+        --     inconsistent, stop and switch to a dedicated recovery plan:
+        --     never delete version 25 while later migrations exist.
+        --   * Both target tables contain only interval = '1h' rows, verified
+        --     before the column is dropped; afterwards the distinction is
+        --     lost.
+        --
+        -- Non-1h rows must not be deleted or rewritten automatically: export
+        -- them to a backup table and require an explicit data-owner decision
+        -- first.
+        --
         --   DROP INDEX indicator_vote_instrument_interval_bucket_unique;
         --   CREATE UNIQUE INDEX indicator_vote_instrument_bucket_unique
         --       ON indicator_vote (instrument_id, vote_bucket, indicator);
@@ -77,10 +92,13 @@ export const migration025_series_interval_in_votes_and_decisions: Migration = {
         --       ADD PRIMARY KEY (symbol, vote_bucket, indicator);
         --   ALTER TABLE indicator_vote DROP COLUMN interval;
         --   ALTER TABLE strategy_decision_log DROP COLUMN interval;
+        --   DELETE FROM schema_migrations WHERE version = 25;
         --
-        -- Reversibility: additive on data, subtractive on schema. Every row
-        -- the forward path wrote survives the reverse path; rows written for
-        -- non-1h intervals would violate the restored pre-25 keys and must be
-        -- deleted first. This database has none (see backfill precondition).
+        -- Rollback is additive on data and subtractive on schema, but not
+        -- lossless: dropping the interval column erases the only distinction
+        -- between intervals, so surviving non-1h rows would either violate
+        -- the restored pre-25 keys or silently blend into the 1h data. They
+        -- must be preserved and handled per the preconditions above. This
+        -- database has none (see backfill precondition).
     `,
 };
