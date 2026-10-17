@@ -70,6 +70,25 @@ const { closePool, query, getPool } = await import('../db/pool.js');
 const { applyMigrations } = await import('../db/migrations.js');
 
 /**
+ * Why the advisory lock is skipped here, and why that is safe.
+ *
+ * The migration lock serializes writers to one SHARED database. This schema is
+ * the opposite of shared: the UUID above makes it invisible to every other
+ * process for the lifetime of this file, and `afterAll` drops it. There is no
+ * second writer, so the lock protects nothing here — while costing a great
+ * deal: every one of the ~250 test files runs the full chain against its own
+ * schema, and queueing them all behind one global lock made the last file wait
+ * for ~250 sequential chains. Measured on this machine, a chain is ~40-120ms,
+ * so the tail crossed the 30s lock deadline whenever the machine was loaded —
+ * the "Could not take the migration lock" flake, one different file each run.
+ * With the lock skipped the chains run in parallel and the tail is one chain.
+ *
+ * The production path keeps the lock; this option exists for exactly this
+ * private-schema case, and every migration validation still runs.
+ */
+const MIGRATION_OPTIONS = { skipAdvisoryLock: true } as const;
+
+/**
  * The pool this file's tests use.
  *
  * Exported because a test that only truncates a table does not need the pool,
@@ -136,7 +155,7 @@ beforeAll(async () => {
 
     // The tables the service writes into are the tables the tests assert on,
     // so the schema has to be the one migrations run against.
-    await applyMigrations();
+    await applyMigrations(MIGRATION_OPTIONS);
 
     // Repository integration tests exercise persistence directly, without
     // booting the application that normally seeds this reference data. Keep a

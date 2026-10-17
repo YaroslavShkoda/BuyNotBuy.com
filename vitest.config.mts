@@ -2,16 +2,20 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
     test: {
-        // Measured, not chosen (round 112): every test file's beforeAll runs
-        // CREATE SCHEMA plus applyMigrations under one shared advisory lock,
-        // and ~250 parallel files queue on it. The migration itself is ~3ms on
-        // a migrated database (round 60) — the wait is the queue. Three full
-        // runs: beforeAll median ~0.5s, p95 ~2s, worst 6.3s against the 10s
-        // default, so a loaded machine turns tail latency into a red run. The
-        // budget exists to be exceeded loudly, not to be lived in: 30s still
-        // fails a genuinely hung migration, while ordinary contention no
-        // longer fails the run.
-        hookTimeout: 30_000,
+        // A loud budget for a genuinely hung schema setup, not a lived-in one.
+        //
+        // History, measured rather than inherited: every test file's beforeAll
+        // creates its own private schema and runs the full migration chain,
+        // and until the private-schema migrations stopped taking the global
+        // advisory lock (db/migrations.ts, skipAdvisoryLock), ~250 chains
+        // serialized behind it — the last file waited for the whole queue,
+        // ~40-120ms per chain, and under load the tail crossed 30s. That was
+        // the one-file-per-run "Could not take the migration lock" flake: the
+        // hook had a 60s budget since round 112, but the lock deadline inside
+        // the chain is 30s and it threw first. With the lock skipped the chains
+        // run in parallel and the tail is one chain; 60s stays so a genuinely
+        // wedged migration still fails the run loudly instead of hanging it.
+        hookTimeout: 60_000,
 
         // Isolation stays on, and that is measured, not inherited. With
         // `isolate: false` the scoped run went 59 files red out of 66 — 604

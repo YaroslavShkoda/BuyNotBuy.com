@@ -66,9 +66,12 @@ export const LATEST_SCHEMA_VERSION: number =
 /*
  * Advisory lock key, split into two 32-bit halves so it stays a plain number.
  * Any constant will do — its only job is to be the same across processes.
+ *
+ * Exported so the test suite can hold the lock and prove that the
+ * private-schema path below genuinely does not depend on it.
  */
-const MIGRATION_LOCK_NAMESPACE = 0x627564;
-const MIGRATION_LOCK_KEY = 0x6e627579;
+export const MIGRATION_LOCK_NAMESPACE = 0x627564;
+export const MIGRATION_LOCK_KEY = 0x6e627579;
 
 /**
  * How long a migration job waits for another job to finish migrating.
@@ -165,13 +168,33 @@ async function acquireMigrationLock(
     }
 }
 
+export interface ApplyMigrationsOptions {
+    /**
+     * Skip the advisory lock.
+     *
+     * The lock serializes jobs migrating one SHARED database: two deploy jobs
+     * racing DDL against the same tables must not interleave. A schema that is
+     * private to the caller — the per-file throwaway schemas the test suite
+     * migrates — has no second writer by construction, so there is nothing the
+     * lock could protect and no reason for 250 private chains to queue behind
+     * one another on it. Only pass this for a schema no other process can see.
+     */
+    readonly skipAdvisoryLock?: boolean;
+}
+
 /**
  * Brings the database up to `LATEST_SCHEMA_VERSION` and returns that version.
  *
  * Serialized across processes by an advisory lock. Concurrent deployment jobs
  * cannot run the same DDL simultaneously or disagree about the version ledger.
+ * The lock guards shared state, not the act of migrating: pass
+ * `skipAdvisoryLock` only for a schema private to the caller, and every
+ * validation below — the contiguous ledger, the newer-build refusal, the
+ * per-migration transactions — runs exactly as before.
  */
-export async function applyMigrations(): Promise<number> {
+export async function applyMigrations(
+    options: ApplyMigrationsOptions = {},
+): Promise<number> {
     const client = await getPool().connect();
 
     try {
@@ -184,7 +207,9 @@ export async function applyMigrations(): Promise<number> {
         // function needs is the lock wait, and the lock wait is not a
         // server-side one: `pg_try_advisory_lock` never blocks, so the deadline
         // is kept in this loop and no session setting is involved at all.
-        await acquireMigrationLock(client, MIGRATION_LOCK_WAIT_MS);
+        if (options.skipAdvisoryLock !== true) {
+            await acquireMigrationLock(client, MIGRATION_LOCK_WAIT_MS);
+        }
 
         await client.query(`
             CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -234,12 +259,14 @@ export async function applyMigrations(): Promise<number> {
 
         return LATEST_SCHEMA_VERSION;
     } finally {
-        await client
-            .query('SELECT pg_advisory_unlock($1, $2)', [
-                MIGRATION_LOCK_NAMESPACE,
-                MIGRATION_LOCK_KEY,
-            ])
-            .catch(() => undefined);
+        if (options.skipAdvisoryLock !== true) {
+            await client
+                .query('SELECT pg_advisory_unlock($1, $2)', [
+                    MIGRATION_LOCK_NAMESPACE,
+                    MIGRATION_LOCK_KEY,
+                ])
+                .catch(() => undefined);
+        }
 
         client.release();
     }

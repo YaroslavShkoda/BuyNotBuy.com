@@ -160,6 +160,11 @@ export const LAYERS: readonly Layer[] = [
     { name: 'performance', composition: false, mayImport: ['outcomes', 'signals'] },
     { name: 'analysis', composition: false, mayImport: ['db', 'strategies'] },
     { name: 'backtest', composition: false, mayImport: ['db', 'market', 'indicators', 'signals', 'strategies'] },
+    // The shadow risk model. An analytics-only layer: it reads nothing from the
+    // trading layers and nothing may read it except composition. No edge to
+    // `db` is declared — if a risk repository is ever needed, that edge is a
+    // separate, explicit decision, never the `*.repository.ts` seam.
+    { name: 'risk', composition: false, mayImport: [] },
     { name: 'services', composition: true, mayImport: [] },
     { name: 'api', composition: true, mayImport: [] },
     { name: 'research', composition: true, mayImport: [] },

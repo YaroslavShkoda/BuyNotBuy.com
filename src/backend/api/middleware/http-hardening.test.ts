@@ -4,8 +4,9 @@
 // modules are evaluated.
 import '../../test-support/test-database.js';
 
+import { Writable } from 'node:stream';
 import Fastify from 'fastify';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { mockMarketDataProvider, mockAnyProviderAvailable } = vi.hoisted(() => {
     const base = {
@@ -65,11 +66,39 @@ import { marketConfig } from '../../config/market.config.js';
 import { resetMarketDataCache } from '../../market/market.service.js';
 import { rateLimiter } from './rate-limit.repository.js';
 
+const originalDateNow = Date.now;
+const FIXED_NOW = 1_800_000_001_000;
+let now = FIXED_NOW;
+let restoreClock = () => {};
+
 beforeEach(async () => {
+    // Only the wall-clock reading is controlled: Fastify, PostgreSQL and
+    // asynchronous operations keep their real timers.
+    now = FIXED_NOW;
+    const clock = vi.spyOn(Date, 'now').mockImplementation(() => now);
+    restoreClock = () => clock.mockRestore();
     vi.clearAllMocks();
     await rateLimiter.reset();
     resetMarketDataCache();
 });
+
+afterEach(() => {
+    restoreClock();
+    expect(Date.now).toBe(originalDateNow);
+});
+
+async function fillAllowance(app: ReturnType<typeof createApp>, remoteAddress = '127.0.0.1') {
+    const reset = String(Math.ceil(
+        (Math.floor(now / appConfig.rateLimitWindowMs) + 1) * appConfig.rateLimitWindowMs / 1000,
+    ));
+    for (let index = 0; index < appConfig.rateLimitMax; index += 1) {
+        const response = await app.inject({ method: 'GET', url: '/api/price', remoteAddress });
+        expect(response.statusCode).toBe(200);
+        expect(response.headers['x-ratelimit-remaining']).toBe(String(appConfig.rateLimitMax - index - 1));
+        expect(response.headers['x-ratelimit-reset']).toBe(reset);
+    }
+    return reset;
+}
 
 describe('HTTP hardening', () => {
     describe('security headers', () => {
@@ -221,22 +250,11 @@ describe('HTTP hardening', () => {
         it('answers with 429 and a wait once the allowance is spent', async () => {
             const app = createApp();
 
-            let limited: Awaited<ReturnType<typeof app.inject>> | undefined;
+            await fillAllowance(app);
+            const limited = await app.inject({ method: 'GET', url: '/api/price' });
 
-            for (let index = 0; index < appConfig.rateLimitMax + 1; index += 1) {
-                const response = await app.inject({
-                    method: 'GET',
-                    url: '/api/price',
-                });
-
-                if (response.statusCode === 429) {
-                    limited = response;
-                    break;
-                }
-            }
-
-            expect(limited).toBeDefined();
-            expect(limited?.json()).toEqual({
+            expect(limited.statusCode).toBe(429);
+            expect(limited.json()).toEqual({
                 error: {
                     code: 'RATE_LIMITED',
                     message: 'Too many requests',
@@ -249,9 +267,7 @@ describe('HTTP hardening', () => {
         it('tells the client when to come back', async () => {
             const app = createApp();
 
-            for (let index = 0; index < appConfig.rateLimitMax; index += 1) {
-                await app.inject({ method: 'GET', url: '/api/price' });
-            }
+            await fillAllowance(app);
 
             const response = await app.inject({
                 method: 'GET',
@@ -270,6 +286,8 @@ describe('HTTP hardening', () => {
             const first = await app.inject({ method: 'GET', url: '/api/price' });
             const second = await app.inject({ method: 'GET', url: '/api/price' });
 
+            expect(first.statusCode).toBe(200);
+            expect(second.statusCode).toBe(200);
             expect(first.headers['x-ratelimit-limit']).toBe(
                 String(appConfig.rateLimitMax),
             );
@@ -283,13 +301,7 @@ describe('HTTP hardening', () => {
         it('limits an abusive client without touching anyone else', async () => {
             const app = createApp();
 
-            for (let index = 0; index <= appConfig.rateLimitMax; index += 1) {
-                await app.inject({
-                    method: 'GET',
-                    url: '/api/price',
-                    remoteAddress: '10.0.0.1',
-                });
-            }
+            await fillAllowance(app, '10.0.0.1');
 
             const blocked = await app.inject({
                 method: 'GET',
@@ -306,36 +318,97 @@ describe('HTTP hardening', () => {
             // One noisy client must not be able to spend everyone else's quota.
             expect(blocked.statusCode).toBe(429);
             expect(other.statusCode).toBe(200);
+            expect(other.headers['x-ratelimit-remaining']).toBe(String(appConfig.rateLimitMax - 1));
 
             await app.close();
         });
 
-        it('does not consume allowance on a request it refuses', async () => {
+        it('keeps remaining allowance zero and the reset unchanged after repeated refusals', async () => {
             const app = createApp();
-
-            for (let index = 0; index < appConfig.rateLimitMax; index += 1) {
-                await app.inject({
-                    method: 'GET',
-                    url: '/api/price',
-                    remoteAddress: '10.0.0.3',
-                });
+            try {
+                const reset = await fillAllowance(app, '10.0.0.3');
+                // Rejected requests may keep increasing the SQL counter. They
+                // neither make remaining negative nor extend this fixed window.
+                for (let index = 0; index < 3; index += 1) {
+                    const refused = await app.inject({
+                        method: 'GET', url: '/api/price', remoteAddress: '10.0.0.3',
+                    });
+                    expect(refused.statusCode).toBe(429);
+                    expect(refused.headers['x-ratelimit-remaining']).toBe('0');
+                    expect(refused.headers['x-ratelimit-reset']).toBe(reset);
+                }
+            } finally {
+                await app.close();
             }
+        });
 
-            const refused = await app.inject({
-                method: 'GET',
-                url: '/api/price',
-                remoteAddress: '10.0.0.3',
+        it('renews the budget exactly at the next fixed-window boundary', async () => {
+            expect(appConfig.rateLimitWindowMs).toBe(60_000);
+            now = 59_999;
+            const app = createApp();
+            try {
+                expect(await fillAllowance(app, '10.0.0.3')).toBe('60');
+                const refused = await app.inject({ method: 'GET', url: '/api/price', remoteAddress: '10.0.0.3' });
+                expect(refused.statusCode).toBe(429);
+                expect(refused.headers['x-ratelimit-remaining']).toBe('0');
+                now = 60_000;
+                const renewed = await app.inject({ method: 'GET', url: '/api/price', remoteAddress: '10.0.0.3' });
+                expect(renewed.statusCode).toBe(200);
+                expect(renewed.headers['x-ratelimit-remaining']).toBe(String(appConfig.rateLimitMax - 1));
+                expect(renewed.headers['x-ratelimit-reset']).toBe('120');
+            } finally {
+                await app.close();
+            }
+        });
+
+        it('shares one client budget between application instances', async () => {
+            const first = createApp();
+            const second = createApp();
+            try {
+                for (let index = 0; index < appConfig.rateLimitMax; index += 1) {
+                    const app = index % 2 === 0 ? first : second;
+                    const response = await app.inject({ method: 'GET', url: '/api/price', remoteAddress: '10.0.0.3' });
+                    expect(response.statusCode).toBe(200);
+                    expect(response.headers['x-ratelimit-remaining']).toBe(String(appConfig.rateLimitMax - index - 1));
+                }
+                for (const app of [first, second]) {
+                    const refused = await app.inject({ method: 'GET', url: '/api/price', remoteAddress: '10.0.0.3' });
+                    expect(refused.statusCode).toBe(429);
+                    expect(refused.headers['x-ratelimit-remaining']).toBe('0');
+                }
+            } finally {
+                await first.close();
+                await second.close();
+            }
+        });
+
+        it('fails open and logs a diagnostic event when the rate-limit store fails', async () => {
+            const lines: string[] = [];
+            const sink = new Writable({
+                write(chunk, _encoding, callback) {
+                    lines.push(chunk.toString());
+                    callback();
+                },
             });
-
-            expect(refused.statusCode).toBe(429);
-
-            // The counter must not keep climbing past the limit, or a client
-            // would stay blocked for far longer than one window.
-            expect(
-                Number(refused.headers['x-ratelimit-remaining']),
-            ).toBe(0);
-
-            await app.close();
+            const app = createApp(sink);
+            const consume = vi.spyOn(rateLimiter, 'consume').mockRejectedValueOnce(new Error('rate-limit store unavailable'));
+            try {
+                const response = await app.inject({ method: 'GET', url: '/api/price' });
+                expect(response.statusCode).toBe(200);
+                expect(response.headers['x-ratelimit-limit']).toBeUndefined();
+                const entries = lines.join('').split('\n').filter(Boolean)
+                    .map((line) => JSON.parse(line) as { event?: string; level?: number; err?: { message?: string } });
+                expect(entries).toContainEqual(expect.objectContaining({
+                    event: 'rate_limit_store_failed', level: 50,
+                    err: expect.objectContaining({ message: 'rate-limit store unavailable' }),
+                }));
+                const recovered = await app.inject({ method: 'GET', url: '/api/price' });
+                expect(recovered.statusCode).toBe(200);
+                expect(recovered.headers['x-ratelimit-remaining']).toBe(String(appConfig.rateLimitMax - 1));
+            } finally {
+                consume.mockRestore();
+                await app.close();
+            }
         });
     });
 
@@ -433,6 +506,8 @@ describe('HTTP hardening', () => {
                 headers: { 'x-forwarded-for': '203.0.113.9' },
             });
 
+            expect(plain.statusCode).toBe(200);
+            expect(spoofed.statusCode).toBe(200);
             const plainRemaining = Number(
                 plain.headers['x-ratelimit-remaining'],
             );

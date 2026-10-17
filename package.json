@@ -14,6 +14,7 @@
     "backtest": "node --env-file=.env --import=tsx src/backend/backtest/backtest.cli.ts",
     "optimize": "node --env-file=.env --import=tsx src/backend/backtest/optimize.cli.ts",
     "backfill": "node --env-file=.env --import=tsx src/backend/history/backfill.cli.ts",
+    "risk-report": "node --import=tsx src/backend/research/risk-report.cli.ts",
     "indicators": "node --env-file=.env --import=tsx src/backend/indicators/performance/indicator-performance.cli.ts",
     "build": "next build && npm run build:backend",
     "build:backend": "node node_modules/typescript-5/bin/tsc -p src/backend/tsconfig.build.json",
