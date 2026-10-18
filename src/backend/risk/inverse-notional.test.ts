@@ -210,7 +210,7 @@ describe('inverse notional exact rounding at the function boundary', () => {
         // zero) and the finiteProduct zero-factor suite.
     });
 
-    it('leaves linear and spot arithmetic on the plain binary64 path', () => {
+    it('preserves ordinary linear notional and its overflow status', () => {
         expect(absoluteNotionalQuote({
             contractKind: 'linear_perp',
             side: 'LONG',

@@ -4,6 +4,7 @@ import type {
     RiskNoticeCode,
     RiskStatus,
 } from '../types/risk.js';
+import { exactAdd, exactDivide, exactMultiply, exactNumber, exactSubtract, roundExact } from './exact-rational.js';
 import { marginRulesReadiness } from './margin-rules.js';
 
 /**
@@ -70,56 +71,45 @@ export function linearIsolatedLiquidationPrice(args: {
     maintenanceMarginRate: number;
 }): LiquidationEstimate {
     const { side, qtyBase, entryPrice, collateralQuote, maintenanceMarginRate } = args;
-    const entryNotional = entryPrice * qtyBase;
-
-    if (side === 'LONG') {
-        const denominator = 1 - maintenanceMarginRate;
-
-        if (denominator <= 0) {
-            return estimate('insufficient_data', 'IMPOSSIBLE_LIQUIDATION_GEOMETRY', null, null);
-        }
-
-        if (collateralQuote >= entryNotional) {
-            // Collateral covers the whole entry notional: no leverage, and the
-            // formula's price crosses zero. That is a real answer — this
-            // position cannot be liquidated by adverse moves — and it is
-            // reported as "does not apply", not as a zero risk value.
-            return estimate('not_applicable', 'LIQUIDATION_NOT_REACHABLE', null, null);
-        }
-
-        const price = Number.isFinite(entryNotional)
-            ? (entryNotional - collateralQuote) / (qtyBase * denominator)
-            : (entryPrice - collateralQuote / qtyBase) / denominator;
-
-        if (!Number.isFinite(price)) {
-            return estimate('calculation_error', 'CALCULATION_OVERFLOW', null, null);
-        }
-
-        if (!(price > 0)) {
-            return estimate('insufficient_data', 'IMPOSSIBLE_LIQUIDATION_GEOMETRY', null, null);
-        }
-
-        return estimate('valid', null, price, entryPrice - price > 0 ? (entryPrice - price) * qtyBase : 0);
-    }
-
-    const factor = 1 + maintenanceMarginRate;
-    const numerator = entryNotional + collateralQuote;
-    const denominator = qtyBase * factor;
-    // Keep ordinary arithmetic unchanged; when either product/sum overflows,
-    // distribute the division before adding the two per-unit contributions.
-    const price = Number.isFinite(numerator) && Number.isFinite(denominator)
-        ? numerator / denominator
-        : entryPrice / factor + (collateralQuote / factor) / qtyBase;
-
-    if (!Number.isFinite(price)) {
+    if (![qtyBase, entryPrice, collateralQuote, maintenanceMarginRate].every(Number.isFinite)) {
         return estimate('calculation_error', 'CALCULATION_OVERFLOW', null, null);
     }
-
-    if (!(price > 0)) {
+    if (qtyBase <= 0 || entryPrice <= 0 || collateralQuote <= 0 ||
+        maintenanceMarginRate < 0 || maintenanceMarginRate >= 1) {
         return estimate('insufficient_data', 'IMPOSSIBLE_LIQUIDATION_GEOMETRY', null, null);
     }
 
-    return estimate('valid', null, price, price - entryPrice > 0 ? (price - entryPrice) * qtyBase : 0);
+    // The existing isolated formula, evaluated over exact binary64 inputs.
+    // In particular, compare collateral with the EXACT product: even a
+    // representable subnormal notional may round down to collateral and
+    // incorrectly make a reachable LONG liquidation disappear.
+    const qty = exactNumber(qtyBase);
+    const entry = exactNumber(entryPrice);
+    const collateral = exactNumber(collateralQuote);
+    const notional = exactMultiply(entry, qty);
+    const numerator = side === 'LONG'
+        ? exactSubtract(notional, collateral)
+        : exactAdd(notional, collateral);
+    if (side === 'LONG' && numerator.numerator <= 0n) {
+        return estimate('not_applicable', 'LIQUIDATION_NOT_REACHABLE', null, null);
+    }
+    const factor = side === 'LONG'
+        ? exactSubtract(exactNumber(1), exactNumber(maintenanceMarginRate))
+        : exactAdd(exactNumber(1), exactNumber(maintenanceMarginRate));
+    const exactPrice = exactDivide(numerator, exactMultiply(qty, factor));
+    const price = roundExact(exactPrice);
+    const gap = side === 'LONG'
+        ? exactSubtract(entry, exactPrice)
+        : exactSubtract(exactPrice, entry);
+    // Preserve the existing nonnegative gross-loss convention. Round from
+    // the exact price, so its publication rounding cannot erase a small loss.
+    const loss = gap.numerator <= 0n
+        ? { value: 0, status: 'valid' as const }
+        : roundExact(exactMultiply(gap, qty));
+    if (price.status !== 'valid' || loss.status !== 'valid') {
+        return estimate('calculation_error', 'CALCULATION_OVERFLOW', null, null);
+    }
+    return estimate('valid', null, price.value, loss.value);
 }
 
 /**

@@ -3,6 +3,7 @@ import type { RiskReport } from '../types/risk.js';
 import { allMetrics, inversePerpInput, linearPerpInput, reviewedLinearRules } from './fixtures.js';
 import { buildRiskReport } from './report.js';
 import type { RiskInput } from './schema.js';
+import { div, fromNumber, mul, rounded, sub } from './test-support/fraction-oracle.js';
 
 /** Checks BEFORE JSON can silently turn a non-finite number into null. */
 function serializedSafeReport(report: RiskReport): RiskReport {
@@ -157,12 +158,19 @@ describe('RiskReport numeric safety', () => {
         expect(report.reportStatus).toBe('valid');
     });
 
-    it.each(['LONG', 'SHORT'] as const)('propagates overflowing %s unrealized PnL into dependent results', (side) => {
-        const report = serializedSafeReport(buildRiskReport(largeInput({ side, currentPrice: 1e110 })));
-
-        for (const key of ['unrealizedPnlQuote', 'unrealizedPnlPercentOfEntryNotional', 'returnOnMarginPercent']) {
-            expectOverflow(byKey(report, key));
-        }
+    it.each(['LONG', 'SHORT'] as const)('rounds %s percent and ROM independently of overflowing quote PnL', (side) => {
+        const input = largeInput({ side, currentPrice: 1e110 });
+        const report = serializedSafeReport(buildRiskReport(input));
+        const pnl = mul(sub(fromNumber(input.currentPrice), fromNumber(input.entryPrice)),
+            fromNumber(side === 'LONG' ? input.qtyBase : -input.qtyBase));
+        const publishedNotional = rounded(mul(fromNumber(input.qtyBase), fromNumber(input.entryPrice)));
+        expectOverflow(byKey(report, 'unrealizedPnlQuote'));
+        expect(byKey(report, 'unrealizedPnlPercentOfEntryNotional')).toMatchObject(
+            rounded(div(mul(pnl, fromNumber(100)), fromNumber(publishedNotional.value!))),
+        );
+        expect(byKey(report, 'returnOnMarginPercent')).toMatchObject(
+            rounded(div(mul(pnl, fromNumber(100)), fromNumber(input.collateralQuote!))),
+        );
         expect(report.marginViolation).toMatchObject({
             detected: null, atBar: null, status: 'calculation_error', reasonCode: 'CALCULATION_OVERFLOW',
         });

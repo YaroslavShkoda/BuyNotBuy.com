@@ -40,6 +40,10 @@ export function exactSubtract(a: ExactRational, b: ExactRational): ExactRational
     };
 }
 
+export function exactAdd(a: ExactRational, b: ExactRational): ExactRational {
+    return exactSubtract(a, { ...b, numerator: -b.numerator });
+}
+
 export function exactDivide(a: ExactRational, b: ExactRational): ExactRational {
     if (b.numerator === 0n) throw new RangeError('exact division by zero');
     const sign = b.numerator < 0n ? -1n : 1n;

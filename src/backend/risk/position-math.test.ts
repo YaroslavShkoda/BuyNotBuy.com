@@ -590,7 +590,7 @@ describe('integration into the report', () => {
             'not_applicable',
         );
         expect(byKey.get('invalidationDistanceQuote')?.value).toBeNull();
-        expect(report.modelVersions.positionMath).toBe('position-math@4');
+        expect(report.modelVersions.positionMath).toBe('position-math@6');
         expect(report.conventions.inversePnlQuoteValuation).toBe(
             'market-snapshot-at-current-price',
         );

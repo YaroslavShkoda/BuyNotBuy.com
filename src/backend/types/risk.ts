@@ -104,11 +104,11 @@ export type RiskNoticeCode = (typeof RISK_NOTICE_CODES)[number];
 
 export const RISK_REPORT_SCHEMA_VERSION = 'risk-report/1';
 
-export const RISK_ASSUMPTIONS_VERSION = 'risk-assumptions@6';
+export const RISK_ASSUMPTIONS_VERSION = 'risk-assumptions@8';
 
 export const LINEAR_ISOLATED_FORMULA_ID = 'linear_isolated_v1';
 
-export const REPORT_BUILDER_VERSION = 'risk-report-builder@5';
+export const REPORT_BUILDER_VERSION = 'risk-report-builder@7';
 
 /**
  * Version of the stage-2 position mathematics: exposure, potential PnL,
@@ -116,7 +116,7 @@ export const REPORT_BUILDER_VERSION = 'risk-report-builder@5';
  * those formulas changes meaning, so two reports with the same version carry
  * comparable numbers.
  */
-export const POSITION_MATH_VERSION = 'position-math@4';
+export const POSITION_MATH_VERSION = 'position-math@6';
 
 /**
  * How an inverse contract's quote-denominated PnL figure is produced: the
@@ -304,7 +304,7 @@ export interface MarginViolationSection {
     readonly atBar: number | null;
     readonly marginMode: MarginMode | null;
     readonly rulesVersion: string | null;
-    /** Equity and the maintenance requirement the verdict came from, in quote currency. */
+    /** Rounded quote amounts; the strict breach comparison uses their exact values. */
     readonly equityQuote: number | null;
     readonly maintenanceRequirementQuote: number | null;
     readonly status: RiskStatus;

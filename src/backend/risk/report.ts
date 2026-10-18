@@ -18,10 +18,11 @@ import {
     type StressSection,
 } from '../types/risk.js';
 import { canonicalInputHash } from './canonical-input.js';
-import { exactDivide, exactMultiply, exactNumber, roundExact } from './exact-rational.js';
+import { exactAdd, exactDivide, exactMultiply, exactNumber, exactSubtract, roundExact } from './exact-rational.js';
 import { finiteProduct } from './finite-product.js';
 import { fundingAvailability } from './funding-rules.js';
 import { inversePnlExact } from './inverse-pnl.js';
+import { linearPnlExact } from './linear-pnl.js';
 import {
     assessLiquidation,
     atrDistanceToLiquidation,
@@ -57,6 +58,7 @@ import { metric, sectionReason, worstStatus } from './status.js';
  */
 
 const REPORT_ASSUMPTIONS: readonly string[] = [
+    'Linear/spot PnL и linear ROM вычисляются точно; quote, percent и ROM округляются независимо nearest/ties-to-even. Linear equity и maintenance сравниваются точно до округления публикуемых сумм (строгое equity < maintenance); при непредставимой сумме detected остаётся null с calculation_error.',
     'Реализованная формула ликвидации — алгебраическое следствие определения изолированной маржи для линейного контракта; это не подтверждённое правило конкретной биржи.',
     'Триггер ликвидации не учитывает комиссии, финансирование и резерв на исполнение.',
     'Расчётная цена ликвидации не является гарантированной ценой исполнения.',
@@ -77,6 +79,7 @@ const REPORT_ASSUMPTIONS: readonly string[] = [
     'Funding за интервал: sideSign × ставка × текущая цена × base-количество для linear; sideSign × ставка × contractSizeUsd × число контрактов для inverse. Положительная стоимость означает выплату, отрицательная — получение.',
     'Funding публикуется в quote-валюте, для inverse это USD. При marginCurrency = base расчётный эквивалент в базовой валюте равен USD funding / currentPrice; отдельная base-метрика funding не публикуется.',
     'Inverse номинал, base-экспозиция, inverse PnL и inverse ROM вычисляются точно над binary64-входами; каждая метрика округляется независимо, nearest/ties-to-even. Знаменатель PnL percent — опубликованный entryNotionalQuote; ROM — фактический collateralQuote.',
+    'Linear/spot номинал, round-trip издержки и существующая linear isolated liquidation формула вычисляются точно над binary64-входами, с округлением каждой публикуемой величины nearest/ties-to-even. Ненулевой результат, округляющийся до нуля, получает calculation_error / CALCULATION_OVERFLOW. Liquidation geometry сравнивает точный entry × qty с collateral, без промежуточного округления номинала.',
     'Переполненный или нечисловой результат расчёта получает calculation_error с причиной CALCULATION_OVERFLOW и никогда не публикуется как valid. Для точных inverse номинала, экспозиции, PnL/ROM и finiteProduct эта же ошибка обозначает ненулевой результат, округляющийся до нуля.',
 ];
 
@@ -128,6 +131,9 @@ export function buildRiskReport(rawInput: RiskInput): RiskReport {
         exitPrice: input.currentPrice,
     });
     const pnlQuote = unrealized.quote.value;
+    const linearUnrealized = input.contractKind === 'inverse_perp'
+        ? null
+        : linearPnlExact({ ...positionSpec, exitPrice: input.currentPrice });
 
     const positionMetrics: MetricBlock[] = [
         metric(
@@ -157,6 +163,11 @@ export function buildRiskReport(rawInput: RiskInput): RiskReport {
                     ...positionSpec, contractSizeUsd: input.contractSizeUsd,
                     currentPrice: input.currentPrice, exitPrice: input.currentPrice,
                 }).quote, exactNumber(100)),
+                exactNumber(input.collateralQuote),
+            ))
+            : linearUnrealized !== null
+            ? roundExact(exactDivide(
+                exactMultiply(linearUnrealized, exactNumber(100)),
                 exactNumber(input.collateralQuote),
             ))
             : {
@@ -481,20 +492,23 @@ export function buildRiskReport(rawInput: RiskInput): RiskReport {
                 readiness.detail,
             );
         } else {
-            const equity = pnlQuote === null || input.collateralQuote === null
+            // Readiness above blocks inverse arithmetic. Build equity from
+            // exact PnL, never from its independently rounded public metric.
+            const exactEquity = linearUnrealized === null || input.collateralQuote === null
                 ? null
-                : input.collateralQuote + pnlQuote;
-            // Neither rate-first nor notional-first multiplication is safe
-            // across the full exponent range. Round only the final product.
-            const maintenance = finiteProduct(
-                rules.maintenanceMarginRate, input.currentPrice, input.qtyBase,
+                : exactAdd(exactNumber(input.collateralQuote), linearUnrealized);
+            const equity = exactEquity === null ? null : roundExact(exactEquity);
+            const exactMaintenance = exactMultiply(
+                exactNumber(rules.maintenanceMarginRate),
+                exactMultiply(exactNumber(input.currentPrice), exactNumber(input.qtyBase)),
             );
+            const maintenance = roundExact(exactMaintenance);
             const requirement = maintenance.value;
-            const arithmeticValid = unrealized.quote.status === 'valid' &&
-                equity !== null && Number.isFinite(equity) &&
-                maintenance.status === 'valid' && requirement !== null;
-            const detected = arithmeticValid && equity !== null && requirement !== null
-                ? equity < requirement
+            const arithmeticValid = equity?.status === 'valid' && maintenance.status === 'valid';
+            // Keep the existing unavailable-sum error gate, but decide the
+            // strict threshold from exact inputs, independently of rounding.
+            const detected = arithmeticValid && exactEquity !== null
+                ? exactSubtract(exactEquity, exactMaintenance).numerator < 0n
                 : null;
 
             marginViolation = {
@@ -502,7 +516,7 @@ export function buildRiskReport(rawInput: RiskInput): RiskReport {
                 atBar: detected ? input.market.lastClosedBarTime : null,
                 marginMode: input.margin.mode,
                 rulesVersion: rules.version,
-                equityQuote: equity !== null && Number.isFinite(equity) ? equity : null,
+                equityQuote: equity?.value ?? null,
                 maintenanceRequirementQuote: requirement,
                 status: !arithmeticValid ? 'calculation_error'
                     : readiness.status === 'draft' ? 'degraded' : 'valid',

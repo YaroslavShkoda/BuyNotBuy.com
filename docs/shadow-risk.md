@@ -2,8 +2,8 @@
 
 Модель принимает одну позицию и не влияет на торговые сигналы или исполнение.
 Формат отчёта остаётся `risk-report/1`; исправление funding отмечено версией
-`risk-report-builder@5`, точная арифметика inverse-метрик — версиями
-`risk-assumptions@6` и `position-math@4`.
+`risk-report-builder@7`, численная безопасность — версиями
+`risk-assumptions@8` и `position-math@6`.
 
 | Поле | Spot / linear perpetual | Inverse perpetual |
 |---|---|---|
@@ -94,7 +94,78 @@ round-to-nearest, ties-to-even, включая субнормальные зна
 
 Обычные результаты могут отличаться последними битами от прежней цепочки
 округлений. Структура `risk-report/1`, валютная оценка по current, существующие
-статусы и reason codes сохранены. Linear/spot, funding, валидация входного
-номинала и liquidation не изменены. Номинал и base-экспозиция inverse-контракта
+статусы и reason codes сохранены. На этапе точной inverse-арифметики linear/spot,
+funding, валидация входного номинала и liquidation не менялись; последующая
+linear-защита описана ниже. Номинал и base-экспозиция inverse-контракта
 больше не публикуют `valid 0` для ненулевого значения, округляющегося до нуля:
 оно получает `calculation_error / CALCULATION_OVERFLOW`, как и переполнение.
+
+## Linear numeric safety — YAR-11
+
+Linear и spot entry-notional используют точное произведение binary64-входов
+с одним округлением nearest/ties-to-even. Обычное умножение двух binary64 уже
+правильно округляет произведение, но прежняя проверка только на finite теряла
+различие между точным нулём и положительным произведением, округлившимся до нуля.
+Такой результат теперь получает `null / calculation_error / CALCULATION_OVERFLOW`.
+Положительность qty и entry по-прежнему обязательна; внутренние вызовы с нулём
+или отрицательными входами отклоняются защитными guards.
+
+Linear schema cross-check сравнивает предоставленный `notionalQuote` с правильно
+округлённым произведением `qtyBase × entryPrice`. Относительный допуск `1e-6`
+сохранён; разность и порог сравниваются точно, без абсолютного floor `1e-9`.
+Обычные округлённые значения и положительные subnormal принимаются.
+Произведение, округляющееся в ноль или Infinity, отклоняется по `notionalQuote`:
+обязательное положительное поле не может представлять такой номинал.
+В частности, `qtyBase = entryPrice = 1e-200` теперь отклоняется схемой/CLI,
+а не достигает builder с фиктивным положительным nominal input. Публичные поля
+и их типы, inverse cross-check и spot cross-check не расширены и не изменены.
+Builder по-прежнему повторно валидирует вход; гарантия отсутствия вычислительных
+исключений относится к schema-valid данным.
+
+Round-trip cost вычисляет точную ставку `2 × (taker + slippage + reserve) + spread`
+и независимо округляет `entryNotional × rate` и `100 × rate`. Это та же формула,
+но subnormal spread больше не теряется при делении пополам. Настоящие нулевые
+ставки дают valid zero; ненулевой непредставимый cost даёт calculation_error,
+при этом представимый percent остаётся доступен. Общий helper обеспечивает это
+для всех инструментов; исправлена и прежняя false-zero стоимость при минимальном
+inverse-номинале. На этапе YAR-11 funding, PnL и ROM формулы не менялись;
+последующая точная арифметика PnL/ROM описана в Stage 2.3.2 ниже.
+
+Существующая `linear_isolated_v1` вычисляется точно, без новой модели ликвидации:
+LONG `(entry × qty − collateral) / (qty × (1 − mmr))`, SHORT
+`(entry × qty + collateral) / (qty × (1 + mmr))`.
+Решение `LIQUIDATION_NOT_REACHABLE` для LONG следует из точного сравнения
+произведения с collateral. Gross loss округляется от точной цены, сохраняя
+прежнее ограничение снизу нулём. Если положительная цена или положительный loss
+не представимы после округления, оценка получает calculation_error; расстояния
+и report status наследуют ошибку. Venue-specific правила, cross и inverse
+liquidation остаются вне реализованной модели.
+
+## Remaining numeric safety — Stage 2.3.2
+
+Версии: `risk-report-builder@7`, `position-math@6`, `risk-assumptions@8`;
+публичная структура остаётся `risk-report/1`.
+
+Linear/spot PnL вычисляется точно как `sideSign × (exit − entry) × qty`.
+Quote и percent округляются независимо, nearest/ties-to-even. Знаменатель
+percent — опубликованный entry-notional, как и прежде. Ошибка округления
+quote не скрывает представимый percent; настоящий ноль остаётся valid zero,
+ненулевой результат, округляющийся до нуля, получает `CALCULATION_OVERFLOW`.
+
+Linear ROM вычисляется из точного PnL как `100 × PnL / collateralQuote`,
+без промежуточного округления PnL или отношения. Он может оставаться valid,
+даже когда отдельный quote PnL непредставим. Spot по-прежнему не имеет ROM;
+inverse использует прежнюю точную формулу и прежние gates.
+
+В существующей linear isolated проверке equity равно точному collateral
+плюс точный unrealized PnL, maintenance — точному `mmr × current × qty`.
+Строгое сравнение `equity < maintenance` выполняется до округления; точное
+равенство не считается нарушением. Опубликованные суммы округляются независимо
+и могут совпадать при обнаруженном нарушении. Прежний error gate сохранён:
+если equity или maintenance непредставимы, секция имеет `calculation_error`,
+`detected = null`. Ошибка округления одного PnL сама по себе не блокирует
+представимые equity, ROM или percent.
+
+Funding, schema, liquidation price, cross/inverse ограничения и Stage 3
+не расширены. Изменения последних битов обычных результатов ожидаемы из-за
+одного финального округления вместо цепочки округлений.

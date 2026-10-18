@@ -228,14 +228,18 @@ describe('inverse exposure through the public report builder', () => {
                 value: 0,
                 status: 'valid',
             });
-            expect(metrics.get('estimatedRoundTripCostQuote')?.status).toBe('valid');
+            // The positive execution cost is below half a subnormal quantum;
+            // the shared cost calculation must not publish it as valid zero.
+            expect(metrics.get('estimatedRoundTripCostQuote')).toMatchObject({
+                value: null, status: 'calculation_error', reasonCode: 'CALCULATION_OVERFLOW',
+            });
             expect(report.positionRisk).toMatchObject({
                 status: 'calculation_error',
                 reasonCode: 'CALCULATION_OVERFLOW',
             });
             expect(report.reportStatus).toBe('calculation_error');
-            expect(report.modelVersions.positionMath).toBe('position-math@4');
-            expect(report.modelVersions.assumptions).toBe('risk-assumptions@6');
+            expect(report.modelVersions.positionMath).toBe('position-math@6');
+            expect(report.modelVersions.assumptions).toBe('risk-assumptions@8');
         }
     });
 });

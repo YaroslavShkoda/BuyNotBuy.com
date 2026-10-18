@@ -4,9 +4,10 @@ import type {
     RiskNoticeCode,
     RiskStatus,
 } from '../types/risk.js';
-import { exactDivide, exactMultiply, exactNumber, roundExact } from './exact-rational.js';
+import { exactAdd, exactDivide, exactMultiply, exactNumber, roundExact } from './exact-rational.js';
 import { finiteProduct } from './finite-product.js';
 import { inversePnlExact } from './inverse-pnl.js';
+import { linearPnlExact } from './linear-pnl.js';
 
 /**
  * Stage-2 position mathematics, under the stage-1 report contract.
@@ -32,7 +33,7 @@ import { inversePnlExact } from './inverse-pnl.js';
  *    here are USD: RiskInputSchema enforces USD quote currency at the report
  *    boundary. These pure functions perform no FX conversion.
  *
- * Inverse arithmetic uses exact binary64 inputs and rounds each metric once,
+ * PnL arithmetic uses exact binary64 inputs and rounds each metric once,
  * independently, nearest/ties-to-even. Its percent denominator remains the
  * published entry notional, rather than a cancelled exact notional.
  * The arithmetic never ships a broken number: every result passes through a
@@ -115,7 +116,7 @@ function finiteOrOverflow(value: number): MathValue {
 /**
  * Absolute notional at entry, in quote currency.
  *
- * The inverse figure is the exact USD product rounded once, nearest/ties-to-
+ * All figures are exact products rounded once, nearest/ties-to-
  * even. A nonzero product that underflows to zero — or overflows — answers
  * `calculation_error`, never a `valid` zero.
  */
@@ -133,7 +134,7 @@ export function absoluteNotionalQuote(spec: PositionSpec): MathValue {
         return finiteProduct(spec.contractSizeUsd, spec.qtyBase, 1);
     }
 
-    return finiteOrOverflow(spec.qtyBase * spec.entryPrice);
+    return finiteProduct(spec.qtyBase, spec.entryPrice, 1);
 }
 
 /**
@@ -256,18 +257,17 @@ export function potentialPnl(args: PotentialPnlArgs): PotentialPnl {
         };
     }
 
-    const quote = finiteOrOverflow(
-        sideSign(args.side) * (args.exitPrice - args.entryPrice) * args.qtyBase,
-    );
-
-    if (quote.value === null) {
-        return { quote, percent: quote, base: null };
-    }
-
+    const exactQuote = linearPnlExact({ ...args, exitPrice: args.exitPrice });
+    const quote = roundExact(exactQuote);
+    // A failed quote rounding must not hide a representable percent. Keep
+    // the established denominator: the published, rounded entry notional.
     const percent =
         notional.value === null
             ? notional
-            : finiteOrOverflow((quote.value / notional.value) * 100);
+            : roundExact(exactDivide(
+                exactMultiply(exactQuote, exactNumber(100)),
+                exactNumber(notional.value),
+            ));
 
     return { quote, percent, base: null };
 }
@@ -401,15 +401,19 @@ export function estimatedRoundTripCost(
     assertFinite('slippageRate', rates.slippageRate);
     assertFinite('executionReserveRate', rates.executionReserveRate);
 
-    const legRate =
-        rates.takerFeeRate +
-        rates.spreadRate / 2 +
-        rates.slippageRate +
-        rates.executionReserveRate;
-    const roundTripRate = legRate * 2;
+    // Algebraically the same two legs, without first halving a subnormal
+    // spread or rounding a small rate/product to a false zero. Quote and
+    // percent round independently; a failure of one does not erase the other.
+    const roundTripRate = exactAdd(
+        exactMultiply(exactNumber(2), exactAdd(
+            exactAdd(exactNumber(rates.takerFeeRate), exactNumber(rates.slippageRate)),
+            exactNumber(rates.executionReserveRate),
+        )),
+        exactNumber(rates.spreadRate),
+    );
 
     return {
-        quote: finiteOrOverflow(entryNotionalQuote * roundTripRate),
-        percent: finiteOrOverflow(roundTripRate * 100),
+        quote: roundExact(exactMultiply(exactNumber(entryNotionalQuote), roundTripRate)),
+        percent: roundExact(exactMultiply(roundTripRate, exactNumber(100))),
     };
 }

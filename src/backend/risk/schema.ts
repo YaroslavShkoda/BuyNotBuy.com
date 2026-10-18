@@ -13,6 +13,7 @@ import {
     POSITION_SOURCES,
 } from '../types/risk.js';
 import { MARKET_VENUES } from '../types/venue.js';
+import { exactMultiply, exactNumber, exactSubtract } from './exact-rational.js';
 import { finiteProduct } from './finite-product.js';
 
 /**
@@ -270,6 +271,27 @@ export const RiskInputSchema = z
                         ['notionalQuote'],
                     );
                 }
+            }
+        } else if (input.contractKind === 'linear_perp') {
+            const notional = finiteProduct(input.qtyBase, input.entryPrice, 1);
+            // Compare the correctly rounded product with the supplied binary64
+            // notional. No absolute floor, underflowing tolerance product, or
+            // rounded floating-point subtraction/division participates in the
+            // decision. Legitimately rounded subnormals remain accepted.
+            let consistent = false;
+            if (notional.value !== null) {
+                const delta = exactSubtract(exactNumber(notional.value), exactNumber(input.notionalQuote));
+                const magnitude = { ...delta, numerator: delta.numerator < 0n ? -delta.numerator : delta.numerator };
+                const tolerance = exactMultiply(exactNumber(1e-6), exactNumber(input.notionalQuote));
+                consistent = exactSubtract(magnitude, tolerance).numerator <= 0n;
+            }
+            if (!consistent) {
+                addIssue(
+                    notional.value === null
+                        ? 'qtyBase x entryPrice must have a representable positive notionalQuote'
+                        : `notionalQuote ${input.notionalQuote} disagrees with rounded qtyBase x entryPrice (relative tolerance 1e-6)`,
+                    ['notionalQuote'],
+                );
             }
         } else {
             const notionalTolerance = Math.max(1e-9, 1e-6 * input.notionalQuote);
