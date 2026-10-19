@@ -158,11 +158,16 @@ function collisions(): string[] {
 }
 
 describe('a name exported from two modules', () => {
-    it('is the sixteen that are on the list, and no seventeenth', () => {
+    it('matches the reviewed export collisions, including isolated Stage 3', () => {
         // Sorted, because the code sorts, and a list that fails for a reason
         // unrelated to the finding is a list people learn to skip.
+        // S3-04 deliberately owns an opaque ExactRational independent of the
+        // legacy structural value. The other new collision is with a test-only
+        // Fraction oracle, not a second production add implementation. Pin the
+        // exact names AND paths; new collisions and silent renames still fail.
         expect(collisions()).toEqual([
             'type:Candle → backtest/dataset.ts , types/market.ts',
+            'type:ExactRational → risk/exact-rational.ts , risk/stage3/arithmetic.ts',
             'type:IndicatorPerformance → indicators/performance/indicator-performance.types.ts , performance/performance.ts',
             'type:Metrics → observability/metrics.ts , performance/performance.ts',
             'type:PermutationResult → backtest/statistics.ts , research/signal-power.ts',
@@ -171,6 +176,7 @@ describe('a name exported from two modules', () => {
             'type:SeriesKey → observability/registry.ts , signals/lifecycle.repository.ts',
             'type:SignalDirection → config/lifecycle.config.ts , types/direction.ts',
             'type:Verdict → lifecycle/promotion.config.ts , research/confidence-calibration.ts , research/holdout-protocol.ts',
+            'value:add → risk/stage3/arithmetic.ts , risk/test-support/fraction-oracle.ts',
             'value:audit → research/architecture-lint.ts , research/layering-lint.ts',
             'value:emaSeries → indicators/series.graph.ts , strategies/series.ts',
             'value:getPrice → api/controllers/price.controller.ts , market/market.service.ts',
