@@ -1,0 +1,104 @@
+{
+  "format": "margin-canonical-json/1",
+  "oracle": "CPython independent serializer + hashlib.sha256",
+  "generic": [
+    {
+      "name": "objects-and-arrays",
+      "json": "{\"z\": [null, true, false, \"x\"], \"a\": {\"2\": 2, \"10\": 10}}",
+      "canonical": "{\"a\":{\"10\":10,\"2\":2},\"z\":[null,true,false,\"x\"]}"
+    },
+    {
+      "name": "unicode",
+      "json": "{\"\\ue000\": \"\\u0000\\n\\t\\\"\\\\\", \"\\ud83d\\ude00\": \"\\u00e9/e\\u0301/\\u042f/\\u200b/\\ud800/\\udfff\"}",
+      "canonical": "{\"\\ud83d\\ude00\":\"\\u00e9/e\\u0301/\\u042f/\\u200b/\\ud800/\\udfff\",\"\\ue000\":\"\\u0000\\u000a\\u0009\\\"\\\\\"}"
+    },
+    {
+      "name": "number-boundaries",
+      "json": "[-0.0, 5e-324, 1e-323, 2.2250738585072014e-308, 1.7976931348623157e+308, 1e-07, 1e-06, 1e+20, 1e+21, 0.1]",
+      "canonical": "[0,5e-324,1e-323,2.2250738585072014e-308,1.7976931348623157e+308,1e-7,0.000001,100000000000000000000,1e+21,0.1]"
+    },
+    {
+      "name": "prototype-keys",
+      "json": "{\"__proto__\": {\"polluted\": true}, \"constructor\": 1, \"prototype\": 2}",
+      "canonical": "{\"__proto__\":{\"polluted\":true},\"constructor\":1,\"prototype\":2}"
+    },
+    {
+      "name": "composed",
+      "json": "\"\\u00e9\"",
+      "canonical": "\"\\u00e9\""
+    },
+    {
+      "name": "decomposed",
+      "json": "\"e\\u0301\"",
+      "canonical": "\"e\\u0301\""
+    },
+    {
+      "name": "array-12",
+      "json": "[1, 2]",
+      "canonical": "[1,2]"
+    },
+    {
+      "name": "array-21",
+      "json": "[2, 1]",
+      "canonical": "[2,1]"
+    }
+  ],
+  "identities": [
+    {
+      "name": "baseline",
+      "inputJson": "{\"snapshot\": {\"schemaVersion\": \"margin-model-snapshot/1\", \"source\": {\"kind\": \"manual\", \"reference\": \"corpus-record\"}, \"snapshotId\": \"snapshot-1\", \"positionId\": \"position-1\", \"asOf\": 1700000000000, \"instrument\": {\"instrumentId\": \"linear-model\", \"contractKind\": \"linear_perp\", \"baseCurrency\": \"BASE\", \"quoteCurrency\": \"QUOTE\", \"settlementCurrency\": \"QUOTE\"}, \"marginMode\": \"isolated\", \"side\": \"LONG\", \"qtyBase\": 0.5, \"entryPriceQuotePerBase\": 40000, \"netCashQuote\": 0, \"cashSemantics\": \"settled_net_cash_excluding_unrealized_pnl\", \"valuation\": {\"priceQuotePerBase\": 41000, \"basis\": \"manual\", \"sourceReference\": \"corpus-price\", \"asOf\": 1700000000000}}, \"policy\": {\"schemaVersion\": \"margin-model-policy/1\", \"modelId\": \"generic-linear-isolated\", \"modelVersion\": \"1\", \"source\": \"manual\", \"configVersion\": \"corpus-1\", \"initialMarginRate\": 0.2, \"maintenanceMarginRate\": 0.01, \"initialMarginBasis\": \"valuation_notional\", \"maintenanceBasis\": \"valuation_notional\", \"comparison\": \"lt\", \"chargesPolicy\": \"settled_cash_only\", \"prospectiveCosts\": \"excluded\", \"tiersPolicy\": \"flat_only\"}}",
+      "contextJson": "{\"engineVersion\": \"test-engine@1\", \"arithmeticVersion\": \"test-arithmetic@1\", \"requestedCapabilities\": [\"maintenance_comparison\", \"margin_metrics\"]}",
+      "policyCanonical": "{\"chargesPolicy\":\"settled_cash_only\",\"comparison\":\"lt\",\"configVersion\":\"corpus-1\",\"initialMarginBasis\":\"valuation_notional\",\"initialMarginRate\":0.2,\"maintenanceBasis\":\"valuation_notional\",\"maintenanceMarginRate\":0.01,\"modelId\":\"generic-linear-isolated\",\"modelVersion\":\"1\",\"prospectiveCosts\":\"excluded\",\"schemaVersion\":\"margin-model-policy/1\",\"source\":\"manual\",\"tiersPolicy\":\"flat_only\"}",
+      "inputCanonical": "{\"policy\":{\"chargesPolicy\":\"settled_cash_only\",\"comparison\":\"lt\",\"configVersion\":\"corpus-1\",\"initialMarginBasis\":\"valuation_notional\",\"initialMarginRate\":0.2,\"maintenanceBasis\":\"valuation_notional\",\"maintenanceMarginRate\":0.01,\"modelId\":\"generic-linear-isolated\",\"modelVersion\":\"1\",\"prospectiveCosts\":\"excluded\",\"schemaVersion\":\"margin-model-policy/1\",\"source\":\"manual\",\"tiersPolicy\":\"flat_only\"},\"snapshot\":{\"asOf\":1700000000000,\"cashSemantics\":\"settled_net_cash_excluding_unrealized_pnl\",\"entryPriceQuotePerBase\":40000,\"instrument\":{\"baseCurrency\":\"BASE\",\"contractKind\":\"linear_perp\",\"instrumentId\":\"linear-model\",\"quoteCurrency\":\"QUOTE\",\"settlementCurrency\":\"QUOTE\"},\"marginMode\":\"isolated\",\"netCashQuote\":0,\"positionId\":\"position-1\",\"qtyBase\":0.5,\"schemaVersion\":\"margin-model-snapshot/1\",\"side\":\"LONG\",\"snapshotId\":\"snapshot-1\",\"source\":{\"kind\":\"manual\",\"reference\":\"corpus-record\"},\"valuation\":{\"asOf\":1700000000000,\"basis\":\"manual\",\"priceQuotePerBase\":41000,\"sourceReference\":\"corpus-price\"}}}",
+      "assessmentCanonical": "{\"arithmeticVersion\":\"test-arithmetic@1\",\"engineVersion\":\"test-engine@1\",\"inputHash\":\"026d7511eff26eb448619b373719397eef6cfb7904fab53003d9cca717572cec\",\"requestedCapabilities\":[\"maintenance_comparison\",\"margin_metrics\"]}",
+      "policyHash": "58f460cbd3c41726b518e27db0b062a4686017a72280fb950c0db2092f941dd4",
+      "inputHash": "026d7511eff26eb448619b373719397eef6cfb7904fab53003d9cca717572cec",
+      "assessmentId": "d0263798ab1dc8b8639a32a980a320a3fd27058e55fcfff3c921d35cc6688f9b"
+    },
+    {
+      "name": "short-lte",
+      "inputJson": "{\"snapshot\": {\"schemaVersion\": \"margin-model-snapshot/1\", \"source\": {\"kind\": \"manual\", \"reference\": \"corpus-record\"}, \"snapshotId\": \"snapshot-1\", \"positionId\": \"position-1\", \"asOf\": 1700000000000, \"instrument\": {\"instrumentId\": \"linear-model\", \"contractKind\": \"linear_perp\", \"baseCurrency\": \"BASE\", \"quoteCurrency\": \"QUOTE\", \"settlementCurrency\": \"QUOTE\"}, \"marginMode\": \"isolated\", \"side\": \"SHORT\", \"qtyBase\": 0.5, \"entryPriceQuotePerBase\": 40000, \"netCashQuote\": 0, \"cashSemantics\": \"settled_net_cash_excluding_unrealized_pnl\", \"valuation\": {\"priceQuotePerBase\": 41000, \"basis\": \"manual\", \"sourceReference\": \"corpus-price\", \"asOf\": 1700000000000}}, \"policy\": {\"schemaVersion\": \"margin-model-policy/1\", \"modelId\": \"generic-linear-isolated\", \"modelVersion\": \"1\", \"source\": \"manual\", \"configVersion\": \"corpus-1\", \"initialMarginRate\": 0.2, \"maintenanceMarginRate\": 0.01, \"initialMarginBasis\": \"valuation_notional\", \"maintenanceBasis\": \"valuation_notional\", \"comparison\": \"lte\", \"chargesPolicy\": \"settled_cash_only\", \"prospectiveCosts\": \"excluded\", \"tiersPolicy\": \"flat_only\"}}",
+      "contextJson": "{\"engineVersion\": \"test-engine@1\", \"arithmeticVersion\": \"test-arithmetic@1\", \"requestedCapabilities\": [\"maintenance_comparison\", \"margin_metrics\"]}",
+      "policyCanonical": "{\"chargesPolicy\":\"settled_cash_only\",\"comparison\":\"lte\",\"configVersion\":\"corpus-1\",\"initialMarginBasis\":\"valuation_notional\",\"initialMarginRate\":0.2,\"maintenanceBasis\":\"valuation_notional\",\"maintenanceMarginRate\":0.01,\"modelId\":\"generic-linear-isolated\",\"modelVersion\":\"1\",\"prospectiveCosts\":\"excluded\",\"schemaVersion\":\"margin-model-policy/1\",\"source\":\"manual\",\"tiersPolicy\":\"flat_only\"}",
+      "inputCanonical": "{\"policy\":{\"chargesPolicy\":\"settled_cash_only\",\"comparison\":\"lte\",\"configVersion\":\"corpus-1\",\"initialMarginBasis\":\"valuation_notional\",\"initialMarginRate\":0.2,\"maintenanceBasis\":\"valuation_notional\",\"maintenanceMarginRate\":0.01,\"modelId\":\"generic-linear-isolated\",\"modelVersion\":\"1\",\"prospectiveCosts\":\"excluded\",\"schemaVersion\":\"margin-model-policy/1\",\"source\":\"manual\",\"tiersPolicy\":\"flat_only\"},\"snapshot\":{\"asOf\":1700000000000,\"cashSemantics\":\"settled_net_cash_excluding_unrealized_pnl\",\"entryPriceQuotePerBase\":40000,\"instrument\":{\"baseCurrency\":\"BASE\",\"contractKind\":\"linear_perp\",\"instrumentId\":\"linear-model\",\"quoteCurrency\":\"QUOTE\",\"settlementCurrency\":\"QUOTE\"},\"marginMode\":\"isolated\",\"netCashQuote\":0,\"positionId\":\"position-1\",\"qtyBase\":0.5,\"schemaVersion\":\"margin-model-snapshot/1\",\"side\":\"SHORT\",\"snapshotId\":\"snapshot-1\",\"source\":{\"kind\":\"manual\",\"reference\":\"corpus-record\"},\"valuation\":{\"asOf\":1700000000000,\"basis\":\"manual\",\"priceQuotePerBase\":41000,\"sourceReference\":\"corpus-price\"}}}",
+      "assessmentCanonical": "{\"arithmeticVersion\":\"test-arithmetic@1\",\"engineVersion\":\"test-engine@1\",\"inputHash\":\"d96a43f35cc1a0255dbe546deb28784c52d7973276306b4aaf2f780ba80d392f\",\"requestedCapabilities\":[\"maintenance_comparison\",\"margin_metrics\"]}",
+      "policyHash": "0eceec8e12539991e2abcd95f91ca6e5a90b1e9c2238eed16134a81018cc3e9b",
+      "inputHash": "d96a43f35cc1a0255dbe546deb28784c52d7973276306b4aaf2f780ba80d392f",
+      "assessmentId": "25956e1d38d631a814b7fd3df70669657d2c9d3735107e99c01308cd09eae4ea"
+    },
+    {
+      "name": "extreme-binary64",
+      "inputJson": "{\"snapshot\": {\"schemaVersion\": \"margin-model-snapshot/1\", \"source\": {\"kind\": \"manual\", \"reference\": \"corpus-record\"}, \"snapshotId\": \"snapshot-1\", \"positionId\": \"position-1\", \"asOf\": 9007199254740991, \"instrument\": {\"instrumentId\": \"linear-model\", \"contractKind\": \"linear_perp\", \"baseCurrency\": \"BASE\", \"quoteCurrency\": \"QUOTE\", \"settlementCurrency\": \"QUOTE\"}, \"marginMode\": \"isolated\", \"side\": \"LONG\", \"qtyBase\": 5e-324, \"entryPriceQuotePerBase\": 1.7976931348623157e+308, \"netCashQuote\": 5e-324, \"cashSemantics\": \"settled_net_cash_excluding_unrealized_pnl\", \"valuation\": {\"priceQuotePerBase\": 1e-323, \"basis\": \"manual\", \"sourceReference\": \"corpus-price\", \"asOf\": 9007199254740991}}, \"policy\": {\"schemaVersion\": \"margin-model-policy/1\", \"modelId\": \"generic-linear-isolated\", \"modelVersion\": \"1\", \"source\": \"manual\", \"configVersion\": \"corpus-1\", \"initialMarginRate\": 1, \"maintenanceMarginRate\": 5e-324, \"initialMarginBasis\": \"valuation_notional\", \"maintenanceBasis\": \"valuation_notional\", \"comparison\": \"lt\", \"chargesPolicy\": \"settled_cash_only\", \"prospectiveCosts\": \"excluded\", \"tiersPolicy\": \"flat_only\"}}",
+      "contextJson": "{\"engineVersion\": \"test-engine@1\", \"arithmeticVersion\": \"test-arithmetic@1\", \"requestedCapabilities\": [\"maintenance_comparison\", \"margin_metrics\"]}",
+      "policyCanonical": "{\"chargesPolicy\":\"settled_cash_only\",\"comparison\":\"lt\",\"configVersion\":\"corpus-1\",\"initialMarginBasis\":\"valuation_notional\",\"initialMarginRate\":1,\"maintenanceBasis\":\"valuation_notional\",\"maintenanceMarginRate\":5e-324,\"modelId\":\"generic-linear-isolated\",\"modelVersion\":\"1\",\"prospectiveCosts\":\"excluded\",\"schemaVersion\":\"margin-model-policy/1\",\"source\":\"manual\",\"tiersPolicy\":\"flat_only\"}",
+      "inputCanonical": "{\"policy\":{\"chargesPolicy\":\"settled_cash_only\",\"comparison\":\"lt\",\"configVersion\":\"corpus-1\",\"initialMarginBasis\":\"valuation_notional\",\"initialMarginRate\":1,\"maintenanceBasis\":\"valuation_notional\",\"maintenanceMarginRate\":5e-324,\"modelId\":\"generic-linear-isolated\",\"modelVersion\":\"1\",\"prospectiveCosts\":\"excluded\",\"schemaVersion\":\"margin-model-policy/1\",\"source\":\"manual\",\"tiersPolicy\":\"flat_only\"},\"snapshot\":{\"asOf\":9007199254740991,\"cashSemantics\":\"settled_net_cash_excluding_unrealized_pnl\",\"entryPriceQuotePerBase\":1.7976931348623157e+308,\"instrument\":{\"baseCurrency\":\"BASE\",\"contractKind\":\"linear_perp\",\"instrumentId\":\"linear-model\",\"quoteCurrency\":\"QUOTE\",\"settlementCurrency\":\"QUOTE\"},\"marginMode\":\"isolated\",\"netCashQuote\":5e-324,\"positionId\":\"position-1\",\"qtyBase\":5e-324,\"schemaVersion\":\"margin-model-snapshot/1\",\"side\":\"LONG\",\"snapshotId\":\"snapshot-1\",\"source\":{\"kind\":\"manual\",\"reference\":\"corpus-record\"},\"valuation\":{\"asOf\":9007199254740991,\"basis\":\"manual\",\"priceQuotePerBase\":1e-323,\"sourceReference\":\"corpus-price\"}}}",
+      "assessmentCanonical": "{\"arithmeticVersion\":\"test-arithmetic@1\",\"engineVersion\":\"test-engine@1\",\"inputHash\":\"9c3df67323386b90657745b05b1c0895c91a4eb06d5455e8e70dbb9f5ed1e7e6\",\"requestedCapabilities\":[\"maintenance_comparison\",\"margin_metrics\"]}",
+      "policyHash": "bb1404fc6334970efbd66491b30f8945a0e31f60f496fe69f8483da1b83955d5",
+      "inputHash": "9c3df67323386b90657745b05b1c0895c91a4eb06d5455e8e70dbb9f5ed1e7e6",
+      "assessmentId": "d3245cfce1823950b0a0230396d8828912a04035c218398156eabda28ca7147f"
+    },
+    {
+      "name": "unicode-identifiers",
+      "inputJson": "{\"snapshot\": {\"schemaVersion\": \"margin-model-snapshot/1\", \"source\": {\"kind\": \"test\", \"reference\": \"\\u00e9/e\\u0301/\\ud83d\\ude00/\\ud800/\\u0000/end\"}, \"snapshotId\": \"snapshot-1\", \"positionId\": \"position-1\", \"asOf\": 1700000000000, \"instrument\": {\"instrumentId\": \"linear-model\", \"contractKind\": \"linear_perp\", \"baseCurrency\": \"BASE\", \"quoteCurrency\": \"QUOTE\", \"settlementCurrency\": \"QUOTE\"}, \"marginMode\": \"isolated\", \"side\": \"LONG\", \"qtyBase\": 0.5, \"entryPriceQuotePerBase\": 40000, \"netCashQuote\": 0, \"cashSemantics\": \"settled_net_cash_excluding_unrealized_pnl\", \"valuation\": {\"priceQuotePerBase\": 41000, \"basis\": \"manual\", \"sourceReference\": \"a\\nb\\u200bc\", \"asOf\": 1700000000000}}, \"policy\": {\"schemaVersion\": \"margin-model-policy/1\", \"modelId\": \"generic-linear-isolated\", \"modelVersion\": \"1\", \"source\": \"manual\", \"configVersion\": \"corpus-1\", \"initialMarginRate\": 0.2, \"maintenanceMarginRate\": 0.01, \"initialMarginBasis\": \"valuation_notional\", \"maintenanceBasis\": \"valuation_notional\", \"comparison\": \"lt\", \"chargesPolicy\": \"settled_cash_only\", \"prospectiveCosts\": \"excluded\", \"tiersPolicy\": \"flat_only\"}}",
+      "contextJson": "{\"engineVersion\": \"test-engine@1\", \"arithmeticVersion\": \"test-arithmetic@1\", \"requestedCapabilities\": [\"maintenance_comparison\", \"margin_metrics\"]}",
+      "policyCanonical": "{\"chargesPolicy\":\"settled_cash_only\",\"comparison\":\"lt\",\"configVersion\":\"corpus-1\",\"initialMarginBasis\":\"valuation_notional\",\"initialMarginRate\":0.2,\"maintenanceBasis\":\"valuation_notional\",\"maintenanceMarginRate\":0.01,\"modelId\":\"generic-linear-isolated\",\"modelVersion\":\"1\",\"prospectiveCosts\":\"excluded\",\"schemaVersion\":\"margin-model-policy/1\",\"source\":\"manual\",\"tiersPolicy\":\"flat_only\"}",
+      "inputCanonical": "{\"policy\":{\"chargesPolicy\":\"settled_cash_only\",\"comparison\":\"lt\",\"configVersion\":\"corpus-1\",\"initialMarginBasis\":\"valuation_notional\",\"initialMarginRate\":0.2,\"maintenanceBasis\":\"valuation_notional\",\"maintenanceMarginRate\":0.01,\"modelId\":\"generic-linear-isolated\",\"modelVersion\":\"1\",\"prospectiveCosts\":\"excluded\",\"schemaVersion\":\"margin-model-policy/1\",\"source\":\"manual\",\"tiersPolicy\":\"flat_only\"},\"snapshot\":{\"asOf\":1700000000000,\"cashSemantics\":\"settled_net_cash_excluding_unrealized_pnl\",\"entryPriceQuotePerBase\":40000,\"instrument\":{\"baseCurrency\":\"BASE\",\"contractKind\":\"linear_perp\",\"instrumentId\":\"linear-model\",\"quoteCurrency\":\"QUOTE\",\"settlementCurrency\":\"QUOTE\"},\"marginMode\":\"isolated\",\"netCashQuote\":0,\"positionId\":\"position-1\",\"qtyBase\":0.5,\"schemaVersion\":\"margin-model-snapshot/1\",\"side\":\"LONG\",\"snapshotId\":\"snapshot-1\",\"source\":{\"kind\":\"test\",\"reference\":\"\\u00e9/e\\u0301/\\ud83d\\ude00/\\ud800/\\u0000/end\"},\"valuation\":{\"asOf\":1700000000000,\"basis\":\"manual\",\"priceQuotePerBase\":41000,\"sourceReference\":\"a\\u000ab\\u200bc\"}}}",
+      "assessmentCanonical": "{\"arithmeticVersion\":\"test-arithmetic@1\",\"engineVersion\":\"test-engine@1\",\"inputHash\":\"f7b063b7d7af789bc37af8a4edb9555726d24876d730f656d020ebb134b1e29f\",\"requestedCapabilities\":[\"maintenance_comparison\",\"margin_metrics\"]}",
+      "policyHash": "58f460cbd3c41726b518e27db0b062a4686017a72280fb950c0db2092f941dd4",
+      "inputHash": "f7b063b7d7af789bc37af8a4edb9555726d24876d730f656d020ebb134b1e29f",
+      "assessmentId": "be577fbdf6e8514a34640535d2a4cb33f3c5a9f8fc294e13166e0015437279b0"
+    },
+    {
+      "name": "negative-zero",
+      "inputJson": "{\"snapshot\": {\"schemaVersion\": \"margin-model-snapshot/1\", \"source\": {\"kind\": \"manual\", \"reference\": \"corpus-record\"}, \"snapshotId\": \"snapshot-1\", \"positionId\": \"position-1\", \"asOf\": 1700000000000, \"instrument\": {\"instrumentId\": \"linear-model\", \"contractKind\": \"linear_perp\", \"baseCurrency\": \"BASE\", \"quoteCurrency\": \"QUOTE\", \"settlementCurrency\": \"QUOTE\"}, \"marginMode\": \"isolated\", \"side\": \"LONG\", \"qtyBase\": 0.5, \"entryPriceQuotePerBase\": 40000, \"netCashQuote\": -0.0, \"cashSemantics\": \"settled_net_cash_excluding_unrealized_pnl\", \"valuation\": {\"priceQuotePerBase\": 41000, \"basis\": \"manual\", \"sourceReference\": \"corpus-price\", \"asOf\": 1700000000000}}, \"policy\": {\"schemaVersion\": \"margin-model-policy/1\", \"modelId\": \"generic-linear-isolated\", \"modelVersion\": \"1\", \"source\": \"manual\", \"configVersion\": \"corpus-1\", \"initialMarginRate\": 0.2, \"maintenanceMarginRate\": 0.01, \"initialMarginBasis\": \"valuation_notional\", \"maintenanceBasis\": \"valuation_notional\", \"comparison\": \"lt\", \"chargesPolicy\": \"settled_cash_only\", \"prospectiveCosts\": \"excluded\", \"tiersPolicy\": \"flat_only\"}}",
+      "contextJson": "{\"engineVersion\": \"test-engine@1\", \"arithmeticVersion\": \"test-arithmetic@1\", \"requestedCapabilities\": [\"maintenance_comparison\", \"margin_metrics\"]}",
+      "policyCanonical": "{\"chargesPolicy\":\"settled_cash_only\",\"comparison\":\"lt\",\"configVersion\":\"corpus-1\",\"initialMarginBasis\":\"valuation_notional\",\"initialMarginRate\":0.2,\"maintenanceBasis\":\"valuation_notional\",\"maintenanceMarginRate\":0.01,\"modelId\":\"generic-linear-isolated\",\"modelVersion\":\"1\",\"prospectiveCosts\":\"excluded\",\"schemaVersion\":\"margin-model-policy/1\",\"source\":\"manual\",\"tiersPolicy\":\"flat_only\"}",
+      "inputCanonical": "{\"policy\":{\"chargesPolicy\":\"settled_cash_only\",\"comparison\":\"lt\",\"configVersion\":\"corpus-1\",\"initialMarginBasis\":\"valuation_notional\",\"initialMarginRate\":0.2,\"maintenanceBasis\":\"valuation_notional\",\"maintenanceMarginRate\":0.01,\"modelId\":\"generic-linear-isolated\",\"modelVersion\":\"1\",\"prospectiveCosts\":\"excluded\",\"schemaVersion\":\"margin-model-policy/1\",\"source\":\"manual\",\"tiersPolicy\":\"flat_only\"},\"snapshot\":{\"asOf\":1700000000000,\"cashSemantics\":\"settled_net_cash_excluding_unrealized_pnl\",\"entryPriceQuotePerBase\":40000,\"instrument\":{\"baseCurrency\":\"BASE\",\"contractKind\":\"linear_perp\",\"instrumentId\":\"linear-model\",\"quoteCurrency\":\"QUOTE\",\"settlementCurrency\":\"QUOTE\"},\"marginMode\":\"isolated\",\"netCashQuote\":0,\"positionId\":\"position-1\",\"qtyBase\":0.5,\"schemaVersion\":\"margin-model-snapshot/1\",\"side\":\"LONG\",\"snapshotId\":\"snapshot-1\",\"source\":{\"kind\":\"manual\",\"reference\":\"corpus-record\"},\"valuation\":{\"asOf\":1700000000000,\"basis\":\"manual\",\"priceQuotePerBase\":41000,\"sourceReference\":\"corpus-price\"}}}",
+      "assessmentCanonical": "{\"arithmeticVersion\":\"test-arithmetic@1\",\"engineVersion\":\"test-engine@1\",\"inputHash\":\"026d7511eff26eb448619b373719397eef6cfb7904fab53003d9cca717572cec\",\"requestedCapabilities\":[\"maintenance_comparison\",\"margin_metrics\"]}",
+      "policyHash": "58f460cbd3c41726b518e27db0b062a4686017a72280fb950c0db2092f941dd4",
+      "inputHash": "026d7511eff26eb448619b373719397eef6cfb7904fab53003d9cca717572cec",
+      "assessmentId": "d0263798ab1dc8b8639a32a980a320a3fd27058e55fcfff3c921d35cc6688f9b"
+    }
+  ],
+  "legacyFixtureHash": "18c4253d02252de12b7731f89c6bcd5a3b2a03dd8b4559825dbef46e87442267"
+}
