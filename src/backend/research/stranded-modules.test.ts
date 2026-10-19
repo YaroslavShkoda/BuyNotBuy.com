@@ -17,7 +17,7 @@ const realRoot = join(fileURLToPath(new URL('.', import.meta.url)), '..');
  * `advance`, `planRollback` and the whole `RuleStage` ladder — and the only file
  * in the repository that imported either was its own test, 545 lines long.
  *
- * **The list is empty now, and that took two rounds rather than one.**
+ * **The list was empty before Stage 3, after two rounds rather than one.**
  * `promotion.config.ts` left it when the evidence gate was wired to the shared
  * repository in round 23, so that half of the finding was a bug that has been
  * fixed. `rule-registry.ts` stayed for the owner to rule on, and what it was
@@ -96,7 +96,7 @@ describe('production modules with no production caller', () => {
         // fails on every run for a reason that has nothing to do with the
         // finding. The commentary on what each entry means is below.
         //
-        // **Empty, and this is the first time it has been.** The last entry was
+        // **Before Stage 3 the list became empty.** The last entry was
         // `lifecycle/rule-registry.ts` — 312 lines, no production caller — and
         // the owner decided to delete it rather than adopt its vocabulary, which
         // settles the argument recorded below in the only direction that leaves
@@ -125,7 +125,15 @@ describe('production modules with no production caller', () => {
         // capabilities nobody had asked for rather than features with a bug in
         // them. That is the honest reading, and it is the opposite of what I would
         // have written if I had deleted first and measured after.
-        expect(stranded).toEqual([]);
+        // Stage 3 is intentionally implemented and audited before its assessment
+        // builder or API integration. These are its two current library roots,
+        // not missing live-trading wiring. Keep exact equality: a new stranded
+        // module, or connecting one of these roots, requires explicit review.
+        // Do not exclude the Stage 3 directory from graph construction.
+        expect(stranded).toEqual([
+            'risk/stage3/identity.ts',
+            'risk/stage3/ratios-leverage.ts',
+        ]);
 
         // **Everything the roadmap asked for in M1 is now connected.**
         //

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { Pool } from 'pg';
+import { Client, Pool } from 'pg';
 import { afterAll, beforeAll, beforeEach } from 'vitest';
 
 /**
@@ -53,10 +53,11 @@ function withSearchPath(url: string, schema: string): string {
 // test file would quietly share the default `public` schema, and the `TRUNCATE`
 // in `beforeEach` would delete rows a concurrently running file had just
 // written. The imports below are therefore dynamic, and awaited here.
-process.env.DATABASE_URL = withSearchPath(
+const isolatedDatabaseUrl = withSearchPath(
     process.env.DATABASE_URL ?? DEFAULT_TEST_DATABASE_URL,
     SCHEMA,
 );
+process.env.DATABASE_URL = isolatedDatabaseUrl;
 
 // The write spool is real disk state: enabled by default in production, it
 // would have every failing-stub test fsync lines into `./data/spool` and every
@@ -66,7 +67,19 @@ process.env.DATABASE_URL = withSearchPath(
 // own imports run, pointed at a directory they delete.
 process.env.WRITE_SPOOL_ENABLED ??= 'false';
 
-const { closePool, query, getPool } = await import('../db/pool.js');
+// A test may reset the module cache and create another real pool. Closing only
+// the setup module's pool misses those connections. Track every used pool in
+// this file without mocking SQL, changing connection options or losing either
+// the callback or Promise form of connect. Restore the prototype in finally.
+const pools = new Set<Pool>();
+const connectDescriptor = Object.getOwnPropertyDescriptor(Pool.prototype, 'connect');
+const originalConnect = Pool.prototype.connect;
+Pool.prototype.connect = function (this: Pool, ...args: unknown[]) {
+    pools.add(this);
+    return Reflect.apply(originalConnect, this, args);
+};
+
+const { query, getPool } = await import('../db/pool.js');
 const { applyMigrations } = await import('../db/migrations.js');
 
 /**
@@ -223,13 +236,41 @@ beforeEach(async () => {
 
 afterAll(async () => {
     try {
-        // Dropped before the pool closes: the pool's connections all carry this
-        // file's search_path, so they are the cheapest way back to the server.
-        await query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);
-    } catch {
-        // A schema left behind in a throwaway test database costs nothing.
-        // Failing a test because cleanup could not run would.
-    }
+        // Stop accepting new pooled work and await borrowed clients before DDL.
+        // DROP while background persistence is still writing can deadlock on
+        // foreign-key locks. pool.end also covers pools from vi.resetModules;
+        // already closed pools are not ended twice. No production shutdown or
+        // persistence semantics are changed by this test-only lifetime boundary.
+        for (const pool of pools) {
+            if (!pool.ending) {
+                await pool.end();
+            } else if (pool.totalCount > 0) {
+                // An owner may already have called end without awaiting it.
+                // Wait for its borrowed clients too, without calling end twice.
+                await new Promise<void>((resolve) => {
+                    const removed = () => {
+                        if (pool.totalCount !== 0) return;
+                        pool.off('remove', removed);
+                        resolve();
+                    };
+                    pool.on('remove', removed);
+                    removed();
+                });
+            }
+        }
 
-    await closePool();
+        // Cleanup owns a separate, bounded connection after all used pools end.
+        // Its URL is captured before tests can stub environment variables.
+        const cleanup = new Client({ connectionString: isolatedDatabaseUrl,
+            connectionTimeoutMillis: 5_000, statement_timeout: 5_000 });
+        try {
+            await cleanup.connect();
+            await cleanup.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);
+        } finally {
+            await cleanup.end();
+        }
+    } finally {
+        if (connectDescriptor === undefined) Reflect.deleteProperty(Pool.prototype, 'connect');
+        else Object.defineProperty(Pool.prototype, 'connect', connectDescriptor);
+    }
 });
