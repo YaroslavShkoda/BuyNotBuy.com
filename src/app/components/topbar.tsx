@@ -27,18 +27,16 @@ export function formatUpdatedAt(timestamp: number, now: Date = new Date()): stri
 
 interface TopbarProps {
     updatedAt: number;
-    /** Display name of the current market, as the registry spells it; names the terminal subtitle. */
-    assetName?: string;
     /** Active instruments for the switcher; absent when the registry is unreachable. */
     markets?: MarketOption[];
 }
 
-export function Topbar({ updatedAt, assetName, markets = [] }: TopbarProps) {
-    // No hardcoded asset: an absent name means the registry has not spoken, and
-    // the subtitle then says what is true ("INTELLIGENCE TERMINAL") rather than
-    // what used to be true (that the only market was Bitcoin).
-    const subject = assetName === undefined ? null : assetName.toUpperCase();
-
+export function Topbar({ updatedAt, markets = [] }: TopbarProps) {
+    // The terminal is one product over every market the registry serves, so the
+    // subtitle names the product and not whichever instrument happens to be on
+    // screen. "BITCOIN INTELLIGENCE TERMINAL" was an artefact of Bitcoin being
+    // the only market once; the market's own name stays where it belongs — the
+    // hero, the switcher, the footer.
     return (
         <header className="topbar">
             <div className="topbar-brand">
@@ -54,9 +52,7 @@ export function Topbar({ updatedAt, assetName, markets = [] }: TopbarProps) {
 
                 <div className="topbar-brand-copy">
                     <span className="topbar-name">BuyNotBuy</span>
-                    <span className="topbar-subtitle">
-                        {subject === null ? 'INTELLIGENCE TERMINAL' : `${subject} INTELLIGENCE TERMINAL`}
-                    </span>
+                    <span className="topbar-subtitle">CRYPTO INTELLIGENCE TERMINAL</span>
                 </div>
             </div>
 
