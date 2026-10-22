@@ -220,10 +220,10 @@ export function MarketDetails({ candles, analysis, symbol, quote }: MarketDetail
                             <thead><tr><th>ВРЕМЯ</th><th>ЗАКРЫТИЕ</th><th>ДИАПАЗОН</th><th>ОБЪЁМ{quote !== null ? `, ${quote}` : ''}</th></tr></thead>
                             <tbody>{recent.map((candle) => (
                                 <tr key={candle.timestamp}>
-                                    <td>{new Date(candle.timestamp).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</td>
-                                    <td className={candle.close >= candle.open ? 'reading-positive' : 'reading-negative'}>{withQuote(candle.close, quote)}</td>
-                                    <td>{withQuote(candle.low, quote)} — {withQuote(candle.high, quote)}</td>
-                                    <td>{compactNumber(candle.volume)}</td>
+                                    <td><span className="candle-cell-label">ВРЕМЯ</span>{new Date(candle.timestamp).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</td>
+                                    <td className={candle.close >= candle.open ? 'reading-positive' : 'reading-negative'}><span className="candle-cell-label">ЗАКРЫТИЕ</span>{withQuote(candle.close, quote)}</td>
+                                    <td><span className="candle-cell-label">ДИАПАЗОН</span>{withQuote(candle.low, quote)} — {withQuote(candle.high, quote)}</td>
+                                    <td><span className="candle-cell-label">ОБЪЁМ</span>{compactNumber(candle.volume)}</td>
                                 </tr>
                             ))}</tbody>
                         </table>

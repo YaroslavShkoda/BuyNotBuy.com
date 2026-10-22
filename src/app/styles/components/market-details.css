@@ -47,7 +47,15 @@
 .divergence-block b { font-size: 11px; letter-spacing: .06em; }
 .divergence-block p { margin: 0; color: var(--color-text-secondary); font-size: 10px; line-height: 1.55; }
 
-.candle-table-wrap { margin-top: 27px; overflow-x: auto; }
+/* The wrap used to scroll (`overflow-x: auto`), which was the escape hatch for a
+   table whose cells refused to shrink: `white-space: nowrap` on every cell put
+   the four columns' min-content at ~274px — wider than the card below ~1200px,
+   and below 560px `min-width: 440px` made the scroll mandatory. With the cells
+   allowed to wrap (see `.candle-table td`) the columns' own min-content
+   collapses to the widest unbreakable token and the table fits its card at
+   every width; below 560px the rows restack with labels instead of scrolling.
+   The scroll is gone, not hidden — nothing is clipped either way. */
+.candle-table-wrap { margin-top: 27px; }
 
 /* The activity card is the one that has to match the height of the technical
    card beside it, and that height swings with the viewport because the left
@@ -66,8 +74,18 @@
 .candle-table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; text-align: left; }
 .candle-table th { padding: 0 9px 12px; color: var(--color-text-muted); font-size: 8px; font-weight: 700; letter-spacing: .1em; white-space: nowrap; }
 .candle-table th:first-child, .candle-table td:first-child { padding-left: 2px; }
-.candle-table td { padding: 13px 9px; border-top: 1px solid var(--color-border); color: var(--color-text-secondary); font-size: 10px; white-space: nowrap; }
+/* Cells wrap at spaces now. A price is a single token — "110,507.42" holds no
+   break opportunity — so digits never split; the quote currency and the " — "
+   of the range are what give, dropping to the next line before a cell could
+   push the table wider than its card. Measured against the tightest two-column
+   width (a 621px window lays the activity card out at ~221px): four columns of
+   digits plus padding come to ~195px, with room to spare, and the header row
+   keeps its nowrap because its words are short and single. */
+.candle-table td { padding: 13px 9px; border-top: 1px solid var(--color-border); color: var(--color-text-secondary); font-size: 10px; }
 .candle-table td:nth-child(2) { font-weight: 600; }
+/* Per-cell labels for the stacked phone layout; hidden for as long as the
+   table reads as a table and its header row does the naming. */
+.candle-cell-label { display: none; }
 .table-empty { padding: 20px 2px; color: var(--color-text-muted); font-size: 11px; }
 .activity-note { display: flex; align-items: center; gap: 8px; margin-top: 19px; color: var(--color-text-muted); font-size: 9px; line-height: 1.5; }
 .activity-note-dot { width: 6px; height: 6px; flex: 0 0 auto; border-radius: 50%; background: var(--color-long); box-shadow: 12px 0 var(--color-short); margin-right: 12px; }
@@ -78,36 +96,55 @@
 /* Inside the two-column band the card holding the four-column table takes the
    larger share, and the table's cells tighten up. Both exist for the same
    reason: `.app-shell` runs at `zoom: 1.30`, so the layout is computed in
-   coordinates 1.3x smaller than the screen. A 900px-wide window is really
-   ~500px of layout width, and the table's four columns do not fit in half of
-   that at the default cell padding — measured, they came out ~67px too wide at
-   900px and started scrolling inside the card. */
+   coordinates 1.3x smaller than the screen — a 900px window is really ~500px
+   of layout width. The band is now 800-960 only: below 800 the cards stack
+   (see the grid rule at 800), so the tighter ratio only has to carry
+   800-960px, where it holds with room to spare (measured: the activity card
+   gets ~370px at 960px, against the table's ~226px minimum). */
 @media (max-width: 960px) {
     .detail-grid {
         grid-template-columns: minmax(0, .82fr) minmax(0, 1.18fr);
-        /* Reclaimed from the gutter, straight into the table's card: measured,
-           this is the last ~8px the four columns were short by at 960px. */
+        /* Reclaimed from the gutter, straight into the table's card. */
         gap: 12px;
     }
 }
 
 /* The table's cells tighten as soon as the card can no longer hold them at
-   the default padding. Measured: 274px of columns, and the card drops under
-   that at roughly 1200px of window, so that is where the tightening starts. */
+   the default padding. The hard floor is the stack at 800px, but between 800
+   and 1200 the card still narrows toward the table's ~226px minimum, and the
+   reclaimed padding is what keeps the margin honest in that band. */
 @media (max-width: 1200px) {
     .candle-table th { padding-inline: 4px; }
     .candle-table td { padding-inline: 4px; }
 }
 
-/* The two cards sit side by side down to 620px and stack below that.
-   The threshold used to be 900px, which put a perfectly capable window —
-   anything from 620 to 900 — into a single column for no reason: the card on
-   the right is a four-column table that only starts needing 440px of its own
-   below 560px, and the card on the left wraps its rows happily. The two
-   breakpoints now line up instead of leaving a 340px band where the layout
-   gave up early. */
-@media (max-width: 620px) { .detail-grid { grid-template-columns: 1fr; } }
+/* The two cards sit side by side above 800px and stack below it.
+    The threshold used to be 620px, from when the table answered "too wide"
+    with a scrollbar: side by side, the narrower (right) card can offer its
+    table only ~200px of content at 768px and ~170px at 683px, while the four
+    columns — header words on one line, digits in single tokens — bottom out
+    at ~226px no matter how the cells wrap. Measured in a real browser, the
+    card's content width crosses 226px at ~800px of window, so that is where
+    side-by-side ends; below it the table gets the full shell width and fits
+    as a real table down to ~400px (241px of card at 390px). */
+@media (max-width: 800px) { .detail-grid { grid-template-columns: 1fr; } }
+/* Below 400px even the full shell cannot hold four columns of digits — the
+   card is ~187px at a 320px window against the table's ~226px floor — so the
+   table stops being a grid: each interval becomes a small block, the header
+   row retires, and every value carries its column label inline (the spans the
+   wide layout hides). Nothing scrolls and nothing is clipped — a stacked
+   block cannot overflow its row. The height stretch is switched off with the
+   pairing: a single-column page pairs no cards, so `height: 100%` has nothing
+   honest to fill. */
+@media (max-width: 400px) {
+    .detail-card-activity .candle-table { display: block; height: auto; }
+    .candle-table thead { display: none; }
+    .candle-table tbody { display: block; }
+    .detail-card-activity .candle-table tbody tr { display: block; height: auto; padding: 10px 0 12px; border-top: 1px solid var(--color-border); }
+    .detail-card-activity .candle-table tbody tr:first-child { border-top: 0; }
+    .candle-table td { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 3px 0; border-top: 0; }
+    .candle-cell-label { display: inline; flex: 0 0 auto; color: var(--color-text-muted); font-size: 8px; font-weight: 700; letter-spacing: .1em; }
+}
 @media (max-width: 560px) {
-    .candle-table { min-width: 440px; }
     .dashboard-footer { flex-direction: column; line-height: 1.6; }
 }

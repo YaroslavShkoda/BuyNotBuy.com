@@ -361,13 +361,16 @@
     white-space: nowrap;
 }
 
+/* Captions wrap instead of truncating. The grid's tracks are minmax(0, 1fr),
+   so a caption longer than its sixth of the card had nowhere to go: nowrap +
+   hidden overflow ellipsized it, and "типичная свеча" — the one line that says
+   what the median is — read as "типичная све…". A caption is the panel's
+   explanation, not a fit problem: it breaks at its space and the row, and the
+   framed card around the panel, grows by a line instead of hiding a word. */
 .volume-stat small {
     color: var(--color-text-dim);
     font-size: 9px;
     line-height: 1.35;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
 }
 
 @media (max-width: 1100px) {

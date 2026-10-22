@@ -75,7 +75,7 @@ export default async function MarketPage({
             <main className="app-shell">
                 <AutoRefresh />
 
-                <Topbar updatedAt={0} assetName={instrument} markets={marketLinks} />
+                <Topbar updatedAt={0} markets={marketLinks} />
 
                 <div className="content-stack">
                     <section className="state-card depth-surface">
@@ -117,7 +117,6 @@ export default async function MarketPage({
 
             <Topbar
                 updatedAt={analysis.timestamp}
-                assetName={market.instrument?.name ?? market.price.symbol}
                 markets={marketLinks}
             />
 
