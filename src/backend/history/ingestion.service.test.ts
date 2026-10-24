@@ -307,6 +307,19 @@ describe('startIngestionScheduler', () => {
 
         await scheduler?.ingest();
 
+        // The manual call and the poller's first cycle share one flight now,
+        // so the data lands as soon as the flight does - but the next period
+        // is scheduled in the cycle's bookkeeping, one microtask after that.
+        // Letting the queue drain before reading the timer is the assertion
+        // being about the schedule, not about which continuation ran first.
+        // (This used to pass by accident: the manual call used to start a
+        // second concurrent cycle, which is the two-writer race the release
+        // gate recorded, and one writer finishing early is not an ordering
+        // guarantee worth keeping.)
+        await new Promise<void>((resolve) => {
+            setImmediate(resolve);
+        });
+
         // Once an hour would mean the tick that misses the close loses that bar
         // for good, and the hole is indistinguishable from a quiet market.
         expect(timers.every((ms) => ms < HOUR)).toBe(true);

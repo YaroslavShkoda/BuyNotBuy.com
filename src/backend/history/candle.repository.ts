@@ -171,6 +171,17 @@ function closedPredicate(closedOnly: boolean): string {
  * A provider that revises a bar is saying something new about it, and the time
  * that revision arrived is part of the record. Keeping the first arrival would
  * make a table of revisions indistinguishable from a table of first readings.
+ *
+ * **The arbiter is the legacy identity, and that is load-bearing.** The table
+ * carries two unique indexes: this constraint and the instrument-keyed one
+ * from migration 23. `ON CONFLICT` arbitrates only the index it names - a
+ * concurrent insert that collides on the *other* one raises `23505` instead of
+ * waiting, which is how two writers racing the same bar (a manual `ingest()`
+ * beside a timer cycle, two processes across a restart) produced unique-
+ * violation errors from an upsert that is supposed to be idempotent. The
+ * trigger on this table pins `instrument_id` to the ticker's canonical row,
+ * so the two indexes are the same identity; arbitrating the one every row
+ * always collides on makes the conflict wait instead of error.
  */
 const UPSERT_SQL = `
     INSERT INTO market_candles (
@@ -178,7 +189,7 @@ const UPSERT_SQL = `
         open, high, low, close, volume, ingested_at, is_closed
     )
     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-    ON CONFLICT (instrument_id, provider, interval, timestamp) DO UPDATE SET
+    ON CONFLICT (provider, symbol, interval, timestamp) DO UPDATE SET
         open = EXCLUDED.open,
         high = EXCLUDED.high,
         low = EXCLUDED.low,
@@ -352,13 +363,13 @@ export function createCandleRepository(): CandleRepository {
 					);
 				}
 
-				const result = await query<{ timestamp: number }>(
-					`INSERT INTO market_candles (
+                const result = await query<{ timestamp: number }>(
+                    `INSERT INTO market_candles (
                         provider, symbol, interval, timestamp,
                         open, high, low, close, volume, ingested_at, is_closed
                     )
                     VALUES ${rows.join(", ")}
-                    ON CONFLICT (instrument_id, provider, interval, timestamp) DO UPDATE SET
+                    ON CONFLICT (provider, symbol, interval, timestamp) DO UPDATE SET
                         open = EXCLUDED.open,
                         high = EXCLUDED.high,
                         low = EXCLUDED.low,
@@ -368,8 +379,8 @@ export function createCandleRepository(): CandleRepository {
                         is_closed = EXCLUDED.is_closed
                     WHERE NOT (market_candles.is_closed AND NOT EXCLUDED.is_closed)
                     RETURNING timestamp`,
-					values,
-				);
+                    values,
+                );
 
 				written += result.rowCount ?? 0;
 			}
