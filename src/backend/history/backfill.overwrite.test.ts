@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+﻿﻿import { describe, expect, it } from 'vitest';
 import { seedTestInstrument } from '../test-support/test-database.js';
 import type { Candle } from '../types/market.js';
 import { runBackfill } from './backfill.service.js';
@@ -45,6 +45,8 @@ describe('the backfill counts what it overwrote', () => {
         // The venue hands back those three again, plus three older ones.
         const page = [bar(0), bar(1), bar(2), bar(3), bar(4), bar(5)];
         const provider = {
+            name: 'test',
+            symbol,
             getHistoricalCandles: async () => page,
             getAttributedCandles: async () => ({
                 venue: 'test',
@@ -81,6 +83,8 @@ describe('the backfill counts what it overwrote', () => {
         // Strictly older than anything stored: a pure gap fill.
         const page = [bar(3), bar(4), bar(5)];
         const provider = {
+            name: 'test',
+            symbol,
             getHistoricalCandles: async () => page,
             getAttributedCandles: async () => ({
                 venue: 'test',
@@ -110,6 +114,8 @@ describe('the backfill counts what it overwrote', () => {
 
         await seedTestInstrument(symbol);
         const provider = {
+            name: 'test',
+            symbol,
             getHistoricalCandles: async () => [],
             getAttributedCandles: async () => ({
                 venue: 'test',

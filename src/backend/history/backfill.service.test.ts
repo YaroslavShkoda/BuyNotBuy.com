@@ -98,6 +98,78 @@ function series(count: number, newest = NEWEST, step = HOUR): Candle[] {
 const repository = createCandleRepository();
 const now = () => NEWEST + 10 * HOUR;
 
+describe('a backfill that names a non-primary market', () => {
+    /** The same venue builder, answering for the market it was built for. */
+    function venueFor(
+        key: CandleSeriesKey,
+        series: readonly Candle[],
+        pageCap = Number.POSITIVE_INFINITY,
+    ): MarketDataProvider {
+        const source = venue(series, pageCap);
+
+        return {
+            ...source,
+            name: 'binance',
+            symbol: key.symbol,
+        };
+    }
+
+    it('stores that market\'s own bars, not the primary market\'s', async () => {
+        // ETH-scale closes in a BTC-scale fixture world: the exact shape the
+        // integrity audit caught when the backfill answered with the primary
+        // market's bars and wrote them under this key.
+        const eth: CandleSeriesKey = { ...BTC, symbol: 'ETHUSDT' };
+        const ethBars = series(20).map((candle, index) =>
+            bar(candle.timestamp, { close: 2400 + index }),
+        );
+        const provider = venueFor(eth, ethBars);
+
+        const result = await runBackfill({
+            key: eth,
+            until: NEWEST - 30 * HOUR,
+            repository,
+            provider,
+            now,
+            pageDelayMs: 0,
+        });
+
+        expect(result.written).toBe(ethBars.length);
+
+        const stored = await repository.getRange(
+            eth,
+            0,
+            NEWEST + 100 * HOUR,
+            { closedOnly: false },
+        );
+
+        expect(stored).toHaveLength(ethBars.length);
+        for (const row of stored) {
+            // The scale is the market's own, which is what "whose bars these
+            // are" looks like from the outside.
+            expect(row.close).toBeLessThan(5000);
+        }
+    });
+
+    it('refuses a provider that serves another market before writing', async () => {
+        const eth: CandleSeriesKey = { ...BTC, symbol: 'ETHUSDT' };
+        // The primary market's provider, injected against the second market's
+        // key: the wiring fault, caught at the door instead of in the table.
+        const primaryProvider = venueFor(BTC, series(10));
+
+        await expect(
+            runBackfill({
+                key: eth,
+                repository,
+                provider: primaryProvider,
+                now,
+                pageDelayMs: 0,
+            }),
+        ).rejects.toThrow(/serves BTCUSDT, which is not the series ETHUSDT/);
+
+        expect(await repository.count(eth, { closedOnly: false })).toBe(0);
+    });
+});
+
 describe('runBackfill', () => {
     it('fills a series to the target and stops there', async () => {
         const provider = venue(series(50), 10);

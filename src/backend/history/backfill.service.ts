@@ -1,6 +1,7 @@
 import { marketConfig } from '../config/market.config.js';
+import { ApplicationError } from '../errors/application.error.js';
 import { findCandleSeriesIssues } from '../market/candle-validation.js';
-import { marketDataProvider } from '../market/market.provider.js';
+import { marketProviderFor } from '../market/market.provider.js';
 import type { MarketDataProvider } from '../market/providers/market-data.provider.js';
 import type { Candle } from '../types/market.js';
 import type { CandleRepository, CandleSeriesKey } from './candle.repository.js';
@@ -165,7 +166,20 @@ export async function runBackfill(
     request: BackfillRequest,
 ): Promise<BackfillResult> {
     const repository = request.repository ?? candleRepository;
-    const provider = request.provider ?? marketDataProvider;
+    // **Resolved for the series being filled, not the primary market.**
+    //
+    // It was `marketDataProvider` - the primary market's singleton, bound to
+    // `marketConfig.symbol`. A backfill asked to fill `ETHUSDT` therefore
+    // fetched BTCUSDT bars from that singleton and wrote them under the
+    // ETHUSDT key: a thousand rows of one asset's prices stored as another's
+    // history, structurally valid, UTC-aligned, and wrong all the way down.
+    // Nothing downstream flags it - the bars pass every structural check -
+    // which is why the integrity audit had to find it instead of the code.
+    // Routed by the key's market, like the live ingestion path has been since
+    // it learned the same lesson.
+    const provider =
+        request.provider ??
+        marketProviderFor(request.key.symbol, request.key.interval);
     const now = request.now ?? Date.now;
     const sleep =
         request.sleep ??
@@ -174,6 +188,19 @@ export async function runBackfill(
     const delayMs = request.pageDelayMs ?? marketConfig.backfillPageDelayMs;
     const target = request.until ?? marketConfig.backfillFrom;
     const budget = request.maxCandles;
+
+    // A caller-injected provider that answers for another market is refused
+    // before the first page, for the same reason `ingestOnce` refuses one:
+    // a misfiled bar is correct-looking candles in another market's series.
+    // `getHistoricalCandles` returns bars without a symbol, so this check is
+    // the only place a mismatch can be caught - after it, the write path
+    // trusts the provider the way every check below trusts a validated bar.
+    if (provider.symbol !== request.key.symbol) {
+        throw new ApplicationError(
+            `Provider ${provider.name} serves ${provider.symbol}, which is not the series ${request.key.symbol}`,
+            { code: 'VALIDATION_ERROR', statusCode: 500 },
+        );
+    }
 
     let written = 0;
     let overwritten = 0;
