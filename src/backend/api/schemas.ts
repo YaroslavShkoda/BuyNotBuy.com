@@ -23,6 +23,18 @@ import { SIGNAL_DIRECTIONS } from '../types/direction.js';
  */
 const TradabilityReasonSchema = z.enum(TRADABILITY_REASONS);
 
+/**
+ * Every number the wire carries, made impossible to be a lie.
+ *
+ * `JSON.stringify` turns `NaN` and the Infinities into `null`, so a payload
+ * that let one through would arrive as an absent number and keep rendering -
+ * the chart would draw a gap as if it were a price. `z.number()` in zod 4
+ * already refuses `NaN`; `.finite()` refuses what is left, at the single
+ * point every response is parsed, and a violation surfaces as a refusal
+ * rather than as a nullified field.
+ */
+const finiteNumber = z.number().finite();
+
 export const IndicatorSignalSchema = z.enum(SIGNAL_DIRECTIONS);
 
 export const IndicatorKeySchema = z.enum(INDICATOR_KEYS);
@@ -32,28 +44,28 @@ const IndicatorAnalysisSchema = z.object({
     name: z.string(),
     signal: IndicatorSignalSchema,
     reason: z.string(),
-    weight: z.number().min(0).max(1),
+    weight: finiteNumber.min(0).max(1),
 });
 
 const SignalResultSchema = z.object({
     signal: IndicatorSignalSchema,
-    confidence: z.number().min(0).max(100),
+    confidence: finiteNumber.min(0).max(100),
     reason: z.string(),
     indicators: z.array(IndicatorAnalysisSchema),
 });
 
 const AssetPriceSchema = z.object({
     symbol: z.string(),
-    price: z.number(),
+    price: finiteNumber,
 });
 
 export const CandleSchema = z.object({
-    timestamp: z.number(),
-    open: z.number(),
-    high: z.number(),
-    low: z.number(),
-    close: z.number(),
-    volume: z.number(),
+    timestamp: finiteNumber,
+    open: finiteNumber,
+    high: finiteNumber,
+    low: finiteNumber,
+    close: finiteNumber,
+    volume: finiteNumber,
 });
 
 export const MarketDataSchema = z.object({
@@ -104,30 +116,30 @@ export const MarketResponseSchema = MarketDataSchema.extend({
 });
 
 const MarketIndicatorsSchema = z.object({
-    ema300: z.number(),
-    stochastic: z.number(),
-    momentum: z.number(),
-    atr: z.number().min(0),
-    rsi: z.number().min(0).max(100),
+    ema300: finiteNumber,
+    stochastic: finiteNumber,
+    momentum: finiteNumber,
+    atr: finiteNumber.min(0),
+    rsi: finiteNumber.min(0).max(100),
     macd: z.object({
-        macd: z.number(),
-        signal: z.number(),
-        histogram: z.number(),
+        macd: finiteNumber,
+        signal: finiteNumber,
+        histogram: finiteNumber,
     }),
 });
 
 const MomentumAnalysisSchema = z.object({
-    period: z.number(),
-    current: z.number(),
-    series: z.array(z.number().nullable()),
+    period: finiteNumber,
+    current: finiteNumber,
+    series: z.array(finiteNumber.nullable()),
 });
 
 const DivergencePointSchema = z.object({
-    index: z.number().int().min(0),
-    confirmedAtIndex: z.number().int().min(0),
-    age: z.number().int().min(0),
-    price: z.number(),
-    momentum: z.number(),
+    index: finiteNumber.int().min(0),
+    confirmedAtIndex: finiteNumber.int().min(0),
+    age: finiteNumber.int().min(0),
+    price: finiteNumber,
+    momentum: finiteNumber,
 });
 
 const DivergenceResultSchema = z.object({
@@ -143,51 +155,51 @@ export const DivergenceAnalysisSchema = z.object({
 
 export const MarketAnalysisSchema = z.object({
     interval: CandleIntervalSchema,
-    timestamp: z.number(),
-    price: z.number(),
+    timestamp: finiteNumber,
+    price: finiteNumber,
     indicators: MarketIndicatorsSchema,
     signal: SignalResultSchema,
     momentum: MomentumAnalysisSchema,
     divergence: DivergenceAnalysisSchema,
     periods: z.object({
-        ema: z.number(),
-        stochastic: z.number(),
-        momentum: z.number(),
-        atr: z.number(),
-        rsi: z.number(),
-        macdFast: z.number(),
-        macdSlow: z.number(),
-        macdSignal: z.number(),
+        ema: finiteNumber,
+        stochastic: finiteNumber,
+        momentum: finiteNumber,
+        atr: finiteNumber,
+        rsi: finiteNumber,
+        macdFast: finiteNumber,
+        macdSlow: finiteNumber,
+        macdSignal: finiteNumber,
     }),
 });
 
 const SignalHistoryEntrySchema = z.object({
-    timestamp: z.number(),
+    timestamp: finiteNumber,
     symbol: z.string(),
     /** The series the entry belongs to; every table row already carries it. */
     interval: z.string(),
     signal: IndicatorSignalSchema,
-    consensus: z.number().min(0).max(100),
-    price: z.number(),
+    consensus: finiteNumber.min(0).max(100),
+    price: finiteNumber,
 });
 
 const SignalHistoryLastTransitionSchema = z.object({
     from: IndicatorSignalSchema,
     to: IndicatorSignalSchema,
-    timestamp: z.number(),
+    timestamp: finiteNumber,
 });
 
 const SignalHistorySummarySchema = z.object({
     currentSignal: IndicatorSignalSchema.nullable(),
     // Durations are elapsed hours, so a run that started within the current
     // hour legitimately measures zero.
-    currentDurationHours: z.number().int().min(0).nullable(),
+    currentDurationHours: finiteNumber.int().min(0).nullable(),
     currentDurationBounded: z.boolean(),
-    changes24h: z.number().int().min(0),
+    changes24h: finiteNumber.int().min(0),
     lastTransition: SignalHistoryLastTransitionSchema.nullable(),
-    previousDurationHours: z.number().int().min(0).nullable(),
+    previousDurationHours: finiteNumber.int().min(0).nullable(),
     previousDurationBounded: z.boolean(),
-    sampleHours: z.number().int().min(0),
+    sampleHours: finiteNumber.int().min(0),
 });
 
 export const SignalHistoryResponseSchema = z.object({
