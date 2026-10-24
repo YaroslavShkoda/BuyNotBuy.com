@@ -149,7 +149,18 @@ export function registerHealthRoutes(app: FastifyInstance): void {
     app.get('/healthz', async (request, reply) => {
         withRequestId(reply, request);
 
-        return reply.status(200).send({ status: 'ok' });
+        // Provenance travels with liveness when the deployment declares it:
+        // an instance that cannot say which commit it runs is a rollback whose
+        // own evidence is missing. Absent `DEPLOY_SHA` the payload stays
+        // exactly what liveness has always been - the probe answer nothing
+        // else, and no operator should learn the shape of a response has
+        // changed from a deploy that never set the variable.
+        const deploySha = process.env.DEPLOY_SHA?.trim();
+
+        return reply.status(200).send({
+            status: 'ok',
+            ...(deploySha ? { deploySha } : {}),
+        });
     });
 
     /**
