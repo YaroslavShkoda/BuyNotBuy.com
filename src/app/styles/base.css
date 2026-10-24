@@ -58,6 +58,25 @@ a {
     font-variant-numeric: tabular-nums;
 }
 
+/*
+ * Content that must reach a screen reader without taking a pixel of layout:
+ * the chart's data alternative and any other figure that exists as numbers
+ * but is drawn as shapes. Removed from view rather than hidden, because
+ * `display: none` and `visibility: hidden` would remove it from the reading
+ * order too — and a table that is not read is not an alternative.
+ */
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    border: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
 @media (prefers-reduced-motion: reduce) {
     html {
         scroll-behavior: auto;

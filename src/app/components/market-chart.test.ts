@@ -270,3 +270,59 @@ describe('chart markup wires the interval captions', () => {
         expect(markup).toContain('aria-current="page"');
     });
 });
+
+describe('the chart data alternative', () => {
+    function renderChart(
+        candles: Candle[],
+        quote: string | null = 'USDT',
+    ): string {
+        return renderToStaticMarkup(
+            createElement(MarketChart, {
+                candles,
+                symbol: 'BTCUSDT',
+                quote,
+                ema300: 90_000,
+                interval: '1h',
+            }),
+        );
+    }
+
+    it('offers the figures behind the line as an openable table', () => {
+        const candles = Array.from({ length: 60 }, (_, index) =>
+            makeTimedCandle(index, 80_000 + index),
+        );
+        const markup = renderChart(candles);
+
+        // A disclosure, not a hidden div: openable by touch, no hover needed.
+        expect(markup).toContain('chart-data-alternative');
+        expect(markup).toContain('<summary>');
+        expect(markup).toContain('Данные графика в виде таблицы');
+        // The reader is told whose figures these are and how many.
+        expect(markup).toContain('Последние 48 свечей BTCUSDT');
+        // One row per visible candle, the same window the line draws.
+        expect(markup.match(/<tr>/g)?.length ?? 0).toBe(49); // thead + 48 rows
+        expect(markup).toContain('scope="col"');
+    });
+
+    it('carries the quote and the formatted figures in the rows', () => {
+        const candles = Array.from({ length: 50 }, (_, index) =>
+            makeTimedCandle(index, 80_000 + index),
+        );
+        const markup = renderChart(candles);
+
+        // The close in the page's own number style (ru-RU: space grouping,
+        // comma decimal), with the quote named in every row.
+        expect(markup).toContain('<td>');
+        expect(markup).toContain('USDT</td>');
+        // The volume in the same compact notation the stats panel uses
+        // (ru-RU joins the number and "тыс." with a narrow space).
+        expect(markup).toMatch(/<td>1[\s\u00a0\u202f]?тыс\.<\/td>/);
+    });
+
+    it('stays away when there is nothing to tabulate', () => {
+        const markup = renderChart([]);
+
+        expect(markup).not.toContain('chart-data-alternative');
+        expect(markup).toContain('table-empty');
+    });
+});

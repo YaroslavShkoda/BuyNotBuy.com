@@ -399,6 +399,65 @@ export function MarketChart({ candles, symbol, quote, ema300, interval }: Market
         />
     </div>
         <VolumeStats candles={visibleCandles} quote={quote} windowLabel={windowLabel} />
+        <ChartDataAlternative
+            candles={visibleCandles}
+            symbol={symbol}
+            quote={quote}
+            interval={interval}
+        />
         </section>
+    );
+}
+
+/**
+ * The chart's numbers, as a table a screen reader can walk and a disclosure a
+ * finger can open.
+ *
+ * The line above answers "what did the market do" to the eye; `role="img"` on
+ * the SVG says exactly that much and no more to the ear. The figures behind
+ * it — one row per visible candle, the same window the line draws — are the
+ * alternative the image owes its readers. A `<details>` rather than a hidden
+ * div, because the alternative is for touch as much as for assistive tech: it
+ * must be openable on an iPhone with one tap, without JavaScript and without
+ * a hover that touch does not have.
+ */
+function ChartDataAlternative({
+    candles,
+    symbol,
+    quote,
+    interval,
+}: {
+    candles: Candle[];
+    symbol: string;
+    quote: string | null;
+    interval: CandleInterval;
+}) {
+    const quoted = quote === null ? '' : ` ${quote}`;
+
+    return (
+        <details className="chart-data-alternative">
+            <summary>Данные графика в виде таблицы</summary>
+            <table>
+                <caption className="visually-hidden">
+                    Последние {candles.length} свечей {symbol}, шаг {candleStepLabel(interval)}
+                </caption>
+                <thead>
+                    <tr>
+                        <th scope="col">Время</th>
+                        <th scope="col">Закрытие</th>
+                        <th scope="col">Объём</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {candles.map((candle) => (
+                        <tr key={candle.timestamp}>
+                            <td>{formatCandleTime(candle.timestamp)}</td>
+                            <td>{PRICE.format(candle.close)}{quoted}</td>
+                            <td>{COMPACT_VOLUME.format(candle.volume)}</td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        </details>
     );
 }
