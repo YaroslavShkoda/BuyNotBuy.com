@@ -70,9 +70,10 @@ strategy policy. Backtest execution assumptions and walk-forward settings are
 printed/recorded with the run; invalid numeric CLI values now fail instead of
 being silently ignored. The optional `ASSET_REGISTRY`, `MARKET_SYMBOLS`, and
 `MARKET_VENUE_CAPABILITIES` inputs are documented at their use sites in
-`.env.example`. Test-only `MARKET_ALLOW_MOCK`, process markers, and
-`DATABASE_URL` overrides used by test support are intentionally absent from the
-deployment example.
+`.env.example`, and the procedure for serving a second market is the
+`docs/ethusdt-activation.md` gate. Test-only `MARKET_ALLOW_MOCK`, process
+markers, and `DATABASE_URL` overrides used by test support are intentionally
+absent from the deployment example.
 
 ## Migration rule
 
