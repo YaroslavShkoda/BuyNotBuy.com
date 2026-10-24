@@ -4,6 +4,14 @@ import { type Stage3ValidationResult, validateStage3Input } from './validation.j
 
 export const MARGIN_CANONICALIZATION_VERSION = 'margin-canonical-json/1';
 const MAX_JSON_BYTES = 16_384;
+// Depth is measured on the parsed tree, not on the text, and the root sits at
+// depth 0. The limit is inclusive: the deepest admissible node is at depth 32,
+// so a document may span thirty-three node levels; a leaf at depth 33 - the
+// thirty-fourth level - rejects with JSON_LIMIT_EXCEEDED before schema
+// validation runs. This boundary is frozen: relaxing either the constant or
+// the comparison below would change which documents are admissible, and with
+// them every identity, fingerprint and recorded corpus vector built on
+// margin-canonical-json/1.
 const MAX_JSON_DEPTH = 32;
 const MAX_JSON_NODES = 4_096;
 

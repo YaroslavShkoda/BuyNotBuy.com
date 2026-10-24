@@ -89,6 +89,20 @@ describe('JSON text trust boundary', () => {
         expect(canonicalizeMarginJson('[' + Array(4095).fill('0').join(',') + ']').ok).toBe(true);
     });
 
+    it('pins depth semantics exactly: root at depth 0, thirty-three levels admissible, the thirty-fourth rejects', () => {
+        const nested = (levels: number): string => '['.repeat(levels) + '0' + ']'.repeat(levels);
+        const objects = (levels: number): string => `${'{"a":'.repeat(levels)}0${'}'.repeat(levels)}`;
+        // Thirty-two containers put the leaf at depth 32 - the thirty-third node
+        // level - and stay admissible, whatever the container kind.
+        expect(value(canonicalizeMarginJson(nested(32)))).toBe(nested(32));
+        expect(value(canonicalizeMarginJson(objects(32)))).toBe(objects(32));
+        // A leaf at depth 33 is the thirty-fourth level and crosses the limit
+        // ahead of schema validation, on every entry point into the parser.
+        expect(canonicalizeMarginJson(nested(33))).toEqual({ ok: false, error: { code: 'JSON_LIMIT_EXCEEDED' } });
+        expect(canonicalizeMarginJson(objects(33))).toEqual({ ok: false, error: { code: 'JSON_LIMIT_EXCEEDED' } });
+        expect(prepareMarginInputJson(nested(33))).toEqual({ kind: 'invalid_json', code: 'JSON_LIMIT_EXCEEDED' });
+    });
+
     it('does not issue input handles for malformed, unsupported or extended model documents', () => {
         const cross = baseline();
         Object.assign(cross.snapshot, { marginMode: 'cross' });
