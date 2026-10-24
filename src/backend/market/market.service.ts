@@ -134,11 +134,29 @@ export function resetMarketDataCache(): void {
  * is an additional series on the same metric. Two entries in a map per cache event
  * is the price of a metric that keeps its name and also answers "which market".
  */
+/**
+ * The market a cache event may be labelled with.
+ *
+ * `countCacheEvent` is reached with the ticker a client typed, and a client
+ * may type anything: a null byte, an emoji, three hundred letters. The
+ * registry refuses a label that could corrupt a scrape, and is right to -
+ * but the refusal must not be reachable from a request, so the label is
+ * reduced to the exposition-safe alphabet before the registry ever sees it.
+ * Legitimate tickers are alphanumeric and pass through unchanged; a hostile
+ * one collapses into underscores and costs the metrics their per-market
+ * granularity, not the route its availability.
+ */
+const METRIC_LABEL_UNSAFE = /[^a-zA-Z0-9_.:\-/]/g;
+
+function marketMetricLabel(market: string): string {
+    return market.replace(METRIC_LABEL_UNSAFE, '_').slice(0, 64);
+}
+
 function countCacheEvent(name: string, market: string): void {
     const registry = currentRegistry();
 
     registry.counter(name);
-    registry.counter(name, 1, { market });
+    registry.counter(name, 1, { market: marketMetricLabel(market) });
 }
 
 export async function getMarketData(

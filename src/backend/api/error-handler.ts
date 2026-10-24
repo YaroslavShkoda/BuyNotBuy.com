@@ -6,7 +6,7 @@ import { ProviderError } from '../errors/provider.error.js';
 import { readAnalysisErrorContext } from '../services/analysis.telemetry.js';
 import type { ApiErrorResponse } from './error-handler.types.js';
 
-const PUBLIC_MESSAGES: Record<ErrorCode, string> = {
+export const PUBLIC_MESSAGES: Record<ErrorCode, string> = {
     MARKET_DATA_UNAVAILABLE: 'Market data is temporarily unavailable',
     MARKET_PROVIDER_ERROR: 'Market data provider unavailable',
     MARKET_PROVIDER_TIMEOUT: 'Market data provider timed out',
@@ -40,7 +40,7 @@ const REQUEST_ERROR_STATUS: Record<string, number> = {
     FST_ERR_BAD_HOST: 400,
 };
 
-function requestErrorStatus(error: unknown): number | undefined {
+export function requestErrorStatus(error: unknown): number | undefined {
     const code =
         typeof error === 'object' && error !== null && 'code' in error
             ? (error as { code?: unknown }).code

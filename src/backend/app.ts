@@ -1,5 +1,9 @@
+import type { FastifyReply } from 'fastify';
 import Fastify from 'fastify';
-import { registerErrorHandler } from './api/error-handler.js';
+import {
+    PUBLIC_MESSAGES,
+    registerErrorHandler,
+} from './api/error-handler.js';
 import { redactLogMethod } from './api/lib/redaction.js';
 import { applyCorsHeaders, registerPreflight } from './api/middleware/cors.js';
 import { registerRateLimit } from './api/middleware/rate-limit.plugin.js';
@@ -34,6 +38,34 @@ export function createApp(logDestination?: NodeJS.WritableStream) {
         // the header: trusting a client-supplied one would let anyone rotate
         // their apparent address and bypass the rate limit.
         trustProxy: appConfig.trustProxy,
+        // Routing-stage failures - a URL a parameter cap refuses, a malformed
+        // URL - never reach `setErrorHandler`, so without this they leave in
+        // Fastify's own envelope and every client parsing our error shape has
+        // to special-case exactly the request nobody wrote on purpose. Same
+        // treatment as the handler-stage table below: the client's status when
+        // Fastify has one, the client's envelope always.
+        frameworkErrors: (error, request, reply) => {
+            const status =
+                typeof error.statusCode === 'number' &&
+                error.statusCode >= 400 &&
+                error.statusCode < 500
+                    ? error.statusCode
+                    : 400;
+
+            request.log.error(
+                { event: 'request_failed', code: 'INVALID_REQUEST', err: error },
+                'request_failed',
+            );
+
+            // The framework-error reply generic has no route schema to narrow
+            // against; the default reply type is the one that takes a number.
+            return (reply as FastifyReply).status(status).send({
+                error: {
+                    code: 'INVALID_REQUEST',
+                    message: PUBLIC_MESSAGES.INVALID_REQUEST,
+                },
+            });
+        },
     });
 
     // Security headers go on first so they are present even when a later hook
