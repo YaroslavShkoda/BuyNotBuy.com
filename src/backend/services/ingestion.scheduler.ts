@@ -63,12 +63,36 @@ export function startIngestionScheduler(
 
     const ingest = (): Promise<IngestionResult> => ingestOnce(options);
 
+    /**
+     * One flight for the scheduled cycle and a manual call alike.
+     *
+     * The poller never overlaps itself, but `ingest()` went around that guard:
+     * a script or a test calling it while a cycle was in the air produced two
+     * concurrent `ingestOnce` runs over the same series - two writers racing
+     * the same bar rows, surfacing under load as a unique-constraint failure
+     * from a write path that is supposed to be idempotent. Sharing the flight
+     * makes the second caller wait for the first and hand back the same
+     * result, which is what "never overlapping itself" promised and, for this
+     * entry point, did not deliver.
+     */
+    let inFlight: Promise<IngestionResult> | null = null;
+
+    const runOnce = (): Promise<IngestionResult> => {
+        if (inFlight === null) {
+            inFlight = ingest().finally(() => {
+                inFlight = null;
+            });
+        }
+
+        return inFlight;
+    };
+
     const poller = startPoller({
         intervalMs: ingestionPeriodMs(
             options.intervalMs,
             options.maxPeriodMs ?? Number.POSITIVE_INFINITY,
         ),
-        run: ingest,
+        run: runOnce,
         logger: options.logger,
         ...(options.shouldRun === undefined
             ? {}
@@ -81,5 +105,7 @@ export function startIngestionScheduler(
             : { clearTimer: options.clearTimer }),
     });
 
-    return Object.assign(poller, { ingest });
+    return Object.assign(poller, {
+        ingest: (): Promise<IngestionResult> => runOnce(),
+    });
 }
