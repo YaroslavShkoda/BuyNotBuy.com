@@ -1,0 +1,120 @@
+groups:
+  - name: buynotbuy-provider
+    rules:
+      # Circuit open anywhere = a venue has been pronounced down. Page: the
+      # fallback is carrying traffic, but one more venue failure is a client-
+      # visible outage. (runbook.md, threshold validated 24.10.2026)
+      - alert: ProviderCircuitOpen
+        expr: buynotbuy_provider_circuit_open > 0
+        for: 5m
+        labels:
+          severity: page
+        annotations:
+          summary: "Circuit open on {{ $labels.market }} at {{ $labels.provider }}"
+          runbook: docs/runbook.md#1
+
+      - alert: ProviderErrorRateHigh
+        expr: buynotbuy_provider_error_rate > 0.5
+        for: 10m
+        labels:
+          severity: page
+        annotations:
+          summary: "Provider error rate > 50% on {{ $labels.market }}/{{ $labels.provider }}"
+          runbook: docs/runbook.md#1
+
+      - alert: ProviderRateLimited
+        expr: increase(buynotbuy_provider_rate_limits[24h]) > 3
+        labels:
+          severity: ticket
+        annotations:
+          summary: "More than 3 provider 429s in 24h on {{ $labels.market }}/{{ $labels.provider }}"
+          runbook: docs/runbook.md#1
+
+      - alert: ProviderRetriesElevated
+        expr: increase(buynotbuy_provider_retries[15m]) > 10
+        labels:
+          severity: ticket
+        annotations:
+          summary: "Retries elevated on {{ $labels.market }}/{{ $labels.provider }}"
+          runbook: docs/runbook.md#2
+
+  - name: buynotbuy-market
+    rules:
+      # A stale snapshot served to a client means the providers failed and the
+      # cache kept the page honest. Any occurrence inside 5m is an incident in
+      # progress, not a number to watch. (runbook.md)
+      - alert: MarketStaleServed
+        expr: increase(buynotbuy_market_stale_served[5m]) > 0
+        labels:
+          severity: page
+        annotations:
+          summary: "Stale snapshot served for {{ $labels.market }}"
+          runbook: docs/runbook.md#3
+
+      - alert: MarketCycleFailing
+        expr: increase(buynotbuy_market_cycle_failures[15m]) > 0
+        labels:
+          severity: page
+        annotations:
+          summary: "Market observation cycle failing on {{ $labels.market }}"
+          runbook: docs/runbook.md#1
+
+  - name: buynotbuy-api
+    rules:
+      # 5xx over 2% of traffic for 10 minutes = a server-side problem class,
+      # not client noise. 4xx stays out of this alert on purpose.
+      - alert: ApiServerErrorRate
+        expr: |
+          sum(increase(buynotbuy_requests_by_status_class_total{status_class="5xx"}[10m]))
+          /
+          clamp_min(sum(increase(buynotbuy_requests_total[10m])), 1)
+          > 0.02
+        for: 10m
+        labels:
+          severity: page
+        annotations:
+          summary: "5xx share above 2% for 10m"
+          runbook: docs/runbook.md
+
+      - alert: RequestsStuckInFlight
+        expr: buynotbuy_requests_in_flight > 20
+        for: 5m
+        labels:
+          severity: ticket
+        annotations:
+          summary: "More than 20 requests in flight for 5m"
+          runbook: docs/runbook.md
+
+  - name: buynotbuy-pipeline
+    rules:
+      # The signal loop must tick roughly once per market observation cycle.
+      # Flat for two hours is a silent stop, which is exactly the failure a
+      # dashboard cannot show and only this alert can.
+      - alert: SignalGenerationStalled
+        expr: increase(buynotbuy_signal_generation_total[2h]) == 0
+        for: 0m
+        labels:
+          severity: page
+        annotations:
+          summary: "No signal generated in 2h"
+          runbook: docs/runbook.md
+
+      - alert: WriteBacklogDropped
+        expr: increase(buynotbuy_write_backlog_signal_history_dropped_total[5m]) > 0
+          or increase(buynotbuy_write_backlog_indicator_vote_dropped_total[5m]) > 0
+          or increase(buynotbuy_write_backlog_strategy_decision_dropped_total[5m]) > 0
+        labels:
+          severity: page
+        annotations:
+          summary: "Write backlog dropped records - data is being lost"
+          runbook: docs/runbook.md#5
+
+      - alert: WriteBacklogSpooling
+        expr: increase(buynotbuy_write_backlog_signal_history_spooled[15m]) > 0
+          or increase(buynotbuy_write_backlog_indicator_vote_spooled[15m]) > 0
+          or increase(buynotbuy_write_backlog_strategy_decision_spooled[15m]) > 0
+        labels:
+          severity: ticket
+        annotations:
+          summary: "Records spooled to disk - database writes failing"
+          runbook: docs/runbook.md#5
