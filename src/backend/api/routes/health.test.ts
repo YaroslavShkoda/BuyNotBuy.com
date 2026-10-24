@@ -106,6 +106,20 @@ describe('liveness', () => {
         expect(response.json()).toEqual({ status: 'ok' });
     });
 
+    it('carries the deploy provenance when the deployment declares it', async () => {
+        vi.stubEnv('DEPLOY_SHA', 'efa9681abc');
+
+        const response = await track(createApp()).inject({
+            method: 'GET',
+            url: '/healthz',
+        });
+
+        expect(response.statusCode).toBe(200);
+        expect(response.json()).toEqual({ status: 'ok', deploySha: 'efa9681abc' });
+
+        vi.unstubAllEnvs();
+    });
+
     it('stays up when the database is unreadable', async () => {
         historyRepository.schemaVersion.mockRejectedValue(
             new Error('connect ECONNREFUSED 127.0.0.1:5432'),
