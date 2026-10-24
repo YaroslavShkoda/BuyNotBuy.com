@@ -1,4 +1,4 @@
-﻿import Fastify from 'fastify';
+import Fastify from 'fastify';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -15,7 +15,7 @@ import type { MarketDataProvider } from './providers/market-data.provider.js';
  * The symbol and series checks in `market.service.ts` are tested against a
  * provider asked directly. What those tests cannot see is the case that only
  * exists **because** failover happened: the primary is down, the backup
- * answers, and the backup is wrong вЂ” a different ticker's series, or a series
+ * answers, and the backup is wrong - a different ticker's series, or a series
  * with a hole in it. The refusal then has to survive the switch: nothing the
  * backup said may reach a caller or the cache, and the failure must name the
  * venue that actually produced it, because "failover" is the moment a wrong
@@ -33,10 +33,14 @@ vi.mock('./market.provider.js', () => ({
             name: 'binance',
             symbol: 'BTCUSDT',
             getPrice: vi.fn(async () => {
-                throw new ProviderError('unavailable', 'binance is unreachable', { context: { provider: 'binance' } });
+                throw new ProviderError('unavailable', 'binance is unreachable', {
+                    context: { provider: 'binance' },
+                });
             }),
             getCandles: vi.fn(async () => {
-                throw new ProviderError('unavailable', 'binance is unreachable', { context: { provider: 'binance' } });
+                throw new ProviderError('unavailable', 'binance is unreachable', {
+                    context: { provider: 'binance' },
+                });
             }),
             getAttributedCandles: vi.fn(async () => {
                 throw new ProviderError('unavailable', 'binance is unreachable', {
