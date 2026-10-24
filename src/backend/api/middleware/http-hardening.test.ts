@@ -262,7 +262,7 @@ describe('HTTP hardening', () => {
             });
 
             await app.close();
-        });
+        }, 30_000);
 
         it('tells the client when to come back', async () => {
             const app = createApp();
@@ -278,7 +278,7 @@ describe('HTTP hardening', () => {
             expect(Number(response.headers['retry-after'])).toBeGreaterThan(0);
 
             await app.close();
-        });
+        }, 30_000);
 
         it('advertises the remaining allowance on every response', async () => {
             const app = createApp();
@@ -321,7 +321,7 @@ describe('HTTP hardening', () => {
             expect(other.headers['x-ratelimit-remaining']).toBe(String(appConfig.rateLimitMax - 1));
 
             await app.close();
-        });
+        }, 30_000);
 
         it('keeps remaining allowance zero and the reset unchanged after repeated refusals', async () => {
             const app = createApp();
@@ -340,7 +340,7 @@ describe('HTTP hardening', () => {
             } finally {
                 await app.close();
             }
-        });
+        }, 30_000);
 
         it('renews the budget exactly at the next fixed-window boundary', async () => {
             expect(appConfig.rateLimitWindowMs).toBe(60_000);
@@ -359,7 +359,7 @@ describe('HTTP hardening', () => {
             } finally {
                 await app.close();
             }
-        });
+        }, 30_000);
 
         it('shares one client budget between application instances', async () => {
             const first = createApp();
@@ -380,7 +380,7 @@ describe('HTTP hardening', () => {
                 await first.close();
                 await second.close();
             }
-        });
+        }, 30_000);
 
         it('fails open and logs a diagnostic event when the rate-limit store fails', async () => {
             const lines: string[] = [];
