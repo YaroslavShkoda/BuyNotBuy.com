@@ -125,15 +125,20 @@ describe('production modules with no production caller', () => {
         // capabilities nobody had asked for rather than features with a bug in
         // them. That is the honest reading, and it is the opposite of what I would
         // have written if I had deleted first and measured after.
-        // Stage 3 is intentionally implemented and audited before its assessment
-        // builder or API integration. These are its two current library roots,
-        // not missing live-trading wiring. Keep exact equality: a new stranded
-        // module, or connecting one of these roots, requires explicit review.
+        // Stage 3 was implemented and audited before its assessment builder;
+        // while it was, `identity.ts` and `ratios-leverage.ts` were pinned here
+        // as its two deliberate library roots, and connecting either one
+        // required explicit review. That review is on record below.
         // Do not exclude the Stage 3 directory from graph construction.
-        expect(stranded).toEqual([
-            'risk/stage3/identity.ts',
-            'risk/stage3/ratios-leverage.ts',
-        ]);
+        // Stage 3 was intentionally implemented and audited before its
+        // assessment builder or API integration. Its two library roots were
+        // connected deliberately by the S3-11 assessment builder
+        // (`risk/stage3/assessment-builder.ts`, itself reached by the read-only
+        // `research/margin-assessment.cli.ts`): `identity.ts` supplies the
+        // pinned provenance, `ratios-leverage.ts` the ratio metrics. That
+        // connection is the explicit review this pin asked for, so the list
+        // returns to empty; a new stranded module must still fail here.
+        expect(stranded).toEqual([]);
 
         // **Everything the roadmap asked for in M1 is now connected.**
         //
