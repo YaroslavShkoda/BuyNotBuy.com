@@ -36,6 +36,13 @@ import { getPool } from './pool.js';
 const LEASE_NAMESPACE = 0x6c656173;
 
 const TRY_LOCK = 'SELECT pg_try_advisory_lock($1, $2) AS locked';
+// Checking must not acquire again: advisory locks are re-entrant, so calling
+// TRY_LOCK every tick stacks acquisitions which one unlock cannot release.
+const CHECK_LOCK = `SELECT EXISTS (
+    SELECT 1 FROM pg_locks WHERE locktype = 'advisory'
+      AND pid = pg_backend_pid() AND classid = $1::oid AND objid = $2::oid
+      AND objsubid = 2 AND granted
+) AS locked`;
 const UNLOCK = 'SELECT pg_advisory_unlock($1, $2) AS unlocked';
 
 /** FNV-1a: a lease name becomes the advisory lock's second key. */
@@ -94,7 +101,13 @@ export function createLease(options: LeaseOptions): Lease {
     // for as long as it leads — one connection is the price of owning the
     // lock — and a contender parks nothing: it checks a client out, asks, and
     // hands it straight back.
-    let client: PoolClient | null = null;
+    interface Session {
+        target: PoolClient;
+        released: boolean;
+        failure: Error | null;
+        onError: (error: Error) => void;
+    }
+    let client: Session | null = null;
 
     // The analysis poller and every ingestion scheduler share this lease but
     // tick on different intervals, so their gate checks can overlap in time.
@@ -118,24 +131,52 @@ export function createLease(options: LeaseOptions): Lease {
     async function tryLockOn(target: PoolClient): Promise<boolean> {
         const result = await target.query<{ locked: boolean }>(TRY_LOCK, lockArgs);
 
-        // Re-entrant per session: a holder asking again gets `true` in one
-        // query, which is what makes the per-tick verify this cheap.
+        // Acquire exactly once on this newly borrowed session. Later ticks
+        // inspect pg_locks rather than increasing the re-entrant lock depth.
         return result.rows[0]?.locked === true;
     }
 
-    function dropBroken(target: PoolClient, error: unknown): void {
-        // A client whose query failed is a client whose session is gone or
-        // going; handing it back with the error lets the pool retire it.
-        target.release(error instanceof Error ? error : undefined);
+    function giveBack(session: Session, error?: Error): void {
+        if (session.released) return;
+        session.released = true;
+        session.target.removeListener('error', session.onError);
+        if (error === undefined) session.target.release();
+        else session.target.release(error);
+    }
+
+    function dropBroken(session: Session, error: unknown): void {
+        session.failure ??= error instanceof Error ? error : new Error('Lease connection lost');
+        if (client === session) client = null;
+        giveBack(session, session.failure);
+    }
+
+    function watch(target: PoolClient): Session {
+        const session: Session = {
+            target,
+            released: false,
+            failure: null,
+            onError: (error) => {
+                dropBroken(session, error);
+                options.logger.error(
+                    { event: 'lease_lost', key: options.key },
+                    'lease_lost',
+                );
+            },
+        };
+        // A borrowed client has no pool idle-error listener. Watch it before
+        // the first query, including errors between queries while parked.
+        target.on('error', session.onError);
+        return session;
     }
 
     async function acquire(): Promise<boolean> {
-        const fresh = await connect();
+        const fresh = watch(await connect());
 
         let locked: boolean;
 
         try {
-            locked = await tryLockOn(fresh);
+            locked = await tryLockOn(fresh.target);
+            if (fresh.failure !== null) throw fresh.failure;
         } catch (error) {
             dropBroken(fresh, error);
             throw error;
@@ -146,7 +187,7 @@ export function createLease(options: LeaseOptions): Lease {
             // it goes, and the next tick asks again — that retry is what lets
             // this process take over after the current holder dies, without
             // anyone restarting anything.
-            fresh.release();
+            giveBack(fresh);
 
             return false;
         }
@@ -170,7 +211,9 @@ export function createLease(options: LeaseOptions): Lease {
         let verified: boolean;
 
         try {
-            verified = await tryLockOn(parked);
+            const result = await parked.target.query<{ locked: boolean }>(CHECK_LOCK, lockArgs);
+            verified = result.rows[0]?.locked === true;
+            if (parked.failure !== null) throw parked.failure;
         } catch (error) {
             // The connection died — which is exactly how a session lock dies.
             // The lease went with it, whoever asked next is the leader now,
@@ -194,7 +237,7 @@ export function createLease(options: LeaseOptions): Lease {
         // about leading is the one state that must never persist, so it is
         // logged loudly and acted on rather than assumed impossible.
         client = null;
-        parked.release();
+        giveBack(parked);
         options.logger.error(
             { event: 'lease_lost', key: options.key },
             'lease_lost',
@@ -212,7 +255,7 @@ export function createLease(options: LeaseOptions): Lease {
         }
 
         try {
-            await parked.query(UNLOCK, lockArgs);
+            await parked.target.query(UNLOCK, lockArgs);
         } catch (error) {
             // The session is on its way out either way: an unlock that cannot
             // run means the connection is gone, and the lock died with it.
@@ -225,7 +268,7 @@ export function createLease(options: LeaseOptions): Lease {
             return;
         }
 
-        parked.release();
+        giveBack(parked);
         options.logger.info(
             { event: 'lease_released', key: options.key },
             'lease_released',

@@ -19,6 +19,7 @@ import {
 
 describe('the metrics the roadmap named are the metrics we publish', () => {
     const EXPECTED = [
+        'rate_limit_store_failures_total',
         'provider_requests_total',
         'provider_errors_total',
         'provider_latency',

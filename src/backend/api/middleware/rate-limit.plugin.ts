@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
 import { appConfig } from '../../config/app.config.js';
+import { currentRegistry } from '../../observability/registry.js';
 import { EXEMPT_PATHS } from '../lib/health-paths.js';
 import { rateLimitError } from './rate-limit.js';
 import { rateLimiter } from './rate-limit.repository.js';
@@ -49,6 +50,9 @@ export function registerRateLimit(app: FastifyInstance): void {
         try {
             decision = await rateLimiter.consume(request.ip);
         } catch (error) {
+            // One unlabelled process counter: client IPs and error messages
+            // must never create metric series during an outage.
+            currentRegistry().counter('rate_limit_store_failures_total');
             request.log.error(
                 { event: 'rate_limit_store_failed', err: error },
                 'rate_limit_store_failed',

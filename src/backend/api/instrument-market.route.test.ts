@@ -103,7 +103,7 @@ describe('GET /api/instruments/:ticker/market', () => {
         });
     });
 
-    it('names each market from the registry and leaves an unresolvable one unnamed', async () => {
+    it('names a known market and refuses an unknown ticker before provider routing', async () => {
         const application = await app();
 
         const eth = MarketResponseSchema.parse(
@@ -123,20 +123,14 @@ describe('GET /api/instruments/:ticker/market', () => {
             displaySymbol: 'ETHUSDT',
         });
 
-        // The provider answers for anything; the registry does not resolve a
-        // ticker that ends in no registered quote. Data with no name is the
-        // honest answer — not a guessed descriptor.
-        const unnamed = MarketResponseSchema.parse(
-            (
-                await application.inject({
-                    method: 'GET',
-                    url: '/api/instruments/ZZZZZ/market',
-                })
-            ).json(),
-        );
-
-        expect(unnamed.instrument).toBeNull();
-        expect(unnamed.price.symbol).toBe('ZZZZZ');
+        // The named route requires a registry identity even when an injected
+        // provider would answer arbitrary tickers. Frozen /api/market still
+        // retains its existing nullable descriptor contract.
+        const unknown = await application.inject({
+            method: 'GET',
+            url: '/api/instruments/ZZZZZ/market',
+        });
+        expect(unknown.statusCode).toBe(404);
     });
 
     it('gives a different answer for a different market', async () => {

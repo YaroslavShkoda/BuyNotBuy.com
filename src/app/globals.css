@@ -15,3 +15,9 @@
 @import "./styles/components/market-activity.css";
 @import "./styles/components/market-intelligence.css";
 @import "./styles/components/footer.css";
+ .research-context { padding: 24px; overflow-wrap: anywhere; }
+ .research-context h2 { font-size: 1rem; }
+ .research-context dl { display: grid; gap: 12px; }
+ .research-context dt { font-weight: 600; }
+ .research-context dd { margin: 4px 0 0; }
+ .research-context p { line-height: 1.6; }

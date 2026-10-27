@@ -9,9 +9,9 @@
 счётчик отвечает «сколько раз», датчик — «сколько сейчас», распределение —
 «насколько плохо и как часто».
 
-## counter (14)
+## counter (15)
 
-`market_cache_hits`, `market_cache_misses`, `market_cycle_failures`, `market_stale_served`, `provider_errors_total`, `provider_rate_limits`, `provider_requests_total`, `provider_retries`, `signal_changes_total`, `signal_generation_total`, `strategy_decision_write_failures`, `write_backlog_indicator_vote_dropped_total`, `write_backlog_signal_history_dropped_total`, `write_backlog_strategy_decision_dropped_total`
+`market_cache_hits`, `market_cache_misses`, `market_cycle_failures`, `market_stale_served`, `provider_errors_total`, `provider_rate_limits`, `provider_requests_total`, `provider_retries`, `rate_limit_store_failures_total`, `signal_changes_total`, `signal_generation_total`, `strategy_decision_write_failures`, `write_backlog_indicator_vote_dropped_total`, `write_backlog_signal_history_dropped_total`, `write_backlog_strategy_decision_dropped_total`
 
 ## gauge (11)
 

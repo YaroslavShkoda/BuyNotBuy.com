@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { createSignalHistoryRepository } from '../history/signal-history.repository.js';
 import { getTestPool } from '../test-support/test-database.js';
-import { DEFAULT_RETENTION_POLICIES } from './retention.js';
+import { cutoffFor, DEFAULT_RETENTION_POLICIES } from './retention.js';
+import { createRetentionStore } from './retention.store.js';
 
 /**
  * Every policy's time column is a real column.
@@ -19,6 +21,39 @@ import { DEFAULT_RETENTION_POLICIES } from './retention.js';
  */
 describe('retention policies describe tables that exist', () => {
     const pool = getTestPool();
+
+    it.each([false, true])('keeps real fresh/boundary history and deletes only expired history (stored override: %s)', async (storedOverride) => {
+        await pool.query("DELETE FROM retention_policy WHERE table_name = 'signal_history'");
+        const store = createRetentionStore(pool);
+        const seed = DEFAULT_RETENTION_POLICIES.find(policy => policy.table === 'signal_history');
+        if (seed === undefined) throw new Error('signal_history policy missing');
+        const now = 1_800_000_000_000;
+        if (storedOverride) {
+            // Persisted policies contain keepDays/rationale, not a time column;
+            // an existing installation must pick up the corrected code seed.
+            await store.setPolicy({ ...seed, keepDays: 30 }, now);
+        }
+        const policy = (await store.listPolicies()).find(candidate => candidate.table === 'signal_history');
+        if (policy === undefined) throw new Error('signal_history policy missing');
+        const cutoff = cutoffFor(policy, now);
+        const entries = [
+            { provider: 'retention_fresh', timestamp: now },
+            { provider: 'retention_expired', timestamp: cutoff - 1 },
+            { provider: 'retention_boundary', timestamp: cutoff },
+            { provider: 'retention_after_boundary', timestamp: cutoff + 1 },
+        ];
+        const repository = createSignalHistoryRepository({ maxEntries: 720 });
+        for (const entry of entries) {
+            await repository.record({ ...entry, symbol: 'BTCUSDT', interval: '1h', signal: 'NEUTRAL', consensus: 50, price: 1 });
+        }
+        const before = await pool.query<{ timestamp: number; hour_bucket: number }>('SELECT timestamp, hour_bucket FROM signal_history');
+        expect(before.rows).toHaveLength(4);
+        expect(before.rows.every(row => row.hour_bucket === Math.floor(row.timestamp / 3_600_000))).toBe(true);
+        const report = await store.prune(now, [policy]);
+        const remaining = await pool.query<{ provider: string }>('SELECT provider FROM signal_history ORDER BY provider');
+        expect(remaining.rows.map(row => row.provider)).toEqual(['retention_after_boundary', 'retention_boundary', 'retention_fresh']);
+        expect(report.totalDeleted).toBe(1);
+    });
 
     it.each(DEFAULT_RETENTION_POLICIES)(
         '$table is pruned by $timeColumn, which exists',

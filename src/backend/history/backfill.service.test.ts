@@ -19,7 +19,7 @@ import { createCandleRepository } from './candle.repository.js';
  */
 
 const HOUR = 3_600_000;
-const NEWEST = 1_700_000_000_000;
+const NEWEST = 1_699_999_200_000; // UTC hour-aligned opening timestamp.
 
 const BTC: CandleSeriesKey = {
     provider: 'binance',
@@ -70,6 +70,10 @@ function venue(
             interval: '1h',
             candles: [...series],
         }),
+        async getAttributedHistoricalCandles(limit: number, before?: number) {
+            return { venue: this.name, symbol: this.symbol, interval: '1h' as const,
+                candles: await (this as MarketDataProvider).getHistoricalCandles(limit, before) };
+        },
         getHistoricalCandles: async (limit: number, before?: number) => {
             calls.push({ limit, before });
 
@@ -368,25 +372,17 @@ describe('runBackfill', () => {
             expect(await repository.count(BTC)).toBe(10);
         });
 
-        it('drops a bar from the future', async () => {
-            const provider = venue([
-                ...series(5),
-                bar(NEWEST + 100 * HOUR),
-            ]);
-
-            const result = await runBackfill({
+        it('rejects a page containing a future opening before any writes', async () => {
+            const provider = venue([...series(5), bar(NEWEST + 100 * HOUR)]);
+            await expect(runBackfill({
                 key: BTC,
-                // Older than every real bar, so the target filter is not what
-                // is being measured here.
                 until: NEWEST - 10 * HOUR,
                 repository,
                 provider,
                 now,
                 pageDelayMs: 0,
-            });
-
-            expect(result.rejected).toBe(1);
-            expect(await repository.count(BTC)).toBe(5);
+            })).rejects.toThrow('timestamp_invalid');
+            expect(await repository.count(BTC)).toBe(0);
         });
 
         it('drops a bar the caller did not ask for, and says so', async () => {

@@ -57,6 +57,11 @@ export class MockProvider implements MarketDataProvider {
      * longer. Backtests run against it see a straight line, which is the point:
      * a deterministic series is what makes a metric assertion meaningful.
      */
+    async getAttributedHistoricalCandles(limit: number, before?: number): Promise<ProviderCandles> {
+        return { venue: this.name, symbol: this.symbol, interval: this.interval,
+            candles: await this.getHistoricalCandles(limit) };
+    }
+
     async getHistoricalCandles(limit: number): Promise<Candle[]> {
         return this.buildCandles(limit);
     }

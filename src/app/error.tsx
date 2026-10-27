@@ -4,10 +4,10 @@ import { useEffect } from 'react';
 
 interface DashboardErrorProps {
     error: Error & { digest?: string };
-    reset: () => void;
+    retry: () => void;
 }
 
-export default function DashboardError({ error, reset }: DashboardErrorProps) {
+export default function DashboardError({ error, retry }: DashboardErrorProps) {
     useEffect(() => {
         console.error(error);
     }, [error]);
@@ -27,7 +27,7 @@ export default function DashboardError({ error, reset }: DashboardErrorProps) {
                 <button
                     type="button"
                     className="state-retry"
-                    onClick={reset}
+                    onClick={retry}
                 >
                     Попробовать снова
                 </button>

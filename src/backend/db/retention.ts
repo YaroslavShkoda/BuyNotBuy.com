@@ -78,7 +78,9 @@ export const DEFAULT_RETENTION_POLICIES: readonly RetentionPolicy[] =
             keepDays: 1095,
             rationale:
                 'Три года покрывают несколько полных циклов и достаточно для калибровки. Дальше хвост почти не влияет на оценку, но стоит места.',
-            timeColumn: 'hour_bucket',
+            // The cutoff is epoch milliseconds. hour_bucket is an epoch-hour
+            // identity, so comparing it with this cutoff deletes fresh rows.
+            timeColumn: 'timestamp',
             protected: false,
         },
         {

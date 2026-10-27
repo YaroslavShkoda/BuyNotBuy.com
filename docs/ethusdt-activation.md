@@ -1,9 +1,13 @@
 # ETHUSDT activation gate
 
+Current per-environment evidence is in [release status](release-status.md).
+This gate describes the default deployment and owner approval requirements;
+historical local BTC+ETH rehearsals do not establish production activation.
+
 This document is the gate for serving a second market in production. It is the
 checklist, not the approval: production trading activation happens only with an
-explicit owner decision. Nothing here has been activated yet — the default
-deployment observes `BTCUSDT` alone, and every setting below is commented out in
+explicit owner decision. The default configuration observes `BTCUSDT` alone;
+actual deployed state must be verified per environment. Every setting below is commented out in
 `.env.example`.
 
 ## What activation changes

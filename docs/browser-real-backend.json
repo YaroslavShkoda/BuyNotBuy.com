@@ -1,0 +1,81 @@
+{
+  "status": "passed",
+  "browser": "156.0.8078.4",
+  "checks": [
+    {
+      "kind": "actual HTTP API",
+      "symbol": "BTCUSDT",
+      "interval": "15m",
+      "marketStatus": 200,
+      "analysisStatus": 200,
+      "provider": "mock"
+    },
+    {
+      "kind": "actual HTTP API",
+      "symbol": "BTCUSDT",
+      "interval": "1h",
+      "marketStatus": 200,
+      "analysisStatus": 200,
+      "provider": "mock"
+    },
+    {
+      "kind": "actual HTTP API",
+      "symbol": "BTCUSDT",
+      "interval": "4h",
+      "marketStatus": 200,
+      "analysisStatus": 200,
+      "provider": "mock"
+    },
+    {
+      "kind": "actual HTTP API",
+      "symbol": "BTCUSDT",
+      "interval": "1d",
+      "marketStatus": 200,
+      "analysisStatus": 200,
+      "provider": "mock"
+    },
+    {
+      "kind": "actual HTTP API",
+      "symbol": "ETHUSDT",
+      "interval": "15m",
+      "marketStatus": 200,
+      "analysisStatus": 200,
+      "provider": "mock"
+    },
+    {
+      "kind": "actual HTTP API",
+      "symbol": "ETHUSDT",
+      "interval": "1h",
+      "marketStatus": 200,
+      "analysisStatus": 200,
+      "provider": "mock"
+    },
+    {
+      "kind": "actual HTTP API",
+      "symbol": "ETHUSDT",
+      "interval": "4h",
+      "marketStatus": 200,
+      "analysisStatus": 200,
+      "provider": "mock"
+    },
+    {
+      "kind": "actual HTTP API",
+      "symbol": "ETHUSDT",
+      "interval": "1d",
+      "marketStatus": 200,
+      "analysisStatus": 200,
+      "provider": "mock"
+    },
+    {
+      "kind": "browser → Next → actual mock backend → disposable PG",
+      "symbol": "BTCUSDT",
+      "passed": true
+    },
+    {
+      "kind": "browser → Next → actual mock backend → disposable PG",
+      "symbol": "ETHUSDT",
+      "passed": true
+    }
+  ],
+  "scope": "Actual mock-feed backend supplied by caller; database provisioning verified separately, not managed by runner"
+}

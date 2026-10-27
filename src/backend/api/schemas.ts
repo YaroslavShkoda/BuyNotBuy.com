@@ -102,7 +102,23 @@ export const MarketInstrumentSchema = z.object({
     displaySymbol: z.string(),
 });
 
+// Additive research metadata belongs to the exact snapshot behind each response.
+export const SnapshotContextSchema = z.object({
+    provider: z.string(),
+    symbol: z.string(),
+    interval: CandleIntervalSchema,
+    lastBarClosedAt: finiteNumber,
+    stale: z.boolean(),
+    freshness: z.enum(['fresh', 'provider_failed', 'stale', 'partially_available', 'expired', 'unavailable']),
+});
+
+export const ResearchExplanationSchema = z.object({
+    confidence: z.object({ model: z.enum(['share', 'wilson', 'mean_conviction']), meaning: z.string(), isProbabilityOfBeingRight: z.literal(false) }),
+    quality: z.object({ score: finiteNumber, usable: z.boolean(), worst: z.string().nullable(), blockedBy: z.array(z.string()) }).nullable(),
+});
+
 export const MarketResponseSchema = MarketDataSchema.extend({
+    snapshot: SnapshotContextSchema.optional(),
     instrument: MarketInstrumentSchema.nullable(),
     /**
      * The bar length the candles below were fetched at.
@@ -154,6 +170,8 @@ export const DivergenceAnalysisSchema = z.object({
 });
 
 export const MarketAnalysisSchema = z.object({
+    snapshot: SnapshotContextSchema.optional(),
+    explanation: ResearchExplanationSchema.optional(),
     interval: CandleIntervalSchema,
     timestamp: finiteNumber,
     price: finiteNumber,

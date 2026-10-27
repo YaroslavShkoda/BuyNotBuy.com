@@ -1,5 +1,8 @@
 # Staging environment design
 
+Actual local/remote execution evidence and remaining gates are recorded in
+[the staging rehearsal](staging-rehearsal.md) and [release status](release-status.md).
+
 The staging this document designs is deliberately modest: **one host, one
 process pair (backend + frontend), one disposable PostgreSQL, one config
 file** — the same shape the release evidence has been rehearsed on. Staging
@@ -44,7 +47,8 @@ Ordered, and every step records an exit code in the deployment log:
 3. `db:migrate` against the staging database **before** the switch — schema
    reaches `MAX(version)`; a failure leaves the old instance serving the old
    schema untouched (migrations are a forward-only ledger; there is no
-   automated rollback, and the manual down steps are recorded in-migration).
+   automated rollback). Restore into a new database is described in
+   [the disaster recovery runbook](disaster-recovery.md).
 4. Boot with the staging env; read `registry_seeded` and one
    `market_venue_active` per configured market from the boot log.
 5. `/readyz` until `ready`; then the smoke battery
@@ -61,8 +65,10 @@ Rehearsed, not merely written down:
   a boot without the activation settings returns to the documented single
   or primary-plus-observed state, and stored per-market rows survive for
   the next activation).
-- Schema rollback = **manual by design**; the runbook names the in-migration
-  down steps. Staging rehearses this before production ever needs it.
+- Schema rollback = restore a verified snapshot into a new database paired with
+  the compatible application version. Migrations provide no `down` steps;
+  do not delete ledger entries or reverse DDL by hand. See
+  [the disaster recovery runbook](disaster-recovery.md).
 
 ## Deployment checklist (the whole sequence)
 

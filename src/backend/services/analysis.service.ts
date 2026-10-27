@@ -7,6 +7,7 @@ import type { SignalExplanation } from '../signals/explanation.js';
 import { recordPublishedSignal } from '../signals/signal-publication.js';
 import type { MarketAnalysis } from '../types/analysis.js';
 import type { CandleInterval } from '../types/candle-interval.js';
+import { CANDLE_INTERVAL_MS } from '../types/candle-interval.js';
 import type { AnalysisComputation, MarketAnalysisStatus } from './analysis.engine.js';
 import { computeAnalysis } from './analysis.engine.js';
 import {
@@ -31,6 +32,7 @@ export {
  * the history rows and the decision journal once per computation.
  */
 interface AnalysisWithStatus extends MarketAnalysisStatus {
+    snapshot?: { symbol: string; interval: CandleInterval; lastBarClosedAt: number };
     analysis: MarketAnalysis;
     /**
      * Why the signal was published, in a form that can be argued with.
@@ -227,6 +229,7 @@ export async function analyzeMarketWithStatus(
 
     return {
         analysis: result.analysis,
+        ...(result.market.candles.at(-1) === undefined ? {} : { snapshot: { symbol: result.market.symbol, interval: result.market.interval, lastBarClosedAt: (result.market.candles.at(-1)?.timestamp ?? 0) + CANDLE_INTERVAL_MS[result.market.interval] } }),
         stale: result.status.stale,
         ageMs: result.status.ageMs,
         freshness: result.status.freshness,

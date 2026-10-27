@@ -3,6 +3,7 @@ import { AutoRefresh } from '../../components/auto-refresh';
 import { Hero } from '../../components/hero';
 import { IntervalSwitcher } from '../../components/interval-switcher';
 import { MarketDetails } from '../../components/market-details';
+import { ResearchContext } from '../../components/research-context';
 import { Topbar } from '../../components/topbar';
 import { getAnalysis } from '../../lib/analysis';
 import { getSignalHistory } from '../../lib/history';
@@ -136,6 +137,8 @@ export default async function MarketPage({
                     symbol={market.price.symbol}
                     quote={market.instrument?.quote ?? null}
                 />
+                <ResearchContext interval={analysis.interval} timestamp={analysis.timestamp} lastBar={undefined} snapshot={analysis.snapshot} explanation={analysis.explanation} direction={analysis.signal.signal} />
+                <ResearchContext label="График" interval={market.interval} timestamp={Date.now()} lastBar={market.candles.at(-1)?.timestamp} snapshot={market.snapshot} />
             </div>
         </main>
     );

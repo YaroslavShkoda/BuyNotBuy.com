@@ -345,6 +345,11 @@ export const METRIC_CATALOGUE: readonly ObservabilityMetric[] = z
     .array(observabilityMetricSchema)
     .parse([
         {
+            name: 'rate_limit_store_failures_total',
+            kind: 'counter',
+            description: 'Requests admitted by the fail-open rate limiter because its PostgreSQL store failed. No client labels.',
+        },
+        {
             name: 'provider_requests_total',
             kind: 'counter',
             description: 'Обращения к рыночному провайдеру, по каждому имени площадки.',

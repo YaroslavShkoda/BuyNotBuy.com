@@ -63,12 +63,21 @@ let pool: Pool | null = null;
  * above it without ever intending to touch a database.
  */
 export function getPool(): Pool {
-	pool ??= new Pool({
+	if (pool !== null) {
+		return pool;
+	}
+	pool = new Pool({
 		connectionString: connectionStringWithTimeouts(),
 		max: databaseConfig.poolMax,
 		idleTimeoutMillis: databaseConfig.idleTimeoutMs,
 		connectionTimeoutMillis: databaseConfig.connectionTimeoutMs,
 		application_name: databaseConfig.applicationName,
+	});
+	// pg retires failed idle clients itself, but emits an error on the pool.
+	// An unhandled EventEmitter error would terminate an otherwise recoverable
+	// runtime. Keep the diagnostic bounded and free of connection details.
+	pool.on('error', () => {
+		process.stderr.write('{"event":"database_pool_connection_lost"}\n');
 	});
 
 	return pool;
@@ -131,13 +140,24 @@ export async function withTransaction<T>(
 	work: (client: PoolClient) => Promise<T>,
 ): Promise<T> {
 	const client = await getPool().connect();
+	let connectionFailure: Error | undefined;
+	const onError = (error: Error): void => {
+		connectionFailure ??= error;
+	};
+	// A borrowed client has no pool idle listener. Its callback can await work
+	// between SQL statements, so a session error must be handled for the entire
+	// checkout, not just while a query promise is pending.
+	client.on('error', onError);
 
 	try {
 		await client.query("BEGIN");
+		if (connectionFailure !== undefined) throw connectionFailure;
 
 		try {
 			const result = await work(client);
+			if (connectionFailure !== undefined) throw connectionFailure;
 			await client.query("COMMIT");
+			if (connectionFailure !== undefined) throw connectionFailure;
 
 			return result;
 		} catch (error) {
@@ -145,12 +165,18 @@ export async function withTransaction<T>(
 			// its error would replace the one that actually describes what
 			// went wrong. The work failed either way; the work's own error is
 			// the one worth reporting.
-			await client.query("ROLLBACK").catch(() => undefined);
+			if (connectionFailure === undefined) {
+				await client.query("ROLLBACK").catch((rollbackError: unknown) => {
+					connectionFailure = rollbackError instanceof Error ? rollbackError : new Error('Rollback failed');
+				});
+			}
 
 			throw error;
 		}
 	} finally {
-		client.release();
+		client.removeListener('error', onError);
+		if (connectionFailure === undefined) client.release();
+		else client.release(connectionFailure);
 	}
 }
 
