@@ -1,9 +1,10 @@
 {
-  "format": "release-status/1",
+  "format": "release-status/2",
+  "lockfileHashFormat": "sha256-crlf-to-lf/1",
   "baseCommit": "18e0034a407c0e6b7281efd0549e8dd09f3eb46d",
   "checkedAt": "2026-10-26T11:05:53.576Z",
   "workingTree": "uncommitted",
-  "lockfileSha256": "cdc49453f07a79cf9190f43afb26089b0acc3f9e3f6beb149a75db8f4e63bac2",
+  "lockfileSha256": "f2faaff3ae9fe7af28910858ebae32fdf991982174810babcb5e906820399af5",
   "decision": "NO_GO",
   "documents": [
     "docs/release-status.md",

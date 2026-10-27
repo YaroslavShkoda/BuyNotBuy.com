@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { z } from 'zod';
 
 const safePath = z.string().regex(/^(?!\/)(?!.*(?:^|\/)\.\.(?:\/|$))[a-zA-Z0-9_./-]+$/, 'invalid relative document path');
@@ -12,7 +13,8 @@ const environment = z.object({
     evidence: safePath.nullable(),
 });
 const schema = z.object({
-    format: z.literal('release-status/1'),
+    format: z.literal('release-status/2'),
+    lockfileHashFormat: z.literal('sha256-crlf-to-lf/1'),
     baseCommit: commit,
     checkedAt: z.iso.datetime(),
     workingTree: z.literal('uncommitted'),
@@ -56,4 +58,12 @@ export function checkReleaseStatus(input: unknown, options: CheckOptions): strin
         if (entry.deployedCommit !== null && !options.commitExists(entry.deployedCommit)) errors.push(`${entry.name}: deployed commit unavailable`);
     }
     return errors;
+}
+
+/** Canonical text checkout hash: remove only CR immediately followed by LF.
+ * Every other byte remains significant, including BOM, lone CR and invalid UTF8.
+ * Raw source/artifact manifests use separate, unnormalized byte hashes. */
+export function lockfileFingerprint(bytes: Uint8Array): string {
+    const canonical = bytes.filter((byte, index) => !(byte === 13 && bytes[index + 1] === 10));
+    return createHash('sha256').update(canonical).digest('hex');
 }

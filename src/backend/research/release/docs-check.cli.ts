@@ -1,13 +1,12 @@
 import { execFileSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve, sep } from 'node:path';
-import { checkReleaseStatus } from './docs-check.js';
+import { checkReleaseStatus, lockfileFingerprint } from './docs-check.js';
 
 const root = process.cwd();
 const input: unknown = JSON.parse(readFileSync(resolve(root, 'docs/release-status.json'), 'utf8'));
 const errors = checkReleaseStatus(input, {
-    lockfileSha256: createHash('sha256').update(readFileSync(resolve(root, 'package-lock.json'))).digest('hex'),
+    lockfileSha256: lockfileFingerprint(readFileSync(resolve(root, 'package-lock.json'))),
     exists(path) {
         const full = resolve(root, path);
         return full.startsWith(root + sep) && existsSync(full);

@@ -1,8 +1,10 @@
+import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { checkReleaseStatus } from './docs-check.js';
+import { checkReleaseStatus, lockfileFingerprint } from './docs-check.js';
 
 const baseline = () => ({
-    format: 'release-status/1',
+    format: 'release-status/2',
+    lockfileHashFormat: 'sha256-crlf-to-lf/1',
     baseCommit: '18e0034a407c0e6b7281efd0549e8dd09f3eb46d',
     checkedAt: '2026-10-25T00:00:00.000Z',
     workingTree: 'uncommitted',
@@ -45,5 +47,22 @@ describe('release environment evidence consistency', () => {
     it('rejects malformed records and paths escaping the repository', () => {
         expect(checkReleaseStatus({}, options).length).toBeGreaterThan(0);
         expect(checkReleaseStatus({ ...baseline(), documents: ['../secret'] }, options).join(' ')).toContain('path');
+    });
+});
+
+describe('lockfile checkout fingerprint', () => {
+    it('equates LF and CRLF without reserializing the lockfile', () => {
+        const lf = Buffer.from('{\n  \"version\": \"1.0.0\"\n}\n');
+        const crlf = Buffer.from(lf.toString('utf8').replaceAll('\n', '\r\n'));
+        const expected = createHash('sha256').update(lf).digest('hex');
+        expect(lockfileFingerprint(lf)).toBe(expected);
+        expect(lockfileFingerprint(crlf)).toBe(expected);
+    });
+    it.each([Buffer.from('a\rb'), Buffer.from('\uFEFF{}\n'), Buffer.from('{ \"a\": 1 }'), Buffer.from([0xff, 0xc3, 0x28])])('preserves all bytes apart from CRLF: %j', (bytes) => {
+        expect(lockfileFingerprint(bytes)).toBe(createHash('sha256').update(bytes).digest('hex'));
+    });
+    it('rejects the old ambiguous hash format even when its digest happens to match', () => {
+        expect(checkReleaseStatus({ ...baseline(), format: 'release-status/1' }, options).join(' ')).toContain('format');
+        expect(checkReleaseStatus({ ...baseline(), lockfileHashFormat: 'sha256-json/1' }, options).join(' ')).toContain('lockfileHashFormat');
     });
 });

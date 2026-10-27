@@ -25,7 +25,7 @@ Defaults `MARKET_SYMBOL=BTCUSDT` не доказывают текущую produc
 
 | Gate | Текущее доказательство |
 |---|---|
-| Lockfile | SHA-256 в JSON; locked/installed Next16.4.2, zod4.6.7, Fastify5.12.7, Vitest5.0.5, Playwright1.64.1 |
+| Lockfile | Canonical SHA-256 (`sha256-crlf-to-lf/1`) в JSON; locked/installed Next16.4.2, zod4.6.7, Fastify5.12.7, Vitest5.0.5, Playwright1.64.1 |
 | Security | свежие runtime/full npm audit =0 advisories, gate exit0; [policy и отрицательные тесты](security-ci.md) |
 | Browser | [реальный Chromium и лабораторные метрики](browser-e2e.md); mock SSR API и настоящий PG backend различаются явно |
 | Исторические данные | [attributed history + SQL gate](historical-integrity-gate.md); legacy provenance без независимого подтверждения не получает GO |
@@ -52,3 +52,17 @@ YAR-85 — staging rehearsal; YAR-86 — эта матрица; YAR-79 — ре�
 его активированной конфигурации, alert routing, свежего CI на опубликованном
 patch и явного решения владельца.** Локальная проверка не активирует ETH,
 не доказывает преимущество сигналов и не даёт торговых гарантий.
+
+## Переносимость fingerprint —27.10.2026
+
+`release-status/2` явно указывает `lockfileHashFormat: sha256-crlf-to-lf/1`.
+Для этой проверки только байтовые пары CRLF превращаются в LF; BOM, одиночный
+CR, whitespace, порядок ключей и все остальные байты остаются значимыми.
+JSON не пересериализуется. Реальное изменение version/integrity продолжает
+давать ошибку. Это устраняет различие Git checkout Windows/Linux, сохраняя
+проверку lockfile; raw-хэши исходников/артефактов в предыдущих manifests не меняются.
+
+Историческая матрица выше относится к локальному снимку26.10. Published draft
+[PR #21](https://github.com/YaroslavShkoda/BuyNotBuy.com/pull/21) появился27.10;
+его первый CI прошёл migration/security/browser и выявил CRLF-проблему в docs gate.
+Новая проверка CI потребуется после исправления; production/staging остаются UNKNOWN.
