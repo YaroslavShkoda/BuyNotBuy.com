@@ -1,7 +1,10 @@
-import { defineConfig } from 'vitest/config';
+import { configDefaults, defineConfig } from 'vitest/config';
 
 export default defineConfig({
     test: {
+        // Local verification snapshots/spools are Git-ignored data, not project tests.
+        // Keep this root-relative: source directories named data remain testable.
+        exclude: [...configDefaults.exclude, 'data/**'],
         // A loud budget for a genuinely hung schema setup, not a lived-in one.
         //
         // History, measured rather than inherited: every test file's beforeAll
