@@ -1,0 +1,107 @@
+{
+  "format": "research-readiness/2",
+  "checkedAt": "2026-10-28T05:23:38.797Z",
+  "protocolSha256": "b39f1a057364899c8cbb48d70753e23a696697487028f01903d901cf72bfdc81",
+  "protocolHashFormat": "sha256-crlf-to-lf/1",
+  "protocolRawSha256": "b39f1a057364899c8cbb48d70753e23a696697487028f01903d901cf72bfdc81",
+  "preregistration": "OWNER_ACCEPTED",
+  "registration": {
+    "state": "OWNER_ACCEPTED",
+    "acceptedAt": "2026-10-28T05:19:15.203Z",
+    "effectiveStart": "2026-10-28T05:19:15.203Z",
+    "protocolSha256": "b39f1a057364899c8cbb48d70753e23a696697487028f01903d901cf72bfdc81",
+    "protocolHashFormat": "sha256-crlf-to-lf/1",
+    "approvedCommit": "0941bc2babf898b9f18c7048798b76a02a319a54",
+    "evidenceUrl": "https://linear.app/yaroslavshkoda/issue/YAR-84/stage-6-statistical-evidence-and-confidence-calibration-research",
+    "evidenceScope": "externally recorded owner acceptance; not a public registry or cryptographic identity proof"
+  },
+  "confidenceIntervals": null,
+  "outcome": "INCONCLUSIVE",
+  "independentVenueProspectiveCollection": "NOT_STARTED",
+  "inventory": [
+    {
+      "file": "btcusdt-1h.csv",
+      "source": "binance",
+      "symbol": "BTCUSDT",
+      "intervalMs": 3600000,
+      "provenance": "repository fixture declaration; upstream source not re-fetched",
+      "bytes": 2960913,
+      "sha256": "3c1ff48d1dffaf6a496209a5b5ec25b0c3b986daa1b9ed0b709419b0464c5c89",
+      "bars": 50286,
+      "firstBar": "2021-01-01T00:00:00.000Z",
+      "lastBar": "2026-09-27T19:00:00.000Z",
+      "gaps": 7,
+      "invalidOhlcv": 0,
+      "readiness": {
+        "eligibleBars": 0,
+        "minimumIndependentBlocks": 333,
+        "calibration": "not_calibrated",
+        "outcome": "INCONCLUSIVE",
+        "reason": "no_closed_prospective_bars"
+      }
+    },
+    {
+      "file": "btcusdt-1d-binance.csv",
+      "source": "binance",
+      "symbol": "BTCUSDT",
+      "intervalMs": 86400000,
+      "provenance": "repository fixture declaration; upstream source not re-fetched",
+      "bytes": 125114,
+      "sha256": "d93e48aef929f14d74e297201fb1e7ea17d33abcdda1540ec4ea360bace44d45",
+      "bars": 2096,
+      "firstBar": "2021-01-01T00:00:00.000Z",
+      "lastBar": "2026-09-27T00:00:00.000Z",
+      "gaps": 0,
+      "invalidOhlcv": 0,
+      "readiness": {
+        "eligibleBars": 0,
+        "minimumIndependentBlocks": 333,
+        "calibration": "not_calibrated",
+        "outcome": "INCONCLUSIVE",
+        "reason": "no_closed_prospective_bars"
+      }
+    },
+    {
+      "file": "ethusdt-1d.csv",
+      "source": "binance",
+      "symbol": "ETHUSDT",
+      "intervalMs": 86400000,
+      "provenance": "repository fixture declaration; upstream source not re-fetched",
+      "bytes": 118126,
+      "sha256": "e03d056d9efb21bbdffea6bda4312b476501c63edba1b5856a66e5293f7dfa48",
+      "bars": 2096,
+      "firstBar": "2021-01-01T00:00:00.000Z",
+      "lastBar": "2026-09-27T00:00:00.000Z",
+      "gaps": 0,
+      "invalidOhlcv": 0,
+      "readiness": {
+        "eligibleBars": 0,
+        "minimumIndependentBlocks": 333,
+        "calibration": "not_calibrated",
+        "outcome": "INCONCLUSIVE",
+        "reason": "no_closed_prospective_bars"
+      }
+    },
+    {
+      "file": "btcusdt-1d.csv",
+      "source": "yahoo-index",
+      "symbol": "BTC-USD",
+      "intervalMs": 86400000,
+      "provenance": "repository fixture declaration; upstream source not re-fetched",
+      "bytes": 254410,
+      "sha256": "5b9c4d7a13cdb2619b48870ddad43a07ed7acdae4bcb2ac39f84a556e14d1c5f",
+      "bars": 2934,
+      "firstBar": "2018-08-22T12:00:00.000Z",
+      "lastBar": "2026-09-25T12:00:00.000Z",
+      "gaps": 5,
+      "invalidOhlcv": 0,
+      "readiness": {
+        "eligibleBars": 0,
+        "minimumIndependentBlocks": 333,
+        "calibration": "not_calibrated",
+        "outcome": "INCONCLUSIVE",
+        "reason": "no_closed_prospective_bars"
+      }
+    }
+  ]
+}

@@ -33,6 +33,19 @@ describe('what the strategies said is kept', () => {
         await truncateSignalTables();
     });
 
+    it.each([0, 1, 0.375, 0.0005643340857787806])('round-trips confidence %s without rounding or rescaling', async (confidence) => {
+        const decision = entry({
+            primary: { rule: 'consensus-primary', direction: 'LONG', confidence },
+            fallback: { rule: 'donchian-trend-gated', direction: 'LONG', confidence },
+        });
+        await repository.record(decision);
+        await repository.record(decision);
+        const { rows } = await getTestPool().query<{ primary_confidence: number; fallback_confidence: number }>(
+            'SELECT primary_confidence, fallback_confidence FROM strategy_decision_log',
+        );
+        expect(rows).toEqual([{ primary_confidence: confidence, fallback_confidence: confidence }]);
+    });
+
     it('stores both answers, not only the one that was published', () => {
         // The disagreements are the only rows worth having, and they are
         // exactly the ones a published answer cannot reconstruct.

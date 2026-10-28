@@ -1,0 +1,9 @@
+{
+  "format": "research-registration/1",
+  "status": "owner-accepted",
+  "protocolHashFormat": "sha256-crlf-to-lf/1",
+  "protocolSha256": "b39f1a057364899c8cbb48d70753e23a696697487028f01903d901cf72bfdc81",
+  "approvedCommit": "0941bc2babf898b9f18c7048798b76a02a319a54",
+  "acceptedAt": "2026-10-28T05:19:15.203Z",
+  "evidenceUrl": "https://linear.app/yaroslavshkoda/issue/YAR-84/stage-6-statistical-evidence-and-confidence-calibration-research"
+}

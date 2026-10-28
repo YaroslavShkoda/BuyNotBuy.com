@@ -29,6 +29,7 @@ import { migration022_instrument_foreign_keys } from './migrations/022_instrumen
 import { migration023_instrument_series_identity } from './migrations/023_instrument_series_identity.js';
 import { migration024_instrument_links_for_signal_data } from './migrations/024_instrument_links_for_signal_data.js';
 import { migration025_series_interval_in_votes_and_decisions } from './migrations/025_series_interval_in_votes_and_decisions.js';
+import { migration026_decision_confidence_precision } from './migrations/026_decision_confidence_precision.js';
 
 /** One module per migration; import order is the application order. */
 export const MIGRATIONS: readonly Migration[] = [
@@ -57,6 +58,7 @@ export const MIGRATIONS: readonly Migration[] = [
     migration023_instrument_series_identity,
     migration024_instrument_links_for_signal_data,
     migration025_series_interval_in_votes_and_decisions,
+    migration026_decision_confidence_precision,
 ];
 
 /** Newest schema version this build knows how to produce. */

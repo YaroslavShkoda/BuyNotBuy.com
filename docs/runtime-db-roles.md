@@ -19,7 +19,7 @@ Generated `results.json`, `grants.json`, `effective-audit.json`, `green-handoff.
 
 ## Separation and SQL inventory
 
-Admin bootstraps the database and two login roles. `yar89_migrator` owns the database/schema/application objects and applies the real compiled migration CLI through v25 as a separate process. `yar89_runtime` owns no application objects and has no memberships. Both roles are NOSUPERUSER, NOCREATEDB, NOCREATEROLE, NOREPLICATION and NOBYPASSRLS. Runtime receives database CONNECT and schema USAGE; PUBLIC database CREATE/TEMP and schema CREATE are revoked.
+Admin bootstraps the database and two login roles. `yar89_migrator` owns the database/schema/application objects and applies the real compiled migration CLI as a separate process. The original f11 laboratory applied v25; the YAR-94 candidate adds real migration026. Every replay must record its own compiled source hashes and actual ledger; the historical v25 result does not certify v26. `yar89_runtime` owns no application objects and has no memberships. Both roles are NOSUPERUSER, NOCREATEDB, NOCREATEROLE, NOREPLICATION and NOBYPASSRLS. Runtime receives database CONNECT and schema USAGE; PUBLIC database CREATE/TEMP and schema CREATE are revoked.
 
 The application boot calls `currentSchemaVersion`, not `applyMigrations`. Registry seeding is DML, so an HTTP read API still needs a writing DB role. The explicit table grant manifest is in `scripts/runtime-roles/lab.mjs`; the effective ACL audit checks what PostgreSQL actually installed.
 
@@ -38,7 +38,7 @@ The application boot calls `currentSchemaVersion`, not `applyMigrations`. Regist
 | Functions | EXECUTE only on existing `set_market_row_instrument_id()` invoker trigger; it also needs runtime SELECT on `instrument` |
 | Advisory lease | Built-in advisory lock acquisition, non-reentrant verification via current-session `pg_locks`, one explicit unlock |
 
-Existing function EXECUTE is revoked from PUBLIC. The migrator's **global** default privileges revoke PUBLIC EXECUTE on future functions; a schema-scoped default REVOKE alone cannot remove PostgreSQL's global function default. No future table/sequence grants are automatic. A later synthetic DDL step creates a new identity table and function, proves initial access denial, grants only reviewed SELECT/INSERT/sequence USAGE, and proves UPDATE/ALTER remain denied. This fixture is not application migration v26: the application ledger remains max/count 25/25.
+Existing function EXECUTE is revoked from PUBLIC. The migrator's **global** default privileges revoke PUBLIC EXECUTE on future functions; a schema-scoped default REVOKE alone cannot remove PostgreSQL's global function default. No future table/sequence grants are automatic. A later synthetic DDL step creates a new identity table and function, proves initial access denial, grants only reviewed SELECT/INSERT/sequence USAGE, and proves UPDATE/ALTER remain denied. This fixture does not add an application migration; the log records the actual application ledger separately. In the original f11 replay its max/count was25/25. Migration026 is the separate real confidence-storage change, with its own tests and deployment approval requirements.
 
 The negative probes connect as the actual runtime role and require SQLSTATE 42501 for CREATE TABLE/SCHEMA/TEMP, ALTER, DROP, ledger writes/TRUNCATE, SET ROLE to owner/admin, CREATE ROLE, role grants and sequence setval. No object ownership is given to runtime to make a failing test pass.
 

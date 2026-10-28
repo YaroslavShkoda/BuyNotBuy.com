@@ -7,6 +7,9 @@
   "lockfileSha256": "f2faaff3ae9fe7af28910858ebae32fdf991982174810babcb5e906820399af5",
   "decision": "NO_GO",
   "documents": [
+    "docs/release-candidate-acceptance.md",
+    "docs/research-registration.json",
+    "docs/research-readiness-owner-accepted.json",
     "docs/release-status.md",
     "docs/research-protocol.md",
     "docs/browser-e2e.md",

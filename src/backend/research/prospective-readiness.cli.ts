@@ -1,15 +1,19 @@
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { assessProspectiveReadiness } from './prospective-readiness.js';
+import { validateResearchRegistration } from './research-registration.js';
 
 const protocolBytes = readFileSync(new URL('../../../docs/research-protocol.json', import.meta.url));
 const protocol = JSON.parse(protocolBytes.toString('utf8')) as {
     earliestCollectionStart: string;
     normalApproximationIndependentBlocks: number;
-    registrationState: string;
-    acceptedAt?: string;
 };
 const checkedAt = Date.now();
+if (process.argv.length > 3) throw new Error('Usage: prospective-readiness.cli.ts [registration.json]');
+const registrationPath = process.argv[2] ?? new URL('../../../docs/research-registration.json', import.meta.url);
+const receipt: unknown = existsSync(registrationPath)
+    ? JSON.parse(readFileSync(registrationPath, 'utf8')) : undefined;
+const registration = validateResearchRegistration(protocolBytes, receipt, checkedAt);
 const sources = [
     { file: 'btcusdt-1h.csv', source: 'binance', symbol: 'BTCUSDT', intervalMs: 3_600_000 },
     { file: 'btcusdt-1d-binance.csv', source: 'binance', symbol: 'BTCUSDT', intervalMs: 86_400_000 },
@@ -37,18 +41,26 @@ const inventory = sources.map((source) => {
         gaps,
         invalidOhlcv,
         readiness: assessProspectiveReadiness(timestamps, {
-            start: Date.parse(protocol.earliestCollectionStart), now: checkedAt,
+            start: registration.effectiveStart, now: checkedAt,
             intervalMs: source.intervalMs,
             minimumIndependentBlocks: protocol.normalApproximationIndependentBlocks,
-            ...(protocol.registrationState === 'accepted' && protocol.acceptedAt !== undefined
-                ? { registeredAt: Date.parse(protocol.acceptedAt) } : {}),
+            ...(registration.state === 'OWNER_ACCEPTED'
+                ? { registeredAt: registration.acceptedAt } : {}),
         }),
     };
 });
 console.info(JSON.stringify({
-    format: 'research-readiness/1', checkedAt: new Date(checkedAt).toISOString(),
-    protocolSha256: createHash('sha256').update(protocolBytes).digest('hex'),
-    preregistration: 'NOT_PUBLISHED',
+    format: 'research-readiness/2', checkedAt: new Date(checkedAt).toISOString(),
+    protocolSha256: registration.protocolSha256,
+    protocolHashFormat: 'sha256-crlf-to-lf/1',
+    protocolRawSha256: createHash('sha256').update(protocolBytes).digest('hex'),
+    preregistration: registration.state,
+    registration: {
+        ...registration,
+        effectiveStart: new Date(registration.effectiveStart).toISOString(),
+        ...(registration.state === 'OWNER_ACCEPTED'
+            ? { acceptedAt: new Date(registration.acceptedAt).toISOString() } : {}),
+    },
     confidenceIntervals: null, outcome: 'INCONCLUSIVE',
     independentVenueProspectiveCollection: 'NOT_STARTED', inventory,
 }, null, 2));
