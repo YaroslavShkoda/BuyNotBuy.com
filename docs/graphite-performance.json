@@ -1,0 +1,98 @@
+{
+  "date": "2026-10-29",
+  "conditions": "Serial baseline then candidate on same Windows/Node24.21.0/Chromium156 machine; no parallel test/build work during canonical run. Exact shared installed lockfile dependencies. No throttling. One cold/warm sample each; descriptive only, not causal speed claim or field RUM.",
+  "baseline": "efbf668e",
+  "candidate": "dc2cb37c719ce71b5a684f0f86e7efe86692914d",
+  "rows": [
+    {
+      "device": "desktop",
+      "cache": "cold-context",
+      "before": {
+        "lcp": 256,
+        "cls": 0,
+        "inp": 48,
+        "interactiveReadyMs": 1048.5,
+        "scriptDecodedBytes": 457907
+      },
+      "after": {
+        "lcp": 216,
+        "cls": 0,
+        "inp": 32,
+        "interactiveReadyMs": 973.5,
+        "scriptDecodedBytes": 457955
+      }
+    },
+    {
+      "device": "desktop",
+      "cache": "warm-reload",
+      "before": {
+        "lcp": 156,
+        "cls": 0,
+        "inp": 32,
+        "interactiveReadyMs": 877.7999999970198,
+        "scriptDecodedBytes": 457907
+      },
+      "after": {
+        "lcp": 120,
+        "cls": 0,
+        "inp": 32,
+        "interactiveReadyMs": 837.6999999955297,
+        "scriptDecodedBytes": 457955
+      }
+    },
+    {
+      "device": "mobile",
+      "cache": "cold-context",
+      "before": {
+        "lcp": 200,
+        "cls": 0,
+        "inp": 40,
+        "interactiveReadyMs": 860,
+        "scriptDecodedBytes": 457907
+      },
+      "after": {
+        "lcp": 160,
+        "cls": 0,
+        "inp": 40,
+        "interactiveReadyMs": 907.5999999940395,
+        "scriptDecodedBytes": 457955
+      }
+    },
+    {
+      "device": "mobile",
+      "cache": "warm-reload",
+      "before": {
+        "lcp": 100,
+        "cls": 0,
+        "inp": 40,
+        "interactiveReadyMs": 762.3999999985099,
+        "scriptDecodedBytes": 457907
+      },
+      "after": {
+        "lcp": 88,
+        "cls": 0,
+        "inp": 40,
+        "interactiveReadyMs": 763.6000000014901,
+        "scriptDecodedBytes": 457955
+      }
+    }
+  ],
+  "bundle": {
+    "before": {
+      "js": 595181,
+      "css": 29202
+    },
+    "after": {
+      "js": 595229,
+      "css": 29757
+    }
+  },
+  "budgets": {
+    "lcpMs": 4000,
+    "cls": 0.1,
+    "observedInteractionMs": 500,
+    "interactiveReadyMs": 4000,
+    "routeScriptDecodedBytes": 1000000
+  },
+  "hydrationLimitation": "Interactive readiness is navigation-to-first working React switcher, includes networkidle; not isolated React hydration profiler duration."
+}
