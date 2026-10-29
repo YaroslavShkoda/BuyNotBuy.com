@@ -51,3 +51,22 @@ export function isInsufficientHistoryError(error: unknown): boolean {
         && error.status === 503
         && error.code === 'MARKET_INSUFFICIENT_HISTORY';
 }
+
+const MARKET_UNAVAILABLE_CODES: ReadonlySet<string> = new Set([
+    'MARKET_DATA_UNAVAILABLE',
+    'MARKET_PROVIDER_ERROR',
+    'MARKET_PROVIDER_TIMEOUT',
+    'MARKET_RATE_LIMITED',
+    'RATE_LIMITED',
+]);
+
+const UNAVAILABLE_STATUSES: ReadonlySet<number> = new Set([429, 502, 503, 504]);
+
+export function isMarketUnavailableError(error: unknown): boolean {
+    if (error instanceof BackendApiError) {
+        return UNAVAILABLE_STATUSES.has(error.status)
+            && MARKET_UNAVAILABLE_CODES.has(error.code);
+    }
+
+    return error instanceof TypeError;
+}

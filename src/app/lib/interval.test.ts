@@ -8,6 +8,7 @@ import {
     intervalHref,
     intervalLabel,
     isInsufficientHistoryError,
+    isMarketUnavailableError,
     normalizeInterval,
 } from './interval';
 
@@ -81,5 +82,41 @@ describe('isInsufficientHistoryError', () => {
         expect(isInsufficientHistoryError(new Error('Backend returned 503'))).toBe(false);
         expect(isInsufficientHistoryError(null)).toBe(false);
         expect(isInsufficientHistoryError(undefined)).toBe(false);
+    });
+});
+
+describe('isMarketUnavailableError', () => {
+    const unavailable = (status: number, code: string) => ({
+        error: { code, message: 'x' },
+    });
+
+    it('recognizes the transient market unavailability codes on their statuses', () => {
+        expect(isMarketUnavailableError(new BackendApiError(502, unavailable(502, 'MARKET_DATA_UNAVAILABLE')))).toBe(true);
+        expect(isMarketUnavailableError(new BackendApiError(502, unavailable(502, 'MARKET_PROVIDER_ERROR')))).toBe(true);
+        expect(isMarketUnavailableError(new BackendApiError(504, unavailable(504, 'MARKET_PROVIDER_TIMEOUT')))).toBe(true);
+        expect(isMarketUnavailableError(new BackendApiError(429, unavailable(429, 'MARKET_RATE_LIMITED')))).toBe(true);
+        expect(isMarketUnavailableError(new BackendApiError(429, unavailable(429, 'RATE_LIMITED')))).toBe(true);
+    });
+
+    it('treats an unreachable backend as expected unavailability', () => {
+        expect(isMarketUnavailableError(new TypeError('fetch failed'))).toBe(true);
+    });
+
+    it('keeps insufficient history on its own card', () => {
+        expect(isMarketUnavailableError(new BackendApiError(503, unavailable(503, 'MARKET_INSUFFICIENT_HISTORY')))).toBe(false);
+    });
+
+    it('rejects codes and statuses outside the transient contract', () => {
+        expect(isMarketUnavailableError(new BackendApiError(500, unavailable(500, 'INTERNAL_ERROR')))).toBe(false);
+        expect(isMarketUnavailableError(new BackendApiError(400, unavailable(400, 'VALIDATION_ERROR')))).toBe(false);
+        expect(isMarketUnavailableError(new BackendApiError(200, unavailable(200, 'MARKET_DATA_UNAVAILABLE')))).toBe(false);
+        expect(isMarketUnavailableError(new BackendApiError(502, unavailable(502, 'NOT_FOUND')))).toBe(false);
+    });
+
+    it('rejects plain errors and non-errors', () => {
+        expect(isMarketUnavailableError(new Error('Backend returned 502'))).toBe(false);
+        expect(isMarketUnavailableError('fetch failed')).toBe(false);
+        expect(isMarketUnavailableError(null)).toBe(false);
+        expect(isMarketUnavailableError(undefined)).toBe(false);
     });
 });
