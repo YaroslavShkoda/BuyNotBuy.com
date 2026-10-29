@@ -1,11 +1,11 @@
 import type { CandleInterval } from '../../backend/types/candle-interval';
-import { SnapshotStrip } from './snapshot-strip';
 import type { MarketInstrument } from '../lib/market';
 import type { Candle, MarketAnalysis } from '../types/analysis';
 import type { SignalHistoryResponse } from '../types/history';
 import { MarketChart } from './market-chart';
 import { SignalHistory } from './signal-history';
 import { SignalPanel } from './signal-panel';
+import { SnapshotStrip } from './snapshot-strip';
 
 interface HeroProps {
     analysis: MarketAnalysis;
