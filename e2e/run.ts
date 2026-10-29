@@ -138,6 +138,12 @@ try {
                     }));
                 });
                 assert.deepEqual(clippedChartContent, [], 'Chart controls, numeric readings and volume labels must fit their containers');
+                const chartHeights = await page.evaluate(() => ({
+                    plot: document.querySelector('.chart-plot')?.getBoundingClientRect().height ?? 0,
+                    svg: document.querySelector('.chart-plot-surface svg')?.getBoundingClientRect().height ?? 0,
+                }));
+                assert(chartHeights.plot >= 150 && Math.abs(chartHeights.plot - chartHeights.svg) < 1,
+                    `Chart SVG and axis coordinate area must share a definite height: ${JSON.stringify(chartHeights)}`);
                 const summary = page.locator('summary').filter({ hasText: 'Данные графика в виде таблицы' });
                 if (options.hasTouch) {
                     for (const target of [summary, page.getByRole('button', { name: 'BTCUSDT' }), page.getByRole('navigation', { name: 'Таймфрейм графика' }).getByRole('link').first()]) {

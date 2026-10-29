@@ -1,39 +1,26 @@
 .app-shell {
     position: relative;
-    zoom: 1.30;
-    width: min(1480px, calc((100% - 64px) / 1.30));
+    width: min(1480px, calc(100% - 64px));
     margin: 0 auto;
-    padding: 28px 0 96px;
+    padding: 24px 0 64px;
 }
-
 .content-stack {
     display: grid;
     gap: var(--section-gap);
-    margin-top: calc(var(--section-gap) / 2);
+    margin-top: var(--space-4);
 }
-
 @media (max-width: 900px) {
-    .app-shell {
-        width: min(calc((100% - 32px) / 1.30), 760px);
-        padding-top: 16px;
-        padding-bottom: 64px;
-    }
+    .app-shell { width: calc(100% - 32px); padding-top: 16px; }
 }
-
 @media (max-width: 560px) {
-    .app-shell {
-        zoom: 1;
-        width: calc(100% - 20px);
-        padding-top: 10px;
-    }
-
-    .topbar-switcher-toggle,
-    .topbar-switcher-option,
-    .topbar-switcher-search,
-    .interval-option,
-    .state-retry,
-    .chart-data-alternative > summary {
-        min-width: 44px;
-        min-height: 44px;
-    }
+    .app-shell { padding-top: 12px; }
+}
+.topbar-switcher-toggle,
+.topbar-switcher-option,
+.topbar-switcher-search,
+.interval-option,
+.state-retry,
+.chart-data-alternative > summary {
+    min-width: 44px;
+    min-height: 44px;
 }

@@ -56,19 +56,19 @@
     position: relative;
 
     display: flex;
-    flex: 1 1 auto;
+    flex: 0 0 auto;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     gap: 12px;
 
-    margin: 36px 0 24px;
+    margin: 20px 0;
     padding: 0 12px;
     text-align: center;
 }
 
 .signal-status {
-    font-size: clamp(42px, 5vw, 58px);
+    font-size: 40px;
     line-height: 0.9;
     font-weight: 650;
     letter-spacing: -0.055em;
@@ -254,3 +254,8 @@
         margin: 28px 0 20px;
     }
 }
+
+.signal-context-details { border-top: 1px solid var(--color-border); }
+.signal-context-details > summary { padding: 16px; cursor: pointer; color: var(--color-text-secondary); font-size: var(--text-caption); line-height: 1.5; min-height: 44px; }
+.signal-explore { display: flex; align-items: center; justify-content: center; min-height: 44px; margin-top: 20px; padding: 12px; border: 1px solid var(--color-focus); border-radius: var(--radius-md); color: var(--color-focus); font-size: var(--text-caption); text-align: center; transition: background-color var(--transition-fast); }
+.signal-explore:hover { background: var(--color-surface-elevated); }

@@ -1,4 +1,5 @@
 import type { CandleInterval } from '../../backend/types/candle-interval';
+import { SnapshotStrip } from './snapshot-strip';
 import type { MarketInstrument } from '../lib/market';
 import type { Candle, MarketAnalysis } from '../types/analysis';
 import type { SignalHistoryResponse } from '../types/history';
@@ -15,6 +16,7 @@ interface HeroProps {
     instrument: MarketInstrument | null;
     ema300: number;
     interval: CandleInterval;
+    marketSnapshot?: MarketAnalysis['snapshot'];
 }
 
 function AssetMark({ base }: { base: string }) {
@@ -27,7 +29,7 @@ function AssetMark({ base }: { base: string }) {
     );
 }
 
-export function Hero({ analysis, history, candles, symbol, instrument, ema300, interval }: HeroProps) {
+export function Hero({ analysis, history, candles, symbol, instrument, ema300, interval, marketSnapshot }: HeroProps) {
     const { signal, indicators, price, momentum } = analysis;
     // Name and display form come from the registry, not from a parse of the
     // symbol; when the registry cannot name the market, the raw ticker is the
@@ -72,6 +74,7 @@ export function Hero({ analysis, history, candles, symbol, instrument, ema300, i
                         </div>
                     </div>
 
+                    <SnapshotStrip label="График" snapshot={marketSnapshot} />
                     {/* The market chart lives directly under the asset block in the
                         left column of the unified hero panel. */}
                     <div className="hero-chart">
@@ -86,6 +89,7 @@ export function Hero({ analysis, history, candles, symbol, instrument, ema300, i
                 </div>
 
                 <div className="hero-side">
+                    <SnapshotStrip label="Анализ" snapshot={analysis.snapshot} />
                     <SignalPanel
                         signal={signal}
                         periods={analysis.periods}

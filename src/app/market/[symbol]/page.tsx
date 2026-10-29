@@ -130,6 +130,7 @@ export default async function MarketPage({
                     instrument={market.instrument}
                     ema300={analysis.indicators.ema300}
                     interval={interval}
+                    marketSnapshot={market.snapshot}
                 />
                 <MarketDetails
                     candles={market.candles}

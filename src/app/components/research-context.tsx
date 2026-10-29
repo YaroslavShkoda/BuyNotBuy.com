@@ -18,7 +18,7 @@ export function ResearchContext({ interval, timestamp, lastBar, snapshot, explan
     const closedAt = snapshot?.lastBarClosedAt ?? (lastBar === undefined ? undefined : lastBar + CANDLE_INTERVAL_MS[interval]);
     const ageMs = closedAt === undefined ? null : Math.max(0, now - closedAt);
     return (
-        <section className="research-context depth-surface" aria-label="Контекст исследования и качество данных">
+        <section id={label === 'График' ? 'research-chart' : 'research-analysis'} className="research-context depth-surface" aria-label="Контекст исследования и качество данных">
             <h2>{label}: происхождение и ограничения</h2>
             <dl>
                 <div><dt>Источник и биржа</dt><dd>{snapshot === undefined ? 'Источник и биржа: API не сообщает' : `${snapshot.provider} · ${snapshot.symbol}`}</dd></div>

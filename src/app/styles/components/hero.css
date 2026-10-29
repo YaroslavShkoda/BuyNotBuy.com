@@ -1,314 +1,55 @@
-/* The right column keeps the two signal cards; the left column (Price Action
-   + chart + volume) takes everything else. 300px — rather than the previous
-   340px — buys the chart ~12% more width. */
 .hero {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 300px;
-    gap: 0;
-    row-gap: 0;
-    align-items: stretch;
+    grid-template-columns: minmax(0, 1fr) 360px;
+    align-items: start;
     overflow: hidden;
 }
-
 .hero-main {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-
     min-width: 0;
-    padding-block: clamp(28px, 4vw, 52px);
-    /* Vertical rhythm is unchanged; the inline padding is trimmed so the
-       chart and the volume bars get ~24px more room on each side. */
-    padding-inline: clamp(20px, 2vw, 28px);
-    overflow: hidden;
+    padding: var(--space-6);
 }
-
-/* The accent stripe runs alongside the heading block — the one holding the
-   asset name and its badge — and stops where that block stops.
-   It used to be drawn on .hero-main at `inset: 0`, which made it span the
-   whole overview panel: it rose roughly 50px above the asset badge, past the
-   top of the thing it is meant to be accenting, and carried on down past the
-   chart. A rule that outlines something has to be the length of that thing,
-   or it reads as a separate element that escaped its own box.
-   The negative offset puts it back on the panel's inner edge: the heading
-   starts after .hero-main's inline padding, and the stripe belongs outside
-   that padding, on the border. */
-.hero-heading::before {
-    content: "";
-    position: absolute;
-    inset: 0 auto 0 0;
-    left: calc(-1 * clamp(20px, 2vw, 28px));
-    width: 2px;
-    background: linear-gradient(
-        to bottom,
-        rgba(113, 223, 173, 0.45),
-        rgba(113, 223, 173, 0.06)
-    );
-    pointer-events: none;
+.hero-heading { position: relative; }
+.eyebrow {
+    display: block;
+    color: var(--color-text-muted);
+    font-size: var(--text-caption);
+    font-weight: 600;
+    letter-spacing: .08em;
 }
-
-/* The badge sits beside the asset name. One mark per asset, chosen by
-   hero.tsx from the registry's answer. The tile is always square (aspect-ratio)
-   and sized on its own vw curve, so it can never smear into a vertical strip. */
-.hero-asset-line {
-    display: flex;
-    align-items: center;
-    gap: 20px;
-}
-
+.hero-asset-line { display: flex; align-items: center; gap: var(--space-4); margin-top: var(--space-4); }
 .hero-asset-glyph {
     display: grid;
     place-items: center;
-    flex: 0 0 auto;
-
-    /* Sized on the same 5vw h1 curve so the badge and the name stay in
-       proportion. The mark inside is a percentage of the tile, so growing the
-       tile scales it uniformly. */
-    aspect-ratio: 1;
-    width: clamp(72px, calc(4.93vw + 31px), 108px);
-
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    flex: 0 0 44px;
+    width: 44px;
+    height: 44px;
+    border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
-
-    color: var(--color-long);
-    background:
-        radial-gradient(70% 70% at 50% 0%, rgba(113, 223, 173, 0.14), transparent 70%),
-        rgba(10, 12, 14, 0.7);
-
-    font-size: clamp(30px, 2.4vw, 48px);
-    font-weight: 700;
-    line-height: 1;
-
-    box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.06),
-        0 0 24px rgba(113, 223, 173, 0.08);
-
-    user-select: none;
+    background: var(--color-surface-elevated);
+    color: var(--color-text);
+    font-size: 24px;
+    font-weight: 600;
 }
-
-/* Keep the registry-backed asset initial centered in the same badge used by the
-   former vector mark. */
-.hero-asset-mark {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 100%;
-    height: 100%;
+.hero-asset-mark { display: grid; place-items: center; width: 100%; height: 100%; }
+.hero-asset-text { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.hero h1 { margin: 0; font-size: clamp(24px, 2.4vw, 32px); line-height: 1.15; letter-spacing: -.03em; font-weight: 600; overflow-wrap: anywhere; }
+.hero-price-block { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
+.hero-price { font-size: clamp(28px, 3.4vw, 44px); line-height: 1.15; font-weight: 600; letter-spacing: -.035em; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.hero-price-label { color: var(--color-text-muted); font-size: var(--text-caption); }
+.hero-side { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; padding: var(--space-5); border-left: 1px solid var(--color-border); }
+.hero-chart { margin-top: var(--space-6); padding-top: var(--space-5); border-top: 1px solid var(--color-border); }
+.hero-chart .chart-card { padding: 0; background: none; border: 0; border-radius: 0; box-shadow: none; }
+.snapshot-strip { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; margin-top: var(--space-5); color: var(--color-text-secondary); font-size: var(--text-caption); line-height: 1.6; overflow-wrap: anywhere; }
+.hero-side > .snapshot-strip { margin: 0; }
+.snapshot-freshness { color: var(--color-warning); font-weight: 600; }
+.snapshot-strip[data-freshness='fresh'] .snapshot-freshness { color: var(--color-text-secondary); }
+.snapshot-time { flex-basis: 100%; color: var(--color-text-muted); }
+@media (max-width: 1100px) {
+    .hero { grid-template-columns: 1fr; }
+    .hero-side { border-left: 0; border-top: 1px solid var(--color-border); }
 }
-
-.hero-heading {
-    position: relative;
-    z-index: 1;
-    display: flex;
-    flex-direction: column;
-    gap: clamp(16px, 1.8vw, 32px);
-}
-
-/* The badge sits beside the asset name and its price. One mark per asset,
-   chosen by hero.tsx from the registry's answer. The tile is always square
-   (aspect-ratio) and sized on its own vw curve, so it can never smear into a
-   vertical strip. Top-aligned, so the name starts level with the top of the
-   tile rather than floating in the middle of it — the price now stacks under
-   the name, and centring the name would push it away from the tile it labels. */
-.hero-asset-line {
-    display: flex;
-    align-items: flex-start;
-    gap: 20px;
-}
-
-/* One left edge for every line in the figure: name, price, ticker. */
-.hero-asset-text {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: clamp(8px, 0.8vw, 14px);
-    min-width: 0;
-}
-
-.eyebrow {
-    display: block;
-
-    color: var(--color-text-muted);
-
-    font-size: var(--text-caption);
-    font-weight: 700;
-    letter-spacing: 0.16em;
-}
-
-.hero h1 {
-    /* No bottom margin: it used to clear the description under the name, and
-       with the description gone it would only open a gap above the chart. */
-    margin: 0;
-
-    font-size: clamp(42px, 5vw, 72px);
-    line-height: 0.95;
-    letter-spacing: -0.055em;
-    font-weight: 550;
-}
-
-.hero-price-block {
-    display: flex;
-    flex-direction: column;
-    /* Left, with the name and the price forming one unit in the row above. */
-    align-items: flex-start;
-    gap: 7px;
-    /* Never compress: the price is nowrap, so a squeezed block would let the
-       digits spill out of it and collide with the panel frame. */
-    flex: 0 0 auto;
-}
-
-.hero-price {
-    white-space: nowrap;
-    max-width: 100%;
-
-    /* Big enough to read as the price of the asset named beside it rather than
-       as a caption, and tracked off the same viewport curve as the h1 so the
-       two never look like they were sized independently. */
-    font-size: clamp(34px, 4.2vw, 58px);
-    line-height: 1;
-    font-weight: 275;
-    letter-spacing: -0.045em;
-    font-variant-numeric: tabular-nums;
-}
-
-.hero-price-label {
-    color: var(--color-text-muted);
-
-    font-size: var(--text-caption);
-    font-weight: 700;
-    letter-spacing: 0.13em;
-}
-
-.hero-metrics {
-    position: relative;
-    z-index: 1;
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-
-    margin-top: 64px;
-    padding-top: 20px;
-
-    border-top: 1px solid var(--color-border);
-}
-
-.hero-metric {
-    display: flex;
-    flex-direction: column;
-    gap: 7px;
-
-    padding-right: 20px;
-}
-
-.hero-metric + .hero-metric {
-    padding-left: 20px;
-    border-left: 1px solid var(--color-border);
-}
-
-.hero-metric span {
-    color: var(--color-text-muted);
-
-    font-size: var(--text-caption);
-    font-weight: 700;
-    letter-spacing: 0.12em;
-}
-
-.hero-metric strong {
-    font-size: 20px;
-    font-weight: 300;
-    letter-spacing: -0.025em;
-    font-variant-numeric: tabular-nums;
-}
-
-.hero-metric small {
-    color: var(--color-text-muted);
-    font-size: var(--text-caption);
-    line-height: 1.4;
-}
-
-.hero-side {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    min-width: 0;
-    padding: 12px;
-
-    border-left: 1px solid var(--color-border);
-}
-
-/* The chart sits inline in the left column right under the asset metrics.
-   It shares the hero panel's surface, so its own card frame is dropped. */
-/* The chart takes the leftover height of the left column instead of sitting at
-   a fixed size, so it fills the panel down to the bottom edge. */
-.hero-chart {
-    display: flex;
-    flex-direction: column;
-    flex: 1 1 auto;
-    min-height: 0;
-
-    margin-top: clamp(24px, 3vw, 40px);
-    padding-top: clamp(22px, 3vw, 34px);
-    border-top: 1px solid var(--color-border);
-}
-
-.hero-chart .chart-card {
-    display: flex;
-    flex-direction: column;
-    flex: 1 1 auto;
-    min-height: 0;
-
-    padding: 0;
-    overflow: hidden;
-    background: none;
-    border: 0;
-    border-radius: 0;
-    box-shadow: none;
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-}
-
-/* The signal panel and history block each carry their own card frame;
-   the flex gap on .hero-side handles the spacing between them. */
-
-/* Below this width the fixed 300px sidebar starves the left column, so the
-   badge gives space back to the asset name. */
-@media (max-width: 1300px) {
-    .hero-asset-glyph {
-        width: clamp(67px, calc(4.93vw + 31px), 90px);
-    }
-}
-
-/* Stacks to a single column: below this the two columns cannot both hold their
-   content and the hero headline starts to clip. */
-@media (max-width: 1200px) {
-    .hero {
-        grid-template-columns: 1fr;
-        row-gap: 0;
-    }
-
-    .hero-side {
-        order: -1;
-        border-left: 0;
-        border-bottom: 1px solid var(--color-border);
-    }
-}
-
-@media (max-width: 640px) {
-    /* The badge gets out of the way: at phone widths the tile and a 58px price
-       side by side leave the name almost no room. */
-    .hero-asset-line {
-        flex-direction: column;
-        gap: 14px;
-    }
-
-    .hero-metrics {
-        grid-template-columns: 1fr;
-        gap: 18px;
-        margin-top: 40px;
-    }
-
-    .hero-metric,
-    .hero-metric + .hero-metric {
-        padding: 0;
-        border: 0;
-    }
+@media (max-width: 560px) {
+    .hero-main, .hero-side { padding: var(--space-4); }
+    .hero-asset-line { align-items: flex-start; gap: var(--space-3); }
+    .hero-price { font-size: 28px; }
 }

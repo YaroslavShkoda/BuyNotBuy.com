@@ -199,6 +199,8 @@ export function SignalPanel({ signal, indicatorValues, periods, quote }: SignalP
                                 );
                             })}
 
+                            <details className="signal-context-details">
+                                <summary>Дополнительные измерения: ATR, RSI, MACD</summary>
                             {contextIndicators.map((indicator) => (
                                 <div
                                     className="signal-indicator signal-indicator-context"
@@ -220,7 +222,9 @@ export function SignalPanel({ signal, indicatorValues, periods, quote }: SignalP
                                     </span>
                                 </div>
                             ))}
+                            </details>
                         </div>
+                        <a className="signal-explore" href="#research-analysis">Изучить причины и ограничения</a>
                     </aside>
     );
 }
