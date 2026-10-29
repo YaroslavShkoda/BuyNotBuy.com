@@ -3,7 +3,7 @@
 
 # База данных
 
-Версий миграций: **25**, последняя — v25 «series_interval_in_votes_and_decisions».
+Версий миграций: **26**, последняя — v26 «decision_confidence_precision».
 
 Ниже — схема в том виде, в каком её строят текущие миграции, прочитанная
 из каталога сервера, а не из текста SQL. Таблица ограничений `CHECK` в
@@ -323,10 +323,10 @@
 | `strategy_version_id` | `bigint` | да |
 | `primary_rule` | `text` | нет |
 | `primary_direction` | `text` | нет |
-| `primary_confidence` | `integer` | нет |
+| `primary_confidence` | `double precision` | нет |
 | `fallback_rule` | `text` | да |
 | `fallback_direction` | `text` | да |
-| `fallback_confidence` | `integer` | да |
+| `fallback_confidence` | `double precision` | да |
 | `published_rule` | `text` | нет |
 | `published_direction` | `text` | нет |
 | `suppressed` | `boolean` | нет |
@@ -336,7 +336,9 @@
 Ограничения:
 
 - `strategy_decision_log_direction: CHECK ((primary_direction = ANY (ARRAY['LONG'::text, 'SHORT'::text, 'NEUTRAL'::text])))`
+- `strategy_decision_log_fallback_confidence_finite: CHECK ((fallback_confidence <> ALL (ARRAY['NaN'::double precision, 'Infinity'::double precision, '-Infinity'::double precision])))`
 - `strategy_decision_log_fallback_direction: CHECK (((fallback_direction IS NULL) OR (fallback_direction = ANY (ARRAY['LONG'::text, 'SHORT'::text, 'NEUTRAL'::text]))))`
+- `strategy_decision_log_primary_confidence_finite: CHECK ((primary_confidence <> ALL (ARRAY['NaN'::double precision, 'Infinity'::double precision, '-Infinity'::double precision])))`
 - `strategy_decision_log_published_direction: CHECK ((published_direction = ANY (ARRAY['LONG'::text, 'SHORT'::text, 'NEUTRAL'::text])))`
 - `strategy_decision_log_suppression_means_voice: CHECK (((NOT suppressed) OR (fallback_direction IS NOT NULL)))`
 

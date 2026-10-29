@@ -1,11 +1,11 @@
 import { marketConfig } from '../config/market.config.js';
-import { ApplicationError } from '../errors/application.error.js';
 import { findCandleSeriesIssues } from '../market/candle-validation.js';
 import { marketProviderFor } from '../market/market.provider.js';
 import type { MarketDataProvider } from '../market/providers/market-data.provider.js';
 import type { Candle } from '../types/market.js';
 import type { CandleRepository, CandleSeriesKey } from './candle.repository.js';
 import { candleRepository } from './candle.repository.js';
+import { assertHistoricalProvider, fetchHistoricalForSeries } from './historical-provenance.js';
 
 /**
  * Filling a series backwards from the present.
@@ -189,18 +189,9 @@ export async function runBackfill(
     const target = request.until ?? marketConfig.backfillFrom;
     const budget = request.maxCandles;
 
-    // A caller-injected provider that answers for another market is refused
-    // before the first page, for the same reason `ingestOnce` refuses one:
-    // a misfiled bar is correct-looking candles in another market's series.
-    // `getHistoricalCandles` returns bars without a symbol, so this check is
-    // the only place a mismatch can be caught - after it, the write path
-    // trusts the provider the way every check below trusts a validated bar.
-    if (provider.symbol !== request.key.symbol) {
-        throw new ApplicationError(
-            `Provider ${provider.name} serves ${provider.symbol}, which is not the series ${request.key.symbol}`,
-            { code: 'VALIDATION_ERROR', statusCode: 500 },
-        );
-    }
+    // Refuse a provider bound to another market before a network request.
+    // Per-response venue/symbol/interval validation happens again at fetch time.
+    assertHistoricalProvider(provider, request.key, 'backfill');
 
     let written = 0;
     let overwritten = 0;
@@ -230,7 +221,7 @@ export async function runBackfill(
         const remaining = budget === undefined ? pageSize : budget - written;
         const limit = Math.max(1, Math.min(pageSize, remaining));
 
-        const page = await provider.getHistoricalCandles(limit, before);
+        const { candles: page } = await fetchHistoricalForSeries(provider, request.key, 'backfill', limit, before, now());
         pages += 1;
 
         if (page.length === 0) {

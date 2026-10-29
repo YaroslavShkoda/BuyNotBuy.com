@@ -1,0 +1,54 @@
+{
+  "format": "release-status/2",
+  "lockfileHashFormat": "sha256-crlf-to-lf/1",
+  "baseCommit": "18e0034a407c0e6b7281efd0549e8dd09f3eb46d",
+  "checkedAt": "2026-10-26T11:05:53.576Z",
+  "workingTree": "uncommitted",
+  "lockfileSha256": "f2faaff3ae9fe7af28910858ebae32fdf991982174810babcb5e906820399af5",
+  "decision": "NO_GO",
+  "documents": [
+    "docs/release-candidate-acceptance.md",
+    "docs/research-registration.json",
+    "docs/research-readiness-owner-accepted.json",
+    "docs/release-status.md",
+    "docs/research-protocol.md",
+    "docs/browser-e2e.md",
+    "docs/security-ci.md",
+    "docs/historical-integrity-gate.md",
+    "docs/disaster-recovery.md",
+    "docs/staging-rehearsal.md",
+    "docs/runtime-db-roles.md"
+  ],
+  "environments": [
+    {
+      "name": "local-lab",
+      "status": "tested",
+      "deployedCommit": null,
+      "markets": [
+        "BTCUSDT",
+        "ETHUSDT"
+      ],
+      "provider": "mock",
+      "schemaVersion": 25,
+      "evidence": "docs/staging-rehearsal.md"
+    },
+    {
+      "name": "staging",
+      "status": "not_tested",
+      "deployedCommit": null,
+      "markets": null,
+      "provider": null,
+      "schemaVersion": null,
+      "evidence": null
+    },
+    {
+      "name": "production",
+      "status": "not_tested",
+      "deployedCommit": null,
+      "markets": null,
+      "provider": null,
+      "schemaVersion": null,
+      "evidence": null
+    }
+  ]
+}

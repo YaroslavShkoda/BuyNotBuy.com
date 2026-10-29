@@ -1,7 +1,8 @@
-import { query } from '../db/pool.js';
+import { getPool, query } from '../db/pool.js';
 
-import type { CandleInterval } from '../types/candle-interval.js';
+import { CANDLE_INTERVAL_MS, type CandleInterval } from '../types/candle-interval.js';
 import type { Candle } from '../types/market.js';
+import type { HistoricalSeriesInventory } from './historical-integrity.js';
 
 /**
  * Stored candles, and the only way in or out.
@@ -210,6 +211,24 @@ const UPSERT_SQL = `
  */
 const CHUNK_SIZE = 1_000;
 
+/**
+ * The canonical identity index can still win PostgreSQL's speculative insert
+ * race before the named legacy arbiter sees its conflict (single vs bulk writer).
+ * Retry only that secondary-index 23505 after the competing statement commits.
+ * Each attempt is a new atomic statement; other SQL errors remain visible.
+ */
+async function writeRows(sql: string, values: readonly unknown[]) {
+	for (let attempt = 0; ; attempt += 1) {
+		try {
+			return await query<{ timestamp: number }>(sql, values);
+		} catch (error) {
+			if (attempt >= 2 || typeof error !== 'object' || error === null ||
+				!('code' in error) || error.code !== '23505' ||
+				!('constraint' in error) || error.constraint !== 'market_candles_instrument_bar_unique') throw error;
+		}
+	}
+}
+
 export function createCandleRepository(): CandleRepository {
 	async function read(
 		sql: string,
@@ -305,7 +324,7 @@ export function createCandleRepository(): CandleRepository {
 
 		async upsert(key, candle, options) {
 			const isClosed = options?.isClosed ?? true;
-			const result = await query<{ timestamp: number }>(UPSERT_SQL, [
+			const result = await writeRows(UPSERT_SQL, [
 				key.provider,
 				key.symbol,
 				key.interval,
@@ -363,7 +382,7 @@ export function createCandleRepository(): CandleRepository {
 					);
 				}
 
-                const result = await query<{ timestamp: number }>(
+                const result = await writeRows(
                     `INSERT INTO market_candles (
                         provider, symbol, interval, timestamp,
                         open, high, low, close, volume, ingested_at, is_closed
@@ -407,3 +426,49 @@ export function createCandleRepository(): CandleRepository {
 
 /** The process-wide repository, like the pool it borrows connections from. */
 export const candleRepository: CandleRepository = createCandleRepository();
+
+/** Standalone read-only SQL evidence; $1 is the interval-duration JSON map. */
+export const HISTORICAL_INVENTORY_SQL = `
+WITH ordered AS (
+    SELECT c.*, i.ticker AS canonical_symbol,
+        lag(timestamp) OVER (PARTITION BY provider, symbol, interval, is_closed ORDER BY timestamp) AS previous_timestamp,
+        ($1::jsonb ->> interval)::bigint AS step
+    FROM market_candles c LEFT JOIN instrument i ON i.id = c.instrument_id
+), volumes AS (
+    SELECT provider, symbol, interval, percentile_cont(0.5) WITHIN GROUP (ORDER BY volume) AS median_volume
+    FROM ordered GROUP BY provider, symbol, interval
+)
+SELECT o.provider, o.symbol, o.interval,
+    count(*)::int AS count, count(*) FILTER (WHERE is_closed)::int AS "closedCount",
+    min(timestamp) FILTER (WHERE is_closed) AS oldest, max(timestamp) FILTER (WHERE is_closed) AS newest,
+    (count(*) - count(DISTINCT timestamp))::int AS "duplicateCount",
+    count(*) FILTER (WHERE is_closed AND timestamp - previous_timestamp > step)::int AS "gapCount",
+    count(*) FILTER (WHERE step IS NULL OR timestamp % step <> 0)::int AS "misalignedCount",
+    count(*) FILTER (WHERE canonical_symbol IS DISTINCT FROM o.symbol)::int AS "identityMismatchCount",
+    count(*) FILTER (WHERE NOT (high >= low AND high >= open AND high >= close AND low <= open AND low <= close
+        AND open > 0 AND close > 0 AND low > 0 AND volume >= 0)
+        OR open::text IN ('NaN','Infinity','-Infinity') OR high::text IN ('NaN','Infinity','-Infinity')
+        OR low::text IN ('NaN','Infinity','-Infinity') OR close::text IN ('NaN','Infinity','-Infinity')
+        OR volume::text IN ('NaN','Infinity','-Infinity'))::int AS "invalidCount",
+    count(*)::int AS "unknownProvenanceCount",
+    count(*) FILTER (WHERE o.provider IN ('', 'failover') OR o.symbol = '' OR step IS NULL)::int AS "provenanceMismatchCount",
+    count(*) FILTER (WHERE volume > 100 * median_volume AND volume > 0)::int AS "volumeAnomalyCount"
+FROM ordered o JOIN volumes v USING (provider, symbol, interval)
+GROUP BY o.provider, o.symbol, o.interval
+ORDER BY o.provider, o.symbol, o.interval`;
+
+/** One consistent, read-only inventory snapshot; no storage claims are upgraded. */
+export async function readHistoricalInventory(): Promise<HistoricalSeriesInventory[]> {
+    const client = await getPool().connect();
+    try {
+        await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
+        const result = await client.query<HistoricalSeriesInventory>(HISTORICAL_INVENTORY_SQL, [JSON.stringify(CANDLE_INTERVAL_MS)]);
+        await client.query('COMMIT');
+        return result.rows;
+    } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+    } finally {
+        client.release();
+    }
+}

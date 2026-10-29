@@ -1,5 +1,8 @@
 # Database migrations during deployment
 
+Backup scope, restore validation and migration rollback limits are documented
+in [the disaster recovery runbook](disaster-recovery.md).
+
 Build one backend image and use that same image for both the migration job and
 the application rollout. The image contains the compiled migration runner at
 `dist/backend/db/migrate.cli.js`; it does not need `tsx` at runtime.

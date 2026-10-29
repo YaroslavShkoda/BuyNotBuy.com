@@ -46,9 +46,13 @@ jobs:
           --health-retries 10
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          # The documentation matrix names historical commits as evidence.
+          fetch-depth: 0
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           # Kept in step with the `engines` field in package.json: a container
           # built on an older base than CI would hide a failure that only
@@ -61,6 +65,9 @@ jobs:
 
       - name: Lint
         run: npm run lint
+
+      - name: Release documentation consistency
+        run: npm run docs:check
 
       # Before the type checks, not after: this asks the compiler to fail on a
       # file it must not be able to miss. A check that has stopped looking at the
@@ -103,9 +110,11 @@ jobs:
           --health-retries 10
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: '22.13.0'
           cache: npm
@@ -120,3 +129,74 @@ jobs:
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/buynotbuy_test
         run: npm run db:migrate
+
+  dependency-security:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: '22.13.0'
+          cache: npm
+      - name: Install locked packages without lifecycle scripts
+        run: npm ci --ignore-scripts
+      - name: Typecheck advisory policy scripts
+        run: npx --no-install tsc -p scripts/security/tsconfig.json
+      - name: Collect runtime and full advisory reports
+        shell: bash
+        run: |
+          mkdir -p security-results
+          failed=0
+          for scope in runtime full; do
+            args=()
+            if [ "$scope" = runtime ]; then args+=(--omit=dev); fi
+            status=0
+            npm audit "${args[@]}" --json > "security-results/$scope.json" || status=$?
+            # npm uses 1 for findings; transport/config failures fail closed.
+            if [ "$status" -gt 1 ]; then failed=1; fi
+          done
+          exit "$failed"
+      - name: Enforce runtime high and critical advisory policy
+        run: node --import=tsx scripts/security/audit-gate.cli.ts security-results/runtime.json security-results/full.json security/audit-exceptions.json > security-results/gate.json
+      - name: Preserve advisory evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: dependency-security-${{ github.run_id }}-${{ github.run_attempt }}
+          path: security-results/
+          if-no-files-found: warn
+          retention-days: 14
+
+  browser-e2e:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    env:
+      BACKEND_URL: http://127.0.0.1:1
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: '22.13.0'
+          cache: npm
+      - name: Install
+        run: npm ci
+      - name: Install Chromium and system dependencies
+        run: npx --no-install playwright install --with-deps chromium
+      - name: Build production frontend
+        run: npx --no-install next build
+      - name: Browser smoke, accessibility and lab performance checks
+        run: npm run browser:e2e
+      - name: Preserve browser evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: browser-e2e-${{ github.run_id }}-${{ github.run_attempt }}
+          path: data/browser-e2e/
+          if-no-files-found: warn
+          retention-days: 14

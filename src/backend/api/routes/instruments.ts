@@ -1,4 +1,6 @@
 import type { FastifyInstance } from 'fastify';
+import { resolveInstrument } from '../../config/asset.registry.js';
+import { ApplicationError } from '../../errors/application.error.js';
 import { getAnalysis } from '../controllers/analysis.controller.js';
 import { instrumentPayload, instrumentsPayload } from '../controllers/instruments.controller.js';
 import { getMarket } from '../controllers/market.controller.js';
@@ -6,6 +8,15 @@ import { sendWithEtag } from '../lib/conditional-get.js';
 import { setDataFreshnessHeaders } from '../lib/data-freshness.js';
 import { intervalQuery } from '../lib/interval-query.js';
 import { InstrumentProblemSchema } from '../schemas.js';
+
+/** Named-market endpoints refuse unknown identities before provider routing. */
+function knownTicker(ticker: string): string {
+    const normalized = ticker.trim().toUpperCase();
+    if (resolveInstrument(normalized) === null) {
+        throw new ApplicationError(`Unknown instrument: ${normalized}`, { code: 'NOT_FOUND', statusCode: 404 });
+    }
+    return normalized;
+}
 
 /**
  * `/api/instruments`, added alongside the frozen endpoints and in front of
@@ -44,7 +55,7 @@ export async function instrumentRoutes(app: FastifyInstance): Promise<void> {
         const result = await getAnalysis(
             request.log,
             request.id,
-            ticker.trim().toUpperCase(),
+            knownTicker(ticker),
             intervalQuery(request.query),
         );
 
@@ -65,7 +76,7 @@ export async function instrumentRoutes(app: FastifyInstance): Promise<void> {
     app.get('/api/instruments/:ticker/market', async (request, reply) => {
         const { ticker } = request.params as { ticker: string };
         const result = await getMarket(
-            ticker.trim().toUpperCase(),
+            knownTicker(ticker),
             intervalQuery(request.query),
         );
 

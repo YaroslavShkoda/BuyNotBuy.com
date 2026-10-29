@@ -300,6 +300,11 @@ export class BitgetProvider implements MarketDataProvider {
      * `limit` bars of this interval could reach, an empty page is the
      * expected answer and the loop would otherwise keep asking.
      */
+    async getAttributedHistoricalCandles(limit: number, before?: number): Promise<ProviderCandles> {
+        return { venue: this.name, symbol: this.symbol, interval: this.intervalLabel,
+            candles: await this.getHistoricalCandles(limit, before) };
+    }
+
     async getHistoricalCandles(
         limit: number,
         before?: number,

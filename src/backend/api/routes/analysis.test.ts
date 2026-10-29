@@ -92,6 +92,7 @@ vi.mock('../../services/analysis.service.js', () => ({
     analyzeMarket: vi.fn(async () => mockAnalysis),
     analyzeMarketWithStatus: vi.fn(async () => ({
         analysis: mockAnalysis,
+        snapshot: { symbol: 'BTCUSDT', interval: '1h' as const, lastBarClosedAt: 100_000 },
         explanation: mockExplanation,
         stale: false,
         ageMs: 0,
@@ -118,7 +119,7 @@ describe('GET /api/analysis', () => {
 
         const body = response.json();
 
-        expect(body).toEqual(mockAnalysis);
+        expect(body).toEqual({ ...mockAnalysis, explanation: { confidence: { model: mockExplanation.confidence.model, meaning: mockExplanation.confidence.meaning, isProbabilityOfBeingRight: false }, quality: mockExplanation.quality }, snapshot: { symbol: 'BTCUSDT', interval: '1h', lastBarClosedAt: 100_000, stale: false, freshness: 'fresh', provider: 'binance' } });
         expect(analyzeMarketWithStatus).toHaveBeenCalledTimes(1);
 
         // A live reading is declared as such, so a consumer never has to
@@ -132,6 +133,7 @@ describe('GET /api/analysis', () => {
     it('flags a response served from the fallback snapshot', async () => {
         vi.mocked(analyzeMarketWithStatus).mockResolvedValueOnce({
             analysis: mockAnalysis,
+            snapshot: { symbol: 'ETHUSDT', interval: '1h', lastBarClosedAt: 90_000 },
             explanation: mockExplanation,
             stale: true,
             ageMs: 245_000,
@@ -149,7 +151,7 @@ describe('GET /api/analysis', () => {
         });
 
         expect(response.statusCode).toBe(200);
-        expect(response.json()).toEqual(mockAnalysis);
+        expect(response.json()).toEqual({ ...mockAnalysis, explanation: { confidence: { model: mockExplanation.confidence.model, meaning: mockExplanation.confidence.meaning, isProbabilityOfBeingRight: false }, quality: mockExplanation.quality }, snapshot: { symbol: 'ETHUSDT', interval: '1h', lastBarClosedAt: 90_000, stale: true, freshness: 'stale', provider: 'bitget' } });
         expect(response.headers['x-data-stale']).toBe('true');
         expect(response.headers['x-data-age-ms']).toBe('245000');
         expect(response.headers['cache-control']).toBe('no-store');

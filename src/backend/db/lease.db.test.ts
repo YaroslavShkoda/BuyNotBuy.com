@@ -1,3 +1,4 @@
+import { Pool } from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { getTestPool } from '../test-support/test-database.js';
@@ -35,6 +36,28 @@ afterAll(async () => {
 });
 
 describe('lease, against the real lock', () => {
+    it('hands off to a distinct session after repeated holder checks and one release', async () => {
+        const holders = new Pool({ connectionString: process.env.DATABASE_URL, max: 1 });
+        const contenders = new Pool({ connectionString: process.env.DATABASE_URL, max: 1 });
+        const holder = createLease({ key: 'repeated-check-handoff', logger, connect: () => holders.connect() });
+        const contender = createLease({ key: 'repeated-check-handoff', logger, connect: () => contenders.connect() });
+        try {
+            const holderPid = (await holders.query('SELECT pg_backend_pid() pid')).rows[0].pid;
+            const contenderPid = (await contenders.query('SELECT pg_backend_pid() pid')).rows[0].pid;
+            expect(holderPid).not.toBe(contenderPid);
+            await expect(holder.ensureHeld()).resolves.toBe(true);
+            await expect(holder.ensureHeld()).resolves.toBe(true);
+            await expect(holder.ensureHeld()).resolves.toBe(true);
+            await expect(contender.ensureHeld()).resolves.toBe(false);
+            await holder.release();
+            await expect(contender.ensureHeld()).resolves.toBe(true);
+        } finally {
+            await holder.release();
+            await contender.release();
+            await holders.end();
+            await contenders.end();
+        }
+    });
     it('grants the lease to one process and to no one else', async () => {
         await expect(first.ensureHeld()).resolves.toBe(true);
         expect(first.isHeld).toBe(true);

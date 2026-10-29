@@ -1,6 +1,7 @@
 import { MarketDataError } from '../errors/market-data.error.js';
 import type { ProviderFailureKind } from '../errors/provider.error.js';
 import { ProviderError, statusForKind } from '../errors/provider.error.js';
+import { currentRegistry } from '../observability/registry.js';
 import type {
     AssetPrice,
     Candle,
@@ -147,6 +148,21 @@ export class FailoverProvider implements MarketDataProvider {
         // Bitget snapshot as "failover" and lose exactly the attribution this
         // method exists to keep.
         return { ...value, venue: value.venue === '' ? venue : value.venue };
+    }
+
+    async getAttributedHistoricalCandles(limit: number, before?: number): Promise<ProviderCandles> {
+        const { venue, value } = await this.runAttributed('historical candles', async (provider) => {
+            if (!provider.getAttributedHistoricalCandles) {
+                currentRegistry().counter('provider_errors_total', 1, { operation: 'historical', reason: 'provenance_unavailable' });
+                throw new ProviderError('invalid_response', 'provenance_unavailable: provider cannot attribute historical responses', { context: { provider: provider.name } });
+            }
+            return provider.getAttributedHistoricalCandles(limit, before);
+        });
+        if (value.venue !== venue) {
+            currentRegistry().counter('provider_errors_total', 1, { operation: 'historical', reason: 'venue_mismatch' });
+            throw new ProviderError('invalid_response', `venue_mismatch: selected ${venue}, response claimed ${value.venue}`, { context: { provider: venue } });
+        }
+        return value;
     }
 
     async getHistoricalCandles(

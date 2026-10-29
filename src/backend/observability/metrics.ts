@@ -262,6 +262,7 @@ export type Metrics = ReturnType<typeof createMetrics>;
  * test does the diffing.
  */
 export const METRIC_COUNTERS = [
+    'rate_limit_store_failures_total',
     'provider_requests_total',
     'provider_errors_total',
     'provider_rate_limits',
@@ -319,6 +320,7 @@ export const METRIC_KIND: Readonly<Record<MetricName, MetricKind>> = {
     provider_health: 'gauge',
     provider_consecutive_failures: 'gauge',
     metric_series_limit: 'gauge',
+    rate_limit_store_failures_total: 'counter',
     provider_requests_total: 'counter',
     provider_errors_total: 'counter',
     provider_rate_limits: 'counter',

@@ -1,0 +1,206 @@
+{
+  "status": "passed",
+  "browser": "156.0.8078.4",
+  "results": [
+    {
+      "name": "desktop/cold-context: home, chart, keyboard/touch, vitals",
+      "passed": true
+    },
+    {
+      "name": "desktop/warm-reload: home, chart, keyboard/touch, vitals",
+      "passed": true
+    },
+    {
+      "name": "desktop: BTC/ETH activation and interval navigation",
+      "passed": true
+    },
+    {
+      "name": "desktop: stale and diagnostic quality alongside LONG",
+      "passed": true
+    },
+    {
+      "name": "desktop: insufficient history recovery",
+      "passed": true
+    },
+    {
+      "name": "desktop: HTTP 429 and retry",
+      "passed": true
+    },
+    {
+      "name": "desktop: HTTP 502 and retry",
+      "passed": true
+    },
+    {
+      "name": "desktop: HTTP 503 and retry",
+      "passed": true
+    },
+    {
+      "name": "desktop: HTTP 504 and retry",
+      "passed": true
+    },
+    {
+      "name": "mobile/cold-context: home, chart, keyboard/touch, vitals",
+      "passed": true
+    },
+    {
+      "name": "mobile/warm-reload: home, chart, keyboard/touch, vitals",
+      "passed": true
+    },
+    {
+      "name": "mobile: BTC/ETH activation and interval navigation",
+      "passed": true
+    },
+    {
+      "name": "mobile: stale and diagnostic quality alongside LONG",
+      "passed": true
+    },
+    {
+      "name": "mobile: insufficient history recovery",
+      "passed": true
+    },
+    {
+      "name": "mobile: HTTP 429 and retry",
+      "passed": true
+    },
+    {
+      "name": "mobile: HTTP 502 and retry",
+      "passed": true
+    },
+    {
+      "name": "mobile: HTTP 503 and retry",
+      "passed": true
+    },
+    {
+      "name": "mobile: HTTP 504 and retry",
+      "passed": true
+    }
+  ],
+  "metrics": [
+    {
+      "device": "desktop",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "cache": "cold-context",
+      "lcp": 324,
+      "cls": 0,
+      "inp": 64,
+      "interactions": 1,
+      "supported": [
+        "element",
+        "event",
+        "first-input",
+        "interaction-contentful-paint",
+        "largest-contentful-paint",
+        "layout-shift",
+        "long-animation-frame",
+        "longtask",
+        "mark",
+        "measure",
+        "navigation",
+        "paint",
+        "resource",
+        "soft-navigation",
+        "visibility-state"
+      ],
+      "kind": "lab; no throttling; not RUM",
+      "inpLimitation": "Candidate from short scripted interaction sample; not field INP"
+    },
+    {
+      "device": "desktop",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "cache": "warm-reload",
+      "lcp": 192,
+      "cls": 0,
+      "inp": 72,
+      "interactions": 1,
+      "supported": [
+        "element",
+        "event",
+        "first-input",
+        "interaction-contentful-paint",
+        "largest-contentful-paint",
+        "layout-shift",
+        "long-animation-frame",
+        "longtask",
+        "mark",
+        "measure",
+        "navigation",
+        "paint",
+        "resource",
+        "soft-navigation",
+        "visibility-state"
+      ],
+      "kind": "lab; no throttling; not RUM",
+      "inpLimitation": "Candidate from short scripted interaction sample; not field INP"
+    },
+    {
+      "device": "mobile",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "cache": "cold-context",
+      "lcp": 260,
+      "cls": 0,
+      "inp": 40,
+      "interactions": 1,
+      "supported": [
+        "element",
+        "event",
+        "first-input",
+        "interaction-contentful-paint",
+        "largest-contentful-paint",
+        "layout-shift",
+        "long-animation-frame",
+        "longtask",
+        "mark",
+        "measure",
+        "navigation",
+        "paint",
+        "resource",
+        "soft-navigation",
+        "visibility-state"
+      ],
+      "kind": "lab; no throttling; not RUM",
+      "inpLimitation": "Candidate from short scripted interaction sample; not field INP"
+    },
+    {
+      "device": "mobile",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "cache": "warm-reload",
+      "lcp": 116,
+      "cls": 0,
+      "inp": 40,
+      "interactions": 1,
+      "supported": [
+        "element",
+        "event",
+        "first-input",
+        "interaction-contentful-paint",
+        "largest-contentful-paint",
+        "layout-shift",
+        "long-animation-frame",
+        "longtask",
+        "mark",
+        "measure",
+        "navigation",
+        "paint",
+        "resource",
+        "soft-navigation",
+        "visibility-state"
+      ],
+      "kind": "lab; no throttling; not RUM",
+      "inpLimitation": "Candidate from short scripted interaction sample; not field INP"
+    }
+  ],
+  "requestCount": 159,
+  "isolation": "HTTP API fixture, no database or market network"
+}

@@ -1,11 +1,11 @@
-﻿﻿import { describe, expect, it } from 'vitest';
+﻿import { describe, expect, it } from 'vitest';
 import { seedTestInstrument } from '../test-support/test-database.js';
 import type { Candle } from '../types/market.js';
 import { runBackfill } from './backfill.service.js';
 import { createCandleRepository } from './candle.repository.js';
 
 const DAY = 86_400_000;
-const BASE = 1_600_000_000_000;
+const BASE = 1_599_955_200_000; // UTC day-aligned opening timestamp.
 
 const bar = (i: number): Candle => ({
     timestamp: BASE + (2 - i) * DAY,
@@ -47,6 +47,10 @@ describe('the backfill counts what it overwrote', () => {
         const provider = {
             name: 'test',
             symbol,
+            async getAttributedHistoricalCandles() {
+                return { venue: this.name, symbol: this.symbol, interval: '1d' as const,
+                    candles: await this.getHistoricalCandles() };
+            },
             getHistoricalCandles: async () => page,
             getAttributedCandles: async () => ({
                 venue: 'test',
@@ -85,6 +89,10 @@ describe('the backfill counts what it overwrote', () => {
         const provider = {
             name: 'test',
             symbol,
+            async getAttributedHistoricalCandles() {
+                return { venue: this.name, symbol: this.symbol, interval: '1d' as const,
+                    candles: await this.getHistoricalCandles() };
+            },
             getHistoricalCandles: async () => page,
             getAttributedCandles: async () => ({
                 venue: 'test',
@@ -116,6 +124,10 @@ describe('the backfill counts what it overwrote', () => {
         const provider = {
             name: 'test',
             symbol,
+            async getAttributedHistoricalCandles() {
+                return { venue: this.name, symbol: this.symbol, interval: '1d' as const,
+                    candles: await this.getHistoricalCandles() };
+            },
             getHistoricalCandles: async () => [],
             getAttributedCandles: async () => ({
                 venue: 'test',

@@ -173,6 +173,11 @@ export class BinanceProvider implements MarketDataProvider {
      * consume its whole sample on the indicator warm-up and have nothing left
      * to evaluate.
      */
+    async getAttributedHistoricalCandles(limit: number, before?: number): Promise<ProviderCandles> {
+        return { venue: this.name, symbol: this.symbol, interval: this.interval,
+            candles: await this.getHistoricalCandles(limit, before) };
+    }
+
     async getHistoricalCandles(
         limit: number,
         before?: number,

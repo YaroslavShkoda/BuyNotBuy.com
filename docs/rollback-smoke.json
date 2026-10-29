@@ -1,0 +1,27 @@
+{
+  "checkedAt": "2026-10-25T20:05:21.963Z",
+  "environment": "local-lab",
+  "sourceCommit": "83b704cf2633cc69224bf96ebb260111a3b06260",
+  "dependencyArtifact": "current node_modules junction; not previous immutable image",
+  "trafficCutover": "NOT_TESTED",
+  "evidence": [
+    {
+      "path": "/healthz",
+      "status": 200,
+      "deploySha": "83b704cf2633cc69224bf96ebb260111a3b06260",
+      "symbol": null
+    },
+    {
+      "path": "/api/market",
+      "status": 200,
+      "deploySha": null,
+      "symbol": "BTCUSDT"
+    },
+    {
+      "path": "/api/instruments/ETHUSDT/market",
+      "status": 200,
+      "deploySha": null,
+      "symbol": "ETHUSDT"
+    }
+  ]
+}

@@ -73,6 +73,10 @@ function venue(candles: readonly Candle[]): MarketDataProvider & {
             interval: '1h' as const,
             candles: [...candles],
         }),
+        async getAttributedHistoricalCandles(limit: number, before?: number) {
+            return { venue: this.name, symbol: this.symbol, interval: '1h' as const,
+                candles: await (this as MarketDataProvider).getHistoricalCandles(limit, before) };
+        },
         getHistoricalCandles: async () => {
             provider.calls += 1;
 

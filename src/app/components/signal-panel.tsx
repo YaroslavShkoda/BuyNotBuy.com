@@ -141,6 +141,7 @@ export function SignalPanel({ signal, indicatorValues, periods, quote }: SignalP
                     КОНСЕНСУС {signal.confidence}%
                 </span>
             </div>
+            <p className="signal-vote-summary">Согласие индикаторов, не вероятность прибыли</p>
 
             <div className="signal-value">
                 <span className="signal-status">

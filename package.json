@@ -27,7 +27,10 @@
     "typecheck:backend": "tsc -p src/backend/tsconfig.json --noEmit",
     "test": "vitest run",
     "lint": "biome check",
-    "verify": "npm run canary:typecheck && npm run lint && npm run typecheck && npm run typecheck:backend && npm test"
+    "verify": "npm run canary:typecheck && npm run lint && npm run typecheck && npm run typecheck:backend && npm test",
+    "browser:e2e": "node --import=tsx e2e/run.ts",
+    "docs:check": "node --import=tsx src/backend/research/release/docs-check.cli.ts",
+    "research:readiness": "node --import=tsx src/backend/research/prospective-readiness.cli.ts"
   },
   "dependencies": {
     "fastify": "^5.12.5",
@@ -44,6 +47,7 @@
     "@types/react": "19.3.0",
     "@types/react-dom": "^19.3.0",
     "fast-check": "^4.10.2",
+    "playwright": "1.64.1",
     "tsx": "^4.23.13",
     "typescript": "7.0.2",
     "typescript-5": "npm:typescript@^5.9.3",

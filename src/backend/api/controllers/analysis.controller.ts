@@ -46,7 +46,7 @@ export async function getAnalysis(
             },
         };
 
-    const { analysis, stale, ageMs, freshness, provider } =
+    const { analysis, stale, ageMs, freshness, provider, snapshot, explanation } =
         await analyzeMarketWithStatus(
             adapter,
             requestId,
@@ -56,7 +56,11 @@ export async function getAnalysis(
         );
 
     return {
-        payload: MarketAnalysisSchema.parse(analysis),
+        payload: MarketAnalysisSchema.parse({
+            ...analysis,
+            ...(snapshot === undefined ? {} : { snapshot: { ...snapshot, stale, freshness, provider } }),
+            ...(explanation === undefined ? {} : { explanation: { confidence: explanation.confidence, quality: explanation.quality } }),
+        }),
         stale,
         ageMs,
         freshness,

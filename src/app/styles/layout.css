@@ -22,7 +22,18 @@
 
 @media (max-width: 560px) {
     .app-shell {
-        width: calc((100% - 20px) / 1.30);
+        zoom: 1;
+        width: calc(100% - 20px);
         padding-top: 10px;
+    }
+
+    .topbar-switcher-toggle,
+    .topbar-switcher-option,
+    .topbar-switcher-search,
+    .interval-option,
+    .state-retry,
+    .chart-data-alternative > summary {
+        min-width: 44px;
+        min-height: 44px;
     }
 }

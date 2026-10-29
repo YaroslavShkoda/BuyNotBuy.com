@@ -1,6 +1,7 @@
 import Fastify from 'fastify';
 import { describe, expect, it, vi } from 'vitest';
 import { requiredCandleCount } from '../config/indicator.config.js';
+import { analysisPersistenceWork } from '../test-support/analysis-persistence-drain.js';
 import { currentCandles } from '../test-support/candles.js';
 
 const { mockMarketDataProvider, mockAnyProviderAvailable } = vi.hoisted(() => {
@@ -44,6 +45,15 @@ vi.mock('../history/signal-history.service.js', () => ({
 }));
 
 import { createApp } from '../app.js';
+import { query } from '../db/pool.js';
+
+async function closeContractApp(app: ReturnType<typeof Fastify>) {
+    try {
+        await analysisPersistenceWork.drain();
+    } finally {
+        await app.close();
+    }
+}
 
 import {
     MarketAnalysisSchema,
@@ -64,7 +74,7 @@ describe('API contract validation', () => {
         expect(response.statusCode).toBe(200);
         expect(() => MarketAnalysisSchema.parse(response.json())).not.toThrow();
 
-        await app.close();
+        await closeContractApp(app);
     });
 
     it('GET /api/market response passes schema', async () => {
@@ -79,7 +89,7 @@ describe('API contract validation', () => {
         expect(response.statusCode).toBe(200);
         expect(() => MarketDataSchema.parse(response.json())).not.toThrow();
 
-        await app.close();
+        await closeContractApp(app);
     });
 
     it('GET /api/price response passes schema', async () => {
@@ -94,7 +104,7 @@ describe('API contract validation', () => {
         expect(response.statusCode).toBe(200);
         expect(() => PriceResponseSchema.parse(response.json())).not.toThrow();
 
-        await app.close();
+        await closeContractApp(app);
     });
 
     it('full app analysis response passes schema with default limit', async () => {
@@ -114,6 +124,49 @@ describe('API contract validation', () => {
         );
         expect(() => MarketAnalysisSchema.parse(body)).not.toThrow();
 
-        await app.close();
+        await closeContractApp(app);
+    });
+
+    it('finishes persistence delayed beyond the contract response before closing', async () => {
+        let enter!: () => void;
+        let release!: () => void;
+        const entered = new Promise<void>((done) => { enter = done; });
+        const gate = new Promise<void>((done) => { release = done; });
+        const real = await vi.importActual<typeof import('../analysis/signal-snapshot.repository.js')>('../analysis/signal-snapshot.repository.js');
+        const repository = real.getSignalSnapshotRepository();
+        const record = repository.record.bind(repository);
+        let finished = false;
+        const delayed = vi.spyOn(repository, 'record').mockImplementationOnce(async (input) => {
+            enter();
+            await gate;
+            const stored = await record(input);
+            finished = true;
+            return stored;
+        });
+        const app = createApp();
+        let finishedBeforeClose = false;
+        let snapshotsAtClose = -1;
+        app.addHook('onClose', async () => {
+            finishedBeforeClose = finished;
+            snapshotsAtClose = Number((await query('SELECT count(*) AS n FROM signal_snapshot')).rows[0]?.n);
+        });
+        let closing: Promise<void> | undefined;
+        try {
+            const response = await app.inject({ method: 'GET', url: '/api/analysis' });
+            expect(response.statusCode).toBe(200);
+            expect(() => MarketAnalysisSchema.parse(response.json())).not.toThrow();
+            await entered;
+            closing = closeContractApp(app);
+            expect(Number((await query('SELECT count(*) AS n FROM signal_snapshot')).rows[0]?.n)).toBe(0);
+            release();
+            await closing;
+            expect(finishedBeforeClose).toBe(true);
+            expect(snapshotsAtClose).toBe(1);
+        } finally {
+            release();
+            await analysisPersistenceWork.drain();
+            await (closing ?? app.close());
+            delayed.mockRestore();
+        }
     });
 });

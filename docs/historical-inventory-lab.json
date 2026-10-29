@@ -1,0 +1,255 @@
+{
+  "observedAt": 1792958527490,
+  "window": {
+    "now": 1792958527490,
+    "from": 1792886400000,
+    "to": 1792950000000
+  },
+  "provenance": "stored-attribution-only",
+  "independentSourceVerification": "NOT_TESTED",
+  "activationAllowed": false,
+  "series": [
+    {
+      "key": {
+        "provider": "binance",
+        "symbol": "BTCUSDT",
+        "interval": "15m"
+      },
+      "inventory": null,
+      "activationAllowed": false,
+      "blockers": [
+        "empty_series"
+      ],
+      "warnings": []
+    },
+    {
+      "key": {
+        "provider": "binance",
+        "symbol": "BTCUSDT",
+        "interval": "1h"
+      },
+      "inventory": null,
+      "activationAllowed": false,
+      "blockers": [
+        "empty_series"
+      ],
+      "warnings": []
+    },
+    {
+      "key": {
+        "provider": "binance",
+        "symbol": "BTCUSDT",
+        "interval": "4h"
+      },
+      "inventory": null,
+      "activationAllowed": false,
+      "blockers": [
+        "empty_series"
+      ],
+      "warnings": []
+    },
+    {
+      "key": {
+        "provider": "binance",
+        "symbol": "BTCUSDT",
+        "interval": "1d"
+      },
+      "inventory": null,
+      "activationAllowed": false,
+      "blockers": [
+        "empty_series"
+      ],
+      "warnings": []
+    },
+    {
+      "key": {
+        "provider": "bitget",
+        "symbol": "BTCUSDT",
+        "interval": "15m"
+      },
+      "inventory": null,
+      "activationAllowed": false,
+      "blockers": [
+        "empty_series"
+      ],
+      "warnings": []
+    },
+    {
+      "key": {
+        "provider": "bitget",
+        "symbol": "BTCUSDT",
+        "interval": "1h"
+      },
+      "inventory": null,
+      "activationAllowed": false,
+      "blockers": [
+        "empty_series"
+      ],
+      "warnings": []
+    },
+    {
+      "key": {
+        "provider": "bitget",
+        "symbol": "BTCUSDT",
+        "interval": "4h"
+      },
+      "inventory": null,
+      "activationAllowed": false,
+      "blockers": [
+        "empty_series"
+      ],
+      "warnings": []
+    },
+    {
+      "key": {
+        "provider": "bitget",
+        "symbol": "BTCUSDT",
+        "interval": "1d"
+      },
+      "inventory": null,
+      "activationAllowed": false,
+      "blockers": [
+        "empty_series"
+      ],
+      "warnings": []
+    }
+  ],
+  "undeclared": [
+    {
+      "provider": "dr-venue-a",
+      "symbol": "BTCUSDT",
+      "interval": "1d",
+      "count": 3,
+      "closedCount": 3,
+      "oldest": 1792886400000,
+      "newest": 1793059200000,
+      "duplicateCount": 0,
+      "gapCount": 0,
+      "misalignedCount": 0,
+      "identityMismatchCount": 0,
+      "invalidCount": 0,
+      "unknownProvenanceCount": 3,
+      "provenanceMismatchCount": 0,
+      "volumeAnomalyCount": 0
+    },
+    {
+      "provider": "dr-venue-a",
+      "symbol": "BTCUSDT",
+      "interval": "1h",
+      "count": 3,
+      "closedCount": 3,
+      "oldest": 1792886400000,
+      "newest": 1793059200000,
+      "duplicateCount": 0,
+      "gapCount": 2,
+      "misalignedCount": 0,
+      "identityMismatchCount": 0,
+      "invalidCount": 0,
+      "unknownProvenanceCount": 3,
+      "provenanceMismatchCount": 0,
+      "volumeAnomalyCount": 0
+    },
+    {
+      "provider": "dr-venue-a",
+      "symbol": "ETHUSDT",
+      "interval": "1d",
+      "count": 3,
+      "closedCount": 3,
+      "oldest": 1792886400000,
+      "newest": 1793059200000,
+      "duplicateCount": 0,
+      "gapCount": 0,
+      "misalignedCount": 0,
+      "identityMismatchCount": 0,
+      "invalidCount": 0,
+      "unknownProvenanceCount": 3,
+      "provenanceMismatchCount": 0,
+      "volumeAnomalyCount": 0
+    },
+    {
+      "provider": "dr-venue-a",
+      "symbol": "ETHUSDT",
+      "interval": "1h",
+      "count": 3,
+      "closedCount": 3,
+      "oldest": 1792886400000,
+      "newest": 1793059200000,
+      "duplicateCount": 0,
+      "gapCount": 2,
+      "misalignedCount": 0,
+      "identityMismatchCount": 0,
+      "invalidCount": 0,
+      "unknownProvenanceCount": 3,
+      "provenanceMismatchCount": 0,
+      "volumeAnomalyCount": 0
+    },
+    {
+      "provider": "dr-venue-b",
+      "symbol": "BTCUSDT",
+      "interval": "1d",
+      "count": 3,
+      "closedCount": 3,
+      "oldest": 1792886400000,
+      "newest": 1793059200000,
+      "duplicateCount": 0,
+      "gapCount": 0,
+      "misalignedCount": 0,
+      "identityMismatchCount": 0,
+      "invalidCount": 0,
+      "unknownProvenanceCount": 3,
+      "provenanceMismatchCount": 0,
+      "volumeAnomalyCount": 0
+    },
+    {
+      "provider": "dr-venue-b",
+      "symbol": "BTCUSDT",
+      "interval": "1h",
+      "count": 3,
+      "closedCount": 3,
+      "oldest": 1792886400000,
+      "newest": 1793059200000,
+      "duplicateCount": 0,
+      "gapCount": 2,
+      "misalignedCount": 0,
+      "identityMismatchCount": 0,
+      "invalidCount": 0,
+      "unknownProvenanceCount": 3,
+      "provenanceMismatchCount": 0,
+      "volumeAnomalyCount": 0
+    },
+    {
+      "provider": "dr-venue-b",
+      "symbol": "ETHUSDT",
+      "interval": "1d",
+      "count": 3,
+      "closedCount": 3,
+      "oldest": 1792886400000,
+      "newest": 1793059200000,
+      "duplicateCount": 0,
+      "gapCount": 0,
+      "misalignedCount": 0,
+      "identityMismatchCount": 0,
+      "invalidCount": 0,
+      "unknownProvenanceCount": 3,
+      "provenanceMismatchCount": 0,
+      "volumeAnomalyCount": 0
+    },
+    {
+      "provider": "dr-venue-b",
+      "symbol": "ETHUSDT",
+      "interval": "1h",
+      "count": 3,
+      "closedCount": 3,
+      "oldest": 1792886400000,
+      "newest": 1793059200000,
+      "duplicateCount": 0,
+      "gapCount": 2,
+      "misalignedCount": 0,
+      "identityMismatchCount": 0,
+      "invalidCount": 0,
+      "unknownProvenanceCount": 3,
+      "provenanceMismatchCount": 0,
+      "volumeAnomalyCount": 0
+    }
+  ]
+}

@@ -1,13 +1,12 @@
 import { CANDLE_INTERVAL_MS, marketConfig } from '../config/market.config.js';
-import { ApplicationError } from '../errors/application.error.js';
 import { configuredVenueFor, marketProviderFor } from '../market/market.provider.js';
 import type { MarketDataProvider } from '../market/providers/market-data.provider.js';
 import type { CandleInterval } from '../types/candle-interval.js';
 import type { Candle } from '../types/market.js';
-
 import type { CandleRepository, CandleSeriesKey } from './candle.repository.js';
 import { candleRepository } from './candle.repository.js';
 import { isCandleClosed } from './candle-clock.js';
+import { assertHistoricalInterval, assertHistoricalProvider, fetchHistoricalForSeries } from './historical-provenance.js';
 
 /**
  * Keeping the candle table current.
@@ -89,32 +88,12 @@ export async function ingestOnce(
     const limit = options.limit ?? marketConfig.defaultCandleLimit;
     const at = now();
 
-    // The provider names its own symbol, and the key names the rows it is about
-    // to write into. The provider is now resolved from that key, so the two
-    // agree by construction — **and this check has a narrower job than it had.**
-    // It used to catch a whole class of miswiring, because the provider was a
-    // process-wide singleton that no key could influence. It now catches one
-    // thing: a caller that injected a provider serving another market, which is
-    // exactly what a test does by accident and what a future caller would do by
-    // caching.
-    //
-    // Worth keeping anyway. A misfiled bar is correct-looking candles in another
-    // market's series, and nothing downstream can notice — `upsert` succeeds, the
-    // table is not short of rows, and every later measurement is taken against
-    // the wrong input. Checked before the fetch rather than after, because a
-    // request whose result is certain to be refused should not be spent. Thrown
-    // rather than counted, because this is a wiring fault rather than a market
-    // condition: no amount of retrying resolves it, and the poller logs a failed
-    // cycle and keeps ticking, so the refusal is visible on every cycle instead
-    // of being absorbed.
-    if (provider.symbol !== options.key.symbol) {
-        throw new ApplicationError(
-            `Provider ${provider.name} serves ${provider.symbol}, which is not the series ${options.key.symbol}`,
-            { code: 'VALIDATION_ERROR', statusCode: 500 },
-        );
-    }
+    // Refuse a provider bound to another market before a network request.
+    // Per-response venue/symbol/interval validation happens again at fetch time.
+    assertHistoricalProvider(provider, options.key, 'ingestion');
+    assertHistoricalInterval(options.key, options.intervalMs, 'ingestion');
 
-    const fetched = await provider.getHistoricalCandles(limit);
+    const { candles: fetched } = await fetchHistoricalForSeries(provider, options.key, 'ingestion', limit, undefined, at);
 
     if (fetched.length === 0) {
         return {

@@ -71,6 +71,12 @@ export interface MarketDataProvider {
         before?: number,
     ): Promise<Candle[]>;
 
+    /** Optional for non-writing consumers; historical writers require attribution. */
+    getAttributedHistoricalCandles?(
+        limit: number,
+        before?: number,
+    ): Promise<ProviderCandles>;
+
     /**
      * The live window, attributed.
      *

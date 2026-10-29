@@ -73,9 +73,54 @@ Walk-forward on 2400 synthetic hourly bars, 6 folds with threshold fitting
 - SSR HTML for `/` measured at **188 KB** (YAR-67 smoke); the dashboard is
   server-rendered with no client-side data fetching on the chart panel, so
   First Contentful Paint ≈ HTML arrival + one stylesheet.
-- **Real Core Web Vitals (LCP/INP/CLS) require a browser session and are not
-  measured here** — no browser automation exists in the repo. This is the
-  open limitation of the frontend half of this baseline.
+- The original 24 October baseline did not measure browser vitals. The
+  25 October browser measurements below supersede that limitation for a local
+  synthetic run; they are not production field measurements.
+
+## Browser lab baseline — 25 October 2026
+
+Starting HEAD/origin main: `18e0034a407c0e6b7281efd0549e8dd09f3eb46d`, plus
+the local YAR-78/81 patch. Production Next 16.4.2; Chromium 156.0.8078.4 via
+Playwright 1.64.1; Node 24.21.0; Windows workstation. No CPU/network throttling.
+Real browser renders Next SSR against the local HTTP API fixture; external
+market network is mocked. Desktop 1440×1000, mobile 390×844 with touch emulation.
+Cold means a new browser context, **not** a cold backend/process/OS cache. Warm
+means reloading in that same context. One navigation per cell, no percentile
+claim or statistical stability claim.
+
+| Viewport | Cache | LCP | CLS | Observed INP candidate | Timed interactions |
+| --- | --- | --- | --- | --- | --- |
+| Desktop | Cold context | 324 ms | 0 | 64 ms | 1 |
+| Desktop | Warm reload | 192 ms | 0 | 72 ms | 1 |
+| Mobile | Cold context | 260 ms | 0 | 40 ms | 1 |
+| Mobile | Warm reload | 116 ms | 0 | 40 ms | 1 |
+
+LCP comes from `largest-contentful-paint`; CLS is the maximum layout-shift
+session window (1-second gap, 5-second maximum), excluding recent-input shifts.
+Event Timing entries with a nonzero interaction ID are grouped by interaction;
+the candidate excludes one longest interaction per 50 samples. Scripted keyboard
+and touch interactions are real browser events, but this short sample is **lab
+INP candidate data, not RUM INP or a full page-lifecycle field measurement**.
+With no observable entry at the 16 ms threshold, INP is reported `null` and
+limited, never zero or automatically measured. LCP/CLS cover the sampled initial
+load and disclosure interaction, not later routes or a complete user session.
+
+Repeat using [browser-e2e.md](browser-e2e.md). `report.json` records each viewport,
+cache state, measured values and INP limitation; screenshots, accessible trees
+and traces support inspection. CI artifacts preserve the run. No CI link exists
+until the owner authorizes publication and a remote run actually executes.
+
+Browser regression gate: LCP ≤ 4000 ms, CLS ≤ 0.1, observed INP candidate ≤
+500 ms when available. Missing LCP fails. Missing Event Timing is reported as
+limited coverage, not a passing INP measurement. These broad deterministic
+fixture ceilings catch regressions; they do not promise production good-CWV
+ratings. Strict field budgets need representative RUM and enough navigations.
+
+Run this gate without concurrent CPU-heavy tests or builds. A local run while
+Vitest was active exceeded the interaction ceiling (1768 ms); the gate failed
+and the budget was kept unchanged. The table records the subsequent isolated
+final run, also saved in `docs/browser-results.json`. CI runs the browser job on
+its own worker; workstation contention is not a production performance sample.
 
 ## Regression budgets
 

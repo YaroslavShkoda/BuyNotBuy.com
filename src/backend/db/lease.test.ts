@@ -1,3 +1,4 @@
+import { EventEmitter } from 'node:events';
 import type { PoolClient } from 'pg';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -22,8 +23,11 @@ interface FakeQueryResult {
 
 function fakeClient(script: () => Promise<FakeQueryResult>) {
     return {
-        query: vi.fn(script),
+        events: new EventEmitter(),
+        query: vi.fn((_sql: string, _values?: readonly unknown[]) => script()),
         release: vi.fn(),
+        on(event: string, listener: (...args: unknown[]) => void) { this.events.on(event, listener); return this; },
+        removeListener(event: string, listener: (...args: unknown[]) => void) { this.events.removeListener(event, listener); return this; },
     };
 }
 
@@ -55,6 +59,101 @@ function leaseWith(clients: TestClient[], logger = silentLogger()) {
 }
 
 describe('lease', () => {
+    it('rejects an acquisition that lost its session before its query resolved', async () => {
+        let resolveQuery: (result: FakeQueryResult) => void = () => undefined;
+        const holder = fakeClient(() => new Promise((done) => { resolveQuery = done; }));
+        const { lease } = leaseWith([holder]);
+        const acquire = lease.ensureHeld();
+        await new Promise((done) => setImmediate(done));
+        const failure = new Error('connection terminated');
+        expect(() => holder.events.emit('error', failure)).not.toThrow();
+        resolveQuery({ rows: [{ locked: true }] });
+        await expect(acquire).rejects.toThrow('connection terminated');
+        expect(lease.isHeld).toBe(false);
+        expect(holder.release).toHaveBeenCalledExactlyOnceWith(failure);
+        await lease.release();
+        expect(holder.release).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not publish a successful verify after its session emitted an error', async () => {
+        let resolveVerify: (result: FakeQueryResult) => void = () => undefined;
+        let calls = 0;
+        const holder = fakeClient(async () => {
+            if (++calls === 1) return { rows: [{ locked: true }] };
+            return new Promise((done) => { resolveVerify = done; });
+        });
+        const { lease } = leaseWith([holder, lockedClient(false)]);
+        await lease.ensureHeld();
+        const verify = lease.ensureHeld();
+        await new Promise((done) => setImmediate(done));
+        holder.events.emit('error', new Error('connection terminated'));
+        expect(lease.isHeld).toBe(false);
+        resolveVerify({ rows: [{ locked: true }] });
+        await expect(verify).resolves.toBe(false);
+        expect(holder.release).toHaveBeenCalledTimes(1);
+    });
+
+    it('releases a session once when an error event races its unlock', async () => {
+        let rejectUnlock: (reason: Error) => void = () => undefined;
+        let calls = 0;
+        const holder = fakeClient(async () => {
+            if (++calls === 1) return { rows: [{ locked: true }] };
+            return new Promise((_, reject) => { rejectUnlock = reject; });
+        });
+        const { lease } = leaseWith([holder]);
+        await lease.ensureHeld();
+        const release = lease.release();
+        await new Promise((done) => setImmediate(done));
+        const failure = new Error('connection terminated');
+        expect(() => holder.events.emit('error', failure)).not.toThrow();
+        expect(lease.isHeld).toBe(false);
+        rejectUnlock(failure);
+        await release;
+        expect(holder.release).toHaveBeenCalledExactlyOnceWith(failure);
+    });
+    it('invalidates an idle parked client on error and reacquires on the next check', async () => {
+        const holder = lockedClient(true);
+        const heir = lockedClient(true);
+        const { lease } = leaseWith([holder, heir]);
+        await lease.ensureHeld();
+        const failure = new Error('connection terminated');
+        expect(() => holder.events.emit('error', failure)).not.toThrow();
+        expect(lease.isHeld).toBe(false);
+        expect(holder.release).toHaveBeenCalledExactlyOnceWith(failure);
+        await expect(lease.ensureHeld()).resolves.toBe(true);
+        await lease.release();
+        expect(holder.release).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not double-release when an error event races a rejected verify', async () => {
+        let rejectVerify: (reason: Error) => void = () => undefined;
+        let calls = 0;
+        const holder = fakeClient(async () => {
+            if (++calls === 1) return { rows: [{ locked: true }] };
+            return new Promise((_, reject) => { rejectVerify = reject; });
+        });
+        const { lease } = leaseWith([holder, lockedClient(true)]);
+        await lease.ensureHeld();
+        const verify = lease.ensureHeld();
+        await new Promise((done) => setImmediate(done));
+        const failure = new Error('connection terminated');
+        expect(() => holder.events.emit('error', failure)).not.toThrow();
+        rejectVerify(failure);
+        await expect(verify).resolves.toBe(true);
+        expect(holder.release).toHaveBeenCalledTimes(1);
+        await lease.release();
+    });
+
+    it('releases leadership after repeated checks with one session lock acquisition', async () => {
+        const holder = lockedClient(true);
+        const { lease } = leaseWith([holder]);
+        await lease.ensureHeld();
+        await lease.ensureHeld();
+        await lease.ensureHeld();
+        const lockCalls = holder.query.mock.calls.filter(([sql]) => String(sql).includes('pg_try_advisory_lock'));
+        expect(lockCalls).toHaveLength(1);
+        await lease.release();
+    });
     it('acquires when the lock is free and keeps its own session parked', async () => {
         const client = lockedClient(true);
         const { lease } = leaseWith([client]);

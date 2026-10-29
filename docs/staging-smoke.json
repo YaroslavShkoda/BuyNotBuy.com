@@ -1,0 +1,155 @@
+{
+  "format": "staging-lab-smoke/1",
+  "checkedAt": "2026-10-26T11:05:54.329Z",
+  "environment": "loopback-synthetic",
+  "productionOrRemoteStaging": "NOT_TESTED",
+  "artifact": "base commit plus uncommitted changes; health deploySha alone is not a dirty-tree fingerprint",
+  "evidence": [
+    {
+      "path": "/healthz",
+      "status": 200,
+      "snapshot": null,
+      "body": {
+        "status": "ok",
+        "deploySha": "18e0034a407c0e6b7281efd0549e8dd09f3eb46d"
+      }
+    },
+    {
+      "path": "/readyz",
+      "status": 200,
+      "snapshot": null,
+      "body": {
+        "status": "ready",
+        "checks": {
+          "database": {
+            "ok": true
+          },
+          "marketData": {
+            "ok": true,
+            "venues": [
+              {
+                "provider": "mock",
+                "market": "BTCUSDT",
+                "state": "degraded",
+                "circuit": "closed",
+                "available": true
+              }
+            ]
+          },
+          "components": {
+            "state": "failing",
+            "components": [
+              {
+                "name": "market-provider",
+                "state": "failing",
+                "detail": "последний бар ETHUSDT 1h старше на 20752 баров",
+                "dataAgeMs": 1793012754225,
+                "observedAt": 1793012754225
+              },
+              {
+                "name": "database",
+                "state": "ok",
+                "detail": "отвечает",
+                "checkedInMs": 2,
+                "observedAt": 1793012754194
+              },
+              {
+                "name": "market-freshness",
+                "state": "ok",
+                "detail": "снимок получен напрямую",
+                "dataAgeMs": 0,
+                "observedAt": 1793012754192
+              },
+              {
+                "name": "retention",
+                "state": "ok",
+                "detail": "6 правил, из них защищено 2",
+                "observedAt": 1793012754225
+              }
+            ],
+            "checkedAt": 1793012754225,
+            "problems": [
+              "market-provider: последний бар ETHUSDT 1h старше на 20752 баров"
+            ],
+            "healthy": false
+          }
+        }
+      }
+    },
+    {
+      "path": "/api/instruments",
+      "status": 200,
+      "snapshot": null
+    },
+    {
+      "path": "/api/market",
+      "status": 200,
+      "snapshot": {
+        "provider": "mock",
+        "symbol": "BTCUSDT",
+        "interval": "1h",
+        "lastBarClosedAt": 1793012400000,
+        "stale": false,
+        "freshness": "fresh"
+      }
+    },
+    {
+      "path": "/api/analysis",
+      "status": 200,
+      "snapshot": {
+        "provider": "mock",
+        "symbol": "BTCUSDT",
+        "interval": "1h",
+        "lastBarClosedAt": 1793012400000,
+        "stale": false,
+        "freshness": "fresh"
+      }
+    },
+    {
+      "path": "/api/instruments/BTCUSDT/market",
+      "status": 200,
+      "snapshot": {
+        "provider": "mock",
+        "symbol": "BTCUSDT",
+        "interval": "1h",
+        "lastBarClosedAt": 1793012400000,
+        "stale": false,
+        "freshness": "fresh"
+      }
+    },
+    {
+      "path": "/api/instruments/ETHUSDT/market",
+      "status": 200,
+      "snapshot": {
+        "provider": "mock",
+        "symbol": "ETHUSDT",
+        "interval": "1h",
+        "lastBarClosedAt": 1793012400000,
+        "stale": false,
+        "freshness": "fresh"
+      }
+    },
+    {
+      "path": "/api/instruments/ETHUSDT/analysis",
+      "status": 200,
+      "snapshot": {
+        "provider": "mock",
+        "symbol": "ETHUSDT",
+        "interval": "1h",
+        "lastBarClosedAt": 1793012400000,
+        "stale": false,
+        "freshness": "fresh"
+      }
+    },
+    {
+      "path": "/api/instruments/UNKNOWN/market",
+      "status": 404,
+      "snapshot": null
+    },
+    {
+      "path": "/metrics",
+      "status": 200,
+      "prometheusExposition": true
+    }
+  ]
+}

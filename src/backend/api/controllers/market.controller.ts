@@ -26,6 +26,7 @@ export async function getMarket(
     return {
         payload: MarketResponseSchema.parse({
             ...data,
+            snapshot: { symbol: data.symbol, interval: data.interval, lastBarClosedAt: data.timestamp, stale, freshness, provider },
             instrument:
                 resolved === null
                     ? null
