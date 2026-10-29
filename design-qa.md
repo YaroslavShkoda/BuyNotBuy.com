@@ -1,6 +1,10 @@
 # Graphite visual QA —29 October2026
 
-final result: passed
+final result: blocked
+
+## Owner feedback supersedes the initial local assessment
+
+On29 October the owner rejected the new design, specifically its layout and block sizes, and preferred the previous design. The local assessment below is historical technical evidence and does not establish visual acceptance. YAR-106 remains open. A corrected composition must be shown and accepted before visual handoff; tests and green CI do not settle this feedback. The owner subsequently requested a landing page and asked for all briefing questions first; those questions are pending answers.
 
 Scope: owner-selected Graphite direction and YAR-102–106 acceptance, preserving the existing research product. Source board is1536×1024, SHA d2fe7bf8f0d035cb1ce30a0dc2254522f86027dd89d1878ce86c9ee18dca9200. It combines an illustrative desktop and mobile composition, not exact viewport screenshots or a numeric chart oracle. The Linear brief's explicit tokens/actual API semantics take precedence over generated incidental data.
 

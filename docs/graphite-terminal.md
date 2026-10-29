@@ -1,5 +1,10 @@
 # Graphite terminal — YAR-103–106
 
+Current visual state: **NOT ACCEPTED**. On29 October the owner rejected the layout and block sizes and preferred the previous design. YAR-106 remains open; technical checks below are historical evidence for the recorded source, not visual sign-off. The owner then requested a landing page; its product brief questions are pending answers. No further composition changes are approved by those unanswered questions.
+
+The subsequent YAR-109 carry-forward adds graceful typed-outage handling and preserves unexpected contract/JSON/internal failures; it does not change the rejected composition. Performance numbers below refer to the original measured dc2cb37 source, before that operational follow-up.
+
+
 Implemented on the owner-selected Graphite design, stacked on PR22 (`d3a2a4a62264c9ca243f9b99f76f10aae9d5e087`), itself stacked on draft PR21 (`efbf668e40e8e265d60a7b38d48507d4d9810c30`). Verified application source commit: `dc2cb37c719ce71b5a684f0f86e7efe86692914d`; final documentation commit is identified by the pull request. No merge or deployment.
 
 ## Result

@@ -94,5 +94,6 @@
     "interactiveReadyMs": 4000,
     "routeScriptDecodedBytes": 1000000
   },
-  "hydrationLimitation": "Interactive readiness is navigation-to-first working React switcher, includes networkidle; not isolated React hydration profiler duration."
+  "hydrationLimitation": "Interactive readiness is navigation-to-first working React switcher, includes networkidle; not isolated React hydration profiler duration.",
+  "evidenceStatus": "Historical measured candidate dc2cb37; before YAR109 follow-up. Owner rejected layout; no visual acceptance."
 }
