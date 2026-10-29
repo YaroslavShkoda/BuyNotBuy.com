@@ -1,0 +1,88 @@
+{
+  "observedAt": "2026-10-29T16:02:36.179Z",
+  "target": "existing local Docker buynotbuycom-postgres-1; not staging/production",
+  "identity": {
+    "database": "buynotbuy",
+    "role": "buynotbuy",
+    "version": "18.6",
+    "read_only": "on"
+  },
+  "ledger": {
+    "count": 26,
+    "version": 26
+  },
+  "hashFormat": "sha256(JSON.stringify(pg to_jsonb rows ordered provider,symbol,interval,timestamp,is_closed,instrument_id)); not directly comparable to older hash domains",
+  "before": {
+    "rows": 1586,
+    "sha256": "29cf98ed58f4e7f926338b259905369209810a7ed03acf24a8130a26e1c2cef5"
+  },
+  "after": {
+    "rows": 1586,
+    "sha256": "29cf98ed58f4e7f926338b259905369209810a7ed03acf24a8130a26e1c2cef5"
+  },
+  "unchangedAcrossSnapshots": true,
+  "inventorySqlSha256": "d161fbc5c2d44b7d8a9be23d1f034d1ab925f7ae943df7e84c624fdb79cc7873",
+  "series": [
+    {
+      "provider": "binance",
+      "symbol": "BTCUSDT",
+      "interval": "1h",
+      "count": 618,
+      "closedCount": 618,
+      "oldest": 1791003600000,
+      "newest": 1793224800000,
+      "duplicateCount": 0,
+      "gapCount": 0,
+      "misalignedCount": 0,
+      "identityMismatchCount": 0,
+      "invalidCount": 0,
+      "unknownProvenanceCount": 618,
+      "provenanceMismatchCount": 0,
+      "volumeAnomalyCount": 0,
+      "newestUTC": "2026-10-28T22:00:00.000Z",
+      "ageSinceCloseMs": 61356179
+    },
+    {
+      "provider": "binance",
+      "symbol": "ETHUSDT",
+      "interval": "1h",
+      "count": 592,
+      "closedCount": 592,
+      "oldest": 1791097200000,
+      "newest": 1793224800000,
+      "duplicateCount": 0,
+      "gapCount": 0,
+      "misalignedCount": 0,
+      "identityMismatchCount": 0,
+      "invalidCount": 0,
+      "unknownProvenanceCount": 592,
+      "provenanceMismatchCount": 0,
+      "volumeAnomalyCount": 0,
+      "newestUTC": "2026-10-28T22:00:00.000Z",
+      "ageSinceCloseMs": 61356179
+    },
+    {
+      "provider": "binance",
+      "symbol": "SOLUSDT",
+      "interval": "1h",
+      "count": 376,
+      "closedCount": 376,
+      "oldest": 1791097200000,
+      "newest": 1792447200000,
+      "duplicateCount": 0,
+      "gapCount": 0,
+      "misalignedCount": 0,
+      "identityMismatchCount": 0,
+      "invalidCount": 0,
+      "unknownProvenanceCount": 376,
+      "provenanceMismatchCount": 0,
+      "volumeAnomalyCount": 0,
+      "newestUTC": "2026-10-19T22:00:00.000Z",
+      "ageSinceCloseMs": 838956179
+    }
+  ],
+  "independentHistoricalSourceReceipts": "NOT_VERIFIED",
+  "activationAllowed": false,
+  "sqlWrites": 0,
+  "migrationsApplied": 0
+}

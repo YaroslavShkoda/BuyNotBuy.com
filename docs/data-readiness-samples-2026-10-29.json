@@ -1,0 +1,71 @@
+{
+  "probes": [
+    {
+      "venue": "binance",
+      "observedAt": "2026-10-29T16:03:55.462Z",
+      "request": {
+        "url": "https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1h&limit=3",
+        "market": "SPOT",
+        "symbol": "BTCUSDT",
+        "interval": "1h",
+        "limit": 3,
+        "authentication": "none"
+      },
+      "httpStatus": 451,
+      "curlExit": 0,
+      "responseBytes": 224,
+      "sha256": "79c1db471a4cdc1c8565b5dfc52e0ed2d29962738ee4d28597696fcd0920e348",
+      "apiCode": 0,
+      "rows": 0,
+      "closedRows": 0,
+      "formingRows": 0,
+      "invalidRows": 0,
+      "duplicates": 0,
+      "timestamps": [],
+      "safeHeaders": [
+        "HTTP/1.1 451 ",
+        "Date: Thu, 29 Oct 2026 16:03:10 GMT",
+        "Content-Type: application/json"
+      ],
+      "result": "RESTRICTED_STOP_NO_ALTERNATE_BINANCE_HOST",
+      "storedHistoricalIdentityVerified": false,
+      "storedDatabaseWrites": 0
+    },
+    {
+      "venue": "bitget",
+      "observedAt": "2026-10-29T16:03:55.462Z",
+      "request": {
+        "url": "https://api.bitget.com/api/v2/spot/market/candles?symbol=BTCUSDT&granularity=1h&limit=3",
+        "market": "SPOT",
+        "symbol": "BTCUSDT",
+        "interval": "1h",
+        "limit": 3,
+        "authentication": "none"
+      },
+      "httpStatus": 200,
+      "curlExit": 0,
+      "responseBytes": 403,
+      "sha256": "54947527ed029d09cfedc760e86c581dfa55c2ca0f0cec03317db2da8f81dc36",
+      "apiCode": "00000",
+      "rows": 3,
+      "closedRows": 2,
+      "formingRows": 1,
+      "invalidRows": 0,
+      "duplicates": 0,
+      "timestamps": [
+        "2026-10-29T14:00:00.000Z",
+        "2026-10-29T15:00:00.000Z",
+        "2026-10-29T16:00:00.000Z"
+      ],
+      "safeHeaders": [
+        "HTTP/1.1 200 OK",
+        "Date: Thu, 29 Oct 2026 16:03:11 GMT",
+        "Content-Type: application/json"
+      ],
+      "result": "BOUNDED_PUBLIC_SAMPLE_VALID",
+      "storedHistoricalIdentityVerified": false,
+      "storedDatabaseWrites": 0
+    }
+  ],
+  "limitations": "Only two single public HTTP requests, max3candles each; no auth/proxy/geolocation bypass, no alternate Binance host, no database import/backfill. A Bitget sample cannot validate or overwrite Binance history."
+}
