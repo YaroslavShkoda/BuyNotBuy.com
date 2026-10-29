@@ -1,90 +1,16 @@
-body::before,
-body::after {
-    content: "";
-    position: fixed;
-    inset: 0;
-    pointer-events: none;
-}
-
-body::before {
-    z-index: -2;
-    background:
-        radial-gradient(
-            850px 540px at 8% -8%,
-            rgba(100, 125, 255, 0.075),
-            transparent 70%
-        ),
-        radial-gradient(
-            700px 500px at 94% 8%,
-            rgba(80, 220, 180, 0.04),
-            transparent 72%
-        ),
-        radial-gradient(
-            900px 700px at 50% 48%,
-            rgba(255, 255, 255, 0.016),
-            transparent 70%
-        );
-}
-
-body::after {
-    z-index: -1;
-    opacity: 0.4;
-    background-image:
-        linear-gradient(
-            rgba(255,255,255,0.012) 1px,
-            transparent 1px
-        ),
-        linear-gradient(
-            90deg,
-            rgba(255,255,255,0.012) 1px,
-            transparent 1px
-        );
-    background-size: 72px 72px;
-    mask-image: linear-gradient(
-        to bottom,
-        black,
-        transparent 72%
-    );
-}
-
+/* Opaque Graphite panels keep text contrast independent of the background. */
 .depth-surface {
     position: relative;
     border: 1px solid var(--color-border);
     border-radius: var(--radius-lg);
-    /* Flat, with no white gradient over the fill.
-       It used to carry a 145deg ramp from rgba(255,255,255,0.04) at the top
-       left to 0.006 at the bottom right, which was meant to read as a light
-       source falling across the panel. Measured on the real page it read as
-       the panel being two different colours: down the hero's left column the
-       luminance ran 18.9 at the top to 12.9 at the bottom, and down the right
-       column 14.9 to 11.9. Anyone comparing the area behind the asset name with
-       the area down at the volume figures was looking at two surfaces and could
-       not tell that the design intended one.
-
-       The glows that did the same thing from the other side — body::before's
-       fixed washes and the signal panel's top-right bloom — land on the page
-       behind a fill this opaque and contribute under 0.3 of a level, which is
-       why the fill can stay translucent and still read as one tone. */
-    background: rgba(10, 12, 14, 0.78);
-    box-shadow:
-        var(--shadow-surface),
-        inset 0 1px 0 rgba(255,255,255,0.055),
-        inset 0 -1px 0 rgba(0,0,0,0.45);
-    backdrop-filter: blur(22px);
-    -webkit-backdrop-filter: blur(22px);
+    background: var(--color-surface);
+    box-shadow: var(--shadow-surface);
 }
 
 .interactive-surface {
-    transition:
-        transform var(--transition-base),
-        border-color var(--transition-base),
-        box-shadow var(--transition-base);
+    transition: border-color var(--transition-base);
 }
 
 .interactive-surface:hover {
-    transform: translateY(-2px);
     border-color: var(--color-border-strong);
-    box-shadow:
-        var(--shadow-elevated),
-        inset 0 1px 0 rgba(255,255,255,0.065);
 }

@@ -1,33 +1,23 @@
 :root {
-    --color-bg: #050607;
-    --color-surface: #0b0d0f;
-    --color-surface-elevated: #101316;
-    --color-surface-floating: #15191d;
-
-    --color-text: #f5f7f8;
-    /* The three steps below are white. Halfway to white still read as grey on
-       a near-black panel — the whole ramp now sits within fourteen points of the
-       primary, so nothing on the page is tinted.
-
-       The steps are not collapsed to one value. A caption, an axis label and a
-       heading set in the same weight and the same white are one wall of text,
-       and the eye has nothing to rank them by; a whisper of separation between
-       them survives the round trip from any reasonable viewing distance while
-       the smallest one still reads as white. 14 points of range, not 70. */
-    --color-text-secondary: #f4f6f7;
-    --color-text-muted: #eef0f2;
-    --color-text-dim: #e7e9eb;
-
-    --color-border: rgba(255, 255, 255, 0.08);
-    --color-border-strong: rgba(255, 255, 255, 0.14);
-
-    --color-long: #71dfad;
-    --color-short: #ed8b96;
-    --color-neutral: #aab1b8;
-    --color-warning: #dfbc74;
-
-    --color-focus: #8ec9ff;
-
+    --color-bg: #101418;
+    --color-surface: #171d24;
+    --color-surface-elevated: #1d2630;
+    --color-surface-floating: #242f3b;
+    --color-text: #f1f5f9;
+    --color-text-secondary: #b8c4d2;
+    --color-text-muted: #a4b1c0;
+    --color-text-dim: #a4b1c0;
+    --color-border: #344250;
+    --color-border-strong: #63788d;
+    --color-long: #69dcb2;
+    --color-short: #f38ca0;
+    --color-neutral: #b8c4d2;
+    --color-warning: #f2c46d;
+    --color-focus: #8cbfff;
+    --font-body: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --text-caption: 0.875rem;
+    --text-body: 1rem;
+    --text-heading: 1.25rem;
     --space-1: 4px;
     --space-2: 8px;
     --space-3: 12px;
@@ -39,24 +29,15 @@
     --space-9: 48px;
     --space-10: 64px;
     --space-11: 80px;
-
-    --section-gap: var(--space-5);
-
-    --radius-sm: 10px;
-    --radius-md: 16px;
-    --radius-lg: 22px;
-    --radius-xl: 28px;
-
-    --shadow-surface:
-        0 24px 60px rgba(0, 0, 0, 0.38);
-
-    --shadow-elevated:
-        0 32px 90px rgba(0, 0, 0, 0.48);
-
-    --shadow-floating:
-        0 42px 110px rgba(0, 0, 0, 0.58);
-
-    --transition-fast: 160ms ease;
-    --transition-base: 220ms ease;
-    --transition-slow: 420ms ease;
+    --section-gap: var(--space-6);
+    --radius-sm: 8px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --radius-xl: 18px;
+    --shadow-surface: 0 8px 24px rgba(0, 0, 0, 0.12);
+    --shadow-elevated: 0 12px 32px rgba(0, 0, 0, 0.18);
+    --shadow-floating: 0 16px 40px rgba(0, 0, 0, 0.28);
+    --transition-fast: 120ms ease;
+    --transition-base: 160ms ease;
+    --transition-slow: 160ms ease;
 }

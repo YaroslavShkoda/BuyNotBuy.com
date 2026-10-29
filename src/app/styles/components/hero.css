@@ -130,7 +130,7 @@
 
     color: var(--color-text-muted);
 
-    font-size: 9px;
+    font-size: var(--text-caption);
     font-weight: 700;
     letter-spacing: 0.16em;
 }
@@ -174,7 +174,7 @@
 .hero-price-label {
     color: var(--color-text-muted);
 
-    font-size: 9px;
+    font-size: var(--text-caption);
     font-weight: 700;
     letter-spacing: 0.13em;
 }
@@ -207,7 +207,7 @@
 .hero-metric span {
     color: var(--color-text-muted);
 
-    font-size: 9px;
+    font-size: var(--text-caption);
     font-weight: 700;
     letter-spacing: 0.12em;
 }
@@ -221,7 +221,7 @@
 
 .hero-metric small {
     color: var(--color-text-muted);
-    font-size: 9px;
+    font-size: var(--text-caption);
     line-height: 1.4;
 }
 

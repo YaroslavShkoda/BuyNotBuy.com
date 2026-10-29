@@ -14,7 +14,7 @@
 
     border: 1px solid var(--color-border);
     border-radius: var(--radius-lg);
-    background: rgba(10, 12, 14, 0.85);
+    background: var(--color-surface);
     box-shadow:
         inset 0 1px 0 rgba(255,255,255,0.05),
         inset 0 -1px 0 rgba(0,0,0,0.4);
@@ -41,7 +41,7 @@
 
 .signal-confidence {
     color: var(--color-text-muted);
-    font-size: 10px;
+    font-size: var(--text-caption);
     font-weight: 700;
     letter-spacing: 0.1em;
 }
@@ -120,7 +120,7 @@
     margin: 0 0 20px;
 
     color: var(--color-text-secondary);
-    font-size: 11px;
+    font-size: var(--text-caption);
     font-weight: 600;
     letter-spacing: 0.02em;
     text-align: center;
@@ -196,7 +196,7 @@
 
 .signal-indicator-top span {
     color: var(--color-text-secondary);
-    font-size: 11px;
+    font-size: var(--text-caption);
 }
 
 .signal-indicator-right {
@@ -207,13 +207,13 @@
 
 .signal-indicator-value {
     color: var(--color-text);
-    font-size: 11px;
+    font-size: var(--text-caption);
     font-weight: 600;
     font-variant-numeric: tabular-nums;
 }
 
 .signal-indicator-top strong {
-    font-size: 11px;
+    font-size: var(--text-caption);
     letter-spacing: 0.08em;
 }
 
@@ -231,7 +231,7 @@
     margin-top: 5px;
 
     color: var(--color-text-muted);
-    font-size: 10px;
+    font-size: var(--text-caption);
     line-height: 1.45;
 
     /* A long caption ("Перекупленность и перепроданность") is a single

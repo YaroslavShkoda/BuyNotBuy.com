@@ -7,7 +7,7 @@
 
     border: 1px solid var(--color-border);
     border-radius: var(--radius-lg);
-    background: rgba(10, 12, 14, 0.85);
+    background: var(--color-surface);
     box-shadow:
         inset 0 1px 0 rgba(255,255,255,0.05),
         inset 0 -1px 0 rgba(0,0,0,0.4);
@@ -24,7 +24,7 @@
 .signal-history-note {
     color: var(--color-text-muted);
 
-    font-size: 9px;
+    font-size: var(--text-caption);
     font-weight: 700;
     letter-spacing: 0.12em;
 }
@@ -64,12 +64,12 @@
 .signal-history-time {
     color: var(--color-text-muted);
 
-    font-size: 10px;
+    font-size: var(--text-caption);
     font-variant-numeric: tabular-nums;
 }
 
 .signal-history-signal {
-    font-size: 11px;
+    font-size: var(--text-caption);
     letter-spacing: 0.08em;
 }
 
@@ -88,7 +88,7 @@
 .signal-history-consensus {
     color: var(--color-text-secondary);
 
-    font-size: 10px;
+    font-size: var(--text-caption);
     font-weight: 600;
     font-variant-numeric: tabular-nums;
 }
@@ -129,7 +129,7 @@
 .history-summary-label {
     color: var(--color-text-muted);
 
-    font-size: 9px;
+    font-size: var(--text-caption);
     font-weight: 700;
     letter-spacing: 0.12em;
     white-space: nowrap;

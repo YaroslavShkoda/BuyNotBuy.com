@@ -125,6 +125,19 @@ try {
                 assert.match(page.url(), /market\/BTCUSDT/);
                 await visible(page, 'Bitcoin');
                 await page.getByRole('img', { name: /График цены/ }).waitFor();
+                const clippedChartContent = await page.evaluate(() => {
+                    const selectors = ['.volume-stat-label', '.volume-stat strong', '.interval-option', '.chart-change'];
+                    return selectors.flatMap((selector) => [...document.querySelectorAll<HTMLElement>(selector)].flatMap((element) => {
+                        const boundary = element.closest(selector.startsWith('.volume') ? '.volume-stat' : '.chart-card');
+                        if (!boundary) return [];
+                        const limit = boundary.getBoundingClientRect();
+                        const range = document.createRange();
+                        range.selectNodeContents(element);
+                        const clipped = [...range.getClientRects()].some((rect) => rect.width > 0 && (rect.left < limit.left - 1 || rect.right > limit.right + 1));
+                        return clipped ? [`${selector}: ${element.textContent}`] : [];
+                    }));
+                });
+                assert.deepEqual(clippedChartContent, [], 'Chart controls, numeric readings and volume labels must fit their containers');
                 const summary = page.locator('summary').filter({ hasText: 'Данные графика в виде таблицы' });
                 if (options.hasTouch) {
                     for (const target of [summary, page.getByRole('button', { name: 'BTCUSDT' }), page.getByRole('navigation', { name: 'Таймфрейм графика' }).getByRole('link').first()]) {
