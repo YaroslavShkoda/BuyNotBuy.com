@@ -4,6 +4,7 @@ import { Hero } from '../../components/hero';
 import { IntervalSwitcher } from '../../components/interval-switcher';
 import { MarketDetails } from '../../components/market-details';
 import { ResearchContext } from '../../components/research-context';
+import { RetryButton } from '../../components/retry-button';
 import { Topbar } from '../../components/topbar';
 import { getAnalysis } from '../../lib/analysis';
 import { getSignalHistory } from '../../lib/history';
@@ -12,6 +13,7 @@ import {
     intervalHref,
     intervalLabel,
     isInsufficientHistoryError,
+    isMarketUnavailableError,
     normalizeInterval,
 } from '../../lib/interval';
 import { getMarket } from '../../lib/market';
@@ -91,6 +93,38 @@ export default async function MarketPage({
                         </p>
 
                         <IntervalSwitcher symbol={instrument} interval={interval} />
+                    </section>
+                </div>
+            </main>
+        );
+    }
+
+    // A temporary outage from one request must not hide a broken contract or
+    // internal failure from the other. The insufficient-history state above
+    // retains its existing priority.
+    if (!analysisOutcome.ok && !isMarketUnavailableError(analysisOutcome.error)) throw analysisOutcome.error;
+    if (!marketOutcome.ok && !isMarketUnavailableError(marketOutcome.error)) throw marketOutcome.error;
+
+    const marketUnavailable =
+        (!analysisOutcome.ok && isMarketUnavailableError(analysisOutcome.error))
+        || (!marketOutcome.ok && isMarketUnavailableError(marketOutcome.error));
+
+    if (marketUnavailable) {
+        return (
+            <main className="app-shell">
+                <AutoRefresh />
+                <Topbar updatedAt={0} markets={marketLinks} />
+                <div className="content-stack">
+                    <section className="state-card depth-surface" role="alert">
+                        <span className="eyebrow">ДАННЫЕ ВРЕМЕННО НЕДОСТУПНЫ</span>
+                        <h1>Данные рынка временно недоступны</h1>
+                        <p>
+                            Источник котировок не ответил по {instrument} на таймфрейме{' '}
+                            {intervalLabel(interval)}. Запрос повторится автоматически,
+                            реальные данные не подменяются заглушками.
+                        </p>
+                        <IntervalSwitcher symbol={instrument} interval={interval} />
+                        <RetryButton />
                     </section>
                 </div>
             </main>

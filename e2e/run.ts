@@ -47,7 +47,7 @@ const mock = createServer((req, res) => {
     }
     if (/^error-/.test(scenario) || scenario === 'nohistory') {
         res.statusCode = scenario === 'nohistory' ? 503 : Number(scenario.slice(6));
-        return res.end(JSON.stringify({ error: { code: scenario === 'nohistory' ? 'MARKET_INSUFFICIENT_HISTORY' : 'MARKET_UNAVAILABLE', message: 'Deterministic browser fixture' } }));
+        return res.end(JSON.stringify({ error: { code: scenario === 'nohistory' ? 'MARKET_INSUFFICIENT_HISTORY' : scenario === 'error-429' ? 'RATE_LIMITED' : scenario === 'error-504' ? 'MARKET_PROVIDER_TIMEOUT' : 'MARKET_DATA_UNAVAILABLE', message: 'Deterministic browser fixture' } }));
     }
     const values = fixture(symbol, interval);
     res.end(JSON.stringify(url.pathname.endsWith('/analysis') ? values.analysis : values.market));
@@ -183,7 +183,8 @@ try {
         });
         for (const code of [429, 502, 503, 504]) await check(`${name}: HTTP ${code} and retry`, async () => {
             scenario = `error-${code}`; await page.goto(`${baseURL}/market/BTCUSDT`);
-            await page.getByRole('alert').filter({ hasText: 'MARKET DATA UNAVAILABLE' }).waitFor();
+            await page.getByRole('alert').filter({ hasText: 'ДАННЫЕ ВРЕМЕННО НЕДОСТУПНЫ' }).waitFor();
+            await page.screenshot({ path: `${output}/${name}-error-${code}.png` });
             scenario = 'fresh'; await page.getByRole('button', { name: 'Попробовать снова' }).click();
             await page.getByRole('heading', { name: 'Bitcoin', exact: true }).waitFor();
         });
