@@ -437,6 +437,7 @@ function ChartDataAlternative({
     return (
         <details className="chart-data-alternative">
             <summary>Данные графика в виде таблицы</summary>
+            <div className="chart-table-scroll" role="region" aria-label="Таблица значений графика" tabIndex={0}>
             <table>
                 <caption className="visually-hidden">
                     Последние {candles.length} свечей {symbol}, шаг {candleStepLabel(interval)}
@@ -458,6 +459,7 @@ function ChartDataAlternative({
                     ))}
                 </tbody>
             </table>
+            </div>
         </details>
     );
 }

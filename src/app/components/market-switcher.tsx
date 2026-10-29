@@ -41,6 +41,7 @@ export function MarketSwitcher({ markets }: { markets: readonly MarketOption[] }
     const [query, setQuery] = useState('');
     const rootRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
+    const toggleRef = useRef<HTMLButtonElement>(null);
 
     const current = markets.find((market) => market.active) ?? null;
     const results = useMemo(() => filterMarkets(markets, query), [markets, query]);
@@ -61,6 +62,7 @@ export function MarketSwitcher({ markets }: { markets: readonly MarketOption[] }
         const onKeyDown = (event: KeyboardEvent) => {
             if (event.key === 'Escape') {
                 setOpen(false);
+                toggleRef.current?.focus();
             }
         };
 
@@ -88,6 +90,7 @@ export function MarketSwitcher({ markets }: { markets: readonly MarketOption[] }
     return (
         <div className="topbar-switcher" ref={rootRef}>
             <button
+                ref={toggleRef}
                 type="button"
                 className={
                     current === null

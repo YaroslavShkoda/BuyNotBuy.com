@@ -571,3 +571,10 @@
     .chart-summary > strong { font-size: 16px; }
     .chart-axis-labels { font-size: var(--text-caption); }
 }
+
+.chart-data-alternative { margin-top: var(--space-4); min-width: 0; }
+.chart-data-alternative > summary { padding: 12px 0; cursor: pointer; color: var(--color-focus); font-size: var(--text-caption); line-height: 1.5; }
+.chart-table-scroll { max-width: 100%; max-height: 320px; overflow: auto; margin: var(--space-2) 2px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); overscroll-behavior: contain; }
+.chart-table-scroll table { width: 100%; border-collapse: collapse; text-align: left; font-size: var(--text-caption); font-variant-numeric: tabular-nums; }
+.chart-table-scroll th, .chart-table-scroll td { padding: 10px 12px; white-space: nowrap; border-bottom: 1px solid var(--color-border); }
+.chart-table-scroll th { position: sticky; top: 0; background: var(--color-surface-elevated); font-weight: 600; }

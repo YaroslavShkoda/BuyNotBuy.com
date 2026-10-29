@@ -5,6 +5,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { type BrowserContext, chromium, type Page } from 'playwright';
 import { InstrumentsResponseSchema, MarketAnalysisSchema, MarketResponseSchema } from '../src/backend/api/schemas.js';
+import { auditTerminal } from './terminal-audit.js';
 
 // Real browser + real Next SSR HTTP requests, deterministic market network.
 // This fixture intentionally has no DB access: actual backend/PG integration
@@ -124,6 +125,12 @@ try {
                 else await page.reload({ waitUntil: 'networkidle' });
                 assert.match(page.url(), /market\/BTCUSDT/);
                 await visible(page, 'Bitcoin');
+                const hydrationToggle = page.getByRole('button', { name: 'BTCUSDT' });
+                await hydrationToggle.click();
+                await page.getByRole('textbox', { name: 'Поиск рынка' }).waitFor();
+                const interactiveReadyMs = await page.evaluate(() => performance.now());
+                await hydrationToggle.click();
+                assert(interactiveReadyMs <= 4000, `Interactive readiness budget: ${interactiveReadyMs}`);
                 await page.getByRole('img', { name: /График цены/ }).waitFor();
                 const clippedChartContent = await page.evaluate(() => {
                     const selectors = ['.volume-stat-label', '.volume-stat strong', '.interval-option', '.chart-change'];
@@ -162,7 +169,13 @@ try {
                 assert(values.lcp !== null && values.lcp <= 4000, `${name} LCP budget: ${values.lcp}`);
                 assert(values.cls <= 0.1, `${name} CLS budget: ${values.cls}`);
                 assert(values.inp === null || values.inp <= 500, `${name} observed interaction budget: ${values.inp}`);
-                metrics.push({ device: name, viewport: options.viewport, cache, ...values, kind: 'lab; no throttling; not RUM', inpLimitation: values.inp === null ? 'No Event Timing entry >=16ms; INP unavailable, not zero' : 'Candidate from short scripted interaction sample; not field INP' });
+                const resourceTiming = await page.evaluate(() => ({
+                    scriptEncodedBytes: performance.getEntriesByType('resource').filter((entry) => (entry as PerformanceResourceTiming).initiatorType === 'script').reduce((total, entry) => total + (entry as PerformanceResourceTiming).encodedBodySize, 0),
+                    scriptDecodedBytes: performance.getEntriesByType('resource').filter((entry) => (entry as PerformanceResourceTiming).initiatorType === 'script').reduce((total, entry) => total + (entry as PerformanceResourceTiming).decodedBodySize, 0),
+                    domContentLoadedMs: (performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming).domContentLoadedEventEnd,
+                }));
+                assert(resourceTiming.scriptDecodedBytes <= 1_000_000, 'Route script decoded budget: 1MB');
+                metrics.push({ device: name, viewport: options.viewport, cache, ...values, ...resourceTiming, interactiveReadyMs, hydrationLimitation: 'Navigation-to-first-working-React-control upper bound including networkidle; not isolated React hydration duration', kind: 'lab; no throttling; not RUM', inpLimitation: values.inp === null ? 'No Event Timing entry >=16ms; INP unavailable, not zero' : 'Candidate from short scripted interaction sample; not field INP' });
                 await page.screenshot({ path: `${output}/${name}-${cache}.png`, fullPage: true });
                 await page.evaluate(() => window.scrollTo(0, 0));
                 await page.screenshot({ path: `${output}/${name}-${cache}-viewport.png` });
@@ -193,25 +206,39 @@ try {
             await visible(page, 'Опубликованное направление: LONG'); await visible(page, 'Причины непригодности: stale');
             await visible(page, 'не блокирует публикацию направления автоматически');
             await visible(page, 'повтор после сбоя (stale): да');
+            await page.screenshot({ path: `${output}/${name}-stale.png`, fullPage: true });
         });
         await check(`${name}: insufficient history recovery`, async () => {
             scenario = 'nohistory'; await page.goto(`${baseURL}/market/BTCUSDT?interval=1d`);
             await page.getByRole('heading', { name: 'Недостаточно исторических данных' }).waitFor();
+            await page.screenshot({ path: `${output}/${name}-insufficient.png` });
             scenario = 'fresh'; await page.getByRole('link', { name: '1ч', exact: true }).click();
             await page.getByRole('heading', { name: 'Bitcoin', exact: true }).waitFor();
         });
         for (const code of [429, 502, 503, 504]) await check(`${name}: HTTP ${code} and retry`, async () => {
             scenario = `error-${code}`; await page.goto(`${baseURL}/market/BTCUSDT`);
             await page.getByRole('alert').filter({ hasText: 'MARKET DATA UNAVAILABLE' }).waitFor();
+            await page.screenshot({ path: `${output}/${name}-error-${code}.png` });
             scenario = 'fresh'; await page.getByRole('button', { name: 'Попробовать снова' }).click();
             await page.getByRole('heading', { name: 'Bitcoin', exact: true }).waitFor();
         });
         await context.tracing.stop({ path: `${output}/${name}-trace.zip` });
         await context.close(); activeContext = undefined; activePage = undefined;
     }
+    if (process.env.TERMINAL_AUDIT === '1') {
+        scenario = 'fresh'; ethActive = true;
+        const count = await auditTerminal(browser, baseURL, output);
+        results.push({ name: 'terminal responsive and accessibility matrix', passed: true, viewports: count });
+    }
     assert(requests.some((url) => url.includes('ETHUSDT/analysis?interval=4h')));
     await writeFile(`${output}/report.json`, JSON.stringify({ status: 'passed', browser: browser.version(), results, metrics, requestCount: requests.length, isolation: 'HTTP API fixture, no database or market network' }, null, 2));
     process.stdout.write(`${results.length} browser checks passed. Artifacts: ${output}\n`);
+    if (process.env.E2E_PREVIEW === '1') {
+        scenario = 'fresh'; ethActive = true;
+        await writeFile(`${output}/preview.json`, JSON.stringify({ url: baseURL, fixture: true, runnerPid: process.pid, serverPid: server.pid }));
+        process.stdout.write(`Fixture preview: ${baseURL}\n`);
+        await new Promise<void>((resolve) => { process.once('SIGINT', resolve); process.once('SIGTERM', resolve); });
+    }
 } catch (error) {
     await activePage?.screenshot({ path: `${output}/failure.png`, fullPage: true }).catch(() => undefined);
     await activeContext?.tracing.stop({ path: `${output}/failure-trace.zip` }).catch(() => undefined);
